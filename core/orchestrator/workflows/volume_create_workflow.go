@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -715,8 +716,11 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 	return dbVolume, nil
 }
 
-// CreateVolumeWorkflow Volume Workflow process volume related requests from a customer.
-func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volume *datamodel.Volume) (gcpgenserver.V1betaDescribeVolumeRes, error) {
+// CreateVolumeWorkflow processes a volume create request. New callers pass only the volume UUID and
+// the workflow fetches the full volume in its first activity so the sequencer's ContinueAsNew payload
+// does not include the large Pool.VLMConfig blob. The *datamodel.Volume input remains temporarily
+// accepted to allow existing executions to replay while they drain.
+func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volumeReference interface{}) (gcpgenserver.V1betaDescribeVolumeRes, error) {
 	log := util.GetLogger(ctx)
 	volumeWf := new(volumeCreateWorkflow)
 	err := volumeWf.Setup(ctx, params)
@@ -724,12 +728,53 @@ func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParam
 		log.Errorf("Failed to setup CreateVolumeWorkflow: %v", err)
 		return nil, err
 	}
-	if err = volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
+
+	var volume *datamodel.Volume
+	switch input := volumeReference.(type) {
+	case string:
+		// The LV-specific timeout cannot be derived until the volume is loaded. Run() applies the
+		// appropriate LV-aware ActivityOptions after this standard database fetch completes.
+		fetchAO := workflow.ActivityOptions{
+			StartToCloseTimeout: time.Duration(volumeStartToCloseTimeoutSec) * time.Second,
+			HeartbeatTimeout:    time.Duration(dbHeartbeatTimeoutSec) * time.Second,
+		}
+		fetchCtx := workflow.WithActivityOptions(ctx, fetchAO)
+
+		volumeActivity := &activities.VolumeCreateActivity{}
+		if err = workflow.ExecuteActivity(fetchCtx, volumeActivity.GetVolumeByVolumeID, input).Get(fetchCtx, &volume); err != nil {
+			log.Errorf("Failed to fetch volume %s for CreateVolumeWorkflow: %v", input, err)
+			return nil, err
+		}
+	case *datamodel.Volume:
+		volume = input
+	case map[string]interface{}:
+		// Temporal decodes a previously serialized concrete volume as a map when the
+		// workflow argument type is interface{}. Preserve compatibility while queued
+		// pre-change signals drain.
+		volumeJSON, marshalErr := json.Marshal(input)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("marshal legacy CreateVolumeWorkflow volume input: %w", marshalErr)
+		}
+		volume = &datamodel.Volume{}
+		if unmarshalErr := json.Unmarshal(volumeJSON, volume); unmarshalErr != nil {
+			return nil, fmt.Errorf("unmarshal legacy CreateVolumeWorkflow volume input: %w", unmarshalErr)
+		}
+	default:
+		return nil, fmt.Errorf("invalid CreateVolumeWorkflow volume input type %T", volumeReference)
+	}
+
+	return runVolumeCreate(ctx, volumeWf, params, volume)
+}
+
+// runVolumeCreate drives the job-status lifecycle around volumeCreateWorkflow.Run.
+func runVolumeCreate(ctx workflow.Context, volumeWf *volumeCreateWorkflow, params *common.CreateVolumeParams, volume *datamodel.Volume) (gcpgenserver.V1betaDescribeVolumeRes, error) {
+	log := util.GetLogger(ctx)
+	if err := volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
 		return nil, err
 	}
 
 	volumeWf.Status = WorkflowStatusRunning
-	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
+	err := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
 		log.Errorf("Failed to update job status to Processing for CreateVolumeWorkflow: %v", err)
 		return nil, err

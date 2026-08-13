@@ -30,7 +30,7 @@ func (h *SnapshotHandler) JobTypes() []datamodel.JobType {
 
 // Handle removes snapshot artifacts from VCP for the job.
 func (h *SnapshotHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

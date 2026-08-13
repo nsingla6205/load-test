@@ -62,6 +62,8 @@ poCmekEnabled: false # Feature flag: allow CMEK/KMS on PO pool create
 regionalSupportEnabled: true
 # When true, core/worker use registered address ranges for pool subnet creation; set to match global.coreConfig.addressSpaceMgmtEnabled in deployments.
 addressSpaceMgmtEnabled: "false"
+# Must match global.coreConfig.sequenceWorkflowResilienceEnabled on core and worker at rollout.
+sequenceWorkflowResilienceEnabled: true
 filesProtocolSupport: true
 ontapVersionDetails: "9.19.1"
 ontapVersionDetailsExperimental: ""

@@ -30,7 +30,7 @@ func (h *KmsDeleteHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts KMS config state from DELETING to previous state for stale delete jobs.
 func (h *KmsDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

@@ -32,7 +32,7 @@ func (h *HostGroupUpdateHandler) JobTypes() []datamodel.JobType {
 // jobs (workflow never started) it reverts to the previous state; for PROCESSING state
 // jobs (workflow started then timed out) it transitions the host group to ERROR.
 func (h *HostGroupUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

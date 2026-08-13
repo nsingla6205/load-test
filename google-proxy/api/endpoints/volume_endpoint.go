@@ -60,6 +60,7 @@ var (
 	exportRulesLimit                  = env.GetInt("EXPORT_POLICY_RULES_LIMIT", 20)
 	enableInferredIops                = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	trueZonalLVVolumeMinSize          = env.GetUint64("TRUE_ZONAL_LV_VOLUME_MIN_SIZE", 10555311626650) // 9.6 TiB in bytes
+	sequenceResilienceEnabled         = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
 )
 
 const (
@@ -1713,6 +1714,9 @@ func (h Handler) V1betaDeleteVolume(ctx context.Context, req gcpgenserver.OptV1b
 		if volume.LargeCapacity {
 			jobType = string(datamodel.JobTypeDeleteLargeVolume)
 		}
+		if volume.CacheParameters != nil {
+			jobType = string(datamodel.JobTypeFlexCacheDeleteVolume)
+		}
 
 		job, jobErr := h.Orchestrator.GetJobByResourceUUID(ctx, volume.UUID, jobType)
 		if jobErr != nil {
@@ -1723,11 +1727,16 @@ func (h Handler) V1betaDeleteVolume(ctx context.Context, req gcpgenserver.OptV1b
 				Done: gcpgenserver.NewOptBool(true),               // Mark as done since we can't find the job
 			}, nil
 		}
-		operationID := fmt.Sprintf("/v1beta/projects/%s/locations/%s/operations/%s", params.ProjectNumber, params.LocationId, job.UUID)
-		return &gcpgenserver.OperationV1beta{
-			Name: gcpgenserver.NewOptString(operationID),
-			Done: gcpgenserver.NewOptBool(job.State == datamodel.JobsStateDONE || job.State == datamodel.JobsStateERROR), // Done if job is in DONE or ERROR state
-		}, nil
+
+		if sequenceResilienceEnabled && (job.State == datamodel.JobsStateERROR || job.State == datamodel.JobsStateDONE) {
+			log.Infof("Existing delete job %s in terminal state %s; resilience enabled, initiating fresh delete", job.UUID, job.State)
+		} else {
+			operationID := fmt.Sprintf("/v1beta/projects/%s/locations/%s/operations/%s", params.ProjectNumber, params.LocationId, job.UUID)
+			return &gcpgenserver.OperationV1beta{
+				Name: gcpgenserver.NewOptString(operationID),
+				Done: gcpgenserver.NewOptBool(job.State == datamodel.JobsStateDONE || job.State == datamodel.JobsStateERROR),
+			}, nil
+		}
 	}
 
 	if volume != nil && volume.LifeCycleState == datamodel.LifeCycleStateDeleted {

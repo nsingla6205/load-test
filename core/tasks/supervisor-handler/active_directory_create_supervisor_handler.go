@@ -33,7 +33,7 @@ func (h *ActiveDirectoryCreateHandler) JobTypes() []datamodel.JobType {
 // restore. Both NEW-state timeouts (the workflow never started) and PROCESSING-state timeouts (the workflow
 // started then timed out) resolve to ERROR so the resource stops being stuck in CREATING.
 func (h *ActiveDirectoryCreateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

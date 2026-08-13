@@ -32,7 +32,7 @@ func (h *ActiveDirectoryDeleteHandler) JobTypes() []datamodel.JobType {
 // delete never began. For PROCESSING-state timeouts (the workflow started then timed out) it moves the AD
 // to ERROR, preserving the delete intent rather than incorrectly flipping it back to READY.
 func (h *ActiveDirectoryDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

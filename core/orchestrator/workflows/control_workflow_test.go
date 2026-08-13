@@ -3,11 +3,13 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	workflowEngineMock "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
@@ -19,7 +21,42 @@ import (
 
 func WorkflowTest() {}
 
+func enableSequenceResilience(t *testing.T) {
+	t.Helper()
+	original := sequenceResilienceEnabled
+	sequenceResilienceEnabled = true
+	t.Cleanup(func() { sequenceResilienceEnabled = original })
+}
+
+func newWorkflowTestEnv() *testsuite.TestWorkflowEnvironment {
+	var ts testsuite.WorkflowTestSuite
+	return ts.NewTestWorkflowEnvironment()
+}
+
+func assertWorkflowSuccess(t *testing.T, env *testsuite.TestWorkflowEnvironment) {
+	t.Helper()
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+}
+
+func signalChild(env *testsuite.TestWorkflowEnvironment, delay time.Duration, name, arg string) {
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(Signal, SignalWorkflowParams{
+			Function: name,
+			Args:     []interface{}{arg},
+		})
+	}, delay)
+}
+
+// =============================================================================
+// Legacy SequenceWorkflow tests (feature flag OFF)
+// =============================================================================
+
 func TestExecuteWorkflowSequentially_Success(t *testing.T) {
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	temporal := workflowEngineMock.NewMockTemporalTestClient(t)
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
@@ -75,6 +112,10 @@ func TestExecuteWorkflowSequentially_Success(t *testing.T) {
 }
 
 func TestExecuteWorkflowSequentially_SignalError(t *testing.T) {
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	temporal := workflowEngineMock.NewMockTemporalTestClient(t)
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
@@ -188,11 +229,14 @@ func TestExecuteWorkflowSequentially_ValidationError_ExecutionWorkflowIDNil(t *t
 	env.AssertExpectations(t)
 }
 
-func TestSequenceWorkflow_ExecutesChildWorkflowOnSignal(t *testing.T) {
+func TestSequenceWorkflow_Legacy_ExecutesChildWorkflowOnSignal(t *testing.T) {
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 
-	// Register a dummy child workflow
 	env.RegisterDelayedCallback(func() {
 		env.SignalWorkflow(Signal, SignalWorkflowParams{
 			Function: "DummyChildWorkflow",
@@ -211,7 +255,11 @@ func TestSequenceWorkflow_ExecutesChildWorkflowOnSignal(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 }
 
-func TestSequenceWorkflow_ChildWorkflowError(t *testing.T) {
+func TestSequenceWorkflow_Legacy_ChildWorkflowError(t *testing.T) {
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 
@@ -233,7 +281,11 @@ func TestSequenceWorkflow_ChildWorkflowError(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 }
 
-func TestSequenceWorkflow_ExitsOnTimeout(t *testing.T) {
+func TestSequenceWorkflow_Legacy_ExitsOnTimeout(t *testing.T) {
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 
@@ -244,11 +296,13 @@ func TestSequenceWorkflow_ExitsOnTimeout(t *testing.T) {
 }
 
 func TestExecuteWorkflowSequentially_InvalidTimeoutFallsBackToGlobalTimeout(t *testing.T) {
-	// Save original value and restore after test
+	origFlag := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	defer func() { sequenceResilienceEnabled = origFlag }()
+
 	originalTimeout := SequenceWorkflowTimeout
 	defer func() { SequenceWorkflowTimeout = originalTimeout }()
 
-	// Set invalid duration to trigger parseErr
 	SequenceWorkflowTimeout = "invalid-duration"
 
 	temporal := workflowEngineMock.NewMockTemporalTestClient(t)
@@ -256,7 +310,6 @@ func TestExecuteWorkflowSequentially_InvalidTimeoutFallsBackToGlobalTimeout(t *t
 	env := ts.NewTestWorkflowEnvironment()
 	ctx := context.Background()
 
-	// When parse fails, should fallback to GetWorkflowGlobalTimeout()
 	expectedTimeout := workflowengine.GetWorkflowGlobalTimeout()
 
 	temporal.EXPECT().SignalWithStartWorkflow(
@@ -297,3 +350,99 @@ func TestExecuteWorkflowSequentially_InvalidTimeoutFallsBackToGlobalTimeout(t *t
 	assert.NoError(t, err)
 	env.AssertExpectations(t)
 }
+
+func registerNoopChild(env *testsuite.TestWorkflowEnvironment, name string) {
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, arg string) error { return nil }, workflow.RegisterOptions{Name: name})
+}
+
+func TestSequenceWorkflow_Resilient(t *testing.T) {
+	enableSequenceResilience(t)
+
+	t.Run("executes child on signal", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		registerNoopChild(env, "DummyChild")
+		signalChild(env, time.Second, "DummyChild", "arg1")
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{})
+		assertWorkflowSuccess(t, env)
+	})
+
+	t.Run("exits on idle timeout", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{})
+		assertWorkflowSuccess(t, env)
+	})
+
+	t.Run("child failure does not block queue", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		env.RegisterWorkflowWithOptions(func(ctx workflow.Context, arg string) error {
+			return errors.New("simulated child failure")
+		}, workflow.RegisterOptions{Name: "FailingChild"})
+		registerNoopChild(env, "SuccessChild")
+		signalChild(env, 500*time.Millisecond, "FailingChild", "arg1")
+		signalChild(env, time.Second, "SuccessChild", "arg2")
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{})
+		assertWorkflowSuccess(t, env)
+	})
+
+	t.Run("continue as new when suggested", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		registerNoopChild(env, "QuickChild")
+		env.RegisterDelayedCallback(func() {
+			for _, a := range []string{"1", "2", "3"} {
+				env.SignalWorkflow(Signal, SignalWorkflowParams{Function: "QuickChild", Args: []interface{}{a}})
+			}
+			env.SetContinueAsNewSuggested(true)
+		}, 500*time.Millisecond)
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{})
+		require.Error(t, env.GetWorkflowError())
+		assert.Contains(t, env.GetWorkflowError().Error(), "continue as new")
+	})
+
+	t.Run("restored queue processes before suggested CAN", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		var executed int
+		env.RegisterWorkflowWithOptions(func(ctx workflow.Context, arg string) error {
+			executed++
+			return nil
+		}, workflow.RegisterOptions{Name: "RestoredChild"})
+		env.SetContinueAsNewSuggested(true)
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{
+			State: &SequenceWorkflowState{
+				PendingQueue: []SignalWorkflowParams{{Function: "RestoredChild", Args: []interface{}{"restored-arg"}}},
+				RunStartedAt: time.Now(),
+			},
+		})
+		assert.Equal(t, 1, executed)
+		require.Error(t, env.GetWorkflowError())
+	})
+
+	t.Run("multiple signals drained", func(t *testing.T) {
+		env := newWorkflowTestEnv()
+		var order []string
+		env.RegisterWorkflowWithOptions(func(ctx workflow.Context, arg string) error {
+			order = append(order, arg)
+			return nil
+		}, workflow.RegisterOptions{Name: "OrderedChild"})
+		env.RegisterDelayedCallback(func() {
+			for i := 0; i < 5; i++ {
+				env.SignalWorkflow(Signal, SignalWorkflowParams{Function: "OrderedChild", Args: []interface{}{fmt.Sprintf("signal-%d", i)}})
+			}
+		}, 500*time.Millisecond)
+		env.ExecuteWorkflow(SequenceWorkflowV2, SequenceWorkflowInput{})
+		assertWorkflowSuccess(t, env)
+		assert.Len(t, order, 5)
+	})
+}
+
+func TestSequenceWorkflow_FeatureFlagOff_UsesLegacy(t *testing.T) {
+	orig := sequenceResilienceEnabled
+	sequenceResilienceEnabled = false
+	t.Cleanup(func() { sequenceResilienceEnabled = orig })
+
+	env := newWorkflowTestEnv()
+	registerNoopChild(env, "LegacyChild")
+	signalChild(env, time.Second, "LegacyChild", "legacy")
+	env.ExecuteWorkflow(SequenceWorkflow)
+	assertWorkflowSuccess(t, env)
+}
+

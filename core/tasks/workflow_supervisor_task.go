@@ -5,15 +5,18 @@ package tasks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	supervisorhandler "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/tasks/supervisor-handler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -45,6 +48,10 @@ var (
 	// scan runs at all. Set to false to disable; defaults to true (enabled).
 	processingTimeoutEnabled = env.GetBool("WORKFLOW_SUPERVISOR_PROCESSING_TIMEOUT_ENABLED", true)
 
+	// supervisorTerminatedHandlingEnabled gates whether the supervisor detects and
+	// cleans up TERMINATED workflows. Guarded by the same resilience feature flag.
+	supervisorTerminatedHandlingEnabled = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
+
 	// processingStateEligibleJobTypes defines the set of job types for which
 	// the PROCESSING state timeout scan is enabled. Pool and volume delete
 	// operations are supported; create operations are generally excluded because
@@ -54,6 +61,18 @@ var (
 	// handler only transitions the resource to ERROR (never to a healthy state),
 	// so a timed-out create is surfaced as failed instead of being left stuck in
 	// CREATING, while still leaving any partial external resources for follow-up.
+	// sequencerBackedJobTypes may not have a child workflow until the pool sequencer dequeues them.
+	sequencerBackedJobTypes = map[datamodel.JobType]struct{}{
+		datamodel.JobTypeCreateVolume:              {},
+		datamodel.JobTypeCreateLargeVolume:         {},
+		datamodel.JobTypeFlexCacheCreateVolume:     {},
+		datamodel.JobTypeFlexCacheEstablishPeering: {},
+		datamodel.JobTypeDeleteVolume:              {},
+		datamodel.JobTypeDeleteLargeVolume:         {},
+		datamodel.JobTypeFlexCacheDeleteVolume:     {},
+		datamodel.JobTypeDeleteSnapshot:            {},
+	}
+
 	processingStateEligibleJobTypes = map[datamodel.JobType]struct{}{
 		datamodel.JobTypeDeletePool:            {},
 		datamodel.JobTypeDeleteLargePool:       {},
@@ -360,14 +379,20 @@ func (r *workflowSupervisorTaskRunner) evaluateProcessingJob(ctx context.Context
 	status := resp.WorkflowExecutionInfo.GetStatus()
 	logger.Infof("workflow-supervisor-task: PROCESSING job workflow: %s status: %s", job.WorkflowID, status)
 
-	// Only handle TIMED_OUT status for PROCESSING jobs
-	if status != enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT {
-		logger.Debugf("workflow-supervisor-task: PROCESSING job workflow status=%s; not timed out, skipping", status.String())
-		return
+	switch status {
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		logger.Warnf("workflow-supervisor-task: detected timed-out workflow for PROCESSING job; starting cleanup")
+		r.cleanupJob(ctx, job, handler, supervisorhandler.EventTimeout, datamodel.JobsStatePROCESSING, logger)
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		if !supervisorTerminatedHandlingEnabled {
+			logger.Debugf("workflow-supervisor-task: terminated PROCESSING workflow detected but handling disabled; ignoring")
+			return
+		}
+		logger.Warnf("workflow-supervisor-task: detected terminated workflow for PROCESSING job; starting cleanup")
+		r.cleanupJob(ctx, job, handler, supervisorhandler.EventTerminated, datamodel.JobsStatePROCESSING, logger)
+	default:
+		logger.Debugf("workflow-supervisor-task: PROCESSING job workflow status=%s; not timed out or terminated, skipping", status.String())
 	}
-
-	logger.Warnf("workflow-supervisor-task: detected timed-out workflow for PROCESSING job; starting cleanup")
-	r.cleanupJob(ctx, job, handler, supervisorhandler.EventTimeout, datamodel.JobsStatePROCESSING, logger)
 }
 
 // evaluateJob inspects Temporal state for a job and triggers cleanup when
@@ -387,6 +412,9 @@ func (r *workflowSupervisorTaskRunner) evaluateJob(ctx context.Context, job *dat
 
 	resp, err := r.temporal.DescribeWorkflowExecution(describeCtx, job.WorkflowID, "")
 	if err != nil {
+		if r.shouldDeferCleanupForQueuedSequencerWork(ctx, job, err, logger) {
+			return
+		}
 		logger.Errorf("workflow-supervisor-task: temporal describe failed; starting cleanup: %v", err)
 		r.cleanupJob(ctx, job, handler, supervisorhandler.EventTimeout, expectedState, logger)
 		return
@@ -399,14 +427,86 @@ func (r *workflowSupervisorTaskRunner) evaluateJob(ctx context.Context, job *dat
 
 	status := resp.WorkflowExecutionInfo.GetStatus()
 	logger.Infof("workflow-supervisor-task: workflow: %s status: %s", job.WorkflowID, status)
-	if status != enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT {
+
+	switch status {
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		logger.Warnf("workflow-supervisor-task: detected timed-out workflow; starting cleanup")
+		r.cleanupJob(ctx, job, handler, supervisorhandler.EventTimeout, expectedState, logger)
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		if !supervisorTerminatedHandlingEnabled {
+			logger.Debugf("workflow-supervisor-task: terminated workflow detected but handling disabled; ignoring")
+			return
+		}
+		logger.Warnf("workflow-supervisor-task: detected terminated workflow; starting cleanup")
+		r.cleanupJob(ctx, job, handler, supervisorhandler.EventTerminated, expectedState, logger)
+	default:
 		logger.Debugf("workflow-supervisor-task: unsupported workflow status=%s; ignoring", status.String())
-		return
+	}
+}
+
+// shouldDeferCleanupForQueuedSequencerWork returns true when a NEW sequencer-backed job's child
+// workflow is not found in Temporal but the pool sequencer is still running, meaning
+// the operation is likely queued in SequenceWorkflow rather than lost.
+func (r *workflowSupervisorTaskRunner) shouldDeferCleanupForQueuedSequencerWork(ctx context.Context, job *datamodel.Job, describeErr error, logger log.Logger) bool {
+	if !supervisorTerminatedHandlingEnabled {
+		return false
+	}
+	if _, ok := sequencerBackedJobTypes[datamodel.JobType(job.Type)]; !ok {
+		return false
+	}
+	var notFound *serviceerror.NotFound
+	if !errors.As(describeErr, &notFound) {
+		return false
 	}
 
-	logger.Warnf("workflow-supervisor-task: detected timed-out workflow; starting cleanup")
+	sequenceWorkflowID, err := r.sequenceWorkflowIDForJob(ctx, job)
+	if err != nil {
+		logger.Warnf("workflow-supervisor-task: cannot resolve sequencer workflow ID; proceeding with cleanup: %v", err)
+		return false
+	}
 
-	r.cleanupJob(ctx, job, handler, supervisorhandler.EventTimeout, expectedState, logger)
+	seqDescribeCtx, cancel := context.WithTimeout(ctx, temporalDescribeTimeout)
+	defer cancel()
+
+	resp, err := r.temporal.DescribeWorkflowExecution(seqDescribeCtx, sequenceWorkflowID, "")
+	if err != nil {
+		return false
+	}
+	if resp == nil || resp.WorkflowExecutionInfo == nil {
+		return false
+	}
+
+	status := resp.WorkflowExecutionInfo.GetStatus()
+	if status == enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING {
+		logger.Infof(
+			"workflow-supervisor-task: child workflow not found but sequencer %s is running; deferring cleanup for job %s",
+			sequenceWorkflowID, job.UUID,
+		)
+		return true
+	}
+
+	return false
+}
+
+func (r *workflowSupervisorTaskRunner) sequenceWorkflowIDForJob(ctx context.Context, job *datamodel.Job) (string, error) {
+	if job == nil || job.JobAttributes == nil || job.JobAttributes.PoolUUID == "" {
+		return "", fmt.Errorf("job missing pool UUID")
+	}
+	if !job.AccountID.Valid {
+		return "", fmt.Errorf("job missing account ID")
+	}
+
+	pool, err := r.storage.GetPoolByUUIDForAccount(ctx, job.JobAttributes.PoolUUID, job.AccountID.Int64)
+	if err != nil {
+		return "", fmt.Errorf("load pool: %w", err)
+	}
+
+	location, err := utils.GetLocationFromVendorID(pool.VendorID)
+	if err != nil {
+		return "", fmt.Errorf("resolve location: %w", err)
+	}
+
+	return workflows.GenerateControlWorkflowID(job.AccountID.Int64, location, pool.Name), nil
 }
 
 // markJobAsError updates the job state and detail to record a timeout failure.

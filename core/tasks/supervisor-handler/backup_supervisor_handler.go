@@ -31,7 +31,7 @@ func (h *BackupHandler) JobTypes() []datamodel.JobType {
 
 // Handle removes backup artifacts from VCP for the job.
 func (h *BackupHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

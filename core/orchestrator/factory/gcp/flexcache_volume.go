@@ -193,7 +193,10 @@ func _createFlexCacheVolume(ctx context.Context, se database.Storage, temporal c
 		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
 		CorrelationID: correlationID,
 		RequestID:     requestURI,
-		JobAttributes: &datamodel.JobAttributes{ResourceUUID: dbVolume.UUID},
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: dbVolume.UUID,
+			PoolUUID:     dbVolume.Pool.UUID,
+		},
 	}
 	createdEstablishJob, err := se.CreateJobWithWorkflowID(ctx, establishJob, createdJob.WorkflowID)
 	if err != nil {
@@ -284,7 +287,10 @@ func _establishFlexCacheVolumePeering(ctx context.Context, se database.Storage, 
 		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
 		CorrelationID: correlationID,
 		RequestID:     requestURI,
-		JobAttributes: &datamodel.JobAttributes{ResourceUUID: dbVolume.UUID},
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: dbVolume.UUID,
+			PoolUUID:     dbVolume.Pool.UUID,
+		},
 	}
 
 	createdJob, err := se.CreateJob(ctx, job)

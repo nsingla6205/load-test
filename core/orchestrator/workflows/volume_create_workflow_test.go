@@ -234,7 +234,8 @@ func (s *UnitTestSuite) Test_CreateVolumeWorkflow_Success() {
 	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
 	volumeDeleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
 	volume := &datamodel.Volume{
-		Account: &datamodel.Account{Name: "account-1"},
+		BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},
+		Account:   &datamodel.Account{Name: "account-1"},
 		Pool: &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: int64(1)},
 			PoolCredentials: &datamodel.PoolCredentials{
@@ -253,7 +254,7 @@ func (s *UnitTestSuite) Test_CreateVolumeWorkflow_Success() {
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(volumeCreateActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CreateVolume, mock.Anything, mock.Anything).Return(volume, nil)
-	s.env.OnActivity("GetVolumeByVolumeID", mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnActivity(volumeCreateActivity.GetVolumeByVolumeID, mock.Anything, volume.UUID).Return(volume, nil).Once()
 	s.env.OnActivity(volumeCreateActivity.CreateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{}, nil)
 	s.env.OnActivity(volumeCreateActivity.CreateIgroup, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeDeleteActivity.DeleteSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -273,7 +274,7 @@ func (s *UnitTestSuite) Test_CreateVolumeWorkflow_Success() {
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(CreateVolumeWorkflow, &common.CreateVolumeParams{}, volume)
+	s.env.ExecuteWorkflow(CreateVolumeWorkflow, &common.CreateVolumeParams{}, volume.UUID)
 
 	_, err := s.env.QueryWorkflowByID("default-test-workflow-id", "status")
 	assert.Nil(s.T(), err)

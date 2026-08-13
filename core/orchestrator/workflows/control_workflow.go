@@ -18,6 +18,11 @@ import (
 
 var (
 	SequenceWorkflowTimeout = env.GetString("SEQUENCE_WORKFLOW_TIMEOUT_MINUTES", "120m")
+
+	// Feature flag: when true, the new ContinueAsNew-based sequencer is used.
+	sequenceResilienceEnabled = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
+
+	sequenceIdleTimeout = time.Duration(env.GetInt("SEQUENCE_IDLE_TIMEOUT_SECONDS", 3)) * time.Second
 )
 
 const (
@@ -50,7 +55,23 @@ type SignalWorkflowParams struct {
 	Options  workflow.ChildWorkflowOptions
 }
 
-// SequenceWorkflow is a workflow that listens for signals and executes child workflows sequentially.
+// SequenceWorkflowState is the serializable state passed across ContinueAsNew boundaries.
+// It carries the pending signal queue so no signals are lost during rotation.
+type SequenceWorkflowState struct {
+	PendingQueue []SignalWorkflowParams `json:"pending_queue"`
+	ChildrenRun  int                    `json:"children_run"`
+	RunStartedAt time.Time              `json:"run_started_at"`
+}
+
+// SequenceWorkflowInput is the entry argument for the resilient SequenceWorkflow.
+// On first invocation (via SignalWithStart) it will be zero-value; on ContinueAsNew
+// it carries the state snapshot from the previous run.
+type SequenceWorkflowInput struct {
+	State *SequenceWorkflowState `json:"state,omitempty"`
+}
+
+// SequenceWorkflow is the legacy workflow that listens for signals and executes child workflows sequentially.
+// It does NOT use ContinueAsNew. Used when SEQUENCE_WORKFLOW_RESILIENCE_ENABLED=false.
 func SequenceWorkflow(ctx workflow.Context) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -58,7 +79,7 @@ func SequenceWorkflow(ctx workflow.Context) error {
 	signalChan := workflow.GetSignalChannel(ctx, Signal)
 
 	// This timer is used to check if the workflow should exit, if sitting idle.
-	timeout := workflow.NewTimer(ctx, 3*time.Second)
+	timeout := workflow.NewTimer(ctx, sequenceIdleTimeout)
 
 	for {
 		selector := workflow.NewSelector(ctx)
@@ -95,6 +116,133 @@ func SequenceWorkflow(ctx workflow.Context) error {
 	}
 
 	return nil
+}
+
+// SequenceWorkflowV2 is the resilient version with ContinueAsNew support.
+// Used when SEQUENCE_WORKFLOW_RESILIENCE_ENABLED=true. It drains signals into an in-memory
+// queue, processes them one at a time, and rotates before hitting Temporal's history limit.
+func SequenceWorkflowV2(ctx workflow.Context, input SequenceWorkflowInput) error {
+	logger := workflow.GetLogger(ctx)
+
+	state := initSequenceState(ctx, input)
+	signalChan := workflow.GetSignalChannel(ctx, Signal)
+
+	for {
+		// Drain new signals and rotate before processing when thresholds are met.
+		// This prevents signal bursts from growing history past the server limit
+		// while a long-running child workflow is still executing.
+		drainSignalsIntoQueue(signalChan, &state.PendingQueue)
+		if shouldContinueAsNewBeforeProcess(ctx, state) {
+			logger.Info("ContinueAsNew triggered",
+				"childrenRun", state.ChildrenRun,
+				"pendingQueueDepth", len(state.PendingQueue),
+				"historyLength", workflow.GetInfo(ctx).GetCurrentHistoryLength(),
+			)
+			return workflow.NewContinueAsNewError(ctx, SequenceWorkflowV2, SequenceWorkflowInput{State: &state})
+		}
+
+		// 1. Process queued work
+		if len(state.PendingQueue) > 0 {
+			item := state.PendingQueue[0]
+			state.PendingQueue = state.PendingQueue[1:]
+
+			childCtx := workflow.WithChildOptions(ctx, item.Options)
+			if err := workflow.ExecuteChildWorkflow(childCtx, item.Function, item.Args...).Get(childCtx, nil); err != nil {
+				logger.Error("Child workflow failed, continuing queue", "function", item.Function, "error", err)
+			}
+			state.ChildrenRun++
+
+			// Check if rotation is needed after each child completes
+			if shouldContinueAsNew(ctx, state) {
+				drainSignalsIntoQueue(signalChan, &state.PendingQueue)
+				logger.Info("ContinueAsNew triggered",
+					"childrenRun", state.ChildrenRun,
+					"pendingQueueDepth", len(state.PendingQueue),
+					"historyLength", workflow.GetInfo(ctx).GetCurrentHistoryLength(),
+				)
+				return workflow.NewContinueAsNewError(ctx, SequenceWorkflowV2, SequenceWorkflowInput{State: &state})
+			}
+
+			// Drain any new signals that arrived while child was executing
+			drainSignalsIntoQueue(signalChan, &state.PendingQueue)
+			continue
+		}
+
+		// 2. No pending work — wait for new signal or idle exit
+		selector := workflow.NewSelector(ctx)
+		gotSignal := false
+
+		selector.AddReceive(signalChan, func(c workflow.ReceiveChannel, _ bool) {
+			var params SignalWorkflowParams
+			c.Receive(ctx, &params)
+			state.PendingQueue = append(state.PendingQueue, params)
+			gotSignal = true
+		})
+
+		idleTimer := workflow.NewTimer(ctx, sequenceIdleTimeout)
+		selector.AddFuture(idleTimer, func(workflow.Future) {})
+
+		selector.Select(ctx)
+
+		// Select picks randomly when the signal channel and idle timer are both ready,
+		// so drain before evaluating the exit condition.
+		drainSignalsIntoQueue(signalChan, &state.PendingQueue)
+
+		if !gotSignal && len(state.PendingQueue) == 0 && !selector.HasPending() {
+			logger.Info("Idle timeout reached, exiting workflow cleanly",
+				"childrenRun", state.ChildrenRun,
+			)
+			break
+		}
+	}
+
+	return nil
+}
+
+// initSequenceState restores state from CAN input or initializes fresh state.
+func initSequenceState(ctx workflow.Context, input SequenceWorkflowInput) SequenceWorkflowState {
+	if input.State != nil {
+		input.State.ChildrenRun = 0
+		input.State.RunStartedAt = workflow.Now(ctx)
+		return *input.State
+	}
+	return SequenceWorkflowState{
+		PendingQueue: nil,
+		ChildrenRun:  0,
+		RunStartedAt: workflow.Now(ctx),
+	}
+}
+
+// drainSignalsIntoQueue drains all buffered signals from the channel into the pending queue.
+// Uses ReceiveAsync which is non-blocking — returns immediately when channel is empty.
+func drainSignalsIntoQueue(ch workflow.ReceiveChannel, queue *[]SignalWorkflowParams) {
+	for {
+		var params SignalWorkflowParams
+		if !ch.ReceiveAsync(&params) {
+			break
+		}
+		*queue = append(*queue, params)
+	}
+}
+
+// shouldContinueAsNewBeforeProcess checks if Temporal suggests rotating before starting
+// the next child. Pending-queue depth is intentionally excluded here so a signal burst
+// is drained and at least one child can run before queue-depth rotation.
+//
+// When a run starts via ContinueAsNew, the carried pending-queue payload alone can push
+// history size past Temporal's suggest threshold before any child executes. In that case
+// we must still dispatch at least one queued child; otherwise the workflow CAN-loops
+// forever without making progress.
+func shouldContinueAsNewBeforeProcess(ctx workflow.Context, state SequenceWorkflowState) bool {
+	if len(state.PendingQueue) > 0 && state.ChildrenRun == 0 {
+		return false
+	}
+	return workflow.GetInfo(ctx).GetContinueAsNewSuggested()
+}
+
+// shouldContinueAsNew determines if the workflow should rotate via ContinueAsNew.
+func shouldContinueAsNew(ctx workflow.Context, state SequenceWorkflowState) bool {
+	return shouldContinueAsNewBeforeProcess(ctx, state)
 }
 
 // ExecuteWorkflowSequentially sends a signal to the sequence workflow to execute a child workflow sequentially.
@@ -149,18 +297,35 @@ func _executeWorkflowSequentially(temporal client.Client, ctx context.Context, s
 
 	// SignalWithStartWorkflow is used to signal the sequence workflow if running.
 	// If the sequence workflow is not running, it will start a new instance with the provided options and signal it.
-	_, err := temporal.SignalWithStartWorkflow(
-		ctx,
-		sequenceWfOptions.ID,
-		Signal,
-		SignalWorkflowParams{
-			Function: getWorkflowName(wfFunction),
-			Args:     wfArgs,
-			Options:  wfOptions,
-		},
-		sequenceWfOptions,
-		SequenceWorkflow,
-	)
+	var err error
+	if sequenceResilienceEnabled {
+		_, err = temporal.SignalWithStartWorkflow(
+			ctx,
+			sequenceWfOptions.ID,
+			Signal,
+			SignalWorkflowParams{
+				Function: getWorkflowName(wfFunction),
+				Args:     wfArgs,
+				Options:  wfOptions,
+			},
+			sequenceWfOptions,
+			SequenceWorkflowV2,
+			SequenceWorkflowInput{},
+		)
+	} else {
+		_, err = temporal.SignalWithStartWorkflow(
+			ctx,
+			sequenceWfOptions.ID,
+			Signal,
+			SignalWorkflowParams{
+				Function: getWorkflowName(wfFunction),
+				Args:     wfArgs,
+				Options:  wfOptions,
+			},
+			sequenceWfOptions,
+			SequenceWorkflow,
+		)
+	}
 	if err != nil {
 		return err
 	}

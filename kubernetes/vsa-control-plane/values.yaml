@@ -123,6 +123,7 @@ global:
     metricsDbPreRollbackSteps: "0"
     metricsDbPostRollbackSteps: "0"
     workflowSupervisorNotFoundGracePeriod: "5m"
+    sequenceWorkflowResilienceEnabled: "true"
     snapshotApiSyncMode: "false"
     enableJobResourceUuidIndex: "true"
     maxAppConsistentSnapshotCount: "10"

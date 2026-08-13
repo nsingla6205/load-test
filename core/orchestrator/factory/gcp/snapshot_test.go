@@ -1149,6 +1149,33 @@ func TestValidateCreateSnapshotOperation(t *testing.T) {
 		assert.ErrorContains(tt, err, "volume is in deleting stage.")
 	})
 
+	t.Run("WhenVolumeStateIsNotCreatingOrDeleting", func(tt *testing.T) {
+		// validateCreateSnapshotOperation only rejects CREATING/DELETING explicitly;
+		// other states are not blocked at this layer.
+		for _, state := range []string{
+			"",
+			datamodel.LifeCycleStateUpdating,
+			datamodel.LifeCycleStateRestoring,
+			datamodel.LifeCycleStateError,
+			datamodel.VolumeStateOffline,
+			datamodel.LifeCycleStateREADY,
+		} {
+			tt.Run(state, func(tt *testing.T) {
+				volume := &datamodel.Volume{
+					BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+					Name:      "test_volume",
+					AccountID: 1,
+					State:     state,
+				}
+				params := &common.CreateSnapshotParams{Name: "test_snapshot"}
+
+				err := validateCreateSnapshotOperation(volume, params, nil)
+
+				assert.NoError(tt, err)
+			})
+		}
+	})
+
 	t.Run("WhenVolumeIsThinCloneUndergoingSplit", func(tt *testing.T) {
 		volume := &datamodel.Volume{
 			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
@@ -2132,6 +2159,7 @@ func TestDeleteSnapshot(t *testing.T) {
 			mock.Anything, // SignalWorkflowParams
 			mock.Anything, // StartWorkflowOptions
 			mock.Anything, // workflow function
+			mock.Anything, // SequenceWorkflowInput
 		).Return(nil, workflowErr).Times(3)
 
 		_, _, err = orch.DeleteSnapshot(ctx, params)
@@ -2212,6 +2240,7 @@ func TestDeleteSnapshot(t *testing.T) {
 			mock.Anything, // SignalWorkflowParams
 			mock.Anything, // StartWorkflowOptions
 			mock.Anything, // workflow function
+			mock.Anything, // SequenceWorkflowInput
 		).Return(nil, workflowErr).Times(3)
 
 		_, _, err = orch.DeleteSnapshot(ctx, params)
@@ -2592,30 +2621,28 @@ func TestDeleteSnapshot(t *testing.T) {
 		// Mock DeletingSnapshot to return error (line 685)
 		mockStorage := database.NewMockStorage(tt)
 
-		// Create a datamodel.Volume with Account field populated for the mock return
 		volumeWithAccount := &datamodel.Volume{
 			BaseModel: datamodel.BaseModel{UUID: volume.UUID, ID: volume.ID},
 			AccountID: account.ID,
-			Account: &datamodel.Account{
-				BaseModel: datamodel.BaseModel{ID: account.ID},
+			Account:   account,
+			Pool: &datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+				Name:      "test_pool",
+				VendorID:  "/projects/project123/locations/location123/pools/pool123",
 			},
 			State: datamodel.LifeCycleStateAvailable,
 		}
-
-		// Create a snapshot with Account field populated
 		snapshotWithAccount := &datamodel.Snapshot{
 			BaseModel: datamodel.BaseModel{UUID: snapshot.UUID, ID: snapshot.ID},
 			Name:      snapshot.Name,
 			AccountID: account.ID,
+			Account:   account,
 			VolumeID:  volume.ID,
-			Account: &datamodel.Account{
-				BaseModel: datamodel.BaseModel{ID: account.ID},
-			},
-			State: datamodel.LifeCycleStateREADY, // Not CREATING or UPDATING
-			Type:  "",                            // Not Backup type, so it doesn't return early
+			Volume:    volumeWithAccount,
+			State:     datamodel.LifeCycleStateREADY,
+			Type:      "",
 		}
 
-		// Use mock.Anything for context since it may have logger fields
 		mockStorage.EXPECT().VerifyVolumeOwnership(mock.Anything, volume.UUID, account.Name).Return(volumeWithAccount, nil)
 		mockStorage.EXPECT().GetSnapshotByUUID(mock.Anything, params.SnapshotID, account.ID, volume.ID).Return(snapshotWithAccount, nil)
 		// Mock GetJobByResourceUUID to return nil (no existing job) since code checks for existing jobs
@@ -3104,6 +3131,7 @@ func TestDeleteSnapshot_WhenSnapshotInCreatingStateWithMatchingCorrelationID(t *
 		mock.Anything, // SignalWorkflowParams
 		mock.Anything, // StartWorkflowOptions
 		mock.Anything, // workflow function
+		mock.Anything, // SequenceWorkflowInput
 	).Return(nil, nil)
 
 	// Act

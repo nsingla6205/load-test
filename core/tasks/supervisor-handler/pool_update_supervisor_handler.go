@@ -31,7 +31,7 @@ func (h *PoolUpdateHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts pool state from UPDATING to previous state for stale update jobs.
 func (h *PoolUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

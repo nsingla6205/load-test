@@ -393,6 +393,7 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon database.Storage, temporal client.Client) {
 	hyperscaler.SetCloudResolver(hyperscaler.NewCloudServiceResolver(env.GetHyperscaler()))
 	worker.RegisterWorkflow(workflows.SequenceWorkflow)
+	worker.RegisterWorkflow(workflows.SequenceWorkflowV2)
 	worker.RegisterWorkflow(workflows.CreatePoolWorkflow)
 	worker.RegisterWorkflow(workflows.DataSubnetSequentialPoller)
 	worker.RegisterWorkflow(workflows.PoolDataSubnetWorkFlow)

@@ -30,7 +30,7 @@ func (h *NetworkHandler) JobTypes() []datamodel.JobType {
 // Handle logs network job timeout events. No cleanup is performed.
 // Note: Subnet jobs don't create a separate resource in VCP database, so there's no VCP database cleanup needed.
 func (h *NetworkHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

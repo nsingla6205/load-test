@@ -256,6 +256,7 @@ func TestDeleteVolume_JobUpdateOnWorkflowFailure(t *testing.T) {
 		mockStorage.On("GetVolume", ctx, "volume-uuid").Return(volume, nil)
 		// Mock GetJobByResourceUUID to return nil (no existing job) since code checks for existing jobs
 		mockStorage.On("GetJobByResourceUUID", ctx, "volume-uuid", string(datamodel.JobTypeDeleteVolume)).Return(nil, errors.New("Job not found"))
+		mockStorage.On("GetJobsWithCondition", mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 		mockStorage.On("UpdateVolumeFields", ctx, volume.UUID, map[string]interface{}{
 			"state":         datamodel.LifeCycleStateDeleting,
@@ -796,6 +797,7 @@ func TestDeleteVolume_FailedJobUpdateOnError_Line985(t *testing.T) {
 
 		mockStorage.On("GetVolume", ctx, "volume-uuid").Return(volume, nil)
 		mockStorage.On("GetJobByResourceUUID", ctx, "volume-uuid", mock.Anything).Return(nil, nil)
+		mockStorage.On("GetJobsWithCondition", mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 		mockStorage.On("UpdateVolumeFields", ctx, volume.UUID, map[string]interface{}{
 			"state":         datamodel.LifeCycleStateDeleting,
@@ -875,6 +877,7 @@ func TestDeleteVolume_FailedVolumeUpdateOnError_Line1014(t *testing.T) {
 		mockStorage.On("GetVolume", ctx, "volume-uuid").Return(volume, nil)
 		// Mock GetJobByResourceUUID for DELETE_VOLUME (called for non-transitional states)
 		mockStorage.On("GetJobByResourceUUID", ctx, volume.UUID, string(datamodel.JobTypeDeleteVolume)).Return(nil, nil)
+		mockStorage.On("GetJobsWithCondition", mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 		mockStorage.On("UpdateVolumeFields", ctx, volume.UUID, map[string]interface{}{
 			"state":         datamodel.LifeCycleStateDeleting,

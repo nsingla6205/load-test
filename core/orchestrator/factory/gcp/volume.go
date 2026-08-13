@@ -85,6 +85,9 @@ var (
 	enableInferredIops                         = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	enableVolumePerformanceGroupAssignment     = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	splitWaitForTemporalEnabled                = env.GetBool("SPLIT_WAIT_FOR_TEMPORAL_ENABLED", false)
+	// sequenceResilienceEnabled gates the duplicate active-job guard that backs the
+	// delete retry path. Kept on the same flag as the sequencer resilience changes.
+	sequenceResilienceEnabled = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
 	// enableTrueZonalLVDefaultConstituentCount doubles the default CV count for true-zonal (active-active)
 	// pools (6 HA pairs × 8 CVs × 2 = 96).
 	enableTrueZonalLVDefaultConstituentCount = env.GetBool("ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT", false)
@@ -641,7 +644,8 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		job.Type = string(datamodel.JobTypeCreateLargeVolume)
 	}
 
-	wf := workflows.CreateVolumeWorkflow
+	var wf interface{} = workflows.CreateVolumeWorkflow
+	wfArgs := []interface{}{params, dbVolume.UUID}
 
 	if params.HybridReplicationParameters != nil {
 		job.Type = string(datamodel.JobTypeCreateHybridReplication)
@@ -651,6 +655,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 			params.Name,
 			params.HybridReplicationParameters.ResourceID)
 		wf = replicationWorkflows.CreateHybridReplicationWorkflow
+		wfArgs = []interface{}{params, dbVolume}
 	}
 
 	createdJob, err := se.CreateJob(ctx, job)
@@ -678,8 +683,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		ctx,
 		workflowOptions,
 		wf,
-		params,
-		dbVolume,
+		wfArgs...,
 	)
 	if err != nil {
 		logger.Error("Failed to start create volume workflow: ", "error", err)
@@ -2308,6 +2312,16 @@ func _deleteVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		return convertDatastoreVolumeToModel(volume, nil), existingJobUUID, nil
 	}
 
+	if sequenceResilienceEnabled {
+		activeJobUUID, activeJobErr := database.GetActiveJobForResource(ctx, se, volume.UUID, deleteJobType, logger)
+		if activeJobErr != nil {
+			return nil, "", activeJobErr
+		}
+		if activeJobUUID != "" {
+			return convertDatastoreVolumeToModel(volume, nil), activeJobUUID, nil
+		}
+	}
+
 	// Validate delete volume parameters and preconditions
 	err = validateDeleteVolumeParams(ctx, se, volume)
 	if err != nil {
@@ -2338,6 +2352,7 @@ func _deleteVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
 			ResourceUUID:         volume.UUID,
+			PoolUUID:             volume.Pool.UUID,
 			PreviousState:        previousState,
 			PreviousStateDetails: previousStateDetails,
 		},

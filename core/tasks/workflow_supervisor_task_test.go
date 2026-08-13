@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -1403,3 +1404,119 @@ func TestScanProcessingStateTimeouts_DisabledByFlag(t *testing.T) {
 
 	storage.AssertNotCalled(t, "GetJobsWithCondition", mock.Anything, mock.Anything)
 }
+
+// Tests for TERMINATED workflow handling (Phase 1B)
+
+func setTerminatedHandling(t *testing.T, enabled bool) {
+	t.Helper()
+	orig := supervisorTerminatedHandlingEnabled
+	supervisorTerminatedHandlingEnabled = enabled
+	t.Cleanup(func() { supervisorTerminatedHandlingEnabled = orig })
+}
+
+func TestWorkflowSupervisorTaskRunnerEvaluateTerminatedWorkflow(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		jobType              datamodel.JobType
+		processing, enabled  bool
+		cleanup              bool
+	}{
+		{"new cleans when enabled", datamodel.JobTypeCreatePool, false, true, true},
+		{"new skips when disabled", datamodel.JobTypeCreatePool, false, false, false},
+		{"processing cleans when enabled", datamodel.JobTypeDeletePool, true, true, true},
+		{"processing skips when disabled", datamodel.JobTypeDeletePool, true, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setTerminatedHandling(t, tc.enabled)
+			storage := database.NewMockStorage(t)
+			temporal := workflowEngine.NewMockTemporalTestClient(t)
+			handler := newTestHandler(tc.jobType)
+			state := datamodel.JobsStateNEW
+			if tc.processing {
+				state = datamodel.JobsStatePROCESSING
+			}
+			job := &datamodel.Job{
+				BaseModel: datamodel.BaseModel{UUID: "job-terminated"}, WorkflowID: "wf-terminated",
+				Type: string(tc.jobType), State: string(state), TrackingID: 50,
+			}
+			runner := &workflowSupervisorTaskRunner{
+				storage: storage, temporal: temporal, correlationID: "corr-id",
+				handlers: map[string]supervisorhandler.Handler{string(tc.jobType): handler},
+			}
+			temporal.EXPECT().DescribeWorkflowExecution(mock.Anything, job.WorkflowID, "").
+				Return(&workflowservice.DescribeWorkflowExecutionResponse{
+					WorkflowExecutionInfo: &workflowpb.WorkflowExecutionInfo{Status: enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED},
+				}, nil)
+			if tc.cleanup {
+				expectJobLock(t, storage, job)
+				temporal.EXPECT().TerminateWorkflow(mock.Anything, job.WorkflowID, "", supervisorhandler.WorkflowTimeoutDetail).Return(nil)
+				storage.EXPECT().UpdateJob(mock.Anything, job.UUID, string(datamodel.JobsStateERROR), job.TrackingID, supervisorhandler.WorkflowTimeoutDetail).Return(nil)
+			}
+			if tc.processing {
+				runner.evaluateProcessingJob(context.Background(), job, handler)
+			} else {
+				runner.evaluateJob(context.Background(), job, handler, state)
+			}
+			if tc.cleanup {
+				require.Equal(t, []supervisorhandler.Event{supervisorhandler.EventTerminated}, handler.events)
+			} else {
+				require.Empty(t, handler.events)
+				storage.AssertNotCalled(t, "UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			}
+		})
+	}
+}
+
+func TestWorkflowSupervisorTaskRunnerEvaluateJobChecksSequencerBeforeCleanup(t *testing.T) {
+	setTerminatedHandling(t, true)
+	const sequenceID = "Account_2_Location_us-east4-a_Pool_repro-pool-184617_Ops_Volume-CD-Snapshot-D"
+	for _, tc := range []struct {
+		name    string
+		jobType datamodel.JobType
+		status  enumspb.WorkflowExecutionStatus
+		cleanup bool
+	}{
+		{"create running defers", datamodel.JobTypeCreateVolume, enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING, false},
+		{"create terminated cleans", datamodel.JobTypeCreateVolume, enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED, true},
+		{"delete running defers", datamodel.JobTypeDeleteVolume, enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING, false},
+		{"snapshot delete running defers", datamodel.JobTypeDeleteSnapshot, enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			storage := database.NewMockStorage(t)
+			temporal := workflowEngine.NewMockTemporalTestClient(t)
+			handler := newTestHandler(tc.jobType)
+			job := &datamodel.Job{
+				BaseModel: datamodel.BaseModel{UUID: "job-queued"}, WorkflowID: "child-wf-not-started",
+				Type: string(tc.jobType), State: string(datamodel.JobsStateNEW),
+				AccountID: sql.NullInt64{Int64: 2, Valid: true},
+				JobAttributes: &datamodel.JobAttributes{ResourceUUID: "vol-uuid", PoolUUID: "pool-uuid"},
+			}
+			runner := &workflowSupervisorTaskRunner{
+				storage: storage, correlationID: "corr-id", temporal: temporal,
+				handlers: map[string]supervisorhandler.Handler{string(tc.jobType): handler},
+			}
+			storage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, "pool-uuid", int64(2)).Return(&datamodel.Pool{
+				Name: "repro-pool-184617", VendorID: "/projects/408586115552/locations/us-east4-a/pools/pool-uuid",
+			}, nil)
+			temporal.EXPECT().DescribeWorkflowExecution(mock.Anything, job.WorkflowID, "").
+				Return((*workflowservice.DescribeWorkflowExecutionResponse)(nil), serviceerror.NewNotFound("missing"))
+			temporal.EXPECT().DescribeWorkflowExecution(mock.Anything, sequenceID, "").
+				Return(&workflowservice.DescribeWorkflowExecutionResponse{
+					WorkflowExecutionInfo: &workflowpb.WorkflowExecutionInfo{Status: tc.status},
+				}, nil)
+			if tc.cleanup {
+				expectJobLock(t, storage, job)
+				temporal.EXPECT().TerminateWorkflow(mock.Anything, job.WorkflowID, "", supervisorhandler.WorkflowTimeoutDetail).Return(nil)
+				storage.EXPECT().UpdateJob(mock.Anything, job.UUID, string(datamodel.JobsStateERROR), vsaerrors.ErrWorkflowSupervisorTimeout, supervisorhandler.WorkflowTimeoutDetail).Return(nil)
+			}
+			runner.evaluateJob(context.Background(), job, handler, datamodel.JobsStateNEW)
+			if tc.cleanup {
+				require.Equal(t, []supervisorhandler.Event{supervisorhandler.EventTimeout}, handler.events)
+			} else {
+				require.Empty(t, handler.events)
+				storage.AssertNotCalled(t, "UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			}
+		})
+	}
+}
+

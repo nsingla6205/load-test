@@ -30,7 +30,7 @@ func (h *BackupDeleteHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts backup state from DELETING to previous state for stale delete jobs.
 func (h *BackupDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

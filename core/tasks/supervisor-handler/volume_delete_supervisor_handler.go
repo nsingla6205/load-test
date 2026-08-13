@@ -33,7 +33,7 @@ func (h *VolumeDeleteHandler) JobTypes() []datamodel.JobType {
 // Handle reverts volume state from DELETING to previous state for stale delete jobs (NEW state),
 // or transitions to ERROR state for PROCESSING state timeouts.
 func (h *VolumeDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

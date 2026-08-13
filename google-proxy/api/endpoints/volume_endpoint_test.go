@@ -17141,12 +17141,69 @@ func TestV1betaDeleteVolume_DeletingState_LargeVolume(t *testing.T) {
 		State:     datamodel.JobsStateDONE,
 	}
 	mockOrchestrator.EXPECT().GetJobByResourceUUID(mock.Anything, "vol-1", string(datamodel.JobTypeDeleteLargeVolume)).Return(job, nil)
+	mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(volume, "new-job-123", nil)
 
 	result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 	assert.NoError(t, err)
 	operation, isOperation := result.(*gcpgenserver.OperationV1beta)
 	assert.True(t, isOperation)
-	assert.Contains(t, operation.Name.Value, "job-123")
+	assert.Contains(t, operation.Name.Value, "new-job-123")
+}
+
+// Tests for Phase 3: API retry fix (resilience-enabled retry on terminal jobs)
+func TestV1betaDeleteVolume_DeletingState_ResilienceRetry(t *testing.T) {
+	params := gcpgenserver.V1betaDeleteVolumeParams{
+		ProjectNumber: "test-project",
+		LocationId:    "test-location",
+		VolumeId:      "vol-1",
+	}
+	for _, tc := range []struct {
+		name, jobID          string
+		state                datamodel.JobState
+		enabled, retry, flex bool
+	}{
+		{"enabled retries error job", "dead-job-123", datamodel.JobsStateERROR, true, true, false},
+		{"enabled retries done job", "done-job-123", datamodel.JobsStateDONE, true, true, false},
+		{"enabled returns processing job", "active-job-123", datamodel.JobsStatePROCESSING, true, false, false},
+		{"disabled returns error job", "dead-job-123", datamodel.JobsStateERROR, false, false, false},
+		{"flexcache retries error job", "dead-job-123", datamodel.JobsStateERROR, true, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			original := sequenceResilienceEnabled
+			sequenceResilienceEnabled = tc.enabled
+			t.Cleanup(func() { sequenceResilienceEnabled = original })
+
+			orchestrator := factory.NewMockOrchestratorFactory(t)
+			volume := &models.Volume{
+				BaseModel: models.BaseModel{UUID: "vol-1"}, LifeCycleState: datamodel.LifeCycleStateDeleting,
+				CreationToken: "token", DisplayName: "testvolume",
+			}
+			jobType := datamodel.JobTypeDeleteVolume
+			if tc.flex {
+				volume.CacheParameters = &models.CacheParameters{}
+				jobType = datamodel.JobTypeFlexCacheDeleteVolume
+			}
+			orchestrator.EXPECT().GetVolume(mock.Anything, volume.UUID, false).Return(volume, nil)
+			orchestrator.EXPECT().GetJobByResourceUUID(mock.Anything, volume.UUID, string(jobType)).
+				Return(&models.Job{BaseModel: models.BaseModel{UUID: tc.jobID}, State: tc.state}, nil)
+			if tc.retry {
+				orchestrator.EXPECT().DeleteVolume(mock.Anything, volume.UUID).Return(volume, "new-job", nil)
+			}
+
+			result, err := (&Handler{Orchestrator: orchestrator}).V1betaDeleteVolume(
+				context.Background(), gcpgenserver.OptV1betaDeleteVolumeReq{}, params,
+			)
+			require.NoError(t, err)
+			operation, ok := result.(*gcpgenserver.OperationV1beta)
+			require.True(t, ok)
+			if tc.retry {
+				assert.Contains(t, operation.Name.Value, "new-job")
+			} else {
+				assert.Contains(t, operation.Name.Value, tc.jobID)
+				assert.Equal(t, tc.state == datamodel.JobsStateERROR, operation.Done.Value)
+			}
+		})
+	}
 }
 
 func TestPrepareCreateVolumeParams_SMBOnlyVolumeWithExportPolicyRules_ReturnsError(t *testing.T) {

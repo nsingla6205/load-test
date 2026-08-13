@@ -30,7 +30,7 @@ func (h *BackupVaultDeleteHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts backup vault state from DELETING to previous state for stale delete jobs.
 func (h *BackupVaultDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

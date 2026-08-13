@@ -107,6 +107,7 @@ global:
     coreApiClientTransportSchema: "https"
     enableDbRollback: "false"
     addressSpaceMgmtEnabled: "false"
+    sequenceWorkflowResilienceEnabled: "true"
     vcpDbPreRollbackSteps: "0"
     vcpDbPostRollbackSteps: "0"
     metricsDbPreRollbackSteps: "0"

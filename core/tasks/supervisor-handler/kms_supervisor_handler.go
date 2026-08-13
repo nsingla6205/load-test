@@ -30,6 +30,8 @@ type Event string
 const (
 	// EventTimeout indicates that a workflow execution timed out.
 	EventTimeout Event = "TIMEOUT"
+	// EventTerminated indicates that a workflow was terminated (e.g., due to history size limit).
+	EventTerminated Event = "TERMINATED"
 	// WorkflowTimeoutDetail records the error detail that accompanies timeout cleanup.
 	WorkflowTimeoutDetail = "We could not complete the request. Please try again."
 )
@@ -38,6 +40,11 @@ const (
 type Handler interface {
 	JobTypes() []datamodel.JobType
 	Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error
+}
+
+// IsActionableEvent returns true if the event requires handler cleanup (timeout or terminated).
+func IsActionableEvent(event Event) bool {
+	return event == EventTimeout || event == EventTerminated
 }
 
 // CmekHandler implements Handler for CMEK resources.
@@ -58,7 +65,7 @@ func (h *CmekHandler) JobTypes() []datamodel.JobType {
 
 // Handle removes KMS configuration artifacts both in SDE and VSA for the job.
 func (h *CmekHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

@@ -33,7 +33,7 @@ func (h *PoolHandler) JobTypes() []datamodel.JobType {
 // detects a timeout in NEW state. Create pool is not eligible for PROCESSING
 // state timeout handling.
 func (h *PoolHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

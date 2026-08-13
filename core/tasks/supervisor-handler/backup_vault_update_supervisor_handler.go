@@ -30,7 +30,7 @@ func (h *BackupVaultUpdateHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts backup vault state from UPDATING to previous state for stale update jobs.
 func (h *BackupVaultUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

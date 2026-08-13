@@ -30,7 +30,7 @@ func (h *QuotaRuleHandler) JobTypes() []datamodel.JobType {
 
 // Handle removes quota rule artifacts from VCP for the job.
 func (h *QuotaRuleHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

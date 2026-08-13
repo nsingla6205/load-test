@@ -30,7 +30,7 @@ func (h *QuotaRuleUpdateHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts quota rule state from UPDATING to previous state for stale update jobs.
 func (h *QuotaRuleUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

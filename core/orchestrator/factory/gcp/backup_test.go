@@ -4299,6 +4299,11 @@ func TestDeleteBackupInternal(t *testing.T) {
 		ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
 		store := database.NewMockStorage(t)
 
+		// Override hydrationEnabled to true
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
 		params := &common.DeleteBackupParams{
 			BackupVaultUUID: "test-vault-uuid",
 			BackupUUID:      "test-backup-uuid",
@@ -4333,6 +4338,11 @@ func TestDeleteBackupInternal(t *testing.T) {
 		mockLogger := log.NewLogger()
 		ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
 		store := database.NewMockStorage(t)
+
+		// Override hydrationEnabled to true
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
 		// Override hydrateDeletedBackupsToCCFE to return an error
 		originalHydrateDeletedBackupsToCCFE := hydrateDeletedBackupsToCCFE

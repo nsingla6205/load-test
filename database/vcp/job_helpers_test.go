@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -271,3 +272,37 @@ func TestValidateCorrelationIDForCreatingResource_ValidCorrelationID_ReturnsClea
 	assert.Equal(t, "", result)
 	mockStorage.AssertExpectations(t)
 }
+
+func TestGetActiveJobForResource(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, want string
+		jobs       []*datamodel.Job
+		err        error
+	}{
+		{"new job", "job-new", []*datamodel.Job{{BaseModel: datamodel.BaseModel{UUID: "job-new"}, State: string(datamodel.JobsStateNEW)}}, nil},
+		{"processing job", "job-proc", []*datamodel.Job{{BaseModel: datamodel.BaseModel{UUID: "job-proc"}, State: string(datamodel.JobsStatePROCESSING)}}, nil},
+		{"wait for temporal", "job-wft", []*datamodel.Job{{BaseModel: datamodel.BaseModel{UUID: "job-wft"}, State: string(datamodel.JobsStateWaitForTemporal)}}, nil},
+		{"none", "", nil, nil},
+		{"query error", "", nil, errors.New("db error")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			storage := NewMockStorage(t)
+			logger := &log.MockLogger{}
+			storage.On("GetJobsWithCondition", ctx, mock.AnythingOfType("utils.Filter")).Return(tc.jobs, tc.err)
+			if tc.err != nil {
+				logger.On("Errorf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			} else if tc.want != "" {
+				logger.On("Infof", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			}
+			got, err := GetActiveJobForResource(ctx, storage, "resource-uuid", datamodel.JobTypeDeleteVolume, logger)
+			if tc.err != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+

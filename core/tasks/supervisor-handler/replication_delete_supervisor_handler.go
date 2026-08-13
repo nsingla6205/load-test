@@ -31,7 +31,7 @@ func (h *ReplicationDeleteHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts replication state from DELETING to previous state for stale delete jobs.
 func (h *ReplicationDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

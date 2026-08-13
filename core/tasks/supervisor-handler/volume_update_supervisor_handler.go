@@ -31,7 +31,7 @@ func (h *VolumeUpdateHandler) JobTypes() []datamodel.JobType {
 
 // Handle reverts volume state from UPDATING to previous state for stale update jobs.
 func (h *VolumeUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

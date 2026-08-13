@@ -32,7 +32,7 @@ func (h *PoolDeleteHandler) JobTypes() []datamodel.JobType {
 // Handle reverts pool state from DELETING to previous state for stale delete jobs (NEW state),
 // or transitions to ERROR state for PROCESSING state timeouts.
 func (h *PoolDeleteHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 

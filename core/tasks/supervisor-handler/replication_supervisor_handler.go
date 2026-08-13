@@ -31,7 +31,7 @@ func (h *ReplicationHandler) JobTypes() []datamodel.JobType {
 
 // Handle removes replication artifacts from VCP for the job.
 func (h *ReplicationHandler) Handle(ctx context.Context, job *datamodel.Job, event Event, storage database.Storage) error {
-	if event != EventTimeout {
+	if !IsActionableEvent(event) {
 		return nil
 	}
 
