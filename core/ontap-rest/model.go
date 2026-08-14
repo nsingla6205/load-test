@@ -4289,6 +4289,38 @@ func accountCreateParamsToONTAP(params *AccountCreateParams) *security.AccountCr
 	return otParams
 }
 
+func accountModifyParamsToONTAP(params *AccountModifyParams) *security.AccountModifyParams {
+	otParams := security.NewAccountModifyParams()
+	if params == nil {
+		return otParams
+	}
+
+	applications := make([]*models.AccountApplication, 0, len(params.Applications))
+	for _, app := range params.Applications {
+		if strings.TrimSpace(app.Application) == "" {
+			continue
+		}
+		methods := make([]*string, 0, len(app.AuthenticationMethods))
+		for _, method := range app.AuthenticationMethods {
+			if strings.TrimSpace(method) == "" {
+				continue
+			}
+			methods = append(methods, nillable.ToPointer(method))
+		}
+		applications = append(applications, &models.AccountApplication{
+			Application:           nillable.ToPointer(app.Application),
+			AuthenticationMethods: methods,
+		})
+	}
+
+	otParams.SetName(params.Name)
+	otParams.SetOwnerUUID(params.OwnerUUID)
+	otParams.SetInfo(&models.Account{
+		AccountInlineApplications: applications,
+	})
+	return otParams
+}
+
 func accountCollectionGetParamsToONTAP(params *AccountGetParams) *security.AccountCollectionGetParams {
 	otParams := security.NewAccountCollectionGetParams()
 	if params == nil {

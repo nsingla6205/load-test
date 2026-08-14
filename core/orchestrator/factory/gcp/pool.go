@@ -1078,16 +1078,39 @@ func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, pool
 		}, nil
 	}
 
+	authType := dedicatedServiceUserAuthType(hostCred)
+	dnsEndpoint := endpoint
+	if authType == env.USER_CERTIFICATE {
+		dnsEndpoint = commonparams.BuildHostManagementTLSName(clusterName)
+	}
+
 	return &models.UserCredentials{
-		Username:     hostCred.Username,
-		SecretID:     hostCred.SecretId,
-		AuthType:     env.USERNAME_PWD_SEC_MGR,
-		ServiceLevel: pool.ServiceLevel,
-		AccountUUID:  account.UUID,
+		Username:      hostCred.Username,
+		SecretID:      hostCred.SecretId,
+		CertificateID: hostCred.CertificateID,
+		Password:      hostCred.Password,
+		AccountUUID:   account.UUID,
+		AuthType:      authType,
+		CaURI:         hostCred.CaURI,
+		ServiceLevel:  pool.ServiceLevel,
 		OntapEndpoints: []models.OntapEndpoint{
-			{IP: endpoint, DNS: endpoint},
+			{IP: endpoint, DNS: dnsEndpoint},
 		},
 	}, nil
+}
+
+// dedicatedServiceUserAuthType returns the auth type for a pinned account-host
+// service user. When AuthType is unset (0), it defaults to inline username/password
+// (USERNAME_PWD). Callers should populate AuthType on HostCredential from
+// account_hosts.service_credentials (e.g. USERNAME_PWD_SEC_MGR or USER_CERTIFICATE).
+func dedicatedServiceUserAuthType(hostCred *database.HostCredential) int {
+	if hostCred == nil {
+		return env.USERNAME_PWD
+	}
+	if hostCred.AuthType != 0 {
+		return hostCred.AuthType
+	}
+	return env.USERNAME_PWD
 }
 
 // matchesCredential checks if credential matches the incoming userName

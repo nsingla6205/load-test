@@ -45,6 +45,7 @@ func TestGetDedicatedClusterPoolCreds_UsesAccountHostUsername(t *testing.T) {
 			},
 			Username: "account-host-user",
 			SecretId: "secret-a",
+			AuthType: env.USERNAME_PWD_SEC_MGR,
 		}, nil)
 
 	o := &GCPOrchestrator{storage: mockStorage}
@@ -156,6 +157,50 @@ func TestGetDedicatedClusterPoolCreds_FlexPool_NoHeader_UsesPoolCluster(t *testi
 	assert.Equal(t, "account-host-user", creds.Username)
 	assert.Equal(t, "secret-a", creds.SecretID)
 	assert.Equal(t, "FLEX", creds.ServiceLevel)
+}
+
+func TestGetDedicatedClusterPoolCreds_CertificateAuth_ReturnsCertMetadata(t *testing.T) {
+	originalDNSName := env.VsaDeployedDnsName
+	t.Cleanup(func() { env.VsaDeployedDnsName = originalDNSName })
+	env.VsaDeployedDnsName = "example.com"
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"},
+		Name:      "proj-1",
+	}
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.EXPECT().GetAccount(mock.Anything, "proj-1").Return(account, nil)
+	mockStorage.EXPECT().GetPool(mock.Anything, "pool-uuid", account.ID).Return(dedicatedPoolView(account.ID, "cluster-a", "EXTREME"), nil)
+	mockStorage.EXPECT().
+		GetDedicatedPinnedHostCredential(mock.Anything, "proj-1", "cluster-a").
+		Return(&database.HostCredential{
+			Host: &datamodel.Host{
+				BaseModel:    datamodel.BaseModel{UUID: "host-uuid"},
+				ExternalName: "cluster-a",
+				IPAddress:    "10.0.0.1",
+			},
+			Username:      "gcnv_u_extreme",
+			SecretId:      "account-host-secret-uuid",
+			CertificateID: "account-host-cert-uuid",
+			AuthType:      env.USER_CERTIFICATE,
+			CaURI:         "proj/pool/ca",
+		}, nil)
+
+	o := &GCPOrchestrator{storage: mockStorage}
+	creds, err := o.GetDedicatedClusterPoolCreds(context.Background(), "pool-uuid", "proj-1", "", "")
+
+	require.NoError(t, err)
+	require.NotNil(t, creds)
+	assert.Equal(t, "gcnv_u_extreme", creds.Username)
+	assert.Equal(t, "account-host-secret-uuid", creds.SecretID)
+	assert.Equal(t, "account-host-cert-uuid", creds.CertificateID)
+	assert.Equal(t, env.USER_CERTIFICATE, creds.AuthType)
+	assert.Equal(t, "proj/pool/ca", creds.CaURI)
+	assert.Equal(t, "EXTREME", creds.ServiceLevel)
+	require.Len(t, creds.OntapEndpoints, 1)
+	assert.Equal(t, "10.0.0.1", creds.OntapEndpoints[0].IP)
+	assert.Equal(t, "dns-1.cluster-a.example.com", creds.OntapEndpoints[0].DNS)
 }
 
 func TestGetDedicatedClusterPoolCreds_GetAccountError_ReturnsError(t *testing.T) {

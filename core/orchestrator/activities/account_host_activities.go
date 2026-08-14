@@ -18,18 +18,25 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
+const accountHostClientCertEnableServerAuth = false
+
 var (
-	accountHostGetGCPService                = _accountHostGetGCPService
-	accountHostGetProviderForHost             = vsa.GetProviderForHost
-	accountHostVerifyHostServiceCredentials   = vsa.VerifyHostServiceCredentials
-	accountHostEnsureExpertModeRole           = vsa.EnsureExpertModeRole
-	accountHostEnsureExpertModeAccount        = vsa.EnsureExpertModeAccount
-	accountHostDeleteExpertModeAccount        = vsa.DeleteExpertModeAccount
-	accountHostDeleteExpertModeRole           = vsa.DeleteExpertModeRole
-	accountHostGetRoleOwnerUUID               = getAccountHostRoleOwnerUUID
-	accountHostGetBucketFileContent           = _accountHostGetBucketFileContent
-	loadAccountHostRBACPrivileges             = _loadAccountHostRBACPrivilegesFromBucket
-	generateAccountHostServicePassword        = _generateAccountHostServicePassword
+	accountHostGetGCPService                               = _accountHostGetGCPService
+	accountHostGetProviderForHost                          = vsa.GetProviderForHost
+	accountHostVerifyHostServiceCredentials                = vsa.VerifyHostServiceCredentials
+	verifySAWithCertAuth = vsa.VerifyHostServiceCredentialsWithCertificate
+	accountHostEnsureExpertModeRole                        = vsa.EnsureExpertModeRole
+	accountHostEnsureExpertModeAccount                     = vsa.EnsureExpertModeAccount
+	createSAWithCertAuth                                     = vsa.EnsureExpertModeSAWithCertAuth
+	accountHostDeleteExpertModeAccount                     = vsa.DeleteExpertModeAccount
+	accountHostDeleteExpertModeRole                        = vsa.DeleteExpertModeRole
+	accountHostGetRoleOwnerUUID                            = getAccountHostRoleOwnerUUID
+	accountHostGetBucketFileContent                        = _accountHostGetBucketFileContent
+	loadAccountHostRBACPrivileges                          = _loadAccountHostRBACPrivilegesFromBucket
+	generateAccountHostServicePassword                     = _generateAccountHostServicePassword
+	generateClientCertificate                   = vsa.GenerateAndCreateCertificateForVSACluster
+	revokeAccountHostClientCertificate                     = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager
+	accountHostBuildCertificatePoolCredentials             = orchcommon.BuildAccountHostCertificatePoolCredentials
 )
 
 func _accountHostGetGCPService(ctx context.Context) (hyperscaler.Services, error) {
@@ -197,7 +204,6 @@ func (a *AccountHostActivity) CreateAccountHostUser(
 	prepared *PreparedAccountHostMapping,
 ) error {
 	activity.RecordHeartbeat(ctx, "create-account-host-user")
-	logger := util.GetLogger(ctx)
 
 	if prepared == nil {
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
@@ -216,12 +222,29 @@ func (a *AccountHostActivity) CreateAccountHostUser(
 				fmt.Errorf("service username is required before creating service user")))
 	}
 	cred := orchcommon.CreateAccountHostServiceUserCredentials(prepared.MappingUUID, serviceUsername)
-	genPassword, err := generateAccountHostServicePassword(ctx, cred)
+
+	host, err := a.SE.GetHost(ctx, prepared.HostUUID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	host, err := a.SE.GetHost(ctx, prepared.HostUUID)
+	switch cred.AuthType {
+	case env.USER_CERTIFICATE:
+		return a.ensureSAWithCertAuth(ctx, prepared, host, cred, serviceUsername)
+	default:
+		return a.ensureSAWithPasswordAuth(ctx, prepared, host, cred, serviceUsername)
+	}
+}
+
+func (a *AccountHostActivity) ensureSAWithPasswordAuth(
+	ctx context.Context,
+	prepared *PreparedAccountHostMapping,
+	host *datamodel.Host,
+	cred *datamodel.ExpertModeCredential,
+	serviceUsername string,
+) error {
+	logger := util.GetLogger(ctx)
+	genPassword, err := generateAccountHostServicePassword(ctx, cred)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -265,6 +288,83 @@ func (a *AccountHostActivity) CreateAccountHostUser(
 	return nil
 }
 
+func (a *AccountHostActivity) ensureSAWithCertAuth(
+	ctx context.Context,
+	prepared *PreparedAccountHostMapping,
+	host *datamodel.Host,
+	cred *datamodel.ExpertModeCredential,
+	serviceUsername string,
+) error {
+	logger := util.GetLogger(ctx)
+	poolCredentials, err := accountHostBuildCertificatePoolCredentials(host, cred)
+	if err != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+
+	cloudService, err := accountHostGetGCPService(ctx)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
+	}
+
+	externalClusterName := host.ExternalName
+	if externalClusterName == "" {
+		externalClusterName = host.Name
+	}
+	if externalClusterName == "" {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("host %s external cluster name is required for certificate generation", host.UUID)))
+	}
+
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("generating client certificate for account host service user %s", serviceUsername))
+	if _, err := generateClientCertificate(
+		cloudService,
+		externalClusterName,
+		serviceUsername,
+		poolCredentials,
+		accountHostClientCertEnableServerAuth,
+	); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	provider, err := accountHostGetProviderForHost(ctx, host)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	accountProvider, ok := provider.(vsa.ExpertModeAccountProvider)
+	if !ok {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("ONTAP provider does not support security account provisioning")))
+	}
+
+	if err := createSAWithCertAuth(ctx, accountProvider, vsa.CreateExpertModeAccountParams{
+		Username:    serviceUsername,
+		RoleName:    prepared.RoleName,
+		ClusterUUID: prepared.RoleOwnerUUID,
+	}); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	if err := verifySAWithCertAuth(
+		ctx, host, prepared.SvmPattern, serviceUsername, poolCredentials,
+	); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	if err := a.CompleteAccountHostMapping(ctx, prepared.MappingUUID, serviceUsername, cred); err != nil {
+		return err
+	}
+
+	logger.Info("Created ONTAP expert-mode service user with certificate auth for account host",
+		"accountHostUUID", prepared.MappingUUID, "hostUUID", prepared.HostUUID,
+		"serviceUsername", serviceUsername, "certificateID", cred.CertificateID)
+	return nil
+}
+
 func _generateAccountHostServicePassword(
 	ctx context.Context,
 	cred *datamodel.ExpertModeCredential,
@@ -300,6 +400,9 @@ func _generateAccountHostServicePassword(
 		password := orchcommon.DeriveStablePasswordFromKey(stableKey)
 		cred.Password = password
 		return password, nil
+	case env.USER_CERTIFICATE:
+		return "", vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("password generation is not used for certificate auth type"))
 	default:
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("unsupported account host service user auth type %d", cred.AuthType))
@@ -363,6 +466,21 @@ func (a *AccountHostActivity) RollbackAccountHostOntapProvisioning(
 		if accountProvider, ok := provider.(vsa.ExpertModeAccountProvider); ok {
 			if err := accountHostDeleteExpertModeAccount(ctx, accountProvider, serviceUsername, roleOwnerUUID); err != nil {
 				logger.Errorf("Failed to delete ONTAP service user %s during onboard rollback: %v", serviceUsername, err)
+			}
+		}
+	}
+
+	if orchcommon.AccountHostServiceUserAuthType() == env.USER_CERTIFICATE {
+		cred := orchcommon.CreateAccountHostServiceUserCredentials(prepared.MappingUUID, serviceUsername)
+		poolCredentials, buildErr := accountHostBuildCertificatePoolCredentials(host, cred)
+		if buildErr != nil {
+			logger.Errorf("Failed to build account host certificate credentials for rollback: %v", buildErr)
+		} else {
+			cloudService, gcpErr := accountHostGetGCPService(ctx)
+			if gcpErr != nil {
+				logger.Errorf("Failed to initialize GCP service for account host certificate rollback: %v", gcpErr)
+			} else if revokeErr := revokeAccountHostClientCertificate(cloudService, poolCredentials); revokeErr != nil {
+				logger.Errorf("Failed to revoke account host client certificate during rollback: %v", revokeErr)
 			}
 		}
 	}

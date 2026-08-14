@@ -29,6 +29,14 @@ type AccountCreateParams struct {
 	SslCaCertificate string
 }
 
+// AccountModifyParams describes parameters for modifying an ONTAP security account.
+type AccountModifyParams struct {
+	Name      string
+	OwnerUUID string
+	// Applications replaces authentication bindings for the listed applications.
+	Applications []SecurityAccountApplication
+}
+
 // AccountGetParams describes parameters for looking up an ONTAP security account.
 type AccountGetParams struct {
 	Name string
@@ -83,6 +91,24 @@ func (sc *securityClient) AccountCreate(params *AccountCreateParams) error {
 	}
 
 	_, err := (*sc.api).AccountCreate(accountCreateParamsToONTAP(params), nil)
+	return err
+}
+
+func (sc *securityClient) AccountModify(params *AccountModifyParams) error {
+	if params == nil {
+		return fmt.Errorf("account modify params are required")
+	}
+	if strings.TrimSpace(params.Name) == "" {
+		return fmt.Errorf("account name is required")
+	}
+	if strings.TrimSpace(params.OwnerUUID) == "" {
+		return fmt.Errorf("account owner uuid is required")
+	}
+	if len(params.Applications) == 0 {
+		return fmt.Errorf("account applications are required")
+	}
+
+	_, err := (*sc.api).AccountModify(accountModifyParamsToONTAP(params), nil)
 	return err
 }
 

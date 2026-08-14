@@ -11,7 +11,9 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -73,6 +75,31 @@ func pinnedSecretCred(secretID, username string) *datamodel.ExpertModeCredential
 	}
 }
 
+func pinnedCertCred(certificateID, secretID, username string) *datamodel.ExpertModeCredential {
+	return &datamodel.ExpertModeCredential{
+		AuthType:      env.USER_CERTIFICATE,
+		CertificateID: certificateID,
+		SecretID:      secretID,
+		Username:      username,
+	}
+}
+
+func seedHostWithCredentials(t *testing.T, store *DataStoreRepository, uuid, externalName, username, ip, caURI string) *datamodel.Host {
+	t.Helper()
+	host := &datamodel.Host{
+		BaseModel:    datamodel.BaseModel{UUID: uuid},
+		Name:         externalName,
+		ExternalName: externalName,
+		IPAddress:    ip,
+		Username:     username,
+	}
+	if caURI != "" {
+		host.HostCredentials = &datamodel.PoolCredentials{CaURI: caURI}
+	}
+	require.NoError(t, store.db.GORM().Create(host).Error)
+	return host
+}
+
 func TestListPinnedHostCredentials(t *testing.T) {
 	t.Run("WhenAccountHasNoPinnedHosts_ReturnsNil", func(tt *testing.T) {
 		store := setupPinnedHostCredStore(tt)
@@ -123,7 +150,7 @@ func TestListPinnedHostCredentials(t *testing.T) {
 		assert.Equal(tt, "cred-user-b", creds[0].Username)
 	})
 
-	t.Run("WhenPinnedWithoutSecretID_SkipsRow", func(tt *testing.T) {
+	t.Run("WhenPinnedWithInlinePassword_ReturnsCredential", func(tt *testing.T) {
 		store := setupPinnedHostCredStore(tt)
 		acc := seedAccount(tt, store, "acc-uuid-4", "proj-4")
 		host := seedHost(tt, store, "host-uuid-3", "cluster-c", "host-user-c", "10.0.0.3")
@@ -136,7 +163,11 @@ func TestListPinnedHostCredentials(t *testing.T) {
 		creds, err := store.ListPinnedHostCredentials(context.Background(), "proj-4")
 
 		require.NoError(tt, err)
-		assert.Nil(tt, creds)
+		require.Len(tt, creds, 1)
+		assert.Equal(tt, "user-c", creds[0].Username)
+		assert.Equal(tt, "pass", creds[0].Password)
+		assert.Equal(tt, env.USERNAME_PWD, creds[0].AuthType)
+		assert.Empty(tt, creds[0].SecretId)
 	})
 
 	t.Run("WhenUnpinnedWithSecretID_SkipsRow", func(tt *testing.T) {
@@ -194,8 +225,49 @@ func TestListPinnedHostCredentials(t *testing.T) {
 		require.NotNil(tt, hc)
 		assert.Equal(tt, "account-host-user-g", hc.Username, "dedicated flow uses account_hosts username")
 		assert.Equal(tt, "secret-g", hc.SecretId)
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, hc.AuthType)
 		require.NotNil(tt, hc.Host)
 		assert.Equal(tt, "cluster-g", hc.Host.ExternalName)
+	})
+
+	t.Run("WhenPinnedHostHasCertificateCredentials_ReturnsCertMetadata", func(tt *testing.T) {
+		store := setupPinnedHostCredStore(tt)
+		acc := seedAccount(tt, store, "acc-uuid-cert", "proj-cert")
+		host := seedHostWithCredentials(tt, store, "host-uuid-cert", "cluster-cert", "host-user-cert", "10.0.0.20", "proj/pool/ca")
+		seedAccountHost(tt, store, "ah-uuid-cert", acc.ID, host.UUID, true,
+			pinnedCertCred("account-host-cert-uuid", "account-host-secret-uuid", "gcnv_u_cert"))
+
+		hc, err := store.GetDedicatedPinnedHostCredential(context.Background(), "proj-cert", "cluster-cert")
+
+		require.NoError(tt, err)
+		require.NotNil(tt, hc)
+		assert.Equal(tt, "gcnv_u_cert", hc.Username)
+		assert.Equal(tt, "account-host-secret-uuid", hc.SecretId)
+		assert.Equal(tt, "account-host-cert-uuid", hc.CertificateID)
+		assert.Equal(tt, env.USER_CERTIFICATE, hc.AuthType)
+		assert.Equal(tt, "proj/pool/ca", hc.CaURI)
+	})
+
+	t.Run("WhenPinnedHostHasInlinePassword_ReturnsDecryptedPassword", func(tt *testing.T) {
+		store := setupPinnedHostCredStore(tt)
+		acc := seedAccount(tt, store, "acc-uuid-pwd", "proj-pwd")
+		host := seedHost(tt, store, "host-uuid-pwd", "cluster-pwd", "host-user-pwd", "10.0.0.21")
+		encryptedPassword, err := utils.EncryptPassword(log.Secret("inline-password"))
+		require.NoError(tt, err)
+		seedAccountHost(tt, store, "ah-uuid-pwd", acc.ID, host.UUID, true, &datamodel.ExpertModeCredential{
+			AuthType: env.USERNAME_PWD,
+			Username: "gcnv_u_pwd",
+			Password: *encryptedPassword,
+		})
+
+		hc, err := store.GetDedicatedPinnedHostCredential(context.Background(), "proj-pwd", "cluster-pwd")
+
+		require.NoError(tt, err)
+		require.NotNil(tt, hc)
+		assert.Equal(tt, "gcnv_u_pwd", hc.Username)
+		assert.Equal(tt, "inline-password", hc.Password)
+		assert.Equal(tt, env.USERNAME_PWD, hc.AuthType)
+		assert.Empty(tt, hc.SecretId)
 	})
 
 	t.Run("WhenClusterNameDoesNotMatch_ReturnsNil", func(tt *testing.T) {
@@ -228,15 +300,13 @@ func TestListPinnedHostCredentials(t *testing.T) {
 		assert.Nil(tt, hc)
 	})
 
-	t.Run("WhenMixedPinnedRows_SkipsRowsWithoutSecret", func(tt *testing.T) {
+	t.Run("WhenMixedPinnedRows_ReturnsAllProvisionedCredentials", func(tt *testing.T) {
 		store := setupPinnedHostCredStore(tt)
 		acc := seedAccount(tt, store, "acc-uuid-mixed", "proj-mixed")
 		validHost := seedHost(tt, store, "host-uuid-valid", "cluster-valid", "user-valid", "10.0.0.10")
-		noSecretHost := seedHost(tt, store, "host-uuid-nosecret", "cluster-nosecret", "user-nosecret", "10.0.0.11")
-		// Valid pinned row with secret id.
+		inlineHost := seedHost(tt, store, "host-uuid-nosecret", "cluster-nosecret", "user-nosecret", "10.0.0.11")
 		seedAccountHost(tt, store, "ah-valid", acc.ID, validHost.UUID, true, pinnedSecretCred("secret-valid", "cred-valid"))
-		// Pinned row without secret id (auth username/password only): must be skipped in both loops.
-		seedAccountHost(tt, store, "ah-nosecret", acc.ID, noSecretHost.UUID, true, &datamodel.ExpertModeCredential{
+		seedAccountHost(tt, store, "ah-nosecret", acc.ID, inlineHost.UUID, true, &datamodel.ExpertModeCredential{
 			AuthType: env.USERNAME_PWD,
 			Username: "user-nosecret",
 			Password: "pass",
@@ -245,8 +315,21 @@ func TestListPinnedHostCredentials(t *testing.T) {
 		creds, err := store.ListPinnedHostCredentials(context.Background(), "proj-mixed")
 
 		require.NoError(tt, err)
-		require.Len(tt, creds, 1)
-		assert.Equal(tt, "secret-valid", creds[0].SecretId)
+		require.Len(tt, creds, 2)
+		bySecret := map[string]*HostCredential{}
+		var inline *HostCredential
+		for _, c := range creds {
+			if c.SecretId != "" {
+				bySecret[c.SecretId] = c
+			}
+			if c.AuthType == env.USERNAME_PWD {
+				inline = c
+			}
+		}
+		assert.NotNil(tt, bySecret["secret-valid"])
+		require.NotNil(tt, inline)
+		assert.Equal(tt, "user-nosecret", inline.Username)
+		assert.Equal(tt, "pass", inline.Password)
 	})
 
 	t.Run("WhenAccountHostsFetchFails_ReturnsVCPError", func(tt *testing.T) {
@@ -337,7 +420,7 @@ func TestHostExternalName(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
-			assert.Equal(tt, tc.want, hostExternalName(tc.host))
+			assert.Equal(tt, tc.want, HostExternalName(tc.host))
 		})
 	}
 }

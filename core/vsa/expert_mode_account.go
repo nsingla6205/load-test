@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
@@ -13,6 +14,7 @@ type ExpertModeAccountProvider interface {
 	GetClusterUUID() (string, error)
 	GetRoleOwnerUUID(roleName string) (string, error)
 	CreateSecurityAccount(params CreateSecurityAccountParams) error
+	ModifySecurityAccount(params ModifySecurityAccountParams) error
 	GetSecurityAccount(params GetSecurityAccountParams) (*SecurityAccount, error)
 	DeleteSecurityAccount(params DeleteSecurityAccountParams) error
 }
@@ -83,6 +85,79 @@ func EnsureExpertModeAccount(ctx context.Context, provider ExpertModeAccountProv
 	}
 	logger.Errorf("Failed to create ONTAP security account %s: %v", params.Username, err)
 	return err
+}
+
+// EnsureExpertModeSAWithCertAuth creates the expert-mode account for certificate-based
+// REST authentication (no bootstrap password) or enables certificate auth on an existing account.
+func EnsureExpertModeSAWithCertAuth(
+	ctx context.Context,
+	provider ExpertModeAccountProvider,
+	params CreateExpertModeAccountParams,
+) error {
+	logger := util.GetLogger(ctx)
+	if provider == nil {
+		return fmt.Errorf("expert mode account provider is required")
+	}
+	if params.Username == "" {
+		return fmt.Errorf("expert mode account username is required")
+	}
+	if params.RoleName == "" {
+		return fmt.Errorf("expert mode account role name is required")
+	}
+	clusterUUID := params.ClusterUUID
+	if clusterUUID == "" {
+		return fmt.Errorf("expert mode account cluster uuid is required")
+	}
+
+	accountExists := false
+	if _, err := provider.GetSecurityAccount(GetSecurityAccountParams{Name: params.Username}); err == nil {
+		accountExists = true
+		logger.Infof("ONTAP security account %s already exists, ensuring certificate auth", params.Username)
+	} else if !utilserrors.IsNotFoundErrForObjectTypeInChain(err, "SecurityAccount") {
+		logger.Errorf("Failed to lookup ONTAP security account %s: %v", params.Username, err)
+		return err
+	}
+
+	if !accountExists {
+		err := provider.CreateSecurityAccount(CreateSecurityAccountParams{
+			Name:                  params.Username,
+			RoleName:              params.RoleName,
+			ClusterUUID:           clusterUUID,
+			AuthenticationMethods: []string{"certificate"},
+		})
+		if err == nil {
+			logger.Infof("Successfully created ONTAP security account %s with certificate auth", params.Username)
+			return nil
+		}
+		if strings.Contains(err.Error(), "already exists") {
+			accountExists = true
+			logger.Infof("ONTAP security account %s already exists, ensuring certificate auth", params.Username)
+		} else {
+			logger.Errorf("Failed to create ONTAP security account %s: %v", params.Username, err)
+			return err
+		}
+	}
+
+	err := provider.ModifySecurityAccount(ModifySecurityAccountParams{
+		Name:      params.Username,
+		OwnerUUID: clusterUUID,
+		Applications: []ontapRest.SecurityAccountApplication{
+			{
+				Application:           "http",
+				AuthenticationMethods: []string{"password", "certificate"},
+			},
+			{
+				Application:           "ontapi",
+				AuthenticationMethods: []string{"password", "certificate"},
+			},
+		},
+	})
+	if err != nil {
+		logger.Errorf("Failed to enable certificate auth for ONTAP security account %s: %v", params.Username, err)
+		return err
+	}
+	logger.Infof("Enabled certificate auth for ONTAP security account %s", params.Username)
+	return nil
 }
 
 // CreateReadOnlyServiceAccountParams describes inputs for the idempotent

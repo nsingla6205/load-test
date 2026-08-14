@@ -42,6 +42,7 @@ type Host struct {
 	EfficiencyFactor  float64            `gorm:"column:efficiency_factor;type:double precision;not null;default:1.4"`
 	ProvisioningModel *ProvisioningModel `gorm:"column:provisioning_model;type:text;default:'THICK'"`
 	Attributes        *HostAttributes    `gorm:"column:host_attributes;type:jsonb"`
+	HostCredentials   *PoolCredentials   `gorm:"column:host_credentials;type:jsonb"`
 }
 
 // ProvisioningModel controls logical capacity enforcement for eligible pools on a host.

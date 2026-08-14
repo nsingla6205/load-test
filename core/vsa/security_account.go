@@ -24,6 +24,13 @@ type CreateSecurityAccountParams struct {
 	SslCaCertificate string
 }
 
+// ModifySecurityAccountParams represents parameters for modifying an ONTAP security account.
+type ModifySecurityAccountParams struct {
+	Name         string
+	OwnerUUID    string
+	Applications []ontapRest.SecurityAccountApplication
+}
+
 // GetSecurityAccountParams represents parameters for getting an ONTAP security account.
 type GetSecurityAccountParams struct {
 	Name string
@@ -88,6 +95,19 @@ func (rc *OntapRestProvider) CreateSecurityAccount(params CreateSecurityAccountP
 		OwnerUUID:             params.ClusterUUID,
 		AuthenticationMethods: params.AuthenticationMethods,
 		SslCaCertificate:      params.SslCaCertificate,
+	})
+}
+
+// ModifySecurityAccount updates an ONTAP security account.
+func (rc *OntapRestProvider) ModifySecurityAccount(params ModifySecurityAccountParams) error {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return err
+	}
+	return client.Security().AccountModify(&ontapRest.AccountModifyParams{
+		Name:         params.Name,
+		OwnerUUID:    params.OwnerUUID,
+		Applications: params.Applications,
 	})
 }
 

@@ -122,6 +122,47 @@ func TestReconcilePoolCredentialsAfterHostLookupFailure(t *testing.T) {
 	})
 }
 
+// TestReconcilePoolCredentialsAfterHostLookupFailure_DedicatedCacheKey is a
+// regression test for a bug where reconciling a dedicated-capacity (hardware:...)
+// cache key merged userName and clusterName into a single ClusterName value and
+// dropped UserName entirely, causing Core to reject the reconcile request with an
+// unknown cluster name (e.g. "gadmin:rohitj1-vsim48" instead of "rohitj1-vsim48").
+func TestReconcilePoolCredentialsAfterHostLookupFailure_DedicatedCacheKey(t *testing.T) {
+	orig := fetchCredentialsFunc
+	defer func() { fetchCredentialsFunc = orig }()
+
+	cacheKey := generateDedicatedCacheKey(generateCacheKey("531265380079", "pool-uuid", "gadmin"), "rohitj1-vsim48")
+	cache.AddToAuthDataCache(cacheKey, &models.AuthData{
+		PoolID:      "pool-uuid",
+		AccountName: "531265380079",
+		AuthType:    models.USER_CERTIFICATE,
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "gone.example.com"},
+		},
+	})
+	t.Cleanup(func() { cache.RemoveFromAuthDataCache(cacheKey) })
+
+	fetchCredentialsFunc = func(ctx context.Context, poolDetails *models.PoolDetails, jwtToken string, logger log.Logger) (*coreapiclient.OntapCredentialsV1, error) {
+		assert.Equal(t, "531265380079", poolDetails.ProjectNumber)
+		assert.Equal(t, "pool-uuid", poolDetails.PoolID)
+		assert.Equal(t, "gadmin", poolDetails.UserName)
+		assert.Equal(t, "rohitj1-vsim48", poolDetails.ClusterName)
+		return &coreapiclient.OntapCredentialsV1{
+			AuthType: coreapiclient.NewOptInt(1),
+			OntapEndpoints: []coreapiclient.OntapEndpoint{
+				{IP: "10.0.0.1", DNS: "fresh.example.com"},
+			},
+		}, nil
+	}
+
+	err := ReconcilePoolCredentialsAfterHostLookupFailure(context.Background(), cacheKey)
+	require.NoError(t, err)
+
+	cached, ok := cache.GetFromAuthDataCache(cacheKey)
+	require.True(t, ok)
+	assert.Equal(t, "fresh.example.com", cached.OntapEndpoints[0].DNS)
+}
+
 func TestTryReconcileHostLookupErrorIfApplicable(t *testing.T) {
 	orig := fetchCredentialsFunc
 	defer func() { fetchCredentialsFunc = orig }()

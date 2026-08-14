@@ -618,30 +618,57 @@ func TestPoolDetailsFromCacheKey(t *testing.T) {
 		assert.Equal(t, "gadmin", pd.UserName)
 	})
 
-	t.Run("DedicatedKey_RebuildsPoolDetailsWithClusterName", func(t *testing.T) {
-		key := generateDedicatedCacheKey("proj-1:pool-1", "cluster-a")
+	t.Run("DedicatedKey_RebuildsPoolDetailsWithUserNameAndClusterName", func(t *testing.T) {
+		key := generateDedicatedCacheKey(generateCacheKey("proj-1", "pool-1", "gadmin"), "cluster-a")
 		pd, err := poolDetailsFromCacheKey(key)
 		require.NoError(t, err)
 		require.NotNil(t, pd)
 		assert.Equal(t, "proj-1", pd.ProjectNumber)
 		assert.Equal(t, "pool-1", pd.PoolID)
 		assert.Equal(t, "proj-1", pd.AccountName)
+		assert.Equal(t, "gadmin", pd.UserName)
 		assert.Equal(t, "cluster-a", pd.ClusterName)
 	})
 
+	// Regression test for a bug where the dedicated-key parser assumed a
+	// {userName}:{clusterName}-less 4-segment key. With the real 5-segment
+	// key, splitting too early merged userName and clusterName into a single
+	// ClusterName value (e.g. "gadmin:rohitj1-vsim48") and left UserName
+	// empty, which Core then rejected as an unknown cluster name.
+	t.Run("DedicatedKey_WithNoColonsInUserNameOrClusterName_DoesNotMergeSegments", func(t *testing.T) {
+		key := generateDedicatedCacheKey(generateCacheKey("531265380079", "fda43d19-2900-b793-f09c-d48918f3bbe3", "gadmin"), "rohitj1-vsim48")
+		pd, err := poolDetailsFromCacheKey(key)
+		require.NoError(t, err)
+		require.NotNil(t, pd)
+		assert.Equal(t, "531265380079", pd.ProjectNumber)
+		assert.Equal(t, "fda43d19-2900-b793-f09c-d48918f3bbe3", pd.PoolID)
+		assert.Equal(t, "531265380079", pd.AccountName)
+		assert.Equal(t, "gadmin", pd.UserName)
+		assert.Equal(t, "rohitj1-vsim48", pd.ClusterName)
+	})
+
 	t.Run("DedicatedKey_WithEmptyClusterName_StillValid", func(t *testing.T) {
-		key := generateDedicatedCacheKey("proj-1:pool-1", "")
+		key := generateDedicatedCacheKey(generateCacheKey("proj-1", "pool-1", "gadmin"), "")
 		pd, err := poolDetailsFromCacheKey(key)
 		require.NoError(t, err)
 		require.NotNil(t, pd)
 		assert.Equal(t, "proj-1", pd.ProjectNumber)
 		assert.Equal(t, "pool-1", pd.PoolID)
+		assert.Equal(t, "gadmin", pd.UserName)
 		assert.Equal(t, "", pd.ClusterName)
 	})
 
 	t.Run("MalformedDedicatedKey_ReturnsError", func(t *testing.T) {
 		// dedicated-namespaced key with too few segments.
 		pd, err := poolDetailsFromCacheKey("hardware:proj-1:pool-1")
+		require.Error(t, err)
+		assert.Nil(t, pd)
+		assert.Contains(t, err.Error(), "invalid hardware auth cache key")
+	})
+
+	t.Run("MalformedDedicatedKey_MissingClusterName_ReturnsError", func(t *testing.T) {
+		// dedicated-namespaced key missing the trailing clusterName segment.
+		pd, err := poolDetailsFromCacheKey("hardware:proj-1:pool-1:gadmin")
 		require.Error(t, err)
 		assert.Nil(t, pd)
 		assert.Contains(t, err.Error(), "invalid hardware auth cache key")

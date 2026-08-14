@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
+	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/crypto"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -45,4 +46,21 @@ func decryptAndDecodeCredentials(secretPassword string) ([]byte, error) {
 	}
 
 	return credentialsDecoded, nil
+}
+
+// DecryptServiceCredentialPassword decrypts an encrypted service credential password.
+// Plaintext values (non V1 ciphertext) are returned unchanged for backward compatibility.
+func DecryptServiceCredentialPassword(encrypted string) (string, error) {
+	encrypted = strings.TrimSpace(encrypted)
+	if encrypted == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(encrypted, "V1:") {
+		return encrypted, nil
+	}
+	decrypted, err := DecryptPassword(log.Secret(encrypted))
+	if err != nil {
+		return "", err
+	}
+	return *decrypted, nil
 }

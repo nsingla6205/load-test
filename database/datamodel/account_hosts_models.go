@@ -58,3 +58,14 @@ func (h *AccountHost) HasProvisionedCredentials() bool {
 func (h *AccountHost) IsPinnedWithCredentials() bool {
 	return h != nil && h.Pinned && h.HasProvisionedCredentials()
 }
+
+// HasDedicatedProxyCredentials reports whether this row has provisioned credentials
+// eligible for the dedicated-capacity ONTAP proxy / private CLI inventory path.
+// It mirrors HasProvisionedCredentials: inline password (USERNAME_PWD), Secret Manager
+// (USERNAME_PWD_SEC_MGR), and client certificate (USER_CERTIFICATE) rows all qualify.
+func (h *AccountHost) HasDedicatedProxyCredentials() bool {
+	if !h.HasProvisionedCredentials() {
+		return false
+	}
+	return true
+}

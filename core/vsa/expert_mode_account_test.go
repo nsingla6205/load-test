@@ -15,6 +15,7 @@ type mockExpertModeAccountProvider struct {
 	roleOwnerUUID string
 	getAccount    func(name string) (*SecurityAccount, error)
 	create        func(params CreateSecurityAccountParams) error
+	modify        func(params ModifySecurityAccountParams) error
 	deleteAccount func(params DeleteSecurityAccountParams) error
 }
 
@@ -42,6 +43,13 @@ func (m *mockExpertModeAccountProvider) GetSecurityAccount(params GetSecurityAcc
 func (m *mockExpertModeAccountProvider) CreateSecurityAccount(params CreateSecurityAccountParams) error {
 	if m.create != nil {
 		return m.create(params)
+	}
+	return nil
+}
+
+func (m *mockExpertModeAccountProvider) ModifySecurityAccount(params ModifySecurityAccountParams) error {
+	if m.modify != nil {
+		return m.modify(params)
 	}
 	return nil
 }
@@ -275,6 +283,67 @@ func (p *clusterUUIDErrorProvider) GetClusterUUID() (string, error) {
 	return "", errors.New("cluster uuid lookup failed")
 }
 
+func TestEnsureExpertModeSAWithCertAuth_CreatesWithCertificateAuth(t *testing.T) {
+	created := false
+	provider := &mockExpertModeAccountProvider{
+		roleOwnerUUID: "role-owner-uuid",
+		create: func(params CreateSecurityAccountParams) error {
+			created = true
+			assert.Equal(t, []string{"certificate"}, params.AuthenticationMethods)
+			assert.Equal(t, "svc-user_gcnv", params.Name)
+			assert.Empty(t, params.Password)
+			assert.Equal(t, "gcnvadmin", params.RoleName)
+			assert.Equal(t, "role-owner-uuid", params.ClusterUUID)
+			return nil
+		},
+		modify: func(params ModifySecurityAccountParams) error {
+			t.Fatal("ModifySecurityAccount should not be called when create succeeds")
+			return nil
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "role-owner-uuid",
+	})
+	require.NoError(t, err)
+	assert.True(t, created)
+}
+
+func TestEnsureExpertModeSAWithCertAuth_ModifiesExistingAccount(t *testing.T) {
+	modified := false
+	provider := &mockExpertModeAccountProvider{
+		roleOwnerUUID: "role-owner-uuid",
+		getAccount: func(name string) (*SecurityAccount, error) {
+			return &SecurityAccount{Name: name, OwnerUUID: "role-owner-uuid"}, nil
+		},
+		create: func(params CreateSecurityAccountParams) error {
+			t.Fatal("CreateSecurityAccount should not be called when account exists")
+			return nil
+		},
+		modify: func(params ModifySecurityAccountParams) error {
+			modified = true
+			assert.Equal(t, "svc-user_gcnv", params.Name)
+			assert.Equal(t, "role-owner-uuid", params.OwnerUUID)
+			require.Len(t, params.Applications, 2)
+			assert.Equal(t, "http", params.Applications[0].Application)
+			assert.Equal(t, []string{"password", "certificate"}, params.Applications[0].AuthenticationMethods)
+			assert.Equal(t, "ontapi", params.Applications[1].Application)
+			assert.Equal(t, []string{"password", "certificate"}, params.Applications[1].AuthenticationMethods)
+			return nil
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "role-owner-uuid",
+	})
+	require.NoError(t, err)
+	assert.True(t, modified)
+}
+
 type roleOwnerUUIDErrorProvider struct {
 	*mockExpertModeAccountProvider
 }
@@ -435,4 +504,112 @@ func TestEnsureReadOnlyServiceAccount_InvalidInputs(t *testing.T) {
 		Username: "svc-user",
 	})
 	assert.EqualError(t, err, "read-only service account role name is required")
+}
+
+func TestEnsureExpertModeSAWithCertAuth_RequiresClusterUUID(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username: "svc-user_gcnv",
+		RoleName: "gcnvadmin",
+	})
+	assert.EqualError(t, err, "expert mode account cluster uuid is required")
+}
+
+func TestEnsureExpertModeSAWithCertAuth_InvalidInputs(t *testing.T) {
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), nil, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "expert mode account provider is required")
+
+	provider := &mockExpertModeAccountProvider{}
+
+	err = EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "expert mode account username is required")
+
+	err = EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "expert mode account role name is required")
+}
+
+func TestEnsureExpertModeSAWithCertAuth_PropagatesLookupError(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		getAccount: func(name string) (*SecurityAccount, error) {
+			return nil, errors.New("lookup failed")
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "lookup failed")
+}
+
+func TestEnsureExpertModeSAWithCertAuth_CreateAlreadyExistsThenModifies(t *testing.T) {
+	modified := false
+	provider := &mockExpertModeAccountProvider{
+		create: func(params CreateSecurityAccountParams) error {
+			return errors.New("Entry with the same name already exists")
+		},
+		modify: func(params ModifySecurityAccountParams) error {
+			modified = true
+			assert.Equal(t, "svc-user_gcnv", params.Name)
+			assert.Equal(t, "cluster-uuid", params.OwnerUUID)
+			return nil
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	require.NoError(t, err)
+	assert.True(t, modified)
+}
+
+func TestEnsureExpertModeSAWithCertAuth_PropagatesCreateError(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		create: func(params CreateSecurityAccountParams) error {
+			return errors.New("create failed")
+		},
+		modify: func(params ModifySecurityAccountParams) error {
+			t.Fatal("ModifySecurityAccount should not be called when create fails")
+			return nil
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "create failed")
+}
+
+func TestEnsureExpertModeSAWithCertAuth_PropagatesModifyError(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		getAccount: func(name string) (*SecurityAccount, error) {
+			return &SecurityAccount{Name: name, OwnerUUID: "cluster-uuid"}, nil
+		},
+		modify: func(params ModifySecurityAccountParams) error {
+			return errors.New("modify failed")
+		},
+	}
+
+	err := EnsureExpertModeSAWithCertAuth(context.Background(), provider, CreateExpertModeAccountParams{
+		Username:    "svc-user_gcnv",
+		RoleName:    "gcnvadmin",
+		ClusterUUID: "cluster-uuid",
+	})
+	assert.EqualError(t, err, "modify failed")
 }

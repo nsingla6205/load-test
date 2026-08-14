@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
@@ -86,4 +88,27 @@ func TestDecryptAndDecodeCredentialsReturnsErrorOnBase64DecodeFailure(t *testing
 	if err == nil {
 		t.Errorf("expected error for invalid base64, got nil")
 	}
+}
+
+func TestDecryptServiceCredentialPassword(t *testing.T) {
+	t.Run("decrypts V1 ciphertext", func(t *testing.T) {
+		encrypted, err := EncryptPassword(log.Secret("plaintext-password"))
+		require.NoError(t, err)
+
+		plain, err := DecryptServiceCredentialPassword(*encrypted)
+		require.NoError(t, err)
+		assert.Equal(t, "plaintext-password", plain)
+	})
+
+	t.Run("returns plaintext unchanged", func(t *testing.T) {
+		plain, err := DecryptServiceCredentialPassword("already-plain")
+		require.NoError(t, err)
+		assert.Equal(t, "already-plain", plain)
+	})
+
+	t.Run("empty password is no-op", func(t *testing.T) {
+		plain, err := DecryptServiceCredentialPassword("")
+		require.NoError(t, err)
+		assert.Empty(t, plain)
+	})
 }

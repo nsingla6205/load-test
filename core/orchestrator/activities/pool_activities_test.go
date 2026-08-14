@@ -19523,6 +19523,10 @@ func (p *serviceCertCapableProvider) CreateSecurityAccount(params vsa.CreateSecu
 	return nil
 }
 
+func (p *serviceCertCapableProvider) ModifySecurityAccount(params vsa.ModifySecurityAccountParams) error {
+	return nil
+}
+
 func (p *serviceCertCapableProvider) DeleteSecurityAccount(params vsa.DeleteSecurityAccountParams) error {
 	return nil
 }

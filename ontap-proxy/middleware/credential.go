@@ -245,19 +245,21 @@ func parseAuthDataCacheKey(cacheKey string) (projectNumber, poolID, userName str
 // poolDetailsFromCacheKey rebuilds PoolDetails from a cache key for credential
 // reconcile. It understands both the standard namespace
 // ({projectNumber}:{poolID}:{userName}) and the dedicated namespace
-// (dedicated:{projectNumber}:{poolID}:{clusterName}).
+// (hardware:{projectNumber}:{poolID}:{userName}:{clusterName}, see
+// generateDedicatedCacheKey).
 func poolDetailsFromCacheKey(cacheKey string) (*models.PoolDetails, error) {
 	if isDedicatedCacheKey(cacheKey) {
-		// dedicated:{projectNumber}:{poolID}:{clusterName}
-		parts := strings.SplitN(cacheKey, ":", 4)
-		if len(parts) != 4 {
+		// hardware:{projectNumber}:{poolID}:{userName}:{clusterName}
+		parts := strings.SplitN(cacheKey, ":", 5)
+		if len(parts) != 5 {
 			return nil, fmt.Errorf("invalid hardware auth cache key")
 		}
 		return &models.PoolDetails{
 			ProjectNumber: parts[1],
 			PoolID:        parts[2],
 			AccountName:   parts[1],
-			ClusterName:   parts[3],
+			UserName:      parts[3],
+			ClusterName:   parts[4],
 		}, nil
 	}
 

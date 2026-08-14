@@ -18,9 +18,9 @@ const (
 	accountHostServiceUserAuthTypeEnvVar   = "ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE"
 )
 
-// AccountHostServiceUserAuthType returns how external cluster service user passwords are stored.
+// AccountHostServiceUserAuthType returns how external cluster service user credentials are stored.
 // Local dev defaults to encrypted password in Postgres; non-local deployments use Secret Manager.
-// Set ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE to override (0=USERNAME_PWD, 1=USERNAME_PWD_SEC_MGR).
+// Set ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE to override (0=USERNAME_PWD, 1=USERNAME_PWD_SEC_MGR, 2=USER_CERTIFICATE).
 func AccountHostServiceUserAuthType() int {
 	if configured := env.GetInt(accountHostServiceUserAuthTypeEnvVar, accountHostServiceUserAuthTypeEnvUnset); configured != accountHostServiceUserAuthTypeEnvUnset {
 		return configured
@@ -42,12 +42,56 @@ func CreateAccountHostServiceUserCredentials(accountHostUUID, serviceUsername st
 
 func createAccountHostServiceUserCredentials(secretKey, serviceUsername string) *datamodel.ExpertModeCredential {
 	authType := AccountHostServiceUserAuthType()
+	secretID := fmt.Sprintf("%s-secret-%s", AccountHostCredentialsIDPrefix, secretKey)
 
-	return &datamodel.ExpertModeCredential{
+	cred := &datamodel.ExpertModeCredential{
 		AuthType: authType,
 		Username: serviceUsername,
-		SecretID: fmt.Sprintf("%s-secret-%s", AccountHostCredentialsIDPrefix, secretKey),
+		SecretID: secretID,
 	}
+	if authType == env.USER_CERTIFICATE {
+		cred.CertificateID = fmt.Sprintf("%s-cert-%s", AccountHostCredentialsIDPrefix, secretKey)
+	}
+	return cred
+}
+
+// BuildAccountHostCertificatePoolCredentials returns PoolCredentials for minting or loading
+// the account-host service user client certificate.
+// CaURI prefers host.HostCredentials when present; otherwise it uses the same env-based
+// BuildCaURI path as host onboard (GenerateHostCertificate).
+func BuildAccountHostCertificatePoolCredentials(
+	host *datamodel.Host,
+	cred *datamodel.ExpertModeCredential,
+) (*datamodel.PoolCredentials, error) {
+	if host == nil {
+		return nil, fmt.Errorf("host is required")
+	}
+	if cred == nil {
+		return nil, fmt.Errorf("service credential is required")
+	}
+	if cred.AuthType != env.USER_CERTIFICATE {
+		return nil, fmt.Errorf("service credential auth type must be certificate")
+	}
+	if cred.CertificateID == "" {
+		return nil, fmt.Errorf("service credential certificate_id is required")
+	}
+	if cred.SecretID == "" {
+		return nil, fmt.Errorf("service credential secret_id is required")
+	}
+
+	// Same source as host onboard: explicit host CaURI, else env CA pool settings.
+	caURI := env.BuildCaURI(env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName)
+	if host.HostCredentials != nil {
+		caURI = host.HostCredentials.GetCaURIWithFallback()
+	}
+
+	return &datamodel.PoolCredentials{
+		AuthType:      env.USER_CERTIFICATE,
+		Username:      strings.TrimSpace(cred.Username),
+		CertificateID: strings.TrimSpace(cred.CertificateID),
+		SecretID:      strings.TrimSpace(cred.SecretID),
+		CaURI:         caURI,
+	}, nil
 }
 
 // DeriveStablePasswordFromKey returns a deterministic password for idempotent workflow retries.

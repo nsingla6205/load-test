@@ -3,6 +3,8 @@ package activities
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,7 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"go.temporal.io/sdk/testsuite"
@@ -42,27 +45,36 @@ func newAccountHostMonkeyMockAndPatch(t *testing.T) *monkeyMock {
 	accountHostGetGCPService = mm.accountHostGetGCPService
 	accountHostGetProviderForHost = mm.accountHostGetProviderForHost
 	accountHostVerifyHostServiceCredentials = mm.accountHostVerifyHostServiceCredentials
+	verifySAWithCertAuth = mm.verifySAWithCertAuth
 	accountHostEnsureExpertModeRole = mm.accountHostEnsureExpertModeRole
 	accountHostEnsureExpertModeAccount = mm.accountHostEnsureExpertModeAccount
+	createSAWithCertAuth = mm.createSAWithCertAuth
 	accountHostDeleteExpertModeAccount = mm.accountHostDeleteExpertModeAccount
 	accountHostDeleteExpertModeRole = mm.accountHostDeleteExpertModeRole
 	accountHostGetRoleOwnerUUID = mm.accountHostGetRoleOwnerUUID
 	accountHostGetBucketFileContent = mm.accountHostGetBucketFileContent
 	loadAccountHostRBACPrivileges = mm.loadAccountHostRBACPrivileges
 	generateAccountHostServicePassword = mm.generateAccountHostServicePassword
+	generateClientCertificate = mm.generateClientCertificate
+	revokeAccountHostClientCertificate = mm.revokeAccountHostClientCertificate
 
 	t.Cleanup(func() {
 		accountHostGetGCPService = _accountHostGetGCPService
 		accountHostGetProviderForHost = vsa.GetProviderForHost
 		accountHostVerifyHostServiceCredentials = vsa.VerifyHostServiceCredentials
+		verifySAWithCertAuth = vsa.VerifyHostServiceCredentialsWithCertificate
 		accountHostEnsureExpertModeRole = vsa.EnsureExpertModeRole
 		accountHostEnsureExpertModeAccount = vsa.EnsureExpertModeAccount
+		createSAWithCertAuth = vsa.EnsureExpertModeSAWithCertAuth
 		accountHostDeleteExpertModeAccount = vsa.DeleteExpertModeAccount
 		accountHostDeleteExpertModeRole = vsa.DeleteExpertModeRole
 		accountHostGetRoleOwnerUUID = getAccountHostRoleOwnerUUID
 		accountHostGetBucketFileContent = _accountHostGetBucketFileContent
 		loadAccountHostRBACPrivileges = _loadAccountHostRBACPrivilegesFromBucket
 		generateAccountHostServicePassword = _generateAccountHostServicePassword
+		generateClientCertificate = vsa.GenerateAndCreateCertificateForVSACluster
+		revokeAccountHostClientCertificate = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager
+		accountHostBuildCertificatePoolCredentials = orchcommon.BuildAccountHostCertificatePoolCredentials
 	})
 
 	return mm
@@ -89,8 +101,8 @@ func TestPrepareAccountHostMapping_Success(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: accountUUID},
 	}, nil)
 	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(&datamodel.Host{
-		BaseModel: datamodel.BaseModel{UUID: hostUUID},
-		IPAddress: "10.10.10.50",
+		BaseModel:  datamodel.BaseModel{UUID: hostUUID},
+		IPAddress:  "10.10.10.50",
 		Attributes: &datamodel.HostAttributes{Version: "9.18.1P2"},
 	}, nil)
 
@@ -167,11 +179,11 @@ func TestCreateAccountHostRole_Success(t *testing.T) {
 	roleOwnerUUID := "95be11a7-0000-0000-0000-000000000001"
 
 	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(&dbdatamodel.Host{
-		BaseModel:     dbdatamodel.BaseModel{UUID: hostUUID},
-		Name:          "ontap-cluster",
-		Password:      *encryptedPassword,
-		Protocol:      dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
-		IPAddress:     "10.10.10.50",
+		BaseModel: dbdatamodel.BaseModel{UUID: hostUUID},
+		Name:      "ontap-cluster",
+		Password:  *encryptedPassword,
+		Protocol:  dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
+		IPAddress: "10.10.10.50",
 	}, nil)
 
 	mm := newAccountHostMonkeyMockAndPatch(t)
@@ -274,6 +286,7 @@ func TestCreateAccountHostRole_SubstitutesCLIQueriesWithAccountSvmPattern(t *tes
 }
 
 func TestCreateAccountHostUser_Success(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
 	mockStorage := database.NewMockStorage(t)
 
 	encryptedPassword, err := utils.EncryptPassword("admin-pass")
@@ -287,40 +300,50 @@ func TestCreateAccountHostUser_Success(t *testing.T) {
 	roleOwnerUUID := "95be11a7-0000-0000-0000-000000000001"
 
 	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(&dbdatamodel.Host{
-		BaseModel: dbdatamodel.BaseModel{UUID: hostUUID},
-		Name:      "ontap-cluster",
-		Password:  *encryptedPassword,
-		Protocol:  dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
-		IPAddress: "10.10.10.50",
+		BaseModel:    dbdatamodel.BaseModel{UUID: hostUUID},
+		Name:         "ontap-cluster",
+		ExternalName: "ontap-cluster",
+		Password:     *encryptedPassword,
+		Protocol:     dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
+		IPAddress:    "10.10.10.50",
+		HostCredentials: &datamodel.PoolCredentials{
+			AuthType: env.USER_CERTIFICATE,
+			CaURI:    "project/pool/ca",
+		},
 	}, nil)
 	mockStorage.On("UpdateAccountHostServiceCredentials", mock.Anything, mappingUUID, mock.MatchedBy(func(c *datamodel.ExpertModeCredential) bool {
 		return c != nil && c.Username == testAccountHostServiceUser
 	})).Return(nil)
 	mockStorage.On("SetAccountHostPinned", mock.Anything, mappingUUID, true).Return(nil)
 
+	cloudService := new(hyperscaler2.MockServices)
 	mm := newAccountHostMonkeyMockAndPatch(t)
-	mm.EXPECT().generateAccountHostServicePassword(mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, cred *datamodel.ExpertModeCredential) (string, error) {
-			assert.Contains(t, []int{env.USERNAME_PWD, env.USERNAME_PWD_SEC_MGR}, cred.AuthType)
-			return "generated-password", nil
-		})
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(
+		cloudService, "ontap-cluster", expectedUsername, mock.Anything, false,
+	).Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
 	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
 		RunAndReturn(testProviderForHost(t))
-	mm.EXPECT().accountHostEnsureExpertModeAccount(mock.Anything, mock.Anything, mock.Anything).
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(_ context.Context, _ vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams) error {
 			assert.Equal(t, roleName, params.RoleName)
 			assert.Equal(t, expectedUsername, params.Username)
-			assert.Equal(t, "generated-password", params.Password)
+			assert.Empty(t, params.Password)
 			assert.Equal(t, roleOwnerUUID, params.ClusterUUID)
 			return nil
 		})
-	mm.EXPECT().accountHostVerifyHostServiceCredentials(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, _ *dbdatamodel.Host, svmPattern, username, password string) error {
-			assert.Equal(t, orchcommon.BuildAccountHostSvmPattern(accountUUID), svmPattern)
-			assert.Equal(t, expectedUsername, username)
-			assert.Equal(t, "generated-password", password)
-			return nil
-		})
+	mm.EXPECT().verifySAWithCertAuth(
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+	).RunAndReturn(func(
+		_ context.Context,
+		_ *dbdatamodel.Host,
+		svmPattern, username string,
+		_ *datamodel.PoolCredentials,
+	) error {
+		assert.Equal(t, orchcommon.BuildAccountHostSvmPattern(accountUUID), svmPattern)
+		assert.Equal(t, expectedUsername, username)
+		return nil
+	})
 
 	activity := &AccountHostActivity{SE: mockStorage}
 
@@ -342,6 +365,7 @@ func TestCreateAccountHostUser_Success(t *testing.T) {
 }
 
 func TestCreateAccountHostUser_ExistingOntapUserRecovery(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
 	mockStorage := database.NewMockStorage(t)
 
 	encryptedPassword, err := utils.EncryptPassword("admin-pass")
@@ -352,14 +376,18 @@ func TestCreateAccountHostUser_ExistingOntapUserRecovery(t *testing.T) {
 	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 	expectedUsername := testAccountHostServiceUser
 	roleOwnerUUID := "95be11a7-0000-0000-0000-000000000001"
-	stablePassword := "generated-password"
 
 	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(&dbdatamodel.Host{
-		BaseModel: dbdatamodel.BaseModel{UUID: hostUUID},
-		Name:      "ontap-cluster",
-		Password:  *encryptedPassword,
-		Protocol:  dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
-		IPAddress: "10.10.10.50",
+		BaseModel:    dbdatamodel.BaseModel{UUID: hostUUID},
+		Name:         "ontap-cluster",
+		ExternalName: "ontap-cluster",
+		Password:     *encryptedPassword,
+		Protocol:     dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
+		IPAddress:    "10.10.10.50",
+		HostCredentials: &datamodel.PoolCredentials{
+			AuthType: env.USER_CERTIFICATE,
+			CaURI:    "project/pool/ca",
+		},
 	}, nil)
 	mockStorage.On("UpdateAccountHostServiceCredentials", mock.Anything, mappingUUID, mock.MatchedBy(func(c *datamodel.ExpertModeCredential) bool {
 		return c != nil && c.Username == testAccountHostServiceUser
@@ -367,24 +395,33 @@ func TestCreateAccountHostUser_ExistingOntapUserRecovery(t *testing.T) {
 	mockStorage.On("SetAccountHostPinned", mock.Anything, mappingUUID, true).Return(nil)
 
 	verifyCalled := false
+	cloudService := new(hyperscaler2.MockServices)
 	mm := newAccountHostMonkeyMockAndPatch(t)
-	mm.EXPECT().generateAccountHostServicePassword(mock.Anything, mock.Anything).Return(stablePassword, nil)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(
+		cloudService, "ontap-cluster", expectedUsername, mock.Anything, false,
+	).Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
 	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
 		RunAndReturn(testProviderForHost(t))
-	mm.EXPECT().accountHostEnsureExpertModeAccount(mock.Anything, mock.Anything, mock.Anything).
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(_ context.Context, _ vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams) error {
 			assert.Equal(t, expectedUsername, params.Username)
-			assert.Equal(t, stablePassword, params.Password)
+			assert.Empty(t, params.Password)
 			return nil
 		})
-	mm.EXPECT().accountHostVerifyHostServiceCredentials(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, _ *dbdatamodel.Host, svmPattern, username, password string) error {
-			verifyCalled = true
-			assert.Equal(t, orchcommon.BuildAccountHostSvmPattern(accountUUID), svmPattern)
-			assert.Equal(t, expectedUsername, username)
-			assert.Equal(t, stablePassword, password)
-			return nil
-		})
+	mm.EXPECT().verifySAWithCertAuth(
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+	).RunAndReturn(func(
+		_ context.Context,
+		_ *dbdatamodel.Host,
+		svmPattern, username string,
+		_ *datamodel.PoolCredentials,
+	) error {
+		verifyCalled = true
+		assert.Equal(t, orchcommon.BuildAccountHostSvmPattern(accountUUID), svmPattern)
+		assert.Equal(t, expectedUsername, username)
+		return nil
+	})
 
 	activity := &AccountHostActivity{SE: mockStorage}
 
@@ -420,6 +457,10 @@ func (p *deleteRoleAlreadyAbsentProvider) GetRoleOwnerUUID(roleName string) (str
 }
 
 func (p *deleteRoleAlreadyAbsentProvider) CreateSecurityAccount(params vsa.CreateSecurityAccountParams) error {
+	return nil
+}
+
+func (p *deleteRoleAlreadyAbsentProvider) ModifySecurityAccount(params vsa.ModifySecurityAccountParams) error {
 	return nil
 }
 
@@ -870,4 +911,571 @@ func TestGenerateExternalClusterProjectServicePassword_UnsupportedAuthType(t *te
 func TestGenerateExternalClusterProjectServicePassword_NilCredential(t *testing.T) {
 	_, err := generateAccountHostServicePasswordForTest(t, nil)
 	require.Error(t, err)
+}
+
+func testEncryptedAccountHostHost(t *testing.T, hostUUID string) *dbdatamodel.Host {
+	t.Helper()
+	encryptedPassword, err := utils.EncryptPassword("admin-pass")
+	require.NoError(t, err)
+	return &dbdatamodel.Host{
+		BaseModel:    dbdatamodel.BaseModel{UUID: hostUUID},
+		Name:         "ontap-cluster",
+		ExternalName: "ontap-cluster",
+		Password:     *encryptedPassword,
+		Protocol:     dbdatamodel.ExternalClusterProtocolInsecureHTTPS,
+		IPAddress:    "10.10.10.50",
+		HostCredentials: &datamodel.PoolCredentials{
+			AuthType: env.USER_CERTIFICATE,
+			CaURI:    "project/pool/ca",
+		},
+	}
+}
+
+func testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID string) *PreparedAccountHostMapping {
+	return &PreparedAccountHostMapping{
+		MappingUUID:   mappingUUID,
+		HostUUID:      hostUUID,
+		AdminUsername: testAccountHostServiceUser,
+		RoleName:      testAccountHostRoleName,
+		RoleOwnerUUID: "95be11a7-0000-0000-0000-000000000001",
+		SvmPattern:    orchcommon.BuildAccountHostSvmPattern(accountUUID),
+	}
+}
+
+func TestCreateAccountHostUser_PasswordAuthSuccess(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USERNAME_PWD))
+	mockStorage := database.NewMockStorage(t)
+
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	roleOwnerUUID := "95be11a7-0000-0000-0000-000000000001"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+	mockStorage.On("UpdateAccountHostServiceCredentials", mock.Anything, mappingUUID, mock.MatchedBy(func(c *datamodel.ExpertModeCredential) bool {
+		return c != nil && c.Username == testAccountHostServiceUser && c.Password != ""
+	})).Return(nil)
+	mockStorage.On("SetAccountHostPinned", mock.Anything, mappingUUID, true).Return(nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().generateAccountHostServicePassword(mock.Anything, mock.Anything).
+		RunAndReturn(_generateAccountHostServicePassword)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		RunAndReturn(testProviderForHost(t))
+	mm.EXPECT().accountHostEnsureExpertModeAccount(mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, _ vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams) error {
+			assert.Equal(t, testAccountHostServiceUser, params.Username)
+			assert.Equal(t, testAccountHostRoleName, params.RoleName)
+			assert.Equal(t, roleOwnerUUID, params.ClusterUUID)
+			assert.NotEmpty(t, params.Password)
+			return nil
+		})
+	mm.EXPECT().accountHostVerifyHostServiceCredentials(
+		mock.Anything, mock.Anything, orchcommon.BuildAccountHostSvmPattern(accountUUID),
+		testAccountHostServiceUser, mock.Anything,
+	).Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	prepared := testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, prepared)
+	require.NoError(t, err)
+}
+
+func TestGenerateAccountHostServicePassword_CertificateAuthTypeRejected(t *testing.T) {
+	_, err := generateAccountHostServicePasswordForTest(t, &datamodel.ExpertModeCredential{
+		AuthType: env.USER_CERTIFICATE,
+		SecretID: "account-host-secret-mapping-uuid",
+	})
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.ErrorAs(t, err, &customErr)
+	assert.Contains(t, customErr.Unwrap().Error(), "password generation is not used")
+}
+
+func TestCreateAccountHostUser_CertificateUsesHostNameWhenExternalNameEmpty(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	host := testEncryptedAccountHostHost(t, hostUUID)
+	host.ExternalName = ""
+	host.Name = "fallback-cluster-name"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(host, nil)
+	mockStorage.On("UpdateAccountHostServiceCredentials", mock.Anything, mappingUUID, mock.Anything).Return(nil)
+	mockStorage.On("SetAccountHostPinned", mock.Anything, mappingUUID, true).Return(nil)
+
+	cloudService := new(hyperscaler2.MockServices)
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(
+		cloudService, "fallback-cluster-name", testAccountHostServiceUser, mock.Anything, false,
+	).Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		RunAndReturn(testProviderForHost(t))
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().verifySAWithCertAuth(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.NoError(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateMissingClusterName(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	host := testEncryptedAccountHostHost(t, hostUUID)
+	host.ExternalName = ""
+	host.Name = ""
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(host, nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(new(hyperscaler2.MockServices), nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "external cluster name is required")
+}
+
+func TestEnsureSAWithCertAuth_BuildPoolCredentialsError(t *testing.T) {
+	activity := &AccountHostActivity{}
+	host := testEncryptedAccountHostHost(t, "host-uuid")
+	prepared := testAccountHostUserPrepared("mapping-uuid", "host-uuid", "account-uuid")
+
+	origBuild := accountHostBuildCertificatePoolCredentials
+	accountHostBuildCertificatePoolCredentials = func(*datamodel.Host, *datamodel.ExpertModeCredential) (*datamodel.PoolCredentials, error) {
+		return nil, fmt.Errorf("build pool credentials failed")
+	}
+	t.Cleanup(func() { accountHostBuildCertificatePoolCredentials = origBuild })
+
+	err := activity.ensureSAWithCertAuth(
+		context.Background(), prepared, host,
+		&datamodel.ExpertModeCredential{AuthType: env.USER_CERTIFICATE, CertificateID: "cert", SecretID: "secret"},
+		testAccountHostServiceUser,
+	)
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateGCPInitError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(nil, errors.New("gcp unavailable"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateGenerationError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(nil, errors.New("cert mint failed"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateProviderError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		Return(nil, errors.New("provider unavailable"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateProviderNotAccountCapable(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		Return(vsa.NewMockProvider(t), nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateEnsureAccountError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		RunAndReturn(testProviderForHost(t))
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("ontap account create failed"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateVerifyError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		RunAndReturn(testProviderForHost(t))
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().verifySAWithCertAuth(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("certificate verify failed"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_CertificateCompleteMappingError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+	mockStorage.On("UpdateAccountHostServiceCredentials", mock.Anything, mappingUUID, mock.Anything).
+		Return(errors.New("db update failed"))
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().generateClientCertificate(mock.Anything, mock.Anything, mock.Anything, mock.Anything, false).
+		Return(&hyperscalermodels.CustomCertificateResponse{}, nil)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		RunAndReturn(testProviderForHost(t))
+	mm.EXPECT().createSAWithCertAuth(mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().verifySAWithCertAuth(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestCreateAccountHostUser_PasswordGenerateError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USERNAME_PWD))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().generateAccountHostServicePassword(mock.Anything, mock.Anything).
+		Return("", errors.New("password generation failed"))
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestEnsureSAWithPasswordAuth_ProviderNotAccountCapable(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USERNAME_PWD))
+	mockStorage := database.NewMockStorage(t)
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().generateAccountHostServicePassword(mock.Anything, mock.Anything).
+		RunAndReturn(_generateAccountHostServicePassword)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).
+		Return(vsa.NewMockProvider(t), nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.CreateAccountHostUser)
+
+	_, err := env.ExecuteActivity(activity.CreateAccountHostUser, testAccountHostUserPrepared(mappingUUID, hostUUID, accountUUID))
+	require.Error(t, err)
+}
+
+func TestRollbackAccountHostOntapProvisioning_RevokesCertificate(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	mappingUUID := "0fd5305c-e724-2598-2605-2f61e716cd63"
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	clusterUUID := "95be11a7-0000-0000-0000-000000000001"
+	serviceUsername := testAccountHostServiceUser
+	roleName := testAccountHostRoleName
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	provider := &deleteRoleAlreadyAbsentProvider{
+		MockProvider: vsa.NewMockProvider(t),
+		clusterUUID:  clusterUUID,
+	}
+	cloudService := new(hyperscaler2.MockServices)
+	revokeCalled := false
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).Return(provider, nil)
+	mm.EXPECT().accountHostDeleteExpertModeAccount(mock.Anything, mock.Anything, serviceUsername, clusterUUID).Return(nil)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().revokeAccountHostClientCertificate(cloudService, mock.Anything).
+		RunAndReturn(func(_ hyperscaler2.Services, poolCreds *datamodel.PoolCredentials) error {
+			revokeCalled = true
+			assert.Equal(t, env.USER_CERTIFICATE, poolCreds.AuthType)
+			assert.Equal(t, "account-host-cert-"+mappingUUID, poolCreds.CertificateID)
+			return nil
+		})
+	mm.EXPECT().accountHostDeleteExpertModeRole(mock.Anything, mock.Anything, roleName, clusterUUID).Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	prepared := &PreparedAccountHostMapping{
+		MappingUUID:   mappingUUID,
+		HostUUID:      hostUUID,
+		AdminUsername: serviceUsername,
+		RoleName:      roleName,
+		RoleOwnerUUID: clusterUUID,
+	}
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.RollbackAccountHostOntapProvisioning)
+
+	_, err := env.ExecuteActivity(activity.RollbackAccountHostOntapProvisioning, prepared)
+	require.NoError(t, err)
+	assert.True(t, revokeCalled)
+}
+
+func TestRollbackAccountHostOntapProvisioning_CertificateBuildError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	mappingUUID := "0fd5305c-e724-2598-2605-2f61e716cd63"
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	clusterUUID := "95be11a7-0000-0000-0000-000000000001"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	provider := &deleteRoleAlreadyAbsentProvider{
+		MockProvider: vsa.NewMockProvider(t),
+		clusterUUID:  clusterUUID,
+	}
+
+	origBuild := accountHostBuildCertificatePoolCredentials
+	accountHostBuildCertificatePoolCredentials = func(*datamodel.Host, *datamodel.ExpertModeCredential) (*datamodel.PoolCredentials, error) {
+		return nil, errors.New("build failed")
+	}
+	t.Cleanup(func() { accountHostBuildCertificatePoolCredentials = origBuild })
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).Return(provider, nil)
+	mm.EXPECT().accountHostDeleteExpertModeAccount(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().accountHostDeleteExpertModeRole(mock.Anything, mock.Anything, testAccountHostRoleName, clusterUUID).Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	prepared := &PreparedAccountHostMapping{
+		MappingUUID:   mappingUUID,
+		HostUUID:      hostUUID,
+		AdminUsername: testAccountHostServiceUser,
+		RoleName:      testAccountHostRoleName,
+		RoleOwnerUUID: clusterUUID,
+	}
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.RollbackAccountHostOntapProvisioning)
+
+	_, err := env.ExecuteActivity(activity.RollbackAccountHostOntapProvisioning, prepared)
+	require.NoError(t, err)
+}
+
+func TestRollbackAccountHostOntapProvisioning_CertificateGCPInitError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	mappingUUID := "0fd5305c-e724-2598-2605-2f61e716cd63"
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	clusterUUID := "95be11a7-0000-0000-0000-000000000001"
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	provider := &deleteRoleAlreadyAbsentProvider{
+		MockProvider: vsa.NewMockProvider(t),
+		clusterUUID:  clusterUUID,
+	}
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).Return(provider, nil)
+	mm.EXPECT().accountHostDeleteExpertModeAccount(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(nil, errors.New("gcp init failed"))
+	mm.EXPECT().accountHostDeleteExpertModeRole(mock.Anything, mock.Anything, testAccountHostRoleName, clusterUUID).Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	prepared := &PreparedAccountHostMapping{
+		MappingUUID:   mappingUUID,
+		HostUUID:      hostUUID,
+		AdminUsername: testAccountHostServiceUser,
+		RoleName:      testAccountHostRoleName,
+		RoleOwnerUUID: clusterUUID,
+	}
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.RollbackAccountHostOntapProvisioning)
+
+	_, err := env.ExecuteActivity(activity.RollbackAccountHostOntapProvisioning, prepared)
+	require.NoError(t, err)
+}
+
+func TestRollbackAccountHostOntapProvisioning_CertificateRevokeError(t *testing.T) {
+	t.Setenv("ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE", strconv.Itoa(env.USER_CERTIFICATE))
+	mockStorage := database.NewMockStorage(t)
+
+	mappingUUID := "0fd5305c-e724-2598-2605-2f61e716cd63"
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	clusterUUID := "95be11a7-0000-0000-0000-000000000001"
+	cloudService := new(hyperscaler2.MockServices)
+
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(testEncryptedAccountHostHost(t, hostUUID), nil)
+
+	provider := &deleteRoleAlreadyAbsentProvider{
+		MockProvider: vsa.NewMockProvider(t),
+		clusterUUID:  clusterUUID,
+	}
+
+	mm := newAccountHostMonkeyMockAndPatch(t)
+	mm.EXPECT().accountHostGetProviderForHost(mock.Anything, mock.Anything).Return(provider, nil)
+	mm.EXPECT().accountHostDeleteExpertModeAccount(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mm.EXPECT().accountHostGetGCPService(mock.Anything).Return(cloudService, nil)
+	mm.EXPECT().revokeAccountHostClientCertificate(cloudService, mock.Anything).Return(errors.New("revoke failed"))
+	mm.EXPECT().accountHostDeleteExpertModeRole(mock.Anything, mock.Anything, testAccountHostRoleName, clusterUUID).Return(nil)
+
+	activity := &AccountHostActivity{SE: mockStorage}
+	prepared := &PreparedAccountHostMapping{
+		MappingUUID:   mappingUUID,
+		HostUUID:      hostUUID,
+		AdminUsername: testAccountHostServiceUser,
+		RoleName:      testAccountHostRoleName,
+		RoleOwnerUUID: clusterUUID,
+	}
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.RollbackAccountHostOntapProvisioning)
+
+	_, err := env.ExecuteActivity(activity.RollbackAccountHostOntapProvisioning, prepared)
+	require.NoError(t, err)
 }

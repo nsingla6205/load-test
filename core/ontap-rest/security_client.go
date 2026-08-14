@@ -30,6 +30,7 @@ type SecurityClient interface { // generate:mock
 	RolePrivilegeCreate(params *RolePrivilegeCreateParams) (string, error)
 	RoleCollectionGet(params *RoleCollectionGetParams) (*RoleCollectionGetResponse, error)
 	AccountCreate(params *AccountCreateParams) error
+	AccountModify(params *AccountModifyParams) error
 	AccountGet(params *AccountGetParams) (*SecurityAccount, error)
 	AccountDelete(params *AccountDeleteParams) error
 	ServerRootCACertificateGet(params *ServerRootCAGetParams) (*ServerRootCACertificate, error)

@@ -23,8 +23,9 @@ import (
 var HostOnboardGetProviderForHost = vsa.GetProviderForHost
 
 const (
-	vcpAdminCertUsernameSuffix = "_admin"
-	hostServerCertificateType  = "server"
+	vcpAdminCertUsernameSuffix     = "_admin"
+	hostServerCertificateType      = "server"
+	hostServerChainCertificateType = "server_chain"
 )
 
 // HostOnboardActivity implements Temporal activities for async host onboarding.

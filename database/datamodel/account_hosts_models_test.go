@@ -60,3 +60,30 @@ func TestAccountHost_IsPinnedWithCredentials(t *testing.T) {
 		},
 	}).IsPinnedWithCredentials())
 }
+
+func TestAccountHost_HasDedicatedProxyCredentials(t *testing.T) {
+	assert.False(t, (*AccountHost)(nil).HasDedicatedProxyCredentials())
+
+	inlinePassword := &AccountHost{OntapModeCredentials: &ExpertModeCredential{
+		AuthType: env.USERNAME_PWD,
+		Username: "user",
+		Password: "encrypted-password",
+	}}
+	assert.True(t, inlinePassword.HasProvisionedCredentials())
+	assert.True(t, inlinePassword.HasDedicatedProxyCredentials())
+
+	smPassword := &AccountHost{OntapModeCredentials: &ExpertModeCredential{
+		AuthType: env.USERNAME_PWD_SEC_MGR,
+		Username: "user",
+		SecretID: "secret-id",
+	}}
+	assert.True(t, smPassword.HasDedicatedProxyCredentials())
+
+	cert := &AccountHost{OntapModeCredentials: &ExpertModeCredential{
+		AuthType:      env.USER_CERTIFICATE,
+		Username:      "user",
+		CertificateID: "cert-id",
+		SecretID:      "secret-id",
+	}}
+	assert.True(t, cert.HasDedicatedProxyCredentials())
+}
