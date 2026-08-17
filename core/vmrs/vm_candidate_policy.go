@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
 // FilterCandidatesByPolicy returns the subset of vms that satisfies policy. When policy is
@@ -18,6 +20,13 @@ func FilterCandidatesByPolicy(vms []VMPerfLimit, policy VMSelectionPolicy) ([]VM
 	if policy.MinimumMachineType != "" {
 		floor = resolveVMPerfLimit(vms, policy.MinimumMachineType)
 		if floor == nil {
+			log.NewLogger().Error(
+				"Minimum machine type missing from VM candidate list",
+				"minimumMachineType", policy.MinimumMachineType,
+				"candidateTypes", vmTypeNames(vms),
+				"eligibleFamilies", policy.EligibleFamilies,
+				"requireLSSD", policy.RequireLSSD,
+			)
 			return nil, fmt.Errorf("minimum machine type %q not found in VMRS catalog", policy.MinimumMachineType)
 		}
 	}
@@ -41,6 +50,14 @@ func FilterCandidatesByPolicy(vms []VMPerfLimit, policy VMSelectionPolicy) ([]VM
 		return nil, fmt.Errorf("no VM candidates remain after applying VM selection policy")
 	}
 	return filtered, nil
+}
+
+func vmTypeNames(vms []VMPerfLimit) []string {
+	names := make([]string, len(vms))
+	for i := range vms {
+		names[i] = vms[i].VMType
+	}
+	return names
 }
 
 // matchesEligibleFamily reports whether machineType belongs to one of the eligible families.

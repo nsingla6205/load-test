@@ -2373,10 +2373,10 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	// topology's VM selection policy would otherwise exclude each other and leave no
 	// candidates at all.
 	if topologyFamily := vmrs_decision.MachineFamilyForTopology(req.CustomerRequest.ScalingTopology.Topology, machineFamily); topologyFamily != machineFamily {
-		logger.Debug("Overriding machine family with the family required by the pool topology", "topology", req.CustomerRequest.ScalingTopology.Topology, "configuredMachineFamily", machineFamily, "machineFamily", topologyFamily)
+		logger.Info("Overriding machine family with the family required by the pool topology", "topology", req.CustomerRequest.ScalingTopology.Topology, "configuredMachineFamily", machineFamily, "machineFamily", topologyFamily)
 		machineFamily = topologyFamily
 	}
-
+	logger.Info("Machine family selected", "machineFamily", machineFamily)
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
 	// For large capacity pools, force the use of the large volume cluster strategy.
 	var decisionMaker vmrs.DecisionMaker
