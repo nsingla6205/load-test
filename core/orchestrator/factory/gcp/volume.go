@@ -2358,8 +2358,7 @@ func _deleteVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		},
 	}
 
-	workflowFunc := workflows.DeleteVolumeWorkflow
-
+	var workflowFunc interface{} = workflows.DeleteVolumeWorkflow
 	if volume.CacheParameters != nil {
 		workflowFunc = flexcache_workflows.DeleteFlexCacheVolumeWorkflow
 		if volume.State == datamodel.LifeCycleStatePreparing {
@@ -2426,12 +2425,12 @@ func _deleteVolume(ctx context.Context, se database.Storage, temporal client.Cli
 	} else {
 		controlWorkflowID := workflows.GenerateControlWorkflowID(volume.Account.ID, location, volume.Pool.Name)
 		workflowOptions := workflows.DefaultSequentialWorkflowOptions(controlWorkflowID, createdJob.WorkflowID)
-		err = workflowExecutor.ExecuteSequentialWorkflow(
-			ctx,
-			workflowOptions,
-			workflowFunc,
-			volume,
-		)
+		if volume.CacheParameters != nil {
+			err = workflowExecutor.ExecuteSequentialWorkflow(ctx, workflowOptions, workflowFunc, volume)
+		} else {
+			// Pass the UUID to keep the sequencer payload within Temporal's blob size limit.
+			err = workflowExecutor.ExecuteSequentialWorkflow(ctx, workflowOptions, workflowFunc, volume.UUID)
+		}
 	}
 	if err != nil {
 		logger.Error("Failed to start delete volume workflow: ", "error", err)

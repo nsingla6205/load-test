@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -33,12 +34,54 @@ type volumeDeleteWorkflow struct {
 // Enforcing the WorkflowInterface on volumeDeleteWorkflow
 var _ WorkflowInterface = &volumeDeleteWorkflow{}
 
-// DeleteVolumeWorkflow Delete Volume Workflow process volume related requests from a customer.
-func DeleteVolumeWorkflow(ctx workflow.Context, volume *datamodel.Volume) error {
+// ResolveVolumeReference loads UUID inputs while preserving legacy volume-object inputs for replay.
+func ResolveVolumeReference(ctx workflow.Context, volumeReference interface{}) (*datamodel.Volume, error) {
+	switch input := volumeReference.(type) {
+	case string:
+		ctx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: time.Duration(volumeStartToCloseTimeoutSec) * time.Second,
+			HeartbeatTimeout:    time.Duration(dbHeartbeatTimeoutSec) * time.Second,
+		})
+		var volume *datamodel.Volume
+		err := workflow.ExecuteActivity(ctx, (&activities.VolumeCreateActivity{}).GetVolumeByVolumeID, input).Get(ctx, &volume)
+		return volume, err
+	case *datamodel.Volume:
+		return input, nil
+	case map[string]interface{}:
+		encoded, err := json.Marshal(input)
+		if err != nil {
+			return nil, fmt.Errorf("marshal legacy volume input: %w", err)
+		}
+		volume := &datamodel.Volume{}
+		if err := json.Unmarshal(encoded, volume); err != nil {
+			return nil, fmt.Errorf("unmarshal legacy volume input: %w", err)
+		}
+		return volume, nil
+	default:
+		return nil, fmt.Errorf("invalid volume input type %T", volumeReference)
+	}
+}
+
+// MarkVolumeResolutionFailure records a failed UUID lookup against the current delete job.
+func MarkVolumeResolutionFailure(ctx workflow.Context, resolveErr error) {
+	baseWf := &BaseWorkflow{ID: workflow.GetInfo(ctx).WorkflowExecution.ID, Status: WorkflowStatusFailed}
+	if err := baseWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), resolveErr); err != nil {
+		util.GetLogger(ctx).Errorf("Failed to mark job ERROR after volume resolution failure: %v", err)
+	}
+}
+
+// DeleteVolumeWorkflow processes a volume delete request.
+func DeleteVolumeWorkflow(ctx workflow.Context, volumeReference interface{}) error {
 	log := util.GetLogger(ctx)
-	volumeWf := new(volumeDeleteWorkflow)
-	err := volumeWf.Setup(ctx, volume)
+	volume, err := ResolveVolumeReference(ctx, volumeReference)
 	if err != nil {
+		MarkVolumeResolutionFailure(ctx, err)
+		log.Errorf("Failed to resolve volume for DeleteVolumeWorkflow: %v", err)
+		return err
+	}
+
+	volumeWf := new(volumeDeleteWorkflow)
+	if err = volumeWf.Setup(ctx, volume); err != nil {
 		log.Errorf("Volume delete workflow setup executed with error: %v", err)
 		return err
 	}

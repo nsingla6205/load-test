@@ -10535,6 +10535,9 @@ func TestDeleteVolume(t *testing.T) {
 		// Mock ExecuteWorkflowSequentially using ExecuteWorkflowSeq
 		origExecuteWorkflowSeq := workflows.ExecuteWorkflowSeq
 		workflows.ExecuteWorkflowSeq = func(temporal client.Client, ctx context.Context, sequenceWfOptions client.StartWorkflowOptions, wfFunction interface{}, wfOptions workflow.ChildWorkflowOptions, wfArgs ...interface{}) error {
+			assert.Equal(t, reflect.ValueOf(workflows.DeleteVolumeWorkflow).Pointer(), reflect.ValueOf(wfFunction).Pointer())
+			assert.Len(t, wfArgs, 1)
+			assert.Equal(t, volume.UUID, wfArgs[0])
 			return nil
 		}
 		defer func() { workflows.ExecuteWorkflowSeq = origExecuteWorkflowSeq }()
@@ -39678,4 +39681,3 @@ func TestDeleteVolume_ResilienceEnabled_ActiveJobLookup(t *testing.T) {
 		})
 	}
 }
-
