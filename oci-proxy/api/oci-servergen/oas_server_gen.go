@@ -122,7 +122,7 @@ type Handler interface {
 	StartMaintenance(ctx context.Context, req *StartMaintenanceRequest, params StartMaintenanceParams) (StartMaintenanceRes, error)
 	// UpdatePool implements updatePool operation.
 	//
-	// Updates an existing storage pool's capacity and/or throughput. The operation
+	// Updates an existing storage pool's capacity, throughput, and/or IOPS. The operation
 	// is asynchronous. Use the returned workflowId to poll for completion.
 	//
 	// PUT /v1beta/pools/{poolOCID}

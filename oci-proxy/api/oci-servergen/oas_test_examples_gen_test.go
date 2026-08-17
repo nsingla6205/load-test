@@ -75,6 +75,8 @@ func TestCreatePoolRequest_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"compartmentOCID\":\"ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a\",\"dataEndpointCount\":2,\"dataNicSubnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"description\":\"Demo pool\",\"iops\":50000,\"kmsKeyId\":\"ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq\",\"mediatorAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-3\",\"nsgIds\":[\"ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva\"],\"ociAdminPassword\":{\"ocid\":\"ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":\"1\"},\"poolOCID\":\"ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"primaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-1\",\"resourceName\":\"my-pool\",\"secondaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-2\",\"securityAttributes\":{\"vcp_zpr\":{\"ns1\":{\"mode\":\"enforce\",\"value\":\"{\\\"app\\\": {\\\"value\\\": \\\"app1\\\", \\\"mode\\\": \\\"enforce\\\"}}\"}}},\"sizeInGiB\":100,\"subnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"throughputGBps\":1,\"tieringConfig\":{\"bucketName\":\"bucket-aryan-test\",\"namespace\":\"idqogasfjw45\",\"secretId\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq\",\"secretVersion\":1,\"serverName\":\"idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com\"}}"},
+		{Input: "{\"compartmentOCID\":\"ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a\",\"dataEndpointCount\":2,\"dataNicSubnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"description\":\"Pool created with temporary admin password\",\"mediatorAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-3\",\"ociAdminTempPassword\":\"Netapp1234!\",\"poolOCID\":\"ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"primaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-1\",\"resourceName\":\"my-pool-temp-pw\",\"secondaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-2\",\"sizeInGiB\":100,\"subnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"throughputGBps\":1}"},
+		{Input: "{\"compartmentOCID\":\"ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a\",\"dataEndpointCount\":2,\"dataNicSubnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"description\":\"Pool with pinned fault domains\",\"iops\":50000,\"mediatorAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-3\",\"mediatorFaultDomain\":\"FAULT-DOMAIN-3\",\"ociAdminPassword\":{\"ocid\":\"ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":\"1\"},\"poolOCID\":\"ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"primaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-1\",\"primaryFaultDomain\":\"FAULT-DOMAIN-1\",\"resourceName\":\"my-pool-fd\",\"secondaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-2\",\"secondaryFaultDomain\":\"FAULT-DOMAIN-2\",\"sizeInGiB\":100,\"subnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"throughputGBps\":1}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -156,7 +158,8 @@ func TestCreateSvmRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"Ips\":[],\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
+		{Input: "{\"Ips\":[\"10.0.0.10\",\"10.0.0.11\"],\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
+		{Input: "{\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -440,6 +443,7 @@ func TestMaintenanceAcceptedResponse_Examples(t *testing.T) {
 	}{
 		{Input: "{\"status\":\"giveback_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
 		{Input: "{\"status\":\"reboot_migrate_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
+		{Input: "{\"status\":\"recreate_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
 		{Input: "{\"status\":\"takeover_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
 	} {
 		tc := tc
@@ -523,6 +527,7 @@ func TestMaintenanceRequest_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\"],\"operationType\":\"reboot_migrate\"}"},
+		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\"],\"operationType\":\"recreate\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -556,6 +561,35 @@ func TestMaintenanceRequestOperationType_EncodeDecode(t *testing.T) {
 
 	var typ2 MaintenanceRequestOperationType
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestMaintenanceRequestOperationType_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"reboot_migrate\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ MaintenanceRequestOperationType
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 MaintenanceRequestOperationType
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestNodeCapacity_EncodeDecode(t *testing.T) {
 	var typ NodeCapacity
@@ -713,6 +747,7 @@ func TestRbacRefreshRequest_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"rbacFilePath\":\"path/to/rbac-file.json\"}"},
+		{Input: "{}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -795,6 +830,7 @@ func TestResetPasswordRequest_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"tempPassword\":\"Netapp1234\"}"},
+		{Input: "{}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -918,7 +954,8 @@ func TestRotateFabricPoolKeysRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"secretOCID\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"version\":2}"},
+		{Input: "{\"secretOCID\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"secretVersion\":2}"},
+		{Input: "{\"secretOCID\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -1141,8 +1178,12 @@ func TestUpdatePoolRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"dataEndpointCount\":4,\"throughputGBps\":1.5}"},
-		{Input: "{\"nodeCapacities\":[{\"name\":\"FsnIdocnv-4d550dafef2c8648-vm-01\",\"nodeUUID\":\"550e8400-e29b-41d4-a716-446655440001\",\"sizeInGiB\":2048},{\"name\":\"FsnIdocnv-4d550dafef2c8648-vm-02\",\"nodeUUID\":\"550e8400-e29b-41d4-a716-446655440002\",\"sizeInGiB\":2048}],\"throughputGBps\":1}"},
+		{Input: "{\"iops\":50000,\"nodeCapacities\":[{\"name\":\"FsnIdocnv-4d550dafef2c8648-vm-01\",\"nodeUUID\":\"550e8400-e29b-41d4-a716-446655440001\",\"sizeInGiB\":2048},{\"name\":\"FsnIdocnv-4d550dafef2c8648-vm-02\",\"nodeUUID\":\"550e8400-e29b-41d4-a716-446655440002\",\"sizeInGiB\":2048}],\"throughputGBps\":1}"},
+		{Input: "{\"iops\":50000,\"throughputGBps\":1}"},
+		{Input: "{\"iops\":50000}"},
+		{Input: "{\"kmsKeyId\":\"ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq\",\"nodeCapacities\":[{\"name\":\"OcsnIdocsn-a9a89a3ca4eb3798-vm-01\",\"nodeUUID\":\"ca68e27f-a8cf-407b-1f8c-f548903ee2e8\",\"sizeInGiB\":200},{\"name\":\"OcsnIdocsn-a9a89a3ca4eb3798-vm-02\",\"nodeUUID\":\"ec2feff0-b79c-7991-8a78-5d5eb534ca2e\",\"sizeInGiB\":200}],\"nsgIds\":[\"ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva\"],\"securityAttributes\":{\"vcp_zpr\":{\"ns1\":{\"mode\":\"enforce\",\"value\":\"{\\\"app\\\": {\\\"value\\\": \\\"app1\\\", \\\"mode\\\": \\\"enforce\\\"}}\"}}}}"},
+		{Input: "{\"kmsKeyId\":\"ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq\",\"nsgIds\":[\"ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva\"],\"securityAttributes\":{\"vcp_zpr\":{\"ns1\":{\"mode\":\"enforce\",\"value\":\"{\\\"app\\\": {\\\"value\\\": \\\"app1\\\", \\\"mode\\\": \\\"enforce\\\"}}\"}}}}"},
+		{Input: "{\"throughputGBps\":1}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {

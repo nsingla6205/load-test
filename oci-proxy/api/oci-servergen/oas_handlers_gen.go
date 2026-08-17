@@ -2003,7 +2003,7 @@ func (s *Server) handleStartMaintenanceRequest(args [1]string, argsEscaped bool,
 
 // handleUpdatePoolRequest handles updatePool operation.
 //
-// Updates an existing storage pool's capacity and/or throughput. The operation
+// Updates an existing storage pool's capacity, throughput, and/or IOPS. The operation
 // is asynchronous. Use the returned workflowId to poll for completion.
 //
 // PUT /v1beta/pools/{poolOCID}

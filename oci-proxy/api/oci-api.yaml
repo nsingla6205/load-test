@@ -73,37 +73,78 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePoolRequest'
-            example:
-              poolOCID: "ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-              compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
-              resourceName: "my-pool"
-              subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
-              dataEndpointCount: 2
-              dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
-              sizeInGiB: 100
-              throughputGBps: 1
-              iops: 50000
-              primaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-1"
-              secondaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-2"
-              mediatorAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-3"
-              ociAdminPassword:
-                ocid: "ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                version: "1"
-              description: "Demo pool"
-              tieringConfig:
-                secretId: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq"
-                secretVersion: 1
-                namespace: "idqogasfjw45"
-                bucketName: "bucket-aryan-test"
-                serverName: "idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com"
-              kmsKeyId: "ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq"
-              nsgIds:
-                - "ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva"
-              securityAttributes:
-                vcp_zpr:
-                  ns1:
-                    value: '{"app": {"value": "app1", "mode": "enforce"}}'
-                    mode: "enforce"
+            examples:
+              fullCreate:
+                summary: Create pool with vault password, tiering, NSGs, ZPR, and KMS
+                value:
+                  poolOCID: "ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
+                  resourceName: "my-pool"
+                  subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  dataEndpointCount: 2
+                  dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  sizeInGiB: 100
+                  throughputGBps: 1
+                  iops: 50000
+                  primaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-1"
+                  secondaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-2"
+                  mediatorAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-3"
+                  ociAdminPassword:
+                    ocid: "ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    version: "1"
+                  description: "Demo pool"
+                  tieringConfig:
+                    secretId: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq"
+                    secretVersion: 1
+                    namespace: "idqogasfjw45"
+                    bucketName: "bucket-aryan-test"
+                    serverName: "idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com"
+                  kmsKeyId: "ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq"
+                  nsgIds:
+                    - "ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva"
+                  securityAttributes:
+                    vcp_zpr:
+                      ns1:
+                        value: '{"app": {"value": "app1", "mode": "enforce"}}'
+                        mode: "enforce"
+              withFaultDomains:
+                summary: Create pool with explicit fault domains for primary, secondary, and mediator
+                value:
+                  poolOCID: "ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
+                  resourceName: "my-pool-fd"
+                  subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  dataEndpointCount: 2
+                  dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  sizeInGiB: 100
+                  throughputGBps: 1
+                  iops: 50000
+                  primaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-1"
+                  secondaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-2"
+                  mediatorAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-3"
+                  primaryFaultDomain: "FAULT-DOMAIN-1"
+                  secondaryFaultDomain: "FAULT-DOMAIN-2"
+                  mediatorFaultDomain: "FAULT-DOMAIN-3"
+                  ociAdminPassword:
+                    ocid: "ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    version: "1"
+                  description: "Pool with pinned fault domains"
+              withTempPassword:
+                summary: Create pool using a plain-text temporary admin password
+                value:
+                  poolOCID: "ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
+                  resourceName: "my-pool-temp-pw"
+                  subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  dataEndpointCount: 2
+                  dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
+                  sizeInGiB: 100
+                  throughputGBps: 1
+                  primaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-1"
+                  secondaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-2"
+                  mediatorAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-3"
+                  ociAdminTempPassword: "Netapp1234!"
+                  description: "Pool created with temporary admin password"
       responses:
         "202":
           description: Accepted. Pool creation in progress.
@@ -199,7 +240,7 @@ paths:
         - pools
       summary: Update pool
       description: |
-        Updates an existing storage pool's capacity and/or throughput. The operation
+        Updates an existing storage pool's capacity, throughput, and/or IOPS. The operation
         is asynchronous. Use the returned workflowId to poll for completion.
       operationId: updatePool
       parameters:
@@ -215,9 +256,10 @@ paths:
               $ref: '#/components/schemas/UpdatePoolRequest'
             examples:
               homogeneousNodeCapacities:
-                summary: Resize capacity for a single HA pair
+                summary: Resize capacity and update performance for a single HA pair
                 value:
                   throughputGBps: 1
+                  iops: 50000
                   nodeCapacities:
                     - name: FsnIdocnv-4d550dafef2c8648-vm-01
                       nodeUUID: 550e8400-e29b-41d4-a716-446655440001
@@ -225,11 +267,48 @@ paths:
                     - name: FsnIdocnv-4d550dafef2c8648-vm-02
                       nodeUUID: 550e8400-e29b-41d4-a716-446655440002
                       sizeInGiB: 2048
-              dataEndpointCount:
-                summary: Scale endpoint count (single AD clusters only)
+              iopsOnly:
+                summary: Update pool IOPS only
                 value:
-                  dataEndpointCount: 4
-                  throughputGBps: 1.5
+                  iops: 50000
+              throughputOnly:
+                summary: Update pool throughput only
+                value:
+                  throughputGBps: 1
+              throughputAndIops:
+                summary: Update throughput and IOPS without changing capacity
+                value:
+                  throughputGBps: 1
+                  iops: 50000
+              nodeCapacitiesWithMetadata:
+                summary: Resize nodes and update NSGs, ZPR attributes, and KMS key
+                value:
+                  nodeCapacities:
+                    - name: OcsnIdocsn-a9a89a3ca4eb3798-vm-01
+                      nodeUUID: ca68e27f-a8cf-407b-1f8c-f548903ee2e8
+                      sizeInGiB: 200
+                    - name: OcsnIdocsn-a9a89a3ca4eb3798-vm-02
+                      nodeUUID: ec2feff0-b79c-7991-8a78-5d5eb534ca2e
+                      sizeInGiB: 200
+                  nsgIds:
+                    - ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva
+                  securityAttributes:
+                    vcp_zpr:
+                      ns1:
+                        value: '{"app": {"value": "app1", "mode": "enforce"}}'
+                        mode: enforce
+                  kmsKeyId: ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq
+              metadataOnly:
+                summary: Update NSGs, ZPR attributes, and KMS key without resizing
+                value:
+                  nsgIds:
+                    - ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva
+                  securityAttributes:
+                    vcp_zpr:
+                      ns1:
+                        value: '{"app": {"value": "app1", "mode": "enforce"}}'
+                        mode: enforce
+                  kmsKeyId: ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq
       responses:
         "202":
           description: Accepted. Pool update in progress.
@@ -505,8 +584,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RbacRefreshRequest'
-            example:
-              rbacFilePath: "path/to/rbac-file.json"
+            examples:
+              withRbacFilePath:
+                summary: Refresh RBAC using an explicit file path
+                value:
+                  rbacFilePath: "path/to/rbac-file.json"
+              useEnvDefault:
+                summary: Omit rbacFilePath and resolve path from service environment
+                value: {}
       responses:
         "202":
           description: Accepted. RBAC refresh in progress.
@@ -593,8 +678,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ResetPasswordRequest'
-            example:
-              tempPassword: "Netapp1234"
+            examples:
+              withTempPassword:
+                summary: Reset password using a caller-supplied temporary password
+                value:
+                  tempPassword: "Netapp1234"
+              generateTempPassword:
+                summary: Omit tempPassword and let the service generate one
+                value: {}
       responses:
         "202":
           description: Accepted. Password reset in progress.
@@ -667,9 +758,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RotateFabricPoolKeysRequest'
-            example:
-              secretOCID: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              version: 2
+            examples:
+              withSecretVersion:
+                summary: Rotate fabric pool keys using a specific secret version
+                value:
+                  secretOCID: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  secretVersion: 2
+              latestSecretVersion:
+                summary: Rotate using the current/latest secret version
+                value:
+                  secretOCID: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       responses:
         "202":
           description: Accepted
@@ -694,7 +792,7 @@ paths:
                     poolOCID: "ocid1.pool.oc1.ashburn-1.testing-pool1"
         "400":
           description: |
-            Bad request. Missing or invalid `secretOCID`, invalid `version`,
+            Bad request. Missing or invalid `secretOCID`, invalid `secretVersion`,
             malformed `poolOCID`, missing `Tenancy-Ocid`
           headers:
             Opc-Work-Request-Id:
@@ -891,10 +989,19 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MaintenanceRequest'
-            example:
-              instanceOcids:
-                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
-              operationType: "reboot_migrate"
+            examples:
+              rebootMigrate:
+                summary: Reboot migrate a single node
+                value:
+                  instanceOcids:
+                    - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+                  operationType: "reboot_migrate"
+              recreate:
+                summary: Recreate a single node
+                value:
+                  instanceOcids:
+                    - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+                  operationType: "recreate"
       responses:
         "202":
           description: Accepted. Maintenance workflow started (or post-state already reached).
@@ -905,9 +1012,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MaintenanceAcceptedResponse'
-              example:
-                status: "reboot_migrate_in_progress"
-                workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
+              examples:
+                rebootMigrateInProgress:
+                  summary: Reboot migrate accepted
+                  value:
+                    status: "reboot_migrate_in_progress"
+                    workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
+                recreateInProgress:
+                  summary: Recreate accepted
+                  value:
+                    status: "recreate_in_progress"
+                    workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
         "400":
           description: Malformed body or unknown pool (request validation failure).
           headers:
@@ -1087,12 +1202,21 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateSvmRequest'
-            example:
-              svmOCID: "ocid1.svm.oc1..example"
-              svmAdminPassword:
-                ocid: "ocid1.secret.oc1..example"
-                version: "1"
-              Ips: []
+            examples:
+              withPasswordAndIps:
+                summary: Create SVM with admin password secret and data IPs
+                value:
+                  svmOCID: "ocid1.svm.oc1..example"
+                  svmAdminPassword:
+                    ocid: "ocid1.secret.oc1..example"
+                    version: "1"
+                  Ips:
+                    - "10.0.0.10"
+                    - "10.0.0.11"
+              svmOcidOnly:
+                summary: Create SVM with only the required svmOCID
+                value:
+                  svmOCID: "ocid1.svm.oc1..example"
       responses:
         "202":
           description: Accepted. SVM creation in progress.
@@ -1419,7 +1543,7 @@ paths:
       description: Returns the status of an asynchronous operation (workflow) by its work request ID.
       operationId: getWorkflow
       parameters:
-        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcRequestIdHeaderOptional'
         - $ref: '#/components/parameters/workRequestIdPathParameter'
       responses:
         "200":
@@ -1529,23 +1653,31 @@ components:
     opcRequestIdHeader:
       name: Opc-Request-Id
       in: header
-      required: false
+      required: true
       description: |
         Correlation ID for the request. Mandatory for state-changing operations
-        (POST/PUT/PATCH/DELETE) and optional for read-only GET requests; when omitted on a
-        GET the server generates one. Used as the correlation id for logging and tracing.
+        (POST/PUT/PATCH/DELETE). Used as the correlation id for logging and tracing.
         When provided, use the same value when contacting support.
+      schema:
+        type: string
+    opcRequestIdHeaderOptional:
+      name: Opc-Request-Id
+      in: header
+      required: false
+      description: |
+        Correlation ID for the request. Optional for read-only GET requests; when
+        omitted the server generates one. Used as the correlation id for logging and
+        tracing. When provided, use the same value when contacting support.
       schema:
         type: string
     opcWorkRequestIdHeader:
       name: Opc-Work-Request-Id
       in: header
-      required: false
+      required: true
       description: |
         Work request identifier supplied by the caller. Mandatory for state-changing operations
-        (POST/PUT/PATCH/DELETE) and not required for read-only GET requests. Used verbatim as the
-        asynchronous workflow id and forwarded to downstream workflows; requests that omit it on a
-        state-changing operation are rejected with 400.
+        (POST/PUT/PATCH/DELETE). Used verbatim as the asynchronous workflow id and forwarded to
+        downstream workflows; requests that omit it are rejected with 400.
       schema:
         type: string
     tenancyOCIDHeader:
@@ -1923,6 +2055,7 @@ components:
           enum:
             - reboot_migrate
             - recreate
+          example: reboot_migrate
 
     StartMaintenanceRequest:
       type: object
