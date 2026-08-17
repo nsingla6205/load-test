@@ -1140,6 +1140,11 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return nil, cancelErr
 	}
+	err = applyNFSTcpMaxTransferSizeOnPoolCreate(ctx, params, createSVMResponse, svmName, svm, node, svmActivity)
+	if err != nil {
+		wf.Logger.Errorf("Failed to apply NFS TCP max transfer size on pool create, error: %v", err)
+		return nil, ConvertToVSAError(err)
+	}
 	// Create QoS policy and apply it to the SVM for auto QoS pools, and always for ONTAP-mode
 	// pools (vserver-wide {svm}-qos-policy is the pool ceiling even when qosType is manual).
 	if pool.QosType == utils.QosTypeAuto || params.Mode == common.ONTAPMode {
@@ -2940,6 +2945,33 @@ func clearMediatorConfig(d *vlm.DeploymentConfig) {
 	d.Images.MediatorImageName = ""
 	d.MediatorInstanceType = ""
 	d.MediatorDiskType = ""
+}
+
+func applyNFSTcpMaxTransferSizeOnPoolCreate(
+	ctx workflow.Context,
+	params *common.CreatePoolParams,
+	createSVMResponse *vlm.CreateSVMResponse,
+	svmName string,
+	svm *datamodel.Svm,
+	node *models.Node,
+	svmActivity *activities.SvmActivity,
+) error {
+	// Always apply for ONTAP-mode (expert mode) pools.
+	shouldApply := params.Mode == common.ONTAPMode
+
+	// For large-capacity pools, apply only when NAS LIF was actually created by CreateVSASVM.
+	if !shouldApply && params.LargeCapacity && createSVMResponse != nil {
+		if createdSVMConfig, ok := createSVMResponse.VLMConfig.Svm[svmName]; ok {
+			shouldApply = len(createdSVMConfig.SVMLIFs[vlm.LIFTypeNas]) > 0 ||
+				len(createdSVMConfig.SVMLIFs[vlm.LIFTypeIlbNas]) > 0
+		}
+	}
+
+	if !shouldApply {
+		return nil
+	}
+
+	return workflow.ExecuteActivity(ctx, svmActivity.UpdateNFSRWSizeOnSVM, svm, node).Get(ctx, nil)
 }
 
 func prepareCreateSVMRequest(createSVMRequest *vlm.CreateSVMRequest, svmName string, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials) {

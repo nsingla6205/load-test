@@ -821,6 +821,8 @@ func TestCreatePoolWorkflowWithExpertMode(t *testing.T) {
 		Region:        "test-region",
 		MediatorZone:  "test-mediator-zone",
 	}, nil)
+	// ONTAP-mode pools always apply the NFS TCP max transfer size on the SVM.
+	env.OnActivity("UpdateNFSRWSizeOnSVM", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// Mock GetRbacHash to succeed
 	bucketFileDetails := &hyperscalermodels.BucketFileDetails{
 		BucketName:     "test-bucket",
