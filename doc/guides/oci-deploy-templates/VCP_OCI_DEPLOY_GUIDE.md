@@ -560,5 +560,28 @@ its Deployment name.
 | Pods stuck `Pending`                           | Check node capacity and namespace resource quotas                                                                |
 | docker build `COPY` fails                      | Ensure all builds run from the release folder root — not from inside a subdirectory                              |
 | Wrong architecture / exec format error         | Ensure `--platform linux/amd64` is used in all `docker build` commands                                           |
+| Helm: `ServiceAccount "..." exists and cannot be imported` | SA was previously hook-managed. Add ownership metadata then retry (see example below). |
+| VLM: `failed to get a Workload Identity token. Status: 401` | SA was recreated (new UID) but pod wasn't restarted. Fix: `kubectl rollout restart deployment/vlm-worker-<version> -n <ns>` |
+
+### ServiceAccount adoption — example fix
+
+When upgrading to a chart that removed the `helm.sh/hook` from the ServiceAccount, Helm
+cannot adopt the existing SA. Run these commands **once** before `helm upgrade --install`:
+
+```bash
+# Example for oci-proxy (release=oci-proxy, sa=oci-proxy, namespace=vcp)
+kubectl annotate sa oci-proxy -n vcp \
+  meta.helm.sh/release-name=oci-proxy \
+  meta.helm.sh/release-namespace=vcp --overwrite
+kubectl label sa oci-proxy -n vcp \
+  app.kubernetes.io/managed-by=Helm --overwrite
+```
+
+Repeat for any other SA that hits the same error — replace `<sa-name>` with the SA
+from the error message and `<release-name>` with the Helm release name
+(e.g. `vlm-worker-ksa`/`vlm-worker`, `vcp-worker-ksa`/`vcp-worker`).
+
+After this, re-run `helm upgrade --install` as normal. This is only needed once per cluster.
+
 
 
