@@ -713,6 +713,18 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 		return nil, err
 	}
 
+	nodeIDs := make([]int64, 0)
+	nodeIDsSeen := make(map[int64]struct{})
+	for _, move := range params.Moves {
+		for _, nodeID := range move.NodeIDs {
+			if _, seen := nodeIDsSeen[nodeID]; seen {
+				continue
+			}
+			nodeIDsSeen[nodeID] = struct{}{}
+			nodeIDs = append(nodeIDs, nodeID)
+		}
+	}
+
 	err = a.SE.WithTransaction(ctx, func(tx dbutils.Transaction) error {
 		g := tx.GORM().WithContext(ctx)
 		lockTargetIDsSet := make(map[int64]struct{})
@@ -738,16 +750,25 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 			targetGroupByID[group.ID] = group
 		}
 
-		seen := make(map[int64]struct{})
-		reservedPortsByTarget := make(map[int64]map[int]struct{})
-		for mi, move := range params.Moves {
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("upload+validate+commit move %d/%d source=%d target=%d", mi+1, len(params.Moves), move.SourceGroupID, move.TargetGroupID))
+		for _, move := range params.Moves {
 			targetGroup, ok := targetGroupByID[move.TargetGroupID]
 			if !ok || strings.TrimSpace(targetGroup.LeaseName) == "" {
 				return temporal.NewNonRetryableApplicationError(
 					fmt.Sprintf("target node group %d missing or has empty lease name", move.TargetGroupID),
 					"HarvestRebalanceInvalidTargetGroup", nil)
 			}
+		}
+
+		mappingsByNodeID, err := a.SE.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, nodeIDs, tx)
+		if err != nil {
+			return err
+		}
+
+		seen := make(map[int64]struct{})
+		reservedPortsByTarget := make(map[int64]map[int]struct{})
+		for mi, move := range params.Moves {
+			activity.RecordHeartbeat(ctx, fmt.Sprintf("upload+validate+commit move %d/%d source=%d target=%d", mi+1, len(params.Moves), move.SourceGroupID, move.TargetGroupID))
+			targetGroup := targetGroupByID[move.TargetGroupID]
 
 			for _, nodeID := range move.NodeIDs {
 				if _, dup := seen[nodeID]; dup {
@@ -756,10 +777,7 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 				seen[nodeID] = struct{}{}
 				activity.RecordHeartbeat(ctx, fmt.Sprintf("render rebalance poller node %d", nodeID))
 
-				mapping, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, nodeID, tx)
-				if err != nil {
-					return err
-				}
+				mapping := mappingsByNodeID[nodeID]
 				if mapping.NodeGroupID != move.SourceGroupID {
 					msg := fmt.Sprintf("rebalance upload: node %d on group %d, move expects source %d",
 						nodeID, mapping.NodeGroupID, move.SourceGroupID)
@@ -863,6 +881,11 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 			currentByTarget[row.NodeGroupID] = row.Cnt
 		}
 
+		commitMappingsByNodeID, err := a.SE.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, nodeIDs, tx)
+		if err != nil {
+			return err
+		}
+
 		type pendingUpdate struct {
 			nodeID    int64
 			port      string
@@ -886,10 +909,7 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 					fmt.Sprintf("target node group %d missing or deleted", s.TargetGroupID),
 					"HarvestRebalanceInvalidTargetGroup", nil)
 			}
-			mapping, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, s.NodeID, tx)
-			if err != nil {
-				return err
-			}
+			mapping := commitMappingsByNodeID[s.NodeID]
 			if mapping.NodeGroupID == s.TargetGroupID {
 				if mapping.HarvestConfig != nil &&
 					mapping.HarvestConfig.LEASE_NAME == targetGroup.LeaseName &&

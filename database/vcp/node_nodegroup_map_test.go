@@ -1473,6 +1473,70 @@ func TestGetActiveNodeNodeGroupMapByNodeID_WithTransaction(t *testing.T) {
 	assert.Equal(t, created.NodeID, got.NodeID)
 }
 
+func TestGetActiveNodeNodeGroupMapsByNodeIDs(t *testing.T) {
+	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	first, err := repo.CreateNodeNodeGroupMap(ctx, mapping)
+	require.NoError(t, err)
+	second, err := repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:      2,
+		NodeGroupID: 3,
+		HarvestConfig: &datamodel.HarvestConfig{
+			PORT: "13002",
+		},
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, []int64{first.NodeID, second.NodeID, first.NodeID}, nil)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, first.NodeGroupID, got[first.NodeID].NodeGroupID)
+	assert.Equal(t, second.NodeGroupID, got[second.NodeID].NodeGroupID)
+}
+
+func TestGetActiveNodeNodeGroupMapsByNodeIDs_SelectsLatestMapping(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	older := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:      1,
+		NodeGroupID: 2,
+	}
+	newer := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:      1,
+		NodeGroupID: 3,
+	}
+	require.NoError(t, repo.db.GORM().WithContext(ctx).Create(older).Error)
+	require.NoError(t, repo.db.GORM().WithContext(ctx).Create(newer).Error)
+
+	got, err := repo.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, []int64{1}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, newer.ID, got[1].ID)
+	assert.Equal(t, newer.NodeGroupID, got[1].NodeGroupID)
+}
+
+func TestGetActiveNodeNodeGroupMapsByNodeIDs_EmptyInput(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+
+	got, err := repo.GetActiveNodeNodeGroupMapsByNodeIDs(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestGetActiveNodeNodeGroupMapsByNodeIDs_MissingMapping(t *testing.T) {
+	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	created, err := repo.CreateNodeNodeGroupMap(ctx, mapping)
+	require.NoError(t, err)
+
+	got, err := repo.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, []int64{created.NodeID, 999}, nil)
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.(*vsaerrors.CustomError).OriginalErr.Error(), "node 999")
+}
+
 func TestListNodeNodeGroupMapsByNodeGroupID(t *testing.T) {
 	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
 	ctx := context.Background()

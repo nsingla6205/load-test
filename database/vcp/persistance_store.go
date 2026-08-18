@@ -1573,6 +1573,14 @@ func (s *PersistenceStore) GetActiveNodeNodeGroupMapByNodeID(ctx context.Context
 	return s.dataStore.GetActiveNodeNodeGroupMapByNodeID(ctx, nodeID, tx)
 }
 
+func (s *PersistenceStore) GetActiveNodeNodeGroupMapsByNodeIDs(
+	ctx context.Context,
+	nodeIDs []int64,
+	tx dbutils.Transaction,
+) (map[int64]*datamodel.NodeNodeGroupMap, error) {
+	return s.dataStore.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, nodeIDs, tx)
+}
+
 func (s *PersistenceStore) UpdateBackupPolicy(ctx context.Context, uuid string, updates map[string]interface{}) (*datamodel.BackupPolicy, error) {
 	return s.dataStore.UpdateBackupPolicy(ctx, uuid, updates)
 }

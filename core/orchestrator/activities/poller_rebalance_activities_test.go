@@ -801,11 +801,13 @@ func TestUploadValidateCommitRebalanceActivity_SourceMismatch(t *testing.T) {
 	defer func() { smHarvestAuthEnabled = oldAuth }()
 
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(10), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{
-			NodeID:        10,
-			NodeGroupID:   99,
-			HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "src-lease", PORT: "13001"},
+	mockSE.On("GetActiveNodeNodeGroupMapsByNodeIDs", mock.Anything, []int64{10}, mock.Anything).Return(
+		map[int64]*datamodel.NodeNodeGroupMap{
+			10: {
+				NodeID:        10,
+				NodeGroupID:   99,
+				HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "src-lease", PORT: "13001"},
+			},
 		}, nil)
 	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
 		func(_ context.Context, fn func(dbutils.Transaction) error) error {
@@ -851,11 +853,12 @@ func rebalanceUploadServer(t *testing.T) *httptest.Server {
 }
 
 // stubRebalanceSEForUpload wires the storage mock calls performed inside the upload
-// loop of UploadValidateCommitRebalanceActivity for a single node on source group 1.
+// transaction of UploadValidateCommitRebalanceActivity for a single node on source group 1.
 // Node and pool are now read on the open transaction (g), so they are stubbed as
 // ordered sqlmock queries via expectRebalanceNodePoolReads, not via the storage mock.
 func stubRebalanceSEForUpload(mockSE *database.MockStorage, nodeID int64, _ int64, mapping *datamodel.NodeNodeGroupMap) {
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, nodeID, mock.Anything).Return(mapping, nil)
+	mockSE.On("GetActiveNodeNodeGroupMapsByNodeIDs", mock.Anything, []int64{nodeID}, mock.Anything).Return(
+		map[int64]*datamodel.NodeNodeGroupMap{nodeID: mapping}, nil)
 }
 
 // expectRebalanceNodePoolReads sets the ordered sqlmock expectations for the in-transaction

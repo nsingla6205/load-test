@@ -460,6 +460,11 @@ type (
 		// GetActiveNodeNodeGroupMapByNodeID returns the latest node_node_group_map with deleted_at IS NULL (never Unscoped).
 		// Pass tx from WithTransaction so reads see writes in the same transaction; pass nil to use the default connection.
 		GetActiveNodeNodeGroupMapByNodeID(ctx context.Context, nodeID int64, tx dbutils.Transaction) (*datamodel.NodeNodeGroupMap, error)
+		// GetActiveNodeNodeGroupMapsByNodeIDs returns active mappings for multiple nodes in one query.
+		// On success, every unique requested node ID is present in the returned map. If any requested node
+		// has no active mapping, it returns a database read error and no partial result.
+		// Pass tx from WithTransaction so reads see writes in the same transaction; pass nil to use the default connection.
+		GetActiveNodeNodeGroupMapsByNodeIDs(ctx context.Context, nodeIDs []int64, tx dbutils.Transaction) (map[int64]*datamodel.NodeNodeGroupMap, error)
 
 		CreateNodeGroup(ctx context.Context, group *datamodel.NodeGroup) (*datamodel.NodeGroup, error)
 		GetNodeGroup(ctx context.Context, id int64) (*datamodel.NodeGroup, error)

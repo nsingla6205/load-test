@@ -5694,6 +5694,22 @@ func (re *retryEngine) GetActiveNodeNodeGroupMapByNodeID(ctx context.Context, no
 	return var0, err
 }
 
+func (re *retryEngine) GetActiveNodeNodeGroupMapsByNodeIDs(ctx context.Context, nodeIDs []int64, tx dbutils.Transaction) (map[int64]*datamodel.NodeNodeGroupMap, error) {
+	var var0 map[int64]*datamodel.NodeNodeGroupMap
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetActiveNodeNodeGroupMapsByNodeIDs(ctx, nodeIDs, tx)
+		if err != nil {
+			re.logError("GetActiveNodeNodeGroupMapsByNodeIDs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateNodeGroup(ctx context.Context, group *datamodel.NodeGroup) (*datamodel.NodeGroup, error) {
 	var var0 *datamodel.NodeGroup
 	err := retry.Do(func(attempt int) (bool, error) {

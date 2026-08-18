@@ -2030,6 +2030,66 @@ func (_c *MockStorage_CreateBatchClusterUpgradeJob_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// CreateCMEKJob provides a mock function with given fields: ctx, accountId, job
+func (_m *MockStorage) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
+	ret := _m.Called(ctx, accountId, job)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateCMEKJob")
+	}
+
+	var r0 *datamodel.Job
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)); ok {
+		return rf(ctx, accountId, job)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) *datamodel.Job); ok {
+		r0 = rf(ctx, accountId, job)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Job)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *datamodel.Job) error); ok {
+		r1 = rf(ctx, accountId, job)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateCMEKJob_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateCMEKJob'
+type MockStorage_CreateCMEKJob_Call struct {
+	*mock.Call
+}
+
+// CreateCMEKJob is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountId int64
+//   - job *datamodel.Job
+func (_e *MockStorage_Expecter) CreateCMEKJob(ctx interface{}, accountId interface{}, job interface{}) *MockStorage_CreateCMEKJob_Call {
+	return &MockStorage_CreateCMEKJob_Call{Call: _e.mock.On("CreateCMEKJob", ctx, accountId, job)}
+}
+
+func (_c *MockStorage_CreateCMEKJob_Call) Run(run func(ctx context.Context, accountId int64, job *datamodel.Job)) *MockStorage_CreateCMEKJob_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(*datamodel.Job))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateCMEKJob_Call) Return(_a0 *datamodel.Job, _a1 error) *MockStorage_CreateCMEKJob_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateCMEKJob_Call) RunAndReturn(run func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)) *MockStorage_CreateCMEKJob_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateClusterPeeringRow provides a mock function with given fields: ctx, clusterPeeringRow
 func (_m *MockStorage) CreateClusterPeeringRow(ctx context.Context, clusterPeeringRow *datamodel.ClusterPeerings) (*datamodel.ClusterPeerings, error) {
 	ret := _m.Called(ctx, clusterPeeringRow)
@@ -2616,66 +2676,6 @@ func (_c *MockStorage_CreateJob_Call) Return(_a0 *datamodel.Job, _a1 error) *Moc
 }
 
 func (_c *MockStorage_CreateJob_Call) RunAndReturn(run func(context.Context, *datamodel.Job) (*datamodel.Job, error)) *MockStorage_CreateJob_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// CreateCMEKJob provides a mock function with given fields: ctx, accountId, job
-func (_m *MockStorage) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
-	ret := _m.Called(ctx, accountId, job)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateCMEKJob")
-	}
-
-	var r0 *datamodel.Job
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)); ok {
-		return rf(ctx, accountId, job)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) *datamodel.Job); ok {
-		r0 = rf(ctx, accountId, job)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Job)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int64, *datamodel.Job) error); ok {
-		r1 = rf(ctx, accountId, job)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockStorage_CreateCMEKJob_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateCMEKJob'
-type MockStorage_CreateCMEKJob_Call struct {
-	*mock.Call
-}
-
-// CreateCMEKJob is a helper method to define mock.On call
-//   - ctx context.Context
-//   - accountId int64
-//   - job *datamodel.Job
-func (_e *MockStorage_Expecter) CreateCMEKJob(ctx interface{}, accountId interface{}, job interface{}) *MockStorage_CreateCMEKJob_Call {
-	return &MockStorage_CreateCMEKJob_Call{Call: _e.mock.On("CreateCMEKJob", ctx, accountId, job)}
-}
-
-func (_c *MockStorage_CreateCMEKJob_Call) Run(run func(ctx context.Context, accountId int64, job *datamodel.Job)) *MockStorage_CreateCMEKJob_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64), args[2].(*datamodel.Job))
-	})
-	return _c
-}
-
-func (_c *MockStorage_CreateCMEKJob_Call) Return(_a0 *datamodel.Job, _a1 error) *MockStorage_CreateCMEKJob_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockStorage_CreateCMEKJob_Call) RunAndReturn(run func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)) *MockStorage_CreateCMEKJob_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -7350,6 +7350,66 @@ func (_c *MockStorage_GetActiveNodeNodeGroupMapByNodeID_Call) Return(_a0 *datamo
 }
 
 func (_c *MockStorage_GetActiveNodeNodeGroupMapByNodeID_Call) RunAndReturn(run func(context.Context, int64, utils.Transaction) (*datamodel.NodeNodeGroupMap, error)) *MockStorage_GetActiveNodeNodeGroupMapByNodeID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetActiveNodeNodeGroupMapsByNodeIDs provides a mock function with given fields: ctx, nodeIDs, tx
+func (_m *MockStorage) GetActiveNodeNodeGroupMapsByNodeIDs(ctx context.Context, nodeIDs []int64, tx utils.Transaction) (map[int64]*datamodel.NodeNodeGroupMap, error) {
+	ret := _m.Called(ctx, nodeIDs, tx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActiveNodeNodeGroupMapsByNodeIDs")
+	}
+
+	var r0 map[int64]*datamodel.NodeNodeGroupMap
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []int64, utils.Transaction) (map[int64]*datamodel.NodeNodeGroupMap, error)); ok {
+		return rf(ctx, nodeIDs, tx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []int64, utils.Transaction) map[int64]*datamodel.NodeNodeGroupMap); ok {
+		r0 = rf(ctx, nodeIDs, tx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[int64]*datamodel.NodeNodeGroupMap)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []int64, utils.Transaction) error); ok {
+		r1 = rf(ctx, nodeIDs, tx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActiveNodeNodeGroupMapsByNodeIDs'
+type MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call struct {
+	*mock.Call
+}
+
+// GetActiveNodeNodeGroupMapsByNodeIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeIDs []int64
+//   - tx utils.Transaction
+func (_e *MockStorage_Expecter) GetActiveNodeNodeGroupMapsByNodeIDs(ctx interface{}, nodeIDs interface{}, tx interface{}) *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call {
+	return &MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call{Call: _e.mock.On("GetActiveNodeNodeGroupMapsByNodeIDs", ctx, nodeIDs, tx)}
+}
+
+func (_c *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call) Run(run func(ctx context.Context, nodeIDs []int64, tx utils.Transaction)) *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]int64), args[2].(utils.Transaction))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call) Return(_a0 map[int64]*datamodel.NodeNodeGroupMap, _a1 error) *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call) RunAndReturn(run func(context.Context, []int64, utils.Transaction) (map[int64]*datamodel.NodeNodeGroupMap, error)) *MockStorage_GetActiveNodeNodeGroupMapsByNodeIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }

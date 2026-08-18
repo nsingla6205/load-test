@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -87,6 +88,63 @@ func (d *DataStoreRepository) GetActiveNodeNodeGroupMapByNodeID(ctx context.Cont
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "node_node_group_map", nil))
 	}
 	return &mapping, nil
+}
+
+// GetActiveNodeNodeGroupMapsByNodeIDs retrieves active node-group mappings for
+// multiple nodes in one query. On success, every unique requested node ID is
+// present in the returned map; missing active mappings return an error and no
+// partial result. The returned map is keyed by node ID.
+func (d *DataStoreRepository) GetActiveNodeNodeGroupMapsByNodeIDs(
+	ctx context.Context,
+	nodeIDs []int64,
+	tx dbutils.Transaction,
+) (map[int64]*datamodel.NodeNodeGroupMap, error) {
+	mappingsByNodeID := make(map[int64]*datamodel.NodeNodeGroupMap, len(nodeIDs))
+	uniqueNodeIDs := make([]int64, 0, len(nodeIDs))
+	seenNodeIDs := make(map[int64]struct{}, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		if _, seen := seenNodeIDs[nodeID]; seen {
+			continue
+		}
+		seenNodeIDs[nodeID] = struct{}{}
+		uniqueNodeIDs = append(uniqueNodeIDs, nodeID)
+	}
+	if len(uniqueNodeIDs) == 0 {
+		return mappingsByNodeID, nil
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	if tx != nil {
+		db = tx.GORM().WithContext(ctx)
+	}
+
+	var mappings []datamodel.NodeNodeGroupMap
+	query := db.Where("deleted_at IS NULL").Order("id DESC")
+	if db.Dialector.Name() == "postgres" {
+		query = query.Where("node_id = ANY(?)", pq.Array(uniqueNodeIDs))
+	} else {
+		query = query.Where("node_id IN ?", uniqueNodeIDs)
+	}
+	if err := query.Find(&mappings).Error; err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	for i := range mappings {
+		mapping := &mappings[i]
+		if _, found := mappingsByNodeID[mapping.NodeID]; found {
+			continue
+		}
+		mappingsByNodeID[mapping.NodeID] = mapping
+	}
+	for _, nodeID := range uniqueNodeIDs {
+		if _, found := mappingsByNodeID[nodeID]; !found {
+			return nil, vsaerrors.NewVCPError(
+				vsaerrors.ErrDatabaseDataReadError,
+				fmt.Errorf("active node_node_group_map not found for node %d", nodeID),
+			)
+		}
+	}
+	return mappingsByNodeID, nil
 }
 
 // UpdateNodeNodeGroupMap updates an existing node to nodegroup mapping
