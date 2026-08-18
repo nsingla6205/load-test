@@ -3,10 +3,10 @@
   "version": "9.18.1P3",
   "image_name": "x-9-18-1p3",
   "mediator_image_name": "cvo-mediator-x-9-18-1p3",
-  "bundle_name": "x9.18.1P3",
-  "upgrade_release_bundle_path": "GCNV_released_bundle/x9.18.1P3",
+  "bundle_name": "9.18.1P3-RBAC-V2",
+  "upgrade_release_bundle_path": "GCNV_released_bundle/9.18.1P3-RBAC-V2",
   "upgrade_file_path": "GCNV/9.18.1P3/cot.image.ONTAP-9.18.1P3.tgz",
   "vlm_worker_path": "VLM/R9.18.1x/vlm-worker/R9.18.1x_8127342/vlm-worker.tar.gz",
   "vlm_worker_tag": "R9.18.1x_8127342",
-  "rbac_folder_path": "VLM/R9.18.1x/RBAC/R9.18.1x_8127342"
+  "rbac_folder_path": "VLM/R9.18.1x/RBAC/R9.18.1x_8184250"
 }

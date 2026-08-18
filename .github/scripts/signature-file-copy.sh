@@ -91,8 +91,17 @@ echo "✅ IMAGE_SIG_TGZ extracted"
 echo "🔍 Step 3: Finding digest signature file..."
 DIGEST_SIG=$(ls -1 *_digest.sig 2>/dev/null | head -n 1)
 
+# If no *_digest.sig found, try alternative patterns
 if [ -z "$DIGEST_SIG" ]; then
-    echo "❌ Error: _digest.sig file not found after extraction"
+    DIGEST_SIG=$(ls -1 *.sig 2>/dev/null | head -n 1)
+fi
+
+if [ -z "$DIGEST_SIG" ]; then
+    DIGEST_SIG=$(find . -type f -name "*digest*" 2>/dev/null | head -n 1 | xargs basename)
+fi
+
+if [ -z "$DIGEST_SIG" ]; then
+    echo "❌ Error: No signature file found after extraction"
     echo "Available files:"
     ls -la
     rm -rf "$WORK_DIR"

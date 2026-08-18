@@ -1,10 +1,10 @@
 {
   "_comment": "Name this file <version>.json. Run mode, image type, environment are chosen in the UI. image_name = VSA, mediator_image_name = Mediator. Optional: vlm_worker_path, vlm_worker_tag for VLM Worker Image Push workflow.",
-  "version": "9.18.1P3_HF1",
+  "version": "9.18.1P3",
   "image_name": "x-9-18-1p3",
   "mediator_image_name": "cvo-mediator-x-9-18-1p3",
-  "bundle_name": "x-9-18-1p3-hf1",
-  "upgrade_release_bundle_path": "GCNV_released_bundle/x-9-18-1p3-hf1",
+  "bundle_name": "x9.18.1P3",
+  "upgrade_release_bundle_path": "GCNV_released_bundle/x9.18.1P3",
   "upgrade_file_path": "GCNV/9.18.1P3/cot.image.ONTAP-9.18.1P3.tgz",
   "vlm_worker_path": "VLM/R9.18.1x/vlm-worker/R9.18.1x_8141647/vlm-worker.tar.gz",
   "vlm_worker_tag": "R9.18.1x_8141647",

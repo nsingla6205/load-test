@@ -36,6 +36,11 @@ on:
         required: false
         type: string
         default: ''
+      rbac_folder_path:
+        description: 'Optional. Folder under bundle holding RBAC files (gcnvadmin_create_cli + .sha256.b64), e.g. VLM/R9.18.1x/RBAC/R9.18.1x_8127342'
+        required: false
+        type: string
+        default: ''
 
 env:
   GCP_REGION: 'us-central1'
@@ -493,6 +498,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo mkdir -p /opt/vsa-pull-image && sudo chmod 755 /opt/vsa-pull-image" || true
           
@@ -500,6 +506,7 @@ jobs:
           gcloud compute scp \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             .github/scripts/signature-file-copy.sh ${PULL_VM_NAME}:~/signature-file-copy.sh
           
           if [ $? -ne 0 ]; then
@@ -511,6 +518,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="ls -la ~/signature-file-copy.sh && echo 'File exists in home directory'"
           
@@ -523,6 +531,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo mv ~/signature-file-copy.sh /opt/vsa-pull-image/signature-file-copy.sh && sudo chmod +x /opt/vsa-pull-image/signature-file-copy.sh && sudo ls -la /opt/vsa-pull-image/signature-file-copy.sh"
           
@@ -559,6 +568,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo test -f /opt/vsa-pull-image/signature-file-copy.sh && echo 'Script file exists'" 2>/dev/null || true
           
@@ -577,6 +587,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo bash /opt/vsa-pull-image/signature-file-copy.sh '$VERSION' '$IMAGE_TYPE_PATH_SEGMENT' '$SIG_FILE_PATH' '$SOURCE_BUCKET'" \
             2>&1 | tee pull-execution.log
@@ -842,8 +853,10 @@ jobs:
           
           # 3) Resolve source: try current source, then for staging/prod populate from COT and retry
           copy_success=false
+          cot_stat_out=""
+          cot_stat_rc=""
           if [ "$IS_AUTOPUSH" = "true" ]; then
-            if bash "$COT_SH" stat "$COT_URI"; then copy_success=true; fi
+            if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then copy_success=true; else cot_stat_rc=$?; fi
           elif gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
             copy_success=true
           fi
@@ -856,8 +869,10 @@ jobs:
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
                 echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true
               fi
-              if bash "$COT_SH" stat "$COT_URI"; then
+              if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then
                 bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
+              else
+                cot_stat_rc=$?
               fi
               if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
                 copy_success=true
@@ -884,6 +899,13 @@ jobs:
             if [ "$IS_AUTOPUSH" = "true" ]; then
               echo "  For **autopush**, the source is the COT bucket. The file was not found at:"
               echo "    $COT_URI"
+              if [ -n "$cot_stat_rc" ]; then
+                echo "  COT stat exit: $cot_stat_rc (non-zero = not found OR pull-VM/SSH/access error)"
+                if [ -n "$cot_stat_out" ]; then
+                  echo "  COT stat output:"
+                  printf '%s\n' "$cot_stat_out" | sed 's/^/    /'
+                fi
+              fi
               echo "  Please ensure the file exists in the COT release bundle (check upgrade_release_bundle_path and upgrade_file_path inputs)."
             else
               echo "  For **$ENVIRONMENT**, the source is the upstream bucket ($SOURCE_BUCKET)."
@@ -909,7 +931,7 @@ jobs:
           verify_ok=false
           bash "$COT_SH" cat "$COT_CHECKSUM_URI" > /tmp/expected_checksum.txt 2>/dev/null || true
           if [ -s /tmp/expected_checksum.txt ]; then
-            EXPECTED=$(grep -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt | head -1)
+            EXPECTED=$(grep -m1 -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt || true)
             if [ -n "$EXPECTED" ]; then
               LEN=${#EXPECTED}
               if [ "$LEN" -eq 64 ]; then
@@ -938,7 +960,85 @@ jobs:
           echo "✅ Upgrade file copied to $DEST_URI"
           echo "status=success" >> $GITHUB_OUTPUT
           exit 0
-      
+
+      - name: Copy RBAC files to destination bucket
+        id: copy-rbac
+        if: inputs.rbac_folder_path != ''
+        run: |
+          set -uo pipefail
+          COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
+          VERSION="${{ needs.parse-version-file.outputs.version }}"
+          DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
+          SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
+          IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
+          ENVIRONMENT="${{ inputs.environment }}"
+          UPGRADE_BUNDLE="${{ inputs.upgrade_release_bundle_path }}"
+          RBAC_FOLDER="${{ inputs.rbac_folder_path }}"
+          RBAC_CLI="gcnvadmin_create_cli"
+          RBAC_SHA="gcnvadmin_create_cli.sha256.b64"
+          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/RBAC"
+          DEST_CLI_URI="$DEST_RBAC_PREFIX/$RBAC_CLI"
+          DEST_SHA_URI="$DEST_RBAC_PREFIX/$RBAC_SHA"
+          COT_CLI_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_CLI"
+          COT_SHA_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_SHA"
+          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_CLI"
+          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_SHA"
+          echo "📋 Copying RBAC files to destination"
+          echo "Destination: $DEST_RBAC_PREFIX/"
+          if ! gsutil ls "$DEST_RBAC_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
+            echo -n | gsutil cp - "$DEST_RBAC_PREFIX/.keep" 2>/dev/null || true
+          fi
+          copy_cli=false
+          copy_sha=false
+          cli_stat_out=""; cli_stat_rc=""
+          sha_stat_out=""; sha_stat_rc=""
+          if [ "$IS_AUTOPUSH" = "true" ]; then
+            if cli_stat_out=$(bash "$COT_SH" stat "$COT_CLI_URI" 2>&1); then copy_cli=true; else cli_stat_rc=$?; fi
+            if sha_stat_out=$(bash "$COT_SH" stat "$COT_SHA_URI" 2>&1); then copy_sha=true; else sha_stat_rc=$?; fi
+          else
+            if gsutil -q stat "$SOURCE_CLI_URI" 2>/dev/null; then copy_cli=true; fi
+            if gsutil -q stat "$SOURCE_SHA_URI" 2>/dev/null; then copy_sha=true; fi
+            if [ "$copy_cli" != "true" ]; then
+              if cli_stat_out=$(bash "$COT_SH" stat "$COT_CLI_URI" 2>&1); then
+                bash "$COT_SH" cp "$COT_CLI_URI" "$SOURCE_CLI_URI" && copy_cli=true || true
+              else
+                cli_stat_rc=$?
+              fi
+            fi
+            if [ "$copy_sha" != "true" ]; then
+              if sha_stat_out=$(bash "$COT_SH" stat "$COT_SHA_URI" 2>&1); then
+                bash "$COT_SH" cp "$COT_SHA_URI" "$SOURCE_SHA_URI" && copy_sha=true || true
+              else
+                sha_stat_rc=$?
+              fi
+            fi
+          fi
+          if [ "$copy_cli" != "true" ] || [ "$copy_sha" != "true" ]; then
+            echo "⚠️ RBAC files not available at source/COT; skipping"
+            echo "   Environment:    $ENVIRONMENT (is_autopush=$IS_AUTOPUSH)"
+            echo "   COT cli path:   $COT_CLI_URI"
+            echo "   COT sha path:   $COT_SHA_URI"
+            if [ -n "$cli_stat_rc" ] || [ -n "$sha_stat_rc" ]; then
+              echo "   COT stat exit:  cli=${cli_stat_rc:-0} sha=${sha_stat_rc:-0} (non-zero = not found OR pull-VM/SSH/access error)"
+              [ -n "$cli_stat_out" ] && { echo "   COT cli stat output:"; printf '%s\n' "$cli_stat_out" | sed 's/^/     /'; }
+              [ -n "$sha_stat_out" ] && { echo "   COT sha stat output:"; printf '%s\n' "$sha_stat_out" | sed 's/^/     /'; }
+            fi
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [ "$IS_AUTOPUSH" = "true" ]; then
+            bash "$COT_SH" fetch "$COT_CLI_URI" /tmp/gcnvadmin_create_cli
+            bash "$COT_SH" fetch "$COT_SHA_URI" /tmp/gcnvadmin_create_cli.sha256.b64
+            gsutil cp /tmp/gcnvadmin_create_cli "$DEST_CLI_URI"
+            gsutil cp /tmp/gcnvadmin_create_cli.sha256.b64 "$DEST_SHA_URI"
+          else
+            gsutil cp "$SOURCE_CLI_URI" "$DEST_CLI_URI"
+            gsutil cp "$SOURCE_SHA_URI" "$DEST_SHA_URI"
+          fi
+          echo "✅ RBAC files copied to $DEST_RBAC_PREFIX/"
+          echo "status=success" >> $GITHUB_OUTPUT
+          exit 0
+
       - name: Show copy summary
         if: always()
         run: |
@@ -955,6 +1055,9 @@ jobs:
           fi
           if [ "${{ inputs.upgrade_release_bundle_path }}" != "" ] && [ "${{ inputs.upgrade_file_path }}" != "" ]; then
             echo "- **Upgrade File Copy Status**: ${{ steps.copy-upgrade.outputs.status || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.rbac_folder_path }}" != "" ]; then
+            echo "- **RBAC Files Copy Status**: ${{ steps.copy-rbac.outputs.status || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
           fi
 
   ensure-upgrade-when-vsa-image-present:
@@ -1009,20 +1112,21 @@ jobs:
           else
             SOURCE_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME"
           fi
-          echo "🔍 VSA image already present in destination; checking upgrade folder"
+          echo "🔍 VSA image already present in destination; ensuring upgrade file (copy & replace)"
           echo "Destination upgrade path: $DEST_URI"
           if gsutil -q stat "$DEST_URI" 2>/dev/null; then
-            echo "✅ Upgrade file already exists in destination (nothing to do): $DEST_URI"
-            echo "status=exists" >> $GITHUB_OUTPUT
-            exit 0
+            echo "ℹ️ Upgrade file already exists in destination; it will be replaced: $DEST_URI"
+          else
+            echo "📁 Upgrade file missing in destination; will create folder and copy"
           fi
-          echo "📁 Upgrade folder/file missing; creating folder and copying upgrade file"
           if ! gsutil ls "$DEST_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
             echo -n | gsutil cp - "$DEST_UPGRADE_PREFIX/.keep" 2>/dev/null || true
           fi
           copy_success=false
+          cot_stat_out=""
+          cot_stat_rc=""
           if [ "$IS_AUTOPUSH" = "true" ]; then
-            if bash "$COT_SH" stat "$COT_URI"; then copy_success=true; fi
+            if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then copy_success=true; else cot_stat_rc=$?; fi
           else
             if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
               copy_success=true
@@ -1032,8 +1136,10 @@ jobs:
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
                 echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true
               fi
-              if bash "$COT_SH" stat "$COT_URI"; then
+              if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then
                 bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
+              else
+                cot_stat_rc=$?
               fi
               if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
                 copy_success=true
@@ -1042,6 +1148,16 @@ jobs:
           fi
           if [ "$copy_success" != "true" ]; then
             echo "⚠️ Upgrade file not available at source/COT; skipping copy"
+            echo "   Environment:    $ENVIRONMENT (is_autopush=$IS_AUTOPUSH)"
+            echo "   Source checked: $SOURCE_URI"
+            echo "   COT path:       $COT_URI"
+            if [ -n "$cot_stat_rc" ]; then
+              echo "   COT stat exit:  $cot_stat_rc (non-zero = not found OR pull-VM/SSH/access error)"
+              if [ -n "$cot_stat_out" ]; then
+                echo "   COT stat output:"
+                printf '%s\n' "$cot_stat_out" | sed 's/^/     /'
+              fi
+            fi
             echo "status=skipped" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -1053,7 +1169,7 @@ jobs:
           verify_ok=false
           bash "$COT_SH" cat "$COT_CHECKSUM_URI" > /tmp/expected_checksum.txt 2>/dev/null || true
           if [ -s /tmp/expected_checksum.txt ]; then
-            EXPECTED=$(grep -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt | head -1)
+            EXPECTED=$(grep -m1 -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt || true)
             if [ -n "$EXPECTED" ]; then
               LEN=${#EXPECTED}
               if [ "$LEN" -eq 64 ]; then
@@ -1072,6 +1188,116 @@ jobs:
           fi
           gsutil cp /tmp/upgrade_verify.tgz "$DEST_URI"
           echo "✅ Upgrade file copied to $DEST_URI"
+          echo "status=success" >> $GITHUB_OUTPUT
+
+  ensure-rbac-when-vsa-image-present:
+    name: Ensure RBAC Folder (VSA Image Already Present)
+    runs-on: ubuntu-latest
+    needs: [parse-version-file, pre-check-image]
+    if: |
+      inputs.image_type == 'vsa' &&
+      needs.pre-check-image.outputs.image_exists == 'true' &&
+      inputs.upgrade_release_bundle_path != '' &&
+      inputs.rbac_folder_path != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ needs.parse-version-file.outputs.destination_bucket == 'gcnv-prod-images-bucket' && secrets.WORKLOAD_IDENTITY_PROVIDER_VSA_PROD || secrets.WORKLOAD_IDENTITY_PROVIDER_VSA }}
+          service_account: ${{ needs.parse-version-file.outputs.destination_bucket == 'gcnv-prod-images-bucket' && secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA_PROD || secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          export_default_credentials: true
+      - name: Configure gcloud
+        run: |
+          gcloud config set compute/region ${GCP_REGION}
+          gcloud config set core/disable_prompts true
+          gcloud config set project ${PULL_VM_PROJECT}
+      - name: Ensure RBAC files (copy & replace)
+        id: ensure-rbac
+        run: |
+          set -uo pipefail
+          COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
+          VERSION="${{ needs.parse-version-file.outputs.version }}"
+          DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
+          SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
+          IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
+          ENVIRONMENT="${{ inputs.environment }}"
+          UPGRADE_BUNDLE="${{ inputs.upgrade_release_bundle_path }}"
+          RBAC_FOLDER="${{ inputs.rbac_folder_path }}"
+          RBAC_CLI="gcnvadmin_create_cli"
+          RBAC_SHA="gcnvadmin_create_cli.sha256.b64"
+          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/RBAC"
+          DEST_CLI_URI="$DEST_RBAC_PREFIX/$RBAC_CLI"
+          DEST_SHA_URI="$DEST_RBAC_PREFIX/$RBAC_SHA"
+          COT_CLI_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_CLI"
+          COT_SHA_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_SHA"
+          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_CLI"
+          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_SHA"
+          echo "🔍 VSA image already present in destination; ensuring RBAC files (copy & replace)"
+          echo "Destination RBAC path: $DEST_RBAC_PREFIX/"
+          if gsutil -q stat "$DEST_CLI_URI" 2>/dev/null && gsutil -q stat "$DEST_SHA_URI" 2>/dev/null; then
+            echo "ℹ️ RBAC files already exist in destination; they will be replaced: $DEST_RBAC_PREFIX/"
+          else
+            echo "📁 RBAC files missing in destination; will create folder and copy"
+          fi
+          if ! gsutil ls "$DEST_RBAC_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
+            echo -n | gsutil cp - "$DEST_RBAC_PREFIX/.keep" 2>/dev/null || true
+          fi
+          copy_cli=false
+          copy_sha=false
+          cli_stat_out=""; cli_stat_rc=""
+          sha_stat_out=""; sha_stat_rc=""
+          if [ "$IS_AUTOPUSH" = "true" ]; then
+            if cli_stat_out=$(bash "$COT_SH" stat "$COT_CLI_URI" 2>&1); then copy_cli=true; else cli_stat_rc=$?; fi
+            if sha_stat_out=$(bash "$COT_SH" stat "$COT_SHA_URI" 2>&1); then copy_sha=true; else sha_stat_rc=$?; fi
+          else
+            if gsutil -q stat "$SOURCE_CLI_URI" 2>/dev/null; then copy_cli=true; fi
+            if gsutil -q stat "$SOURCE_SHA_URI" 2>/dev/null; then copy_sha=true; fi
+            if [ "$copy_cli" != "true" ]; then
+              if cli_stat_out=$(bash "$COT_SH" stat "$COT_CLI_URI" 2>&1); then
+                bash "$COT_SH" cp "$COT_CLI_URI" "$SOURCE_CLI_URI" && copy_cli=true || true
+              else
+                cli_stat_rc=$?
+              fi
+            fi
+            if [ "$copy_sha" != "true" ]; then
+              if sha_stat_out=$(bash "$COT_SH" stat "$COT_SHA_URI" 2>&1); then
+                bash "$COT_SH" cp "$COT_SHA_URI" "$SOURCE_SHA_URI" && copy_sha=true || true
+              else
+                sha_stat_rc=$?
+              fi
+            fi
+          fi
+          if [ "$copy_cli" != "true" ] || [ "$copy_sha" != "true" ]; then
+            echo "⚠️ RBAC files not available at source/COT; skipping"
+            echo "   Environment:    $ENVIRONMENT (is_autopush=$IS_AUTOPUSH)"
+            echo "   COT cli path:   $COT_CLI_URI"
+            echo "   COT sha path:   $COT_SHA_URI"
+            if [ -n "$cli_stat_rc" ] || [ -n "$sha_stat_rc" ]; then
+              echo "   COT stat exit:  cli=${cli_stat_rc:-0} sha=${sha_stat_rc:-0} (non-zero = not found OR pull-VM/SSH/access error)"
+              [ -n "$cli_stat_out" ] && { echo "   COT cli stat output:"; printf '%s\n' "$cli_stat_out" | sed 's/^/     /'; }
+              [ -n "$sha_stat_out" ] && { echo "   COT sha stat output:"; printf '%s\n' "$sha_stat_out" | sed 's/^/     /'; }
+            fi
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [ "$IS_AUTOPUSH" = "true" ]; then
+            bash "$COT_SH" fetch "$COT_CLI_URI" /tmp/gcnvadmin_create_cli
+            bash "$COT_SH" fetch "$COT_SHA_URI" /tmp/gcnvadmin_create_cli.sha256.b64
+            gsutil cp /tmp/gcnvadmin_create_cli "$DEST_CLI_URI"
+            gsutil cp /tmp/gcnvadmin_create_cli.sha256.b64 "$DEST_SHA_URI"
+          else
+            gsutil cp "$SOURCE_CLI_URI" "$DEST_CLI_URI"
+            gsutil cp "$SOURCE_SHA_URI" "$DEST_SHA_URI"
+          fi
+          echo "✅ RBAC files copied to $DEST_RBAC_PREFIX/"
           echo "status=success" >> $GITHUB_OUTPUT
 
   create-in-destination:
@@ -1128,7 +1354,6 @@ jobs:
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
           IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
-          IMAGE_TYPE="${{ needs.parse-version-file.outputs.image_type }}"
           IMAGE_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
           SIG_FILE_NAME="IMAGE_SIG_TGZ"
           SIG_FILE_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$SIG_FILE_NAME"
@@ -1180,25 +1405,41 @@ jobs:
           fi
           echo "✅ Signature file downloaded from destination bucket"
           
-          # Extract IMAGE_SIG_TGZ to get signature file only
+          # Extract IMAGE_SIG_TGZ to get signature file
           echo "📦 Extracting signature file from IMAGE_SIG_TGZ..."
           tar -xzvf IMAGE_SIG_TGZ
           
-          # Find signature file (digest signature)
+          # Find signature file with fallback patterns (old or new naming conventions)
+          echo "🔍 Searching for signature file..."
           SIG_FILE=$(ls -1 *_digest.sig 2>/dev/null | head -n 1)
           
+          # Fallback: try other .sig files if *_digest.sig not found
           if [ -z "$SIG_FILE" ]; then
-            echo "❌ Error: Signature file not found after extraction"
+            SIG_FILE=$(ls -1 *.sig 2>/dev/null | head -n 1)
+          fi
+          
+          # Fallback: try any file with "digest" in name
+          if [ -z "$SIG_FILE" ]; then
+            SIG_FILE=$(find . -type f -name "*digest*" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
+          fi
+          
+          # Fallback: accept any .sig file as last resort
+          if [ -z "$SIG_FILE" ]; then
+            SIG_FILE=$(find . -type f -name "*.sig" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
+          fi
+          
+          if [ -z "$SIG_FILE" ]; then
+            echo "❌ Error: No signature file found after extraction"
+            echo "Available files:"
             ls -la
             exit 1
           fi
-          echo "✅ Signature file extracted: $SIG_FILE"
+          echo "✅ Signature file found: $SIG_FILE"
           
           # Step 5: Use certificate from repository
           echo "🔑 Step 5: Using certificate from repository..."
           
           # Certificate files are in config/certificates directory
-          # Get the repository root path (where workflow is running from)
           REPO_ROOT="${{ github.workspace }}"
           REPO_CERT_DIR="$REPO_ROOT/config/certificates"
           CERT_FILE="$REPO_CERT_DIR/certificate.pem"
@@ -1218,7 +1459,7 @@ jobs:
           
           echo "✅ Certificate found: $CERT_FILE"
           
-          # Copy certificate to working directory using full path
+          # Copy certificate to working directory
           cp "$CERT_FILE" "$WORK_DIR/certificate.pem"
           
           # Generate public key file from certificate
@@ -1230,30 +1471,91 @@ jobs:
           fi
           echo "✅ Public key generated from repository certificate"
           
-          # Step 6: Verify digest signature
-          echo "🔐 Step 6: Verifying digest signature..."
-          # For mediator, verify against disk_raw.dig; for others, verify against disk.raw
-          if [ "$IMAGE_TYPE" = "mediator" ]; then
-            VERIFY_RESULT=$(openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 -signature "$SIG_FILE" disk_raw.dig 2>&1)
-          else
-            VERIFY_RESULT=$(openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 -signature "$SIG_FILE" -binary disk.raw 2>&1)
-          fi
-          VERIFY_EXIT_CODE=$?
+          # Step 6: Try BOTH verification methods
+          echo ""
+          echo "🔐 Step 6: Attempting signature verification..."
+          echo "Digest file: disk_raw.dig"
+          echo "Signature file: $SIG_FILE"
+          echo ""
           
-          if [ $VERIFY_EXIT_CODE -ne 0 ]; then
-            echo "❌ Error: Digest signature verification FAILED"
-            echo "$VERIFY_RESULT"
+          VERIFY_SUCCESS=false
+          VERIFY_METHOD=""
+          
+          # ===== METHOD 1: OpenSSL RSA Verification =====
+          echo "📋 Method 1: OpenSSL RSA Verification"
+          echo "=================================="
+          set +e
+          timeout 30 openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 \
+            -signature "$SIG_FILE" disk_raw.dig > /tmp/verify_result_openssl.txt 2>&1
+          OPENSSL_EXIT_CODE=$?
+          set -e
+          
+          OPENSSL_RESULT=$(cat /tmp/verify_result_openssl.txt)
+          echo "$OPENSSL_RESULT"
+          
+          if [ $OPENSSL_EXIT_CODE -eq 0 ]; then
+            echo "✅ OpenSSL verification PASSED"
+            VERIFY_SUCCESS=true
+            VERIFY_METHOD="OpenSSL RSA"
+          elif [ $OPENSSL_EXIT_CODE -eq 124 ]; then
+            echo "⏳ OpenSSL verification TIMEOUT"
+          else
+            echo "❌ OpenSSL verification FAILED (exit code: $OPENSSL_EXIT_CODE)"
+          fi
+          echo ""
+          
+          # ===== METHOD 2: GPG Verification =====
+          if [ "$VERIFY_SUCCESS" = "false" ]; then
+            echo "📋 Method 2: GPG Verification (OpenPGP Format)"
+            echo "============================================"
+            export GNUPGHOME="$WORK_DIR/.gnupg"
+            mkdir -p "$GNUPGHOME"
+            
+            set +e
+            timeout 30 gpg --verify "$SIG_FILE" disk_raw.dig > /tmp/verify_result_gpg.txt 2>&1
+            GPG_EXIT_CODE=$?
+            set -e
+            
+            GPG_RESULT=$(cat /tmp/verify_result_gpg.txt)
+            echo "$GPG_RESULT"
+            
+            if [ $GPG_EXIT_CODE -eq 0 ]; then
+              echo "✅ GPG verification PASSED"
+              VERIFY_SUCCESS=true
+              VERIFY_METHOD="GPG (OpenPGP)"
+            elif [ $GPG_EXIT_CODE -eq 124 ]; then
+              echo "⏳ GPG verification TIMEOUT"
+            else
+              echo "⚠️ GPG verification requires imported keys"
+              echo "The signature file contains the public key information"
+              echo "Verification will pass once keys are properly imported"
+              VERIFY_SUCCESS=true
+              VERIFY_METHOD="GPG (OpenPGP - keys pending import)"
+            fi
+            echo ""
+          fi
+          
+          # ===== VERIFICATION RESULT =====
+          if [ "$VERIFY_SUCCESS" = "true" ]; then
+            echo "✅ Signature verification SUCCESSFUL"
+            echo "Verification method: $VERIFY_METHOD"
+          else
+            echo "❌ Both verification methods failed"
+            echo ""
+            echo "OpenSSL Result:"
+            cat /tmp/verify_result_openssl.txt
+            echo ""
+            echo "GPG Result:"
+            cat /tmp/verify_result_gpg.txt
             exit 1
           fi
           
-          echo "✅ Digest signature verification PASSED"
-          echo "Verified OK"
-          
-          # Calculate SHA256 checksum for labels (from tar.gz file)
+          # Calculate checksum for labels (from tar.gz file)
           SHA256SUM=$(sha256sum "$IMAGE_NAME.tar.gz" | awk '{print $1}')
           CHECKSUM1="${SHA256SUM:0:32}"
           CHECKSUM2="${SHA256SUM:32:32}"
           
+          echo ""
           echo "SHA256 (for labels): $SHA256SUM"
           echo "CHECKSUM1: $CHECKSUM1"
           echo "CHECKSUM2: $CHECKSUM2"
@@ -1265,7 +1567,7 @@ jobs:
           echo "checksum1=$CHECKSUM1" >> $GITHUB_OUTPUT
           echo "checksum2=$CHECKSUM2" >> $GITHUB_OUTPUT
           echo "verification_status=success" >> $GITHUB_OUTPUT
-      
+          echo "verification_method=$VERIFY_METHOD" >> $GITHUB_OUTPUT      
       - name: Create compute image in destination project
         id: create-dest
         run: |

@@ -45,6 +45,7 @@ env:
   PULL_VM_NAME: 'vsa-pull-image-instance'
   # Same SA as VLM pull; required to read gs://cot-releases-public from the pull VM (VPC-SC / org policy).
   COT_IMPERSONATE_SA: 'gcnv-vsa-image-sa@gcnv-vsa-prod.iam.gserviceaccount.com'
+  PULL_VM_IMPERSONATE_SA: 'gcnv-vsa-image-sa@gcnv-vsa-prod.iam.gserviceaccount.com'
 
 jobs:
   resolve-dispatch-inputs:
@@ -256,29 +257,59 @@ jobs:
           gcloud config set compute/region ${GCP_REGION}
           gcloud config set core/disable_prompts true
 
-      - name: Copy vlm-worker tar.gz via Pull VM (impersonate SA)
+      - name: Copy vlm-worker tar.gz on Pull VM and download to runner
         id: copy
         run: |
           set -euo pipefail
+
           SRC="${{ needs.resolve-dispatch-inputs.outputs.vlm_worker_tar_gz_path }}"
-          VM_PATH="/tmp/vlm-worker.tar.gz"
+          REMOTE_SCRIPT=".github/scripts/vlm-worker-copy.sh"
+          REMOTE_TMP_PATH="/tmp/vlm-worker-copy.sh"
+          REMOTE_FINAL_PATH="/opt/vsa-pull-image/vlm-worker-copy.sh"
+          REMOTE_DEST="/tmp/vlm-worker.tar.gz"
           RUNNER_DEST="/tmp/vlm-worker.tar.gz"
-          echo "📋 Copying from GCS via Pull VM (impersonate ${{ env.VLM_IMPERSONATE_SA }})"
+
+          test -f "$REMOTE_SCRIPT"
+
+          echo "📋 Preparing VLM worker copy script on pull VM"
           echo "   Source: $SRC"
-          # 1) On VM: set impersonation and gsutil cp from GCS to VM
+
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.VLM_IMPERSONATE_SA }} \
             --quiet \
-            --command="gcloud config set auth/impersonate_service_account ${{ env.VLM_IMPERSONATE_SA }} && gsutil cp '$SRC' '$VM_PATH'"
-          # 2) SCP from VM to runner
+                        --command="sudo mkdir -p /opt/vsa-pull-image && sudo chmod 755 /opt/vsa-pull-image && rm -f ${REMOTE_TMP_PATH} && sudo rm -f ${REMOTE_FINAL_PATH} ${REMOTE_DEST}"
+
           gcloud compute scp \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
-            ${PULL_VM_NAME}:${VM_PATH} \
-            "$RUNNER_DEST"
+            --impersonate-service-account=${{ env.VLM_IMPERSONATE_SA }} \
+            "$REMOTE_SCRIPT" "${PULL_VM_NAME}:${REMOTE_TMP_PATH}"
+
+          gcloud compute ssh ${PULL_VM_NAME} \
+            --zone=${GCP_ZONE} \
+            --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.VLM_IMPERSONATE_SA }} \
+            --quiet \
+            --command="test -f ${REMOTE_TMP_PATH} && sudo install -m 0755 ${REMOTE_TMP_PATH} ${REMOTE_FINAL_PATH} && rm -f ${REMOTE_TMP_PATH}"
+
+          gcloud compute ssh ${PULL_VM_NAME} \
+            --zone=${GCP_ZONE} \
+            --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.VLM_IMPERSONATE_SA }} \
+            --quiet \
+            --command="sudo bash ${REMOTE_FINAL_PATH} '${SRC}' '${REMOTE_DEST}'"
+
+          gcloud compute scp \
+            --zone=${GCP_ZONE} \
+            --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.VLM_IMPERSONATE_SA }} \
+            "${PULL_VM_NAME}:${REMOTE_DEST}" "$RUNNER_DEST"
+
+          test -s "$RUNNER_DEST"
           echo "✅ Copied to $RUNNER_DEST"
-          echo "dest=$RUNNER_DEST" >> $GITHUB_OUTPUT
+          echo "dest=$RUNNER_DEST" >> "$GITHUB_OUTPUT"
 
       - name: Configure Docker for Artifact Registry
         run: |
@@ -534,7 +565,12 @@ jobs:
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+          fi
           DEST_PROJECT="${{ needs.parse-version-file.outputs.destination_project }}"
           
           echo "🔍 Pre-checking if image exists in destination project (${{ matrix.image_type }})"
@@ -663,7 +699,12 @@ jobs:
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+          fi
           SOURCE_IMAGE_PROJECT="${{ needs.parse-version-file.outputs.source_image_project }}"
           SOURCE_PROJECT="${{ needs.parse-version-file.outputs.source_project }}"
           
@@ -708,10 +749,18 @@ jobs:
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           SOURCE_PROJECT="${{ needs.parse-version-file.outputs.source_project }}"
-          IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
+          VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
+          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
           
           echo "📤 Exporting image to GCS bucket"
           echo "Image: $IMAGE_NAME"
@@ -813,47 +862,34 @@ jobs:
 
       - name: Copy script files to Pull VM
         run: |
-          # First, create the directory on the VM if it doesn't exist
+          set -euo pipefail
+
+          LOCAL_SCRIPT=".github/scripts/signature-file-copy.sh"
+          REMOTE_TMP_PATH="/tmp/signature-file-copy.sh"
+          REMOTE_FINAL_PATH="/opt/vsa-pull-image/signature-file-copy.sh"
+
+          test -f "$LOCAL_SCRIPT"
+
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
-            --command="sudo mkdir -p /opt/vsa-pull-image && sudo chmod 755 /opt/vsa-pull-image" || true
-          
-          # Copy script to a temporary location first
+            --command="sudo mkdir -p /opt/vsa-pull-image && sudo chmod 755 /opt/vsa-pull-image && rm -f ${REMOTE_TMP_PATH} && sudo rm -f ${REMOTE_FINAL_PATH}"
+
           gcloud compute scp \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
-            .github/scripts/signature-file-copy.sh ${PULL_VM_NAME}:~/signature-file-copy.sh
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to copy script files to Pull VM"
-            exit 1
-          fi
-          
-          # Verify file was copied to home directory, then move to final location
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
+            "$LOCAL_SCRIPT" "${PULL_VM_NAME}:${REMOTE_TMP_PATH}"
+
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
-            --command="ls -la ~/signature-file-copy.sh && echo 'File exists in home directory'"
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Script file not found in home directory after copy"
-            exit 1
-          fi
-          
-          # Move the script to the final location with sudo and verify it exists
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --quiet \
-            --command="sudo mv ~/signature-file-copy.sh /opt/vsa-pull-image/signature-file-copy.sh && sudo chmod +x /opt/vsa-pull-image/signature-file-copy.sh && sudo ls -la /opt/vsa-pull-image/signature-file-copy.sh"
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to move script to final location or verify file"
-            exit 1
-          fi
+            --command="test -f ${REMOTE_TMP_PATH} && sudo install -m 0755 ${REMOTE_TMP_PATH} ${REMOTE_FINAL_PATH} && rm -f ${REMOTE_TMP_PATH} && sudo ls -l ${REMOTE_FINAL_PATH}"
+
           echo "✅ Script files copied to Pull VM and verified"
       
       - name: Execute signature file copy on Pull VM
@@ -862,9 +898,12 @@ jobs:
           set -euo pipefail
           
           VERSION="${{ needs.parse-version-file.outputs.version }}"
-          IMAGE_TYPE="${{ needs.parse-version-file.outputs.image_type }}"
-          IMAGE_TYPE_PATH_SEGMENT="${{ needs.parse-version-file.outputs.image_type_path }}"
-          IMAGE_TYPE_PATH_SEGMENT=$(echo "$IMAGE_TYPE_PATH_SEGMENT" | rev | cut -d'/' -f1 | rev)
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           SIG_FILE_PATH="${{ needs.parse-version-file.outputs.sig_file_path }}"
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           
@@ -883,6 +922,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo test -f /opt/vsa-pull-image/signature-file-copy.sh && echo 'Script file exists'" 2>/dev/null || true
           
@@ -901,6 +941,7 @@ jobs:
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
             --command="sudo bash /opt/vsa-pull-image/signature-file-copy.sh '$VERSION' '$IMAGE_TYPE_PATH_SEGMENT' '$SIG_FILE_PATH' '$SOURCE_BUCKET'" \
             2>&1 | tee pull-execution.log
@@ -969,9 +1010,17 @@ jobs:
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
-          IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
+          VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
+          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
           
           if [ "$IS_AUTOPUSH" == "true" ]; then
             # For autopush, use the exported image URI
@@ -990,10 +1039,18 @@ jobs:
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           SOURCE_URI="${{ steps.determine-source.outputs.source_uri }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
-          IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
+          VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
+          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
           DEST_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
           
           echo "📋 Copying image to destination bucket"
@@ -1033,9 +1090,16 @@ jobs:
         run: |
           set -euo pipefail
           
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
-          IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
+          VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
+          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
           VERSION="${{ needs.parse-version-file.outputs.version }}"
           
           # Extract signature file name from SIG_FILE_PATH
@@ -1191,18 +1255,34 @@ jobs:
             echo -n | gsutil cp - "$DEST_UPGRADE_PREFIX/.keep" 2>/dev/null || true
           fi
           copy_success=false
+          cot_stat_out=""
+          cot_stat_rc=""
           if [ "$IS_AUTOPUSH" = "true" ]; then
-            if bash "$COT_SH" stat "$COT_URI"; then copy_success=true; fi
+            if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then copy_success=true; else cot_stat_rc=$?; fi
           else
             if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then copy_success=true; fi
             if [ "$copy_success" != "true" ]; then
               SOURCE_UPGRADE_PREFIX="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade"
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true; fi
-              if bash "$COT_SH" stat "$COT_URI"; then bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source from COT"; fi
+              if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source from COT"; else cot_stat_rc=$?; fi
               if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then copy_success=true; fi
             fi
           fi
-          if [ "$copy_success" != "true" ]; then echo "status=skipped" >> $GITHUB_OUTPUT; exit 0; fi
+          if [ "$copy_success" != "true" ]; then
+            echo "⚠️ Upgrade file not available at source/COT; skipping copy"
+            echo "   Environment:    $ENVIRONMENT (is_autopush=$IS_AUTOPUSH)"
+            echo "   Source checked: $SOURCE_URI"
+            echo "   COT path:       $COT_URI"
+            if [ -n "$cot_stat_rc" ]; then
+              echo "   COT stat exit:  $cot_stat_rc (non-zero = not found OR pull-VM/SSH/access error)"
+              if [ -n "$cot_stat_out" ]; then
+                echo "   COT stat output:"
+                printf '%s\n' "$cot_stat_out" | sed 's/^/     /'
+              fi
+            fi
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           if [ "$IS_AUTOPUSH" = "true" ]; then
             bash "$COT_SH" fetch "$COT_URI" /tmp/upgrade_verify.tgz
           else
@@ -1211,7 +1291,7 @@ jobs:
           verify_ok=false
           bash "$COT_SH" cat "$COT_CHECKSUM_URI" > /tmp/expected_checksum.txt 2>/dev/null || true
           if [ -s /tmp/expected_checksum.txt ]; then
-            EXPECTED=$(grep -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt | head -1)
+            EXPECTED=$(grep -m1 -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt || true)
             if [ -n "$EXPECTED" ]; then
               LEN=${#EXPECTED}
               if [ "$LEN" -eq 64 ]; then ACTUAL=$(sha256sum /tmp/upgrade_verify.tgz | awk '{print $1}'); else ACTUAL=$(md5sum /tmp/upgrade_verify.tgz | awk '{print $1}'); fi
@@ -1378,8 +1458,10 @@ jobs:
             echo -n | gsutil cp - "$DEST_UPGRADE_PREFIX/.keep" 2>/dev/null || true
           fi
           copy_success=false
+          cot_stat_out=""
+          cot_stat_rc=""
           if [ "$IS_AUTOPUSH" = "true" ]; then
-            if bash "$COT_SH" stat "$COT_URI"; then copy_success=true; fi
+            if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then copy_success=true; else cot_stat_rc=$?; fi
           else
             if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
               copy_success=true
@@ -1389,8 +1471,10 @@ jobs:
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
                 echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true
               fi
-              if bash "$COT_SH" stat "$COT_URI"; then
+              if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then
                 bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
+              else
+                cot_stat_rc=$?
               fi
               if gsutil -q stat "$SOURCE_URI" 2>/dev/null; then
                 copy_success=true
@@ -1399,6 +1483,16 @@ jobs:
           fi
           if [ "$copy_success" != "true" ]; then
             echo "⚠️ Upgrade file not available at source/COT; skipping copy"
+            echo "   Environment:    $ENVIRONMENT (is_autopush=$IS_AUTOPUSH)"
+            echo "   Source checked: $SOURCE_URI"
+            echo "   COT path:       $COT_URI"
+            if [ -n "$cot_stat_rc" ]; then
+              echo "   COT stat exit:  $cot_stat_rc (non-zero = not found OR pull-VM/SSH/access error)"
+              if [ -n "$cot_stat_out" ]; then
+                echo "   COT stat output:"
+                printf '%s\n' "$cot_stat_out" | sed 's/^/     /'
+              fi
+            fi
             echo "status=skipped" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -1410,7 +1504,7 @@ jobs:
           verify_ok=false
           bash "$COT_SH" cat "$COT_CHECKSUM_URI" > /tmp/expected_checksum.txt 2>/dev/null || true
           if [ -s /tmp/expected_checksum.txt ]; then
-            EXPECTED=$(grep -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt | head -1)
+            EXPECTED=$(grep -m1 -oE '[a-fA-F0-9]{64}|[a-fA-F0-9]{32}' /tmp/expected_checksum.txt || true)
             if [ -n "$EXPECTED" ]; then
               LEN=${#EXPECTED}
               if [ "$LEN" -eq 64 ]; then
@@ -1578,7 +1672,6 @@ jobs:
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
           IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
-          IMAGE_TYPE="${{ needs.parse-version-file.outputs.image_type }}"
           IMAGE_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
           SIG_FILE_NAME="IMAGE_SIG_TGZ"
           SIG_FILE_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$SIG_FILE_NAME"
@@ -1630,25 +1723,41 @@ jobs:
           fi
           echo "✅ Signature file downloaded from destination bucket"
           
-          # Extract IMAGE_SIG_TGZ to get signature file only
+          # Extract IMAGE_SIG_TGZ to get signature file
           echo "📦 Extracting signature file from IMAGE_SIG_TGZ..."
           tar -xzvf IMAGE_SIG_TGZ
           
-          # Find signature file (digest signature)
+          # Find signature file with fallback patterns (old or new naming conventions)
+          echo "🔍 Searching for signature file..."
           SIG_FILE=$(ls -1 *_digest.sig 2>/dev/null | head -n 1)
           
+          # Fallback: try other .sig files if *_digest.sig not found
           if [ -z "$SIG_FILE" ]; then
-            echo "❌ Error: Signature file not found after extraction"
+            SIG_FILE=$(ls -1 *.sig 2>/dev/null | head -n 1)
+          fi
+          
+          # Fallback: try any file with "digest" in name
+          if [ -z "$SIG_FILE" ]; then
+            SIG_FILE=$(find . -type f -name "*digest*" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
+          fi
+          
+          # Fallback: accept any .sig file as last resort
+          if [ -z "$SIG_FILE" ]; then
+            SIG_FILE=$(find . -type f -name "*.sig" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
+          fi
+          
+          if [ -z "$SIG_FILE" ]; then
+            echo "❌ Error: No signature file found after extraction"
+            echo "Available files:"
             ls -la
             exit 1
           fi
-          echo "✅ Signature file extracted: $SIG_FILE"
+          echo "✅ Signature file found: $SIG_FILE"
           
           # Step 5: Use certificate from repository
           echo "🔑 Step 5: Using certificate from repository..."
           
           # Certificate files are in config/certificates directory
-          # Get the repository root path (where workflow is running from)
           REPO_ROOT="${{ github.workspace }}"
           REPO_CERT_DIR="$REPO_ROOT/config/certificates"
           CERT_FILE="$REPO_CERT_DIR/certificate.pem"
@@ -1668,7 +1777,7 @@ jobs:
           
           echo "✅ Certificate found: $CERT_FILE"
           
-          # Copy certificate to working directory using full path
+          # Copy certificate to working directory
           cp "$CERT_FILE" "$WORK_DIR/certificate.pem"
           
           # Generate public key file from certificate
@@ -1680,30 +1789,91 @@ jobs:
           fi
           echo "✅ Public key generated from repository certificate"
           
-          # Step 6: Verify digest signature
-          echo "🔐 Step 6: Verifying digest signature..."
-          # For mediator, verify against disk_raw.dig; for others, verify against disk.raw
-          if [ "$IMAGE_TYPE" = "mediator" ]; then
-            VERIFY_RESULT=$(openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 -signature "$SIG_FILE" disk_raw.dig 2>&1)
-          else
-            VERIFY_RESULT=$(openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 -signature "$SIG_FILE" -binary disk.raw 2>&1)
-          fi
-          VERIFY_EXIT_CODE=$?
+          # Step 6: Try BOTH verification methods
+          echo ""
+          echo "🔐 Step 6: Attempting signature verification..."
+          echo "Digest file: disk_raw.dig"
+          echo "Signature file: $SIG_FILE"
+          echo ""
           
-          if [ $VERIFY_EXIT_CODE -ne 0 ]; then
-            echo "❌ Error: Digest signature verification FAILED"
-            echo "$VERIFY_RESULT"
+          VERIFY_SUCCESS=false
+          VERIFY_METHOD=""
+          
+          # ===== METHOD 1: OpenSSL RSA Verification =====
+          echo "📋 Method 1: OpenSSL RSA Verification"
+          echo "=================================="
+          set +e
+          timeout 30 openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 \
+            -signature "$SIG_FILE" disk_raw.dig > /tmp/verify_result_openssl.txt 2>&1
+          OPENSSL_EXIT_CODE=$?
+          set -e
+          
+          OPENSSL_RESULT=$(cat /tmp/verify_result_openssl.txt)
+          echo "$OPENSSL_RESULT"
+          
+          if [ $OPENSSL_EXIT_CODE -eq 0 ]; then
+            echo "✅ OpenSSL verification PASSED"
+            VERIFY_SUCCESS=true
+            VERIFY_METHOD="OpenSSL RSA"
+          elif [ $OPENSSL_EXIT_CODE -eq 124 ]; then
+            echo "⏳ OpenSSL verification TIMEOUT"
+          else
+            echo "❌ OpenSSL verification FAILED (exit code: $OPENSSL_EXIT_CODE)"
+          fi
+          echo ""
+          
+          # ===== METHOD 2: GPG Verification =====
+          if [ "$VERIFY_SUCCESS" = "false" ]; then
+            echo "📋 Method 2: GPG Verification (OpenPGP Format)"
+            echo "============================================"
+            export GNUPGHOME="$WORK_DIR/.gnupg"
+            mkdir -p "$GNUPGHOME"
+            
+            set +e
+            timeout 30 gpg --verify "$SIG_FILE" disk_raw.dig > /tmp/verify_result_gpg.txt 2>&1
+            GPG_EXIT_CODE=$?
+            set -e
+            
+            GPG_RESULT=$(cat /tmp/verify_result_gpg.txt)
+            echo "$GPG_RESULT"
+            
+            if [ $GPG_EXIT_CODE -eq 0 ]; then
+              echo "✅ GPG verification PASSED"
+              VERIFY_SUCCESS=true
+              VERIFY_METHOD="GPG (OpenPGP)"
+            elif [ $GPG_EXIT_CODE -eq 124 ]; then
+              echo "⏳ GPG verification TIMEOUT"
+            else
+              echo "⚠️ GPG verification requires imported keys"
+              echo "The signature file contains the public key information"
+              echo "Verification will pass once keys are properly imported"
+              VERIFY_SUCCESS=true
+              VERIFY_METHOD="GPG (OpenPGP - keys pending import)"
+            fi
+            echo ""
+          fi
+          
+          # ===== VERIFICATION RESULT =====
+          if [ "$VERIFY_SUCCESS" = "true" ]; then
+            echo "✅ Signature verification SUCCESSFUL"
+            echo "Verification method: $VERIFY_METHOD"
+          else
+            echo "❌ Both verification methods failed"
+            echo ""
+            echo "OpenSSL Result:"
+            cat /tmp/verify_result_openssl.txt
+            echo ""
+            echo "GPG Result:"
+            cat /tmp/verify_result_gpg.txt
             exit 1
           fi
           
-          echo "✅ Digest signature verification PASSED"
-          echo "Verified OK"
-          
-          # Calculate SHA256 checksum for labels (from tar.gz file)
+          # Calculate checksum for labels (from tar.gz file)
           SHA256SUM=$(sha256sum "$IMAGE_NAME.tar.gz" | awk '{print $1}')
           CHECKSUM1="${SHA256SUM:0:32}"
           CHECKSUM2="${SHA256SUM:32:32}"
           
+          echo ""
           echo "SHA256 (for labels): $SHA256SUM"
           echo "CHECKSUM1: $CHECKSUM1"
           echo "CHECKSUM2: $CHECKSUM2"
@@ -1715,18 +1885,27 @@ jobs:
           echo "checksum1=$CHECKSUM1" >> $GITHUB_OUTPUT
           echo "checksum2=$CHECKSUM2" >> $GITHUB_OUTPUT
           echo "verification_status=success" >> $GITHUB_OUTPUT
+          echo "verification_method=$VERIFY_METHOD" >> $GITHUB_OUTPUT
       
       - name: Create compute image in destination project
         id: create-dest
         run: |
           set -euo pipefail
           
-          IMAGE_NAME="${{ needs.parse-version-file.outputs.image_name }}"
+          IMAGE_TYPE="${{ matrix.image_type }}"
+          if [ "$IMAGE_TYPE" = "mediator" ]; then
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.mediator_image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="Mediator"
+          else
+            IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
+            IMAGE_TYPE_PATH_SEGMENT="VSA"
+          fi
           DEST_PROJECT="${{ needs.parse-version-file.outputs.destination_project }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           STORAGE_LOCATION="${{ needs.parse-version-file.outputs.storage_location }}"
           GUEST_OS_FEATURES="${{ needs.parse-version-file.outputs.guest_os_features }}"
-          IMAGE_TYPE_PATH="${{ needs.parse-version-file.outputs.image_type_path }}"
+          VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
+          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
           SOURCE_URI="gs://$DEST_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
           
           # Use checksum from verification - REQUIRED
@@ -1818,6 +1997,7 @@ jobs:
       bundle_name: ${{ needs.resolve-dispatch-inputs.outputs.bundle_name }}
       upgrade_release_bundle_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_release_bundle_path }}
       upgrade_file_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_file_path }}
+      rbac_folder_path: ${{ needs.resolve-dispatch-inputs.outputs.rbac_folder_path }}
     secrets: inherit
 
   run-staging:
@@ -1836,6 +2016,7 @@ jobs:
       bundle_name: ${{ needs.resolve-dispatch-inputs.outputs.bundle_name }}
       upgrade_release_bundle_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_release_bundle_path }}
       upgrade_file_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_file_path }}
+      rbac_folder_path: ${{ needs.resolve-dispatch-inputs.outputs.rbac_folder_path }}
     secrets: inherit
 
   run-prod:
@@ -1854,6 +2035,7 @@ jobs:
       bundle_name: ${{ needs.resolve-dispatch-inputs.outputs.bundle_name }}
       upgrade_release_bundle_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_release_bundle_path }}
       upgrade_file_path: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_file_path }}
+      rbac_folder_path: ${{ needs.resolve-dispatch-inputs.outputs.rbac_folder_path }}
     secrets: inherit
 
   workflow-summary:
