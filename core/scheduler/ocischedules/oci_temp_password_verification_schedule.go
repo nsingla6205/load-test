@@ -56,14 +56,11 @@ func EnsureOciTempPasswordVerificationSchedule(ctx context.Context, temporalClie
 	spec := client.ScheduleSpec{CronExpressions: []string{cron}}
 
 	if exists {
-		if _, err := temporalScheduler.Update(ctx, scheduler.UpdateScheduleParams{
-			ScheduleParams:          scheduler.ScheduleParams{ScheduleID: OciTempPasswordVerificationScheduleID},
-			TemporalScheduleOptions: scheduler.TemporalUpdateScheduleParams{Spec: spec},
-		}); err != nil {
+		if err := syncScheduleSpecAndTaskQueue(ctx, scheduleClient, OciTempPasswordVerificationScheduleID, spec, workflowengine.CustomerTaskQueue); err != nil {
 			logger.Error("Failed to sync OCI temp-password verification schedule", "error", err)
 			return err
 		}
-		logger.Info("OCI temp-password verification schedule in sync", "scheduleID", OciTempPasswordVerificationScheduleID, "cron", cron)
+		logger.Info("OCI temp-password verification schedule in sync", "scheduleID", OciTempPasswordVerificationScheduleID, "cron", cron, "taskQueue", workflowengine.CustomerTaskQueue)
 		return nil
 	}
 

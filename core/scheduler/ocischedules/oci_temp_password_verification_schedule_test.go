@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/mocks"
 )
@@ -81,10 +82,28 @@ func TestEnsureOciTempPasswordVerificationSchedule_Enabled_UpdatesWhenPresent(t 
 	ctx := context.Background()
 
 	var updated bool
+	var repointedQueue string
 	handle := &mockScheduleHandle{
 		id:           OciTempPasswordVerificationScheduleID,
 		describeFunc: describeFound,
-		updateFunc:   func(context.Context, client.ScheduleUpdateOptions) error { updated = true; return nil },
+		updateFunc: func(_ context.Context, opts client.ScheduleUpdateOptions) error {
+			updated = true
+			// Drive the reconcile callback against a schedule sitting on a stale
+			// queue to prove the existing schedule gets re-pointed, not just spec-synced.
+			input := client.ScheduleUpdateInput{
+				Description: client.ScheduleDescription{
+					Schedule: client.Schedule{
+						Action: &client.ScheduleWorkflowAction{TaskQueue: "stale-queue"},
+					},
+				},
+			}
+			upd, err := opts.DoUpdate(input)
+			if err != nil {
+				return err
+			}
+			repointedQueue = upd.Schedule.Action.(*client.ScheduleWorkflowAction).TaskQueue
+			return nil
+		},
 	}
 	schedCl := &mocks.ScheduleClient{}
 	schedCl.On("GetHandle", ctx, OciTempPasswordVerificationScheduleID).Return(handle)
@@ -95,6 +114,7 @@ func TestEnsureOciTempPasswordVerificationSchedule_Enabled_UpdatesWhenPresent(t 
 	err := EnsureOciTempPasswordVerificationSchedule(ctx, cl, log.NewLogger())
 	require.NoError(t, err)
 	require.True(t, updated, "existing schedule must be synced when verification is enabled")
+	assert.Equal(t, workflowengine.CustomerTaskQueue, repointedQueue, "schedule must be re-pointed to the customer task queue")
 	schedCl.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 

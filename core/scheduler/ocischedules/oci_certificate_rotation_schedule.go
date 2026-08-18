@@ -57,14 +57,11 @@ func EnsureOciCertificateRotationSchedule(ctx context.Context, temporalClient cl
 	spec := client.ScheduleSpec{CronExpressions: []string{cron}}
 
 	if exists {
-		if _, err := temporalScheduler.Update(ctx, scheduler.UpdateScheduleParams{
-			ScheduleParams:          scheduler.ScheduleParams{ScheduleID: OciCertificateRotationScheduleID},
-			TemporalScheduleOptions: scheduler.TemporalUpdateScheduleParams{Spec: spec},
-		}); err != nil {
+		if err := syncScheduleSpecAndTaskQueue(ctx, scheduleClient, OciCertificateRotationScheduleID, spec, workflowengine.CustomerTaskQueue); err != nil {
 			logger.Error("Failed to sync OCI certificate rotation schedule", "error", err)
 			return err
 		}
-		logger.Info("OCI certificate rotation schedule in sync", "scheduleID", OciCertificateRotationScheduleID, "cron", cron)
+		logger.Info("OCI certificate rotation schedule in sync", "scheduleID", OciCertificateRotationScheduleID, "cron", cron, "taskQueue", workflowengine.CustomerTaskQueue)
 		return nil
 	}
 
