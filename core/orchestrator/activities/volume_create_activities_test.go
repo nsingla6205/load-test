@@ -503,6 +503,136 @@ func TestCreateVolumeInONTAP_Success(t *testing.T) {
 		mockProvider.AssertExpectations(t)
 	})
 
+	t.Run("TestCreateVolumeInONTAP_WithDualProtocol_ExportPolicyIsSet", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		utils.SetFileProtocolSupportedForTesting(true)
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting("test-account")
+		defer func() {
+			utils.SetFileProtocolSupportedForTesting(false)
+			utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+		}()
+
+		// Arrange
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := activities.VolumeCreateActivity{
+			SE: database.NewMockStorage(t),
+		}
+		env.RegisterActivity(activity.CreateVolumeInONTAP)
+
+		volume := &datamodel.Volume{
+			Name:    "test-volume",
+			Svm:     &datamodel.Svm{Name: "test-svm"},
+			Account: &datamodel.Account{Name: "test-account"},
+			Pool: &datamodel.Pool{
+				BuildInfo: &datamodel.PoolBuildInfo{
+					OntapVersion: "9.18.1",
+				},
+			},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				IsDataProtection: false,
+				Protocols:        []string{"NFSV3", "SMB"},
+				FileProperties: &datamodel.FileProperties{
+					JunctionPath: "/test/junction/path",
+					ExportPolicy: &datamodel.ExportPolicy{
+						ExportPolicyName: "test-export-policy",
+					},
+				},
+			},
+		}
+		node := &models.Node{}
+		expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 1024}
+
+		// Dual protocol (NFS + SMB) volumes must still get the export policy attached.
+		mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
+			exportPolicyOK := params.ExportPolicy != nil && *params.ExportPolicy == "test-export-policy"
+			junctionPathOK := params.JunctionPath != nil && *params.JunctionPath == "/test/junction/path"
+			return exportPolicyOK && junctionPathOK
+		})).Return(expectedResponse, nil)
+
+		// Act
+		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, nil, nil, nil)
+
+		// Assert
+		assert.NoError(t, err)
+		var result *vsa.VolumeResponse
+		_ = val.Get(&result)
+		assert.Equal(t, expectedResponse, result)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("TestCreateVolumeInONTAP_WithSMBOnlyProtocol_ExportPolicyIsNotSet", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		utils.SetFileProtocolSupportedForTesting(true)
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting("test-account")
+		defer func() {
+			utils.SetFileProtocolSupportedForTesting(false)
+			utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+		}()
+
+		// Arrange
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := activities.VolumeCreateActivity{
+			SE: database.NewMockStorage(t),
+		}
+		env.RegisterActivity(activity.CreateVolumeInONTAP)
+
+		volume := &datamodel.Volume{
+			Name:    "test-volume",
+			Svm:     &datamodel.Svm{Name: "test-svm"},
+			Account: &datamodel.Account{Name: "test-account"},
+			Pool: &datamodel.Pool{
+				BuildInfo: &datamodel.PoolBuildInfo{
+					OntapVersion: "9.18.1",
+				},
+			},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				IsDataProtection: false,
+				Protocols:        []string{"SMB"},
+				FileProperties: &datamodel.FileProperties{
+					JunctionPath: "/test/junction/path",
+					ExportPolicy: &datamodel.ExportPolicy{
+						ExportPolicyName: "test-export-policy",
+					},
+				},
+			},
+		}
+		node := &models.Node{}
+		expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 1024}
+
+		mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
+			junctionPathOK := params.JunctionPath != nil && *params.JunctionPath == "/test/junction/path"
+			return params.ExportPolicy == nil && junctionPathOK
+		})).Return(expectedResponse, nil)
+
+		// Act
+		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, nil, nil, nil)
+
+		// Assert
+		assert.NoError(t, err)
+		var result *vsa.VolumeResponse
+		_ = val.Get(&result)
+		assert.Equal(t, expectedResponse, result)
+		mockProvider.AssertExpectations(t)
+	})
+
 	t.Run("TestCreateVolumeInONTAP_WithSecurityStyle_SecurityStyleIsSet", func(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
