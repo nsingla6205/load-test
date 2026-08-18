@@ -261,6 +261,9 @@ oke:
   nodeSelector: {}
   # Set to true if OKE cluster does not expose zone/hostname labels and topology spread causes scheduling issues
   disableTopologySpread: false
+  # ClusterRole/Binding for POST /resourcePrincipalSessionTokens (OKE WI).
+  createWorkloadIdentityRpstRbac: true
+  workloadIdentityRpstRbacName: "vcp-worker-oke-wi-rpst"
 
 # Image pull secrets for OCIR. Create with:
 # kubectl create secret docker-registry ocir-secret -n vcp --docker-server=<region>.ocir.io --docker-username='<tenancy>/<user>' --docker-password='<auth-token>'

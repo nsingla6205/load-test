@@ -1,0 +1,25 @@
+{{- if .Values.oke.createWorkloadIdentityRpstRbac }}
+# Allow SA to POST /resourcePrincipalSessionTokens (OKE Workload Identity).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.oke.workloadIdentityRpstRbacName }}
+rules:
+  - nonResourceURLs:
+      - /resourcePrincipalSessionTokens
+    verbs:
+      - post
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.oke.workloadIdentityRpstRbacName }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.oke.workloadIdentityRpstRbacName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
