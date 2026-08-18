@@ -13224,6 +13224,8 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		sourceRegion := "us-central1"
 		existingBackupVault := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
+			Account:          account,
+			AccountID:        account.ID,
 			BackupVaultType:  CrossRegionBackupType,
 			BackupRegionName: &backupRegion,
 			SourceRegionName: &sourceRegion,
@@ -13256,6 +13258,9 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 
 		// Mock UpdateBackupVaultBucketDetails
 		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
+
+		// Mock GetAccountByInternalID - the remote vault project number is the vault owner project
+		mockStorage.On("GetAccountByInternalID", ctx, account.ID).Return(account, nil)
 
 		// Note: GetExpertModeVolumeByUUID and UpdateExpertModeVolume won't be called
 		// if CheckOrCreateRemoteBackupVaultInVCP fails (which it will due to missing env vars)

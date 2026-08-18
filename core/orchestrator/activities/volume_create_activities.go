@@ -1001,11 +1001,11 @@ func (a VolumeCreateActivity) CheckBackupVaultExistsInVCP(ctx context.Context, v
 }
 
 func (a VolumeCreateActivity) CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.Volume, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
-	return CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+	return CheckOrCreateRemoteBackupVaultInVCP(ctx, a.SE, volume, backupVault, bucketDetails)
 }
 
 func (a VolumeCreateActivity) UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, sourceBV *datamodel.BackupVault, remoteBV *datamodel.BackupVault, bucketDetails *common.BucketDetails) error {
-	return UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+	return UpdateRemoteBackupVaultWithBucketDetails(ctx, a.SE, volume, sourceBV, remoteBV, bucketDetails)
 }
 
 // SetupCrossRegionBackupPermissionsActivity sets up IAM permissions for cross-region backup vaults
@@ -1283,7 +1283,7 @@ func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context
 	return nil
 }
 
-func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, sourceBV *datamodel.BackupVault, remoteBV *datamodel.BackupVault, bucketDetails *common.BucketDetails) error {
+func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, se database.Storage, volume *datamodel.Volume, sourceBV *datamodel.BackupVault, remoteBV *datamodel.BackupVault, bucketDetails *common.BucketDetails) error {
 	logger := util.GetLogger(ctx)
 	if sourceBV.BackupVaultType != CrossRegionBackupType ||
 		sourceBV.SourceRegionName == nil || sourceBV.BackupRegionName == nil ||
@@ -1318,7 +1318,10 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		return nil
 	}
 
-	projectNumber := volume.Account.Name
+	projectNumber, err := backupVaultProjectNumber(ctx, se, sourceBV)
+	if err != nil {
+		return err
+	}
 	backupRegion := *remoteBV.BackupRegionName
 	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", backupRegion))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(backupRegion, projectNumber)
@@ -1447,20 +1450,51 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 	}
 }
 
+// backupVaultProjectNumber returns the project number of the account that owns the backup vault.
+// The owner is loaded from AccountID because Account is tagged json:"-" and is dropped across the
+// Temporal activity boundary. GCNV CRB and GCBDR CRB both use the vault owner; for GCNV that
+// account matches the volume account.
+func backupVaultProjectNumber(ctx context.Context, se database.Storage, backupVault *datamodel.BackupVault) (string, error) {
+	if se == nil {
+		return "", fmt.Errorf("storage is required to resolve owner account for backup vault %s", backupVault.UUID)
+	}
+	account, err := se.GetAccountByInternalID(ctx, backupVault.AccountID)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve owner account for backup vault %s: %w", backupVault.UUID, err)
+	}
+	if account == nil || account.Name == "" {
+		return "", fmt.Errorf("owner account is missing for backup vault %s", backupVault.UUID)
+	}
+	return account.Name, nil
+}
+
 // CheckOrCreateRemoteBackupVaultInVCP checks if the remote BackupVault exists in VCP for cross-region backups
-func CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.Volume, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
+func CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, se database.Storage, volume *datamodel.Volume, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
 	if backupVault.BackupVaultType != CrossRegionBackupType ||
 		backupVault.SourceRegionName == nil || backupVault.BackupRegionName == nil ||
 		*backupVault.SourceRegionName == *backupVault.BackupRegionName {
 		return nil, nil
 	}
-	projectNumber := volume.Account.Name
+	projectNumber, err := backupVaultProjectNumber(ctx, se, backupVault)
+	if err != nil {
+		return nil, err
+	}
 
 	remoteBV, err := FetchRemoteBackupVaultFromVCP(ctx, backupVault.UUID, projectNumber, *backupVault.BackupRegionName)
-	if err != nil && !errors.IsNotFoundErr(err) {
-		logger.Error("Failed to fetch remote BackupVault from VCP", "error", err.Error())
-		return nil, err
+	if err != nil {
+		if backupVault.ServiceType == GCBDRServiceType {
+			logger.Error("Failed to fetch cross-project remote BackupVault from VCP",
+				"backupVaultID", backupVault.UUID,
+				"projectNumber", projectNumber,
+				"region", *backupVault.BackupRegionName,
+				"error", err.Error())
+			return nil, err
+		}
+		if !errors.IsNotFoundErr(err) {
+			logger.Error("Failed to fetch remote BackupVault from VCP", "error", err.Error())
+			return nil, err
+		}
 	}
 
 	if remoteBV != nil {

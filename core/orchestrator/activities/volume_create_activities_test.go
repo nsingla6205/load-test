@@ -9542,6 +9542,18 @@ func TestGrantStorageObjectAdminRole_AttachRolesError(t *testing.T) {
 	mockGCPService.AssertExpectations(t)
 }
 
+// ownerAccountStorage resolves the vault owner account from AccountID, standing in for the DB
+// preload that the Temporal activity boundary drops (Account is tagged json:"-").
+func ownerAccountStorage(t *testing.T, backupVault *datamodel.BackupVault) *database.MockStorage {
+	t.Helper()
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.EXPECT().
+		GetAccountByInternalID(mock.Anything, backupVault.AccountID).
+		Return(backupVault.Account, nil).
+		Maybe()
+	return mockStorage
+}
+
 func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
@@ -9559,7 +9571,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -9583,7 +9595,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -9607,7 +9619,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -9631,7 +9643,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -9647,6 +9659,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		backupRegion := "us-west1"
 		backupVault := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: &sourceRegion,
 			BackupRegionName: &backupRegion,
@@ -9689,7 +9702,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalDescribeBackupVault", mock.Anything, mock.Anything).Return(existingVault, nil)
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -9709,6 +9722,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		backupRegion := "us-west1"
 		backupVault := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: &sourceRegion,
 			BackupRegionName: &backupRegion,
@@ -9747,7 +9761,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(badRequestError, nil)
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -9765,6 +9779,7 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		backupRegion := "us-west1"
 		backupVault := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: &sourceRegion,
 			BackupRegionName: &backupRegion,
@@ -9783,12 +9798,66 @@ func TestCheckOrCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "VCP_PAIRED_REGIONS")
+	})
+
+	t.Run("CrossProject_RemoteVaultNotFound_UsesVaultOwnerAndDoesNotCreate", func(t *testing.T) {
+		volume := &datamodel.Volume{
+			AccountID: 1091,
+			Account:   &datamodel.Account{Name: "829189061342"},
+		}
+		sourceRegion := "us-central1"
+		backupRegion := "us-east4"
+		backupVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "test-cross-project-bv-uuid"},
+			AccountID:        1073,
+			BackupVaultType:  activities.CrossRegionBackupType,
+			ServiceType:      activities.GCBDRServiceType,
+			SourceRegionName: &sourceRegion,
+			BackupRegionName: &backupRegion,
+		}
+
+		mockStorage := database.NewMockStorage(t)
+		mockStorage.EXPECT().
+			GetAccountByInternalID(mock.Anything, int64(1073)).
+			Return(&datamodel.Account{Name: "555613628773"}, nil)
+
+		mockInvoker := googleproxyclient.NewMockInvoker(t)
+		mockInvoker.On("V1betaInternalDescribeBackupVault", mock.Anything, mock.MatchedBy(
+			func(params googleproxyclient.V1betaInternalDescribeBackupVaultParams) bool {
+				return params.ProjectNumber == "555613628773"
+			},
+		)).Return(&googleproxyclient.V1betaInternalDescribeBackupVaultNotFound{}, nil).Once()
+
+		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		originalGetRemoteRegionConfig := common.GetRemoteRegionConfig
+		defer func() {
+			googleproxyclient.GetGProxyClient = originalGetGProxyClient
+			common.GetRemoteRegionConfig = originalGetRemoteRegionConfig
+		}()
+
+		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return &googleproxyclient.ProxyClient{Invoker: mockInvoker}
+		}
+		common.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
+			assert.Equal(t, "us-east4", region)
+			assert.Equal(t, "555613628773", projectNumber)
+			return "https://us-east4.example.com", "mock-jwt-token", nil
+		}
+
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+		result, err := activity.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, nil)
+
+		assert.Error(t, err)
+		assert.True(t, utilErrors.IsNotFoundErr(err))
+		assert.Nil(t, result)
+		mockStorage.AssertExpectations(t)
+		mockInvoker.AssertExpectations(t)
 	})
 }
 
@@ -9820,7 +9889,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should return early without any processing
@@ -9851,7 +9920,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should return early without any processing
@@ -9882,7 +9951,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should return early without any processing
@@ -9913,7 +9982,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should return early without any processing
@@ -9930,6 +9999,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel: datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:   &datamodel.Account{Name: "123456789"},
 			BucketDetails: []*datamodel.BucketDetails{
 				{
 					BucketName:     "existing-bucket",
@@ -9981,7 +10051,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(operationResponse, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -10016,7 +10086,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should return early without calling API
@@ -10032,6 +10102,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:   datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:     &datamodel.Account{Name: "555613628773"},
 			ServiceType: datamodel.ServiceTypeCrossProject,
 			BucketDetails: []*datamodel.BucketDetails{
 				{
@@ -10071,6 +10142,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		common.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
+			assert.Equal(t, "555613628773", projectNumber)
 			return "https://us-west1.example.com", "mock-jwt-token", nil
 		}
 
@@ -10083,7 +10155,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 			return len(body.BucketDetails) == 1 && body.BucketDetails[0].BucketName.Value == "new-bucket"
 		}), mock.Anything).Return(operationResponse, nil)
 
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		assert.NoError(t, err)
 		mockInvoker.AssertExpectations(t)
@@ -10100,6 +10172,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10123,7 +10196,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		}
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10141,6 +10214,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10179,7 +10253,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(nil, expectedError)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10198,6 +10272,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10238,7 +10313,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(badRequest, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10257,6 +10332,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10297,7 +10373,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(unauthorized, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10316,6 +10392,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10356,7 +10433,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(forbidden, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10375,6 +10452,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10415,7 +10493,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(notFound, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10434,6 +10512,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10474,7 +10553,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(conflict, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10493,6 +10572,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10533,7 +10613,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(unprocessable, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10552,6 +10632,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10592,7 +10673,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(internalError, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10611,6 +10692,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10649,7 +10731,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 			&googleproxyclient.V1betaInternalUpdateBackupVaultMethodNotAllowed{}, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10668,6 +10750,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		backupRegion := "us-west1"
 		sourceBV := &datamodel.BackupVault{
 			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Account:          &datamodel.Account{Name: "123456789"},
 			BackupVaultType:  activities.CrossRegionBackupType,
 			SourceRegionName: nillable.ToPointer("us-central1"),
 			BackupRegionName: nillable.ToPointer("us-east4"),
@@ -10710,7 +10793,7 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(operationResponse, nil)
 
 		// Act
-		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteBV, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err) // Should succeed even if operation is not marked as done
@@ -10754,6 +10837,98 @@ func TestVolumeCreateActivity_CheckOrCreateRemoteBackupVaultInVCP_NonCrossRegion
 	result, err := activity.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
 	assert.NoError(t, err)
 	assert.Nil(t, result)
+}
+
+// TestCrossRegionBackupVaultOwnerAccountMissing covers the owner-account resolution
+// failures for cross-region backup vaults. The Account field is tagged json:"-", so it is
+// dropped across the Temporal activity boundary and must be loaded from AccountID.
+func TestCrossRegionBackupVaultOwnerAccountMissing(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	volume := &datamodel.Volume{
+		BaseModel:        datamodel.BaseModel{UUID: "vol-uuid"},
+		AccountID:        1091,
+		Account:          &datamodel.Account{Name: "829189061342"},
+		VolumeAttributes: &datamodel.VolumeAttributes{VendorSubnetID: "subnet-123"},
+	}
+	bucketDetails := &common.BucketDetails{BucketName: "new-bucket"}
+
+	// crossRegionVault returns a cross-region vault whose owner Account is not populated.
+	crossRegionVault := func() *datamodel.BackupVault {
+		return &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "crb-bv-uuid"},
+			AccountID:        1073,
+			BackupVaultType:  activities.CrossRegionBackupType,
+			SourceRegionName: nillable.ToPointer("us-central1"),
+			BackupRegionName: nillable.ToPointer("us-east4"),
+		}
+	}
+	remoteVault := func() *datamodel.BackupVault {
+		return &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "remote-bv-uuid"},
+			BackupRegionName: nillable.ToPointer("us-east4"),
+			BucketDetails:    []*datamodel.BucketDetails{},
+		}
+	}
+
+	t.Run("Activity_CheckOrCreate_StorageIsNil", func(t *testing.T) {
+		// No storage, so the owner account cannot be reloaded.
+		activity := activities.VolumeCreateActivity{}
+
+		result, err := activity.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, crossRegionVault(), bucketDetails)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "storage is required to resolve owner account")
+	})
+
+	t.Run("Activity_UpdateRemote_AccountLookupFails", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		mockStorage.EXPECT().
+			GetAccountByInternalID(mock.Anything, int64(1073)).
+			Return(nil, errors.New("db connection reset"))
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+		err := activity.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, crossRegionVault(), remoteVault(), bucketDetails)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to resolve owner account")
+		assert.Contains(t, err.Error(), "db connection reset")
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Activity_CheckOrCreate_ResolvedAccountHasNoName", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		mockStorage.EXPECT().
+			GetAccountByInternalID(mock.Anything, int64(1073)).
+			Return(&datamodel.Account{Name: ""}, nil)
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+		result, err := activity.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, crossRegionVault(), bucketDetails)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "owner account is missing for backup vault crb-bv-uuid")
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("CheckOrCreateRemoteBackupVaultInVCP_NoOwnerAccount", func(t *testing.T) {
+		backupVault := crossRegionVault()
+
+		result, err := activities.CheckOrCreateRemoteBackupVaultInVCP(ctx, ownerAccountStorage(t, backupVault), volume, backupVault, bucketDetails)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "owner account is missing for backup vault crb-bv-uuid")
+	})
+
+	t.Run("UpdateRemoteBackupVaultWithBucketDetails_NoOwnerAccount", func(t *testing.T) {
+		sourceBV := crossRegionVault()
+
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, ownerAccountStorage(t, sourceBV), volume, sourceBV, remoteVault(), bucketDetails)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "owner account is missing for backup vault crb-bv-uuid")
+	})
 }
 
 func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
