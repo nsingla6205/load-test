@@ -211,24 +211,31 @@ func (a *BatchClusterUpgradeActivity) UpdateBatchJobStatusActivity(ctx context.C
 	logger := util.GetLogger(ctx)
 	logger.Info("Updating batch cluster upgrade job status", "batchJobID", batchJobID, "status", status)
 
+	if status == string(models.UpgradeStatusInProgress) {
+		return claimPendingUpgradeJob(ctx, a.SE, upgradeJobRef{
+			Kind:   database.UpgradeJobKindBatch,
+			UUID:   batchJobID,
+			LogKey: "batchJobID",
+			Label:  "batch cluster upgrade job",
+		})
+	}
+
 	batchJob, err := a.SE.GetBatchClusterUpgradeJobByUUID(ctx, batchJobID)
 	if err != nil {
 		logger.Error("Failed to get batch cluster upgrade job", "batchJobID", batchJobID, "error", err)
+		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+			return upgradeJobNotFoundError(fmt.Errorf("batch cluster upgrade job %s not found: %w", batchJobID, err))
+		}
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	if batchJob == nil {
 		err := fmt.Errorf("batch cluster upgrade job %s not found", batchJobID)
 		logger.Error("Failed to get batch cluster upgrade job", "batchJobID", batchJobID, "error", err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return upgradeJobNotFoundError(err)
 	}
 
 	batchJob.Status = status
 	batchJob.UpdatedAt = time.Now()
-
-	if status == string(models.UpgradeStatusInProgress) {
-		now := time.Now()
-		batchJob.StartedAt = &now
-	}
 
 	batchJob.ErrorDetails = nil
 	if errorMessage != "" {
@@ -238,6 +245,12 @@ func (a *BatchClusterUpgradeActivity) UpdateBatchJobStatusActivity(ctx context.C
 			ErrorType:    "BATCH_UPGRADE_ERROR",
 			Retryable:    false,
 		}
+	}
+
+	if status == string(models.UpgradeStatusCompleted) || status == string(models.UpgradeStatusFailed) {
+		now := time.Now()
+		batchJob.CompletedAt = &now
+		batchJob.DeletedAt = &gorm.DeletedAt{Time: now, Valid: true}
 	}
 
 	if err := a.SE.UpdateBatchClusterUpgradeJob(ctx, batchJob); err != nil {
@@ -262,12 +275,15 @@ func (a *BatchClusterUpgradeActivity) CompleteBatchJobActivity(ctx context.Conte
 	batchJob, err := a.SE.GetBatchClusterUpgradeJobByUUID(ctx, batchJobID)
 	if err != nil {
 		logger.Error("Failed to get batch cluster upgrade job", "batchJobID", batchJobID, "error", err)
+		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+			return upgradeJobNotFoundError(fmt.Errorf("batch cluster upgrade job %s not found: %w", batchJobID, err))
+		}
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	if batchJob == nil {
 		err := fmt.Errorf("batch cluster upgrade job %s not found", batchJobID)
 		logger.Error("Failed to get batch cluster upgrade job", "batchJobID", batchJobID, "error", err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return upgradeJobNotFoundError(err)
 	}
 
 	now := time.Now()

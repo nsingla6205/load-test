@@ -20,6 +20,8 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 	// Mock GetJobsWithCondition since runWorkflowSupervisorTask calls scan()
 	// First call for NEW state jobs, second call for PROCESSING state jobs
 	storage.EXPECT().GetJobsWithCondition(mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil).Twice()
+	storage.EXPECT().ListPendingUpgradeJobsCreatedBefore(mock.Anything, mock.Anything).
+		Return([]database.PendingUpgradeJob{}, nil).Once()
 
 	// Call with no handlers to trigger default registration
 	runWorkflowSupervisorTask(context.Background(), storage, temporal, "test-correlation-id")
@@ -164,6 +166,8 @@ func TestRunWorkflowSupervisorTask_RegistersCustomHandlers(t *testing.T) {
 	// Mock GetJobsWithCondition for NEW state scan only.
 	// UPDATE_POOL is not eligible for PROCESSING state scan, so only one call.
 	storage.EXPECT().GetJobsWithCondition(mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil).Once()
+	storage.EXPECT().ListPendingUpgradeJobsCreatedBefore(mock.Anything, mock.Anything).
+		Return([]database.PendingUpgradeJob{}, nil).Once()
 
 	// Call with custom handler
 	runWorkflowSupervisorTask(context.Background(), storage, temporal, "test-correlation-id", customHandler)

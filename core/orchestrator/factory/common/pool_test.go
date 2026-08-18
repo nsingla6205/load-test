@@ -569,6 +569,27 @@ func TestUpdateUpgradeJobStatus(t *testing.T) {
 		assert.Nil(t, upgradeJob.ErrorDetails)
 	})
 
+	t.Run("ClearsStaleErrorDetailsWhenMessageIsEmpty", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		ctx := context.Background()
+
+		upgradeJob := &datamodel.ClusterUpgradeJob{
+			BaseModel: datamodel.BaseModel{UUID: "job-1"},
+			Status:    string(models.UpgradeStatusInProgress),
+			ErrorDetails: &datamodel.UpgradeErrorDetails{
+				ErrorCode:    "UPGRADE_FAILED",
+				ErrorMessage: "previous failure",
+				ErrorType:    "UPGRADE_ERROR",
+			},
+		}
+		mockStorage.EXPECT().GetClusterUpgradeJobByUUID(ctx, "job-1").Return(upgradeJob, nil)
+		mockStorage.EXPECT().UpdateClusterUpgradeJob(ctx, mock.AnythingOfType("*datamodel.ClusterUpgradeJob")).Return(nil)
+
+		err := UpdateUpgradeJobStatus(ctx, mockStorage, "job-1", string(models.UpgradeStatusCompleted), "")
+		assert.NoError(t, err)
+		assert.Nil(t, upgradeJob.ErrorDetails)
+	})
+
 	t.Run("SetsStartedAtForInProgressStatus", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		ctx := context.Background()

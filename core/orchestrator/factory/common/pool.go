@@ -306,6 +306,7 @@ func UpdateUpgradeJobStatus(ctx context.Context, se database.Storage, jobUUID, s
 	upgradeJob.Status = status
 	upgradeJob.UpdatedAt = time.Now()
 
+	upgradeJob.ErrorDetails = nil
 	if errorMessage != "" {
 		upgradeJob.ErrorDetails = &datamodel.UpgradeErrorDetails{
 			ErrorCode:    "UPGRADE_FAILED",

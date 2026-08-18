@@ -3,11 +3,13 @@ package activities_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -16,6 +18,7 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
 
@@ -29,18 +32,13 @@ func TestUpdateClusterUpgradeJobStatusActivity_Success(t *testing.T) {
 	jobUUID := "test-job-uuid"
 	status := "IN_PROGRESS"
 
-	// Mock the upgrade job
-	upgradeJob := &datamodel.ClusterUpgradeJob{
-		BaseModel: datamodel.BaseModel{
-			UUID:      jobUUID,
-			UpdatedAt: time.Now().Add(-time.Hour),
-		},
-		ClusterID: "test-cluster-id",
-		Status:    "PENDING",
-	}
-
-	mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(upgradeJob, nil)
-	mockStorage.On("UpdateClusterUpgradeJob", ctx, mock.AnythingOfType("*datamodel.ClusterUpgradeJob")).Return(nil)
+	mockStorage.On(
+		"TransitionPendingUpgradeJobToInProgress",
+		ctx,
+		database.UpgradeJobKindSingle,
+		jobUUID,
+		mock.AnythingOfType("time.Time"),
+	).Return(true, nil)
 
 	err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, status, "")
 
@@ -115,6 +113,45 @@ func TestUpdateClusterUpgradeJobStatusActivity_CompletedStatus(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+func TestUpdateClusterUpgradeJobStatusActivity_ClearsStaleErrorDetails(t *testing.T) {
+	for _, status := range []string{
+		string(models.UpgradeStatusCompleted),
+		string(models.UpgradeStatusFailed),
+	} {
+		t.Run(status, func(t *testing.T) {
+			mockStorage := database.NewMockStorage(t)
+			activity := activities.ClusterUpgradeActivity{
+				SE: mockStorage,
+			}
+
+			ctx := context.Background()
+			jobUUID := "test-job-uuid"
+
+			upgradeJob := &datamodel.ClusterUpgradeJob{
+				BaseModel: datamodel.BaseModel{UUID: jobUUID},
+				ClusterID: "test-cluster-id",
+				Status:    string(models.UpgradeStatusInProgress),
+				ErrorDetails: &datamodel.UpgradeErrorDetails{
+					ErrorCode:    "UPGRADE_FAILED",
+					ErrorMessage: "previous failure",
+					ErrorType:    "UPGRADE_ERROR",
+					Retryable:    true,
+				},
+			}
+
+			mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(upgradeJob, nil)
+			mockStorage.On("UpdateClusterUpgradeJob", ctx, mock.MatchedBy(func(job *datamodel.ClusterUpgradeJob) bool {
+				return job.Status == status && job.ErrorDetails == nil
+			})).Return(nil)
+
+			err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, status, "")
+
+			assert.NoError(t, err)
+			mockStorage.AssertExpectations(t)
+		})
+	}
+}
+
 func TestUpdateClusterUpgradeJobStatusActivity_JobNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := activities.ClusterUpgradeActivity{
@@ -125,11 +162,67 @@ func TestUpdateClusterUpgradeJobStatusActivity_JobNotFound(t *testing.T) {
 	jobUUID := "non-existent-job"
 	status := "IN_PROGRESS"
 
-	mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(nil, gorm.ErrRecordNotFound)
+	mockStorage.On(
+		"TransitionPendingUpgradeJobToInProgress",
+		ctx,
+		database.UpgradeJobKindSingle,
+		jobUUID,
+		mock.AnythingOfType("time.Time"),
+	).Return(false, nil)
 
 	err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, status, "")
 
 	assert.Error(t, err)
+	var appErr *temporal.ApplicationError
+	require.True(t, errors.As(err, &appErr))
+	assert.True(t, appErr.NonRetryable())
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateClusterUpgradeJobStatusActivity_MissingJobIsNonRetryable(t *testing.T) {
+	for name, getErr := range map[string]error{
+		"get returns nil":   nil,
+		"record not found":  gorm.ErrRecordNotFound,
+		"wrapped not found": fmt.Errorf("query cluster upgrade job: %w", gorm.ErrRecordNotFound),
+	} {
+		t.Run(name, func(t *testing.T) {
+			mockStorage := database.NewMockStorage(t)
+			activity := activities.ClusterUpgradeActivity{
+				SE: mockStorage,
+			}
+
+			ctx := context.Background()
+			jobUUID := "missing-job"
+
+			mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(nil, getErr)
+
+			err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, string(models.UpgradeStatusFailed), "")
+
+			assert.Error(t, err)
+			var appErr *temporal.ApplicationError
+			require.True(t, errors.As(err, &appErr))
+			assert.True(t, appErr.NonRetryable())
+			mockStorage.AssertExpectations(t)
+		})
+	}
+}
+
+func TestUpdateClusterUpgradeJobStatusActivity_UnknownGetErrorStaysRetryable(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.ClusterUpgradeActivity{
+		SE: mockStorage,
+	}
+
+	ctx := context.Background()
+	jobUUID := "test-job-uuid"
+
+	mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(nil, errors.New("connection reset"))
+
+	err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, string(models.UpgradeStatusFailed), "")
+
+	assert.ErrorContains(t, err, "connection reset")
+	var appErr *temporal.ApplicationError
+	assert.False(t, errors.As(err, &appErr), "transient DB errors must stay retryable")
 	mockStorage.AssertExpectations(t)
 }
 
@@ -143,18 +236,13 @@ func TestUpdateClusterUpgradeJobStatusActivity_UpdateFails(t *testing.T) {
 	jobUUID := "test-job-uuid"
 	status := "IN_PROGRESS"
 
-	// Mock the upgrade job
-	upgradeJob := &datamodel.ClusterUpgradeJob{
-		BaseModel: datamodel.BaseModel{
-			UUID:      jobUUID,
-			UpdatedAt: time.Now().Add(-time.Hour),
-		},
-		ClusterID: "test-cluster-id",
-		Status:    "PENDING",
-	}
-
-	mockStorage.On("GetClusterUpgradeJobByUUID", ctx, jobUUID).Return(upgradeJob, nil)
-	mockStorage.On("UpdateClusterUpgradeJob", ctx, mock.AnythingOfType("*datamodel.ClusterUpgradeJob")).Return(errors.New("update failed"))
+	mockStorage.On(
+		"TransitionPendingUpgradeJobToInProgress",
+		ctx,
+		database.UpgradeJobKindSingle,
+		jobUUID,
+		mock.AnythingOfType("time.Time"),
+	).Return(false, errors.New("update failed"))
 
 	err := activity.UpdateClusterUpgradeJobStatusActivity(ctx, jobUUID, status, "")
 

@@ -200,7 +200,7 @@ func (wf *batchClusterUpgradeWorkflow) Run(ctx workflow.Context, args ...interfa
 				}
 
 				childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-					WorkflowID:        fmt.Sprintf("%s-child-%s", params.BatchJobID, cluster.ClusterID),
+					WorkflowID:        BatchChildUpgradeWorkflowID(params.BatchJobID, cluster.ClusterID),
 					ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
 				})
 				childParams := &ClusterUpgradeWorkflowParams{
@@ -309,4 +309,12 @@ func (wf *batchClusterUpgradeWorkflow) Run(ctx workflow.Context, args ...interfa
 func generateChildUpgradeJobID(batchJobID, clusterID string) string {
 	name := fmt.Sprintf("batch-cluster-upgrade:%s:%s", batchJobID, clusterID)
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(name)).String()
+}
+
+// BatchChildUpgradeWorkflowID returns the Temporal workflow ID of the child
+// upgrade started for a cluster in a batch. Child job rows store the batch and
+// cluster IDs rather than this ID, so supervisors outside the workflow must
+// rebuild it here to describe the execution.
+func BatchChildUpgradeWorkflowID(batchJobID, clusterID string) string {
+	return fmt.Sprintf("%s-child-%s", batchJobID, clusterID)
 }

@@ -25,17 +25,36 @@ The single cluster upgrade functionality has been implemented with a three-phase
 
 #### **API Endpoints Available:**
 - `POST /v1/clusters/{clusterId}/upgrade` - Single cluster upgrade
-- `GET /v1/clusters/{clusterId}/upgrade/status` - Get upgrade status
-- `GET /v1/clusters/versions` - List available versions
+- `GET /v1/clusters/upgrade/{jobId}` - Get upgrade status
+- `GET /v1/imageVersions` - List available image versions
 
 #### **Database Schema:**
 - `cluster_upgrade_jobs` table for tracking upgrade jobs
 - `image_versions` table for supported build image combinations
 - `pools.build_info` JSONB column for tracking current build images
 
-### 🚧 **Phase 2: Batch Cluster Upgrade - PENDING**
+### ✅ **Phase 2: Batch Cluster Upgrade - COMPLETED**
 
-Batch upgrade functionality is planned for future implementation and will build upon the single cluster upgrade foundation.
+Batch upgrade builds on the single cluster foundation: the parent batch workflow selects clusters and drives one child `ClusterUpgradeWorkflow` per cluster.
+
+#### **Key Features Implemented:**
+- **Selection Modes**: `percentage` of eligible clusters, or an explicit `poolList`
+- **Pre-Selection Prechecks**: Every candidate pool is validated (pool state, no active upgrade job, target build images differ) before the batch job is created. `poolList` fails the whole request with `409` if any pool is ineligible; percentage selection silently excludes ineligible pools
+- **Wave-Based Concurrency**: Clusters are processed in waves of `maxConcurrency` (default 5). All children in a wave are launched before any child is awaited
+- **Failure Threshold**: `failureThreshold` (default `0` = no limit) aborts the *remaining* waves once the cumulative failure count reaches the threshold. Clusters that were never started are recorded as skipped
+- **Deterministic Child Job IDs**: Child job UUIDs are derived from batch ID + cluster ID, so Temporal replays and activity retries never create duplicate child jobs
+- **Detached Children**: Children run with `PARENT_CLOSE_POLICY_ABANDON`, so an aborted or failed batch never kills an in-flight cluster upgrade
+- **Atomic Job Claim**: `PENDING` → `IN_PROGRESS` is a single conditional `UPDATE`, which makes the status activity idempotent across activity retries
+- **Pickup Timeout Supervisor**: Upgrade jobs still `PENDING` beyond `UPGRADE_JOB_PICKUP_TIMEOUT` are failed with error code `UPGRADE_PICKUP_TIMEOUT`
+- **Aggregated Progress**: Batch status reports per-child cluster status plus batch-level error details and a warning when clusters were skipped
+
+#### **API Endpoints Available:**
+- `POST /v1/clusters/batchUpgrade` - Batch cluster upgrade
+- `GET /v1/clusters/batchUpgrade/{batchUpgradeId}` - Get batch upgrade status
+
+#### **Database Schema:**
+- `batch_cluster_upgrade_jobs` table for batch-level tracking (counts, concurrency, failure threshold, selection data)
+- `cluster_upgrade_jobs.batch_upgrade_id` links each child job to its batch
 
 ### Important Note: Cluster ID and Pool UUID
 
@@ -55,10 +74,11 @@ In the VCP system, **Cluster ID is the same as Pool UUID**. This means:
 6. [Workflow Design](#workflow-design)
 7. [Filtering and Selection Logic](#filtering-and-selection-logic)
 8. [Batch Processing](#batch-processing)
-9. [Handling Disabled Clusters](#handling-disabled-clusters)
-10. [License Updates](#license-updates)
-11. [Error Handling and Rollback](#error-handling-and-rollback)
-12. [Implementation Plan](#implementation-plan)
+9. [Upgrade Job Lifecycle](#upgrade-job-lifecycle)
+10. [Handling Disabled Clusters](#handling-disabled-clusters)
+11. [License Updates](#license-updates)
+12. [Error Handling and Rollback](#error-handling-and-rollback)
+13. [Implementation Plan](#implementation-plan)
 
 ## Architecture Overview
 
@@ -113,42 +133,39 @@ POST /v1/clusters/{clusterId}/upgrade
 ### 2. Batch Cluster Upgrade
 
 ```yaml
-POST /v1/clusters/upgrade/batch
+POST /v1/clusters/batchUpgrade
 ```
 
 **Request Body:**
+
+Selection parameters are flat (there is no nested `selectionCriteria` object). `selectionType` is the only required field. The example below lists every field for reference; `percentage` and `poolIds` are mutually exclusive and only the one matching `selectionType` is read.
+
 ```json
 {
-  "vsaBuildImage": "vsa:9.17.1-build456",        // Optional: VSA build image to upgrade to (requires forceUpgrade=true)
-  "mediatorBuildImage": "mediator:9.17.1-build456", // Optional: Mediator build image to upgrade to (requires forceUpgrade=true)
-  "forceUpgrade": false,                          // Optional: Required when specifying build images, or when upgrade gap > 1
-  "metadata": {                                   // Optional: Custom metadata for the batch upgrade
-    "reason": "quarterly-upgrade",
-    "maintenance-window": "2024-01-15T02:00:00Z"
+  "selectionType": "percentage",                   // Required: "percentage" or "poolList"
+  "percentage": 25,                                // Required when selectionType is "percentage" (1-100)
+  "poolIds": ["pool-uuid-1", "pool-uuid-2"],       // Required when selectionType is "poolList" (must be unique UUIDs)
+  "maxClusters": 100,                              // Optional: caps the selection; 0 (default) means no cap
+  "maxConcurrency": 5,                             // Optional: clusters upgraded per wave; default 5
+  "failureThreshold": 0,                           // Optional: failures that abort remaining waves; 0 (default) means no limit
+  "vsaBuildImage": "vsa:9.17.1-build456",          // Optional: VSA build image to upgrade to (requires forceUpgrade=true)
+  "mediatorBuildImage": "mediator:9.17.1-build456",// Optional: Mediator build image to upgrade to (requires forceUpgrade=true)
+  "forceUpgrade": false,                           // Optional: Required when specifying build images, or when upgrade gap > 1
+  "metadata": {                                    // Optional: Custom metadata for the batch upgrade
+    "reason": "quarterly-upgrade"
   },
-  "selectionCriteria": {
-    "type": "percentage|poolList",
-    "filters": {
-      "zones": ["us-central1-a", "us-central1-b"],
-      "ontapVersions": ["9.17.1", "9.16.1"],
-      "accountIds": ["account-123", "account-456"],
-      "clusterStates": ["HEALTHY", "DEGRADED"],
-      "tags": {
-        "environment": "production",
-        "tier": "critical"
-      }
-    },
-    "percentage": 25,
-    "poolIds": ["pool-1", "pool-2", "pool-3"],
-    "maxClusters": 100
+  "filters": {                                     // Optional: only applied to "percentage" selection
+    "zones": ["us-central1-a", "us-central1-b"],
+    "ontapVersions": ["9.17.1", "9.16.1"],
+    "clusterStates": ["READY", "DISABLED"]
   }
 }
 ```
 
-**Response:**
+**Response (`202 Accepted`):**
 ```json
 {
-  "batchUpgradeId": "batch-upgrade-12345",
+  "batchUpgradeId": "b1f9c0d2-3c4e-4a5b-8c7d-9e0f1a2b3c4d",
   "totalClusters": 25,
   "selectedClusters": [
     {
@@ -159,14 +176,23 @@ POST /v1/clusters/upgrade/batch
     }
   ],
   "status": "PENDING",
-  "jobId": "job-batch-abc123"
+  "jobId": "b1f9c0d2-3c4e-4a5b-8c7d-9e0f1a2b3c4d"
 }
 ```
 
-### 3. List Available Versions
+`batchUpgradeId` and `jobId` are the same UUID, which is also the Temporal workflow ID of the parent batch workflow.
+
+**Error responses:**
+
+| Status | Cause |
+|---|---|
+| `400` | Invalid `selectionType`, `percentage` outside 1-100, empty/malformed/duplicate `poolIds`, unresolvable target build images, or a selection that matched no eligible clusters |
+| `409` | `poolList` selection where one or more pools failed prechecks (wrong state, active upgrade job, already at target build images) |
+
+### 3. List Available Image Versions
 
 ```yaml
-GET /v1/clusters/versions
+GET /v1/imageVersions
 ```
 
 **Response:**
@@ -176,25 +202,14 @@ GET /v1/clusters/versions
     {
       "ontapVersion": "9.17.1",
       "vsaImagePath": "/path/to/vsa:9.17.1-build456",
-      "mediatorImagePath": "/path/to/mediator:9.17.1-build456",
       "vsaName": "vsa:9.17.1-build456",
       "mediatorName": "mediator:9.17.1-build456",
       "isCurrent": true,
       "isActive": true
     },
     {
-      "ontapVersion": "9.17.0",
-      "vsaImagePath": "/path/to/vsa:9.17.0-build445",
-      "mediatorImagePath": "/path/to/mediator:9.17.0-build445",
-      "vsaName": "vsa:9.17.0-build445",
-      "mediatorName": "mediator:9.17.0-build445",
-      "isCurrent": false,
-      "isActive": true
-    },
-    {
       "ontapVersion": "9.18.0",
       "vsaImagePath": "/path/to/vsa:9.18.0-build452",
-      "mediatorImagePath": "/path/to/mediator:9.18.0-build452",
       "vsaName": "vsa:9.18.0-build452",
       "mediatorName": "mediator:9.18.0-build452",
       "isCurrent": false,
@@ -208,15 +223,17 @@ GET /v1/clusters/versions
 ### 4. Upgrade Status and Progress
 
 ```yaml
-GET /v1/clusters/upgrade/{upgradeId}
-GET /v1/clusters/upgrade/batch/{batchUpgradeId}
+GET /v1/clusters/upgrade/{jobId}
+GET /v1/clusters/batchUpgrade/{batchUpgradeId}
 ```
+
+Both endpoints return the same `UpgradeProgress` shape. For a single upgrade, `clusters` holds one entry; for a batch, it holds one entry per child upgrade job created so far. Clusters skipped because the failure threshold was reached never get a child job, so they appear only in the batch counters and in `warnings`.
 
 **Response:**
 ```json
 {
-  "upgradeId": "upgrade-12345",
-  "status": "IN_PROGRESS",
+  "jobId": "b1f9c0d2-3c4e-4a5b-8c7d-9e0f1a2b3c4d",
+  "status": "FAILED",
   "clusters": [
     {
       "clusterId": "cluster-1",
@@ -226,12 +243,20 @@ GET /v1/clusters/upgrade/batch/{batchUpgradeId}
     },
     {
       "clusterId": "cluster-2",
-      "status": "IN_PROGRESS",
-      "startTime": "2024-01-15T02:30:00Z"
+      "status": "FAILED",
+      "startTime": "2024-01-15T02:30:00Z",
+      "endTime": "2024-01-15T03:05:00Z"
     }
   ],
-  "errors": [],
-  "warnings": []
+  "errors": [
+    {
+      "code": "BATCH_UPGRADE_PARTIAL",
+      "message": "Batch upgrade aborted: failure threshold (1) reached. Succeeded: 1, Failed: 1, Skipped: 2",
+      "type": "BATCH_UPGRADE_ERROR",
+      "retryable": false
+    }
+  ],
+  "warnings": ["Some clusters were skipped during batch upgrade"]
 }
 ```
 
@@ -249,21 +274,21 @@ type ClusterUpgradeRequest struct {
     Metadata            map[string]string      `json:"metadata,omitempty"`
 }
 
-// Batch cluster upgrade request
-type BatchClusterUpgradeRequest struct {
-    VSABuildImage       *string                `json:"vsaBuildImage,omitempty"`      // Optional: VSA build image to upgrade to (requires forceUpgrade=true)
-    MediatorBuildImage  *string                `json:"mediatorBuildImage,omitempty"`  // Optional: Mediator build image to upgrade to (requires forceUpgrade=true)
-    ForceUpgrade        bool                   `json:"forceUpgrade,omitempty"`        // Required when specifying build images, or when upgrade gap > 1
-    SelectionCriteria   *SelectionCriteria     `json:"selectionCriteria"`
-    Metadata            map[string]string      `json:"metadata,omitempty"`
-}
-
-type SelectionCriteria struct {
-    Type        SelectionType `json:"type"`           // "percentage" or "poolList"
-    Filters     *ClusterFilters `json:"filters"`      // Always applicable for filtering
-    Percentage  int           `json:"percentage,omitempty"`  // Required when type is "percentage"
-    PoolIDs     []string      `json:"poolIds,omitempty"`     // Required when type is "poolList"
-    MaxClusters int           `json:"maxClusters,omitempty"`
+// Batch cluster upgrade request, as passed from the endpoint to the orchestrator
+// (core/orchestrator/common/params.go). Selection fields are flat: there is no
+// nested selectionCriteria object.
+type BatchUpgradeClusterParams struct {
+    SelectionType      string            `json:"selectionType"`              // "percentage" or "poolList"
+    Percentage         int               `json:"percentage,omitempty"`       // Required when type is "percentage"
+    PoolIDs            []string          `json:"poolIds,omitempty"`          // Required when type is "poolList"
+    MaxClusters        int               `json:"maxClusters,omitempty"`      // Maximum clusters to upgrade
+    MaxConcurrency     int               `json:"maxConcurrency,omitempty"`   // Max parallel upgrades (default 5)
+    FailureThreshold   int               `json:"failureThreshold,omitempty"` // Max failures before aborting (0 = no limit)
+    VSABuildImage      string            `json:"vsaBuildImage,omitempty"`
+    MediatorBuildImage string            `json:"mediatorBuildImage,omitempty"`
+    ForceUpgrade       bool              `json:"forceUpgrade,omitempty"`
+    Metadata           map[string]string `json:"metadata,omitempty"`
+    Filters            *ClusterFilters   `json:"filters,omitempty"`
 }
 
 type SelectionType string
@@ -272,14 +297,12 @@ const (
     SelectionTypePoolList   SelectionType = "poolList"
 )
 
+// Filters are applied to percentage selection only; poolList selection resolves
+// the supplied pool UUIDs directly.
 type ClusterFilters struct {
-    Zones         []string          `json:"zones,omitempty"`
-    OntapVersions []string          `json:"ontapVersions,omitempty"`
-    AccountIDs    []string          `json:"accountIds,omitempty"`
-    ClusterStates []string          `json:"clusterStates,omitempty"`
-    Tags          map[string]string `json:"tags,omitempty"`
-    CreatedAfter  *time.Time        `json:"createdAfter,omitempty"`
-    CreatedBefore *time.Time        `json:"createdBefore,omitempty"`
+    Zones         []string `json:"zones,omitempty"`
+    OntapVersions []string `json:"ontapVersions,omitempty"`
+    ClusterStates []string `json:"clusterStates,omitempty"`
 }
 
 ```
@@ -346,6 +369,29 @@ type ClusterUpgradeJob struct {
     ForceUpgrade       bool                   `gorm:"column:force_upgrade;default:false"`
 }
 
+// Batch-level tracking. Child jobs are ClusterUpgradeJob rows whose
+// BatchUpgradeID points at this batch.
+type BatchClusterUpgradeJob struct {
+    BaseModel
+    TargetVersion    string               `gorm:"column:target_version"`
+    VSABuildImage    string               `gorm:"column:vsa_build_image"`
+    MediatorBuild    string               `gorm:"column:mediator_build_image"`
+    Status           string               `gorm:"column:status"`
+    TotalClusters    int                  `gorm:"column:total_clusters"`
+    SucceededCount   int                  `gorm:"column:succeeded_count;default:0"`
+    FailedCount      int                  `gorm:"column:failed_count;default:0"`
+    SkippedCount     int                  `gorm:"column:skipped_count;default:0"`
+    MaxConcurrency   int                  `gorm:"column:max_concurrency;default:5"`
+    FailureThreshold int                  `gorm:"column:failure_threshold;default:0"`
+    ForceUpgrade     bool                 `gorm:"column:force_upgrade;default:false"`
+    SelectionType    string               `gorm:"column:selection_type"`
+    SelectionData    *JSONB               `gorm:"column:selection_data;type:jsonb"`
+    ErrorDetails     *UpgradeErrorDetails `gorm:"column:error_details;type:jsonb"`
+    StartedAt        *time.Time           `gorm:"column:started_at"`
+    CompletedAt      *time.Time           `gorm:"column:completed_at"`
+    Metadata         *JSONB               `gorm:"column:metadata;type:jsonb"`
+}
+
 type UpgradeErrorDetails struct {
     ErrorCode    string            `json:"errorCode"`
     ErrorMessage string            `json:"errorMessage"`
@@ -355,6 +401,8 @@ type UpgradeErrorDetails struct {
     StackTrace   string            `json:"stackTrace,omitempty"`
 }
 ```
+
+Both job tables use soft delete: reaching `COMPLETED` or `FAILED` sets `completed_at` and `deleted_at`, so finished jobs disappear from normal listings but remain readable by status queries (which use `Unscoped`).
 
 ### 4. Version Management Models
 
@@ -613,61 +661,74 @@ graph TD
 
 ```mermaid
 graph TD
-    A["API Request: POST /v1/clusters/upgrade/batch"] --> B[Validate Request]
-    B --> C[Apply Selection Criteria]
-    C --> D[Filter Clusters by Zone/Version]
-    D --> E[Apply Percentage or Pool List Selection]
-    E --> F[Create Batch Upgrade Job]
-    F --> G[Process Clusters in Batches]
-    
-    G --> H[Batch 1: Process clusters concurrently]
-    H --> I[Call VLM Upgrade for each cluster]
-    I --> J[Wait for Batch 1 Completion]
-    J --> K[Check Failure Threshold]
-    K --> L{Threshold Exceeded?}
-    L -->|Yes| M[Stop Processing]
-    L -->|No| N[Delay Between Batches]
-    N --> O[Batch 2: Process Next clusters]
-    O --> P[Continue Until All Batches Complete]
-    
-    M --> Q[Update Batch Status: FAILED]
-    P --> R[Update Batch Status: COMPLETED]
-    Q --> S[Return Response]
-    R --> S
-    
+    A["API Request: POST /v1/clusters/batchUpgrade"] --> B[Validate selectionType, percentage, poolIds]
+    B --> C[Resolve target build images from image_versions]
+    C --> D{Selection type?}
+    D -->|poolList| E[Precheck each pool: fail request if any is ineligible]
+    D -->|percentage| F[Filter pools, drop ineligible, apply percentage and maxClusters]
+    E --> G[Create batch job PENDING and start BatchClusterUpgradeWorkflow]
+    F --> G
+    G --> H[Claim batch job: PENDING to IN_PROGRESS]
+    H --> I["Next wave: up to maxConcurrency clusters"]
+    I --> J[PrepareBatchUpgradeWaveActivity: re-check pools, create child jobs]
+    J --> K[Launch every prepared child ClusterUpgradeWorkflow in the wave]
+    K --> L[Await all children started in this wave]
+    L --> M{"failureCount >= failureThreshold?"}
+    M -->|No, clusters remain| I
+    M -->|No, none remain| O[CompleteBatchJobActivity with counts]
+    M -->|Yes| N[Mark all remaining clusters SKIPPED]
+    N --> O
+    O --> P{"failureCount > 0?"}
+    P -->|Yes| Q[Batch status FAILED]
+    P -->|No| R[Batch status COMPLETED]
+
     style A fill:#e1f5fe
-    style S fill:#c8e6c9
-    style M fill:#ffcdd2
+    style R fill:#c8e6c9
+    style N fill:#ffcdd2
     style Q fill:#ffcdd2
 ```
+
+**Wave and threshold semantics:**
+- Waves are sized by `maxConcurrency`; there is **no configured delay between waves**.
+- The failure count is cumulative across the whole batch, and the threshold is evaluated after wave preparation and again after each child result.
+- The threshold aborts only the **remaining** waves. Children already launched in the current wave are always awaited to completion, so a batch with `maxConcurrency=5, failureThreshold=1` can still attempt five upgrades.
+- `failureThreshold = 0` (the default) disables the abort entirely.
+- Children run with `PARENT_CLOSE_POLICY_ABANDON`, so aborting the batch never cancels an in-flight cluster upgrade.
 
 ### 3. Cluster Selection and Filtering Flow
 
 ```mermaid
 graph TD
-    A[Selection Criteria Input] --> B{Selection Type?}
-    
-    B -->|Percentage| C[Apply All Filters First]
-    B -->|Pool List| D[Select by Pool UUIDs]
-    
-    C --> E[Apply Zone Filters]
-    E --> F[Apply Version Filters]
-    F --> G[Apply Account Filters]
-    G --> H[Apply State Filters]
-    H --> I[Apply Tag Filters]
-    I --> J[Calculate Percentage Count]
-    J --> K[Select Top N Clusters]
-    
-    D --> M[Query Database by Pool UUIDs]
-    
-    K --> N[Execute Database Query]
+    A[Selection input] --> B{Selection Type?}
+
+    B -->|Pool List| C[GetPoolsByUUIDs for the supplied pool IDs]
+    B -->|Percentage| D[ListPoolsSelective with zone / ontapVersion / clusterState filters]
+
+    C --> E[Precheck each pool: state, active upgrade job, target build images]
+    D --> F[Precheck each candidate pool]
+
+    E --> G{Any pool ineligible?}
+    G -->|Yes| H["409 Conflict listing every rejected pool and reason"]
+    G -->|No| I[All requested pools selected]
+
+    F --> J[Silently exclude ineligible pools]
+    J --> K["selectedCount = eligible * percentage / 100"]
+    K --> L["Cap by maxClusters when maxClusters > 0"]
+    L --> M[Take the first selectedCount clusters]
+
+    I --> N[Assign priority 1..N and return]
     M --> N
-    
-    N --> O[Return Selected Clusters]
-    
+
     style A fill:#e1f5fe
-    style O fill:#c8e6c9
+    style N fill:#c8e6c9
+    style H fill:#ffcdd2
 ```
+
+Notes:
+- Filters apply to percentage selection only; `poolList` selection resolves the supplied UUIDs directly.
+- Only `zones`, `ontapVersions`, and `clusterStates` are supported. There is no account or tag filtering, and no `createdAfter` / `createdBefore`.
+- The percentage count uses integer division, but any non-zero percentage over a non-empty eligible set selects at least one cluster.
+- Percentage selection first collects **all** candidates (percentage 100, no `maxClusters`), runs prechecks, and only then applies the requested percentage, so the percentage is taken over eligible clusters rather than over raw matches.
 
 ### 4. Error Handling and Retry Flow
 
@@ -679,17 +740,15 @@ graph TD
     
     D --> E{Error Retryable?}
     E -->|No| F[Mark as Failed]
-    E -->|Yes| G[Check Retry Count]
+    E -->|Yes| G[Temporal retry policy]
     
     G --> H{Retries Exhausted?}
     H -->|Yes| F
-    H -->|No| I[Increment Retry Count]
-    I --> J[Calculate Retry Delay]
-    J --> K[Wait for Retry Delay]
-    K --> L[Retry Step]
+    H -->|No| I[Temporal re-schedules the activity]
+    I --> L[Retry Step]
     L --> A
     
-    F --> M[Execute Rollback if Enabled]
+    F --> M[Post-upgrade cleanup: power state, VLM config]
     M --> N[Update Job Status: FAILED]
     
     C --> O{All Steps Complete?}
@@ -968,7 +1027,7 @@ POST /v1/clusters/{clusterId}/upgrade
 #### Build Image Combination Not Found
 - **Error Code**: `4001`
 - **Message**: "Specified VSA and mediator build image combination not found in available versions"
-- **Resolution**: Check available versions via `/v1/clusters/versions` endpoint
+- **Resolution**: Check available versions via the `/v1/imageVersions` endpoint
 
 #### Missing Build Images
 - **Error Code**: `4002`
@@ -1309,21 +1368,52 @@ func (wf *clusterUpgradeWorkflow) postUpgradePhase(ctx workflow.Context, upgrade
 
 ### 2. Batch Cluster Upgrade Workflow
 
+Cluster selection and batch job creation happen in the orchestrator **before** the workflow starts. The workflow itself only drives waves of child upgrades. There is no dedicated batch child workflow: each cluster is upgraded by the same `ClusterUpgradeWorkflow` used for single upgrades.
+
 ```go
-// Main batch upgrade workflow
-func BatchUpgradeVSAClustersWorkflow(ctx workflow.Context, params *BatchClusterUpgradeParams) error {
-    // 1. Apply selection criteria
-    // 2. Create batch upgrade job
-    // 3. Process clusters in batches
-    // 4. Monitor overall progress
-    // 5. Handle batch-level rollback if needed
+// core/orchestrator/workflows/batch_cluster_workflows.go
+type BatchClusterUpgradeWorkflowParams struct {
+    BatchJobID       string                   `json:"batchJobId"`
+    SelectedClusters []models.SelectedCluster `json:"selectedClusters"`
+    TargetVersion    string                   `json:"targetVersion"`
+    VSAImagePath     string                   `json:"vsaImagePath"`
+    VSAImageName     string                   `json:"vsaImageName"`
+    MediatorName     string                   `json:"mediatorName"`
+    ForceUpgrade     bool                     `json:"forceUpgrade"`
+    MaxConcurrency   int                      `json:"maxConcurrency"`
+    FailureThreshold int                      `json:"failureThreshold"`
+    Metadata         map[string]string        `json:"metadata,omitempty"`
 }
 
-// Individual cluster upgrade within batch
-func BatchClusterUpgradeChildWorkflow(ctx workflow.Context, params *ClusterUpgradeParams) error {
-    // Similar to single cluster upgrade but with batch context
+func BatchClusterUpgradeWorkflow(ctx workflow.Context, params *BatchClusterUpgradeWorkflowParams) error {
+    // 1. UpdateBatchJobStatusActivity(IN_PROGRESS) — atomic PENDING -> IN_PROGRESS claim
+    // 2. For each wave of MaxConcurrency clusters:
+    //    a. PrepareBatchUpgradeWaveActivity — re-check pools and create child job rows
+    //    b. ExecuteChildWorkflow(ClusterUpgradeWorkflow) for every prepared cluster
+    //    c. Await every child started in the wave, tallying success/failure
+    //    d. If FailureThreshold is reached, mark the remaining clusters skipped and stop
+    // 3. CompleteBatchJobActivity(status, error, succeeded, failed, skipped)
+    // Returns an error when failureCount > 0, so the batch workflow itself ends FAILED
+}
+
+// Stable across Temporal replays and activity retries for the same batch + cluster.
+func generateChildUpgradeJobID(batchJobID, clusterID string) string {
+    name := fmt.Sprintf("batch-cluster-upgrade:%s:%s", batchJobID, clusterID)
+    return uuid.NewSHA1(uuid.NameSpaceOID, []byte(name)).String()
 }
 ```
+
+#### Batch Activities
+
+| Activity | Responsibility |
+|---|---|
+| `UpdateBatchJobStatusActivity` | Status transitions on the batch job. `IN_PROGRESS` goes through the atomic claim; `COMPLETED` / `FAILED` set `completed_at` and `deleted_at` |
+| `PrepareBatchUpgradeWaveActivity` | For one wave: loads pools, re-validates state and active upgrade jobs, and creates the child `cluster_upgrade_jobs` rows. Returns a per-cluster result carrying either the pool or an error string |
+| `CompleteBatchJobActivity` | Persists final status plus `succeeded_count`, `failed_count`, `skipped_count`, and batch-level error details |
+
+`PrepareBatchUpgradeWaveActivity` is idempotent: if a child job row already exists and matches the expected batch, cluster, and pool, it is treated as already prepared instead of a conflict.
+
+`GetPoolForUpgradeActivity` and `CreateChildUpgradeJobActivity` also exist on `BatchClusterUpgradeActivity`, but the wave-based workflow no longer calls them — the wave activity loads pools and creates child jobs in one round trip, and passes the pool to the child workflow directly.
 
 ### 3. VLM Client Integration
 
@@ -1386,79 +1476,90 @@ const (
 
 ## Filtering and Selection Logic
 
+Selection lives in `core/orchestrator/factory/common/cluster_selection.go` (candidate gathering) and `core/orchestrator/factory/gcp/batch_cluster_upgrade.go` (prechecks and final percentage).
+
 ### 1. Cluster Filtering
 
-The filtering system will support complex queries using the existing database filter infrastructure:
+Three filters are supported, translated into database filter conditions:
 
 ```go
-func BuildClusterFilter(criteria *SelectionCriteria) (*database.Filter, error) {
-    filter := database.CreateFilterWithConditions()
-    
-    if criteria.Filters != nil {
-        // Zone filtering
-        if len(criteria.Filters.Zones) > 0 {
-            filter.SetConditions(append(filter.Conditions, 
-                database.NewFilterCondition("pool_attributes->>'primary_zone'", "IN", criteria.Filters.Zones)))
-        }
-        
-        // Ontap version filtering
-        if len(criteria.Filters.OntapVersions) > 0 {
-            filter.SetConditions(append(filter.Conditions,
-                database.NewFilterCondition("cluster_details->>'ontap_version'", "IN", criteria.Filters.OntapVersions)))
-        }
-        
-        // Account filtering
-        if len(criteria.Filters.AccountIDs) > 0 {
-            filter.SetConditions(append(filter.Conditions,
-                database.NewFilterCondition("account_id", "IN", criteria.Filters.AccountIDs)))
-        }
-        
-        // State filtering
-        if len(criteria.Filters.ClusterStates) > 0 {
-            filter.SetConditions(append(filter.Conditions,
-                database.NewFilterCondition("state", "IN", criteria.Filters.ClusterStates)))
-        }
-        
-        // Tag filtering
-        for key, value := range criteria.Filters.Tags {
-            filter.SetConditions(append(filter.Conditions,
-                database.NewFilterCondition(fmt.Sprintf("pool_attributes->>'labels'->>'%s'", key), "=", value)))
-        }
+func buildClusterFilter(filters *commonparams.ClusterFilters) *dbutils.Filter {
+    if filters == nil {
+        return dbutils.CreateFilterWithConditions()
     }
-    
-    return filter, nil
+
+    var conditions []*dbutils.FilterCondition
+
+    if len(filters.Zones) > 0 {
+        conditions = append(conditions, dbutils.NewFilterCondition("zone", "IN", filters.Zones))
+    }
+    if len(filters.OntapVersions) > 0 {
+        conditions = append(conditions, dbutils.NewFilterCondition("build_info->>'ontapVersion'", "IN", filters.OntapVersions))
+    }
+    if len(filters.ClusterStates) > 0 {
+        conditions = append(conditions, dbutils.NewFilterCondition("state", "IN", filters.ClusterStates))
+    }
+
+    return dbutils.CreateFilterWithConditions(conditions...)
 }
 ```
 
+Filters are only consulted for percentage selection. Regardless of the `clusterStates` filter, only pools in `READY` or `DISABLED` are ever eligible (`IsPoolStateEligibleForClusterUpgrade`).
+
 ### 2. Percentage-based Selection
 
+Percentage selection runs in three steps so that the percentage is taken over *eligible* clusters:
+
+1. **Gather candidates** — `selectByPercentage` is invoked with percentage 100 and no `maxClusters`. It applies the filters, keeps only `READY` / `DISABLED` pools, and sorts by `created_at` ascending for deterministic ordering.
+2. **Precheck** — each candidate goes through `checkClusterUpgradePreconditions` (active upgrade job, build images already at target, force flag). Ineligible pools are logged and dropped.
+3. **Apply percentage** — the requested percentage and `maxClusters` are applied to the surviving list:
+
 ```go
-func SelectClustersByPercentage(clusters []*datamodel.Pool, percentage int, maxClusters int) []*datamodel.Pool {
-    totalCount := len(clusters)
-    selectedCount := (totalCount * percentage) / 100
-    
+func applyPercentageSelection(clusters []models.SelectedCluster, percentage, maxClusters int) []models.SelectedCluster {
+    selectedCount := (len(clusters) * percentage) / 100
+    if selectedCount == 0 && percentage > 0 && len(clusters) > 0 {
+        selectedCount = 1 // never select zero clusters for a non-zero percentage
+    }
     if maxClusters > 0 && selectedCount > maxClusters {
         selectedCount = maxClusters
     }
-    
-    // Sort by creation date
-    sort.Slice(clusters, func(i, j int) bool {
-        return clusters[i].CreatedAt.Before(clusters[j].CreatedAt)
-    })
-    
+    if selectedCount > len(clusters) {
+        selectedCount = len(clusters)
+    }
     return clusters[:selectedCount]
 }
 ```
 
+If no eligible clusters remain, the request fails with `400` and "No eligible clusters found matching the selection criteria".
+
 ### 3. Pool List Selection
 
+Explicit pool selection is strict: it resolves the requested UUIDs with `GetPoolsByUUIDs` and prechecks each one, accumulating a reason per rejected pool. Any rejection fails the whole request with `409` and the combined reasons, so a `poolList` batch either upgrades every requested pool or starts nothing.
+
 ```go
-func SelectClustersByPoolList(poolIDs []string) ([]*datamodel.Pool, error) {
-    var pools []*datamodel.Pool
-    err := db.Where("uuid IN ?", poolIDs).Find(&pools).Error
-    return pools, err
+for _, poolID := range params.PoolIDs {
+    pool := poolsByUUID[poolID]
+    if pool == nil {
+        validationErrors = append(validationErrors, fmt.Sprintf("pool %s: not found", poolID))
+        continue
+    }
+    precheck, err := checkClusterUpgradePreconditions(ctx, se, pool, targetBuildImages, params.ForceUpgrade)
+    if err != nil {
+        return nil, customerrors.NewUnavailableErr(...)
+    }
+    if precheck.Status != clusterUpgradePrecheckEligible {
+        validationErrors = append(validationErrors, fmt.Sprintf("pool %s: %s", poolID, precheck.Reason))
+        continue
+    }
+    selectedClusters = append(selectedClusters, selectedClusterFromPool(pool, len(selectedClusters)+1))
+}
+
+if len(validationErrors) > 0 {
+    return nil, customerrors.NewConflictErr("Batch upgrade validation failed: " + strings.Join(validationErrors, "; "))
 }
 ```
+
+The endpoint validates pool IDs before this point: each must be a well-formed UUID with no surrounding whitespace, and duplicates are rejected with `400`.
 
 ## Batch Processing
 
@@ -1466,56 +1567,110 @@ func SelectClustersByPoolList(poolIDs []string) ([]*datamodel.Pool, error) {
 
 ### 1. Concurrency Control
 
+Concurrency is expressed as **waves** inside the Temporal workflow, not goroutines. Every cluster in a wave is launched as a child workflow before any child is awaited, so a wave runs `maxConcurrency` upgrades in parallel and the next wave starts only after the current one drains.
+
 ```go
-func ProcessBatchUpgrade(ctx workflow.Context, clusters []*datamodel.Pool, concurrency int) error {
-    semaphore := make(chan struct{}, concurrency)
-    var wg sync.WaitGroup
-    
-    for i, cluster := range clusters {
-        wg.Add(1)
-        go func(index int, c *datamodel.Pool) {
-            defer wg.Done()
-            
-            semaphore <- struct{}{} // Acquire
-            defer func() { <-semaphore }() // Release
-            
-            // Call VLM upgrade method for single cluster
-            err := callVLMUpgrade(ctx, c)
-            if err != nil {
-                // Handle error and update job status
-                handleUpgradeError(ctx, c, err)
-            }
-        }(i, cluster)
+for batchStart := 0; batchStart < len(params.SelectedClusters) && !aborted; batchStart += params.MaxConcurrency {
+    batchEnd := min(batchStart+params.MaxConcurrency, len(params.SelectedClusters))
+    currentBatch := params.SelectedClusters[batchStart:batchEnd]
+
+    // One activity prepares the whole wave: pools loaded, child job rows created.
+    preparedClusters, prepareErr := prepareWave(ctx, params, currentBatch)
+
+    // Launch every successfully prepared child before waiting on any of them.
+    futures := make([]workflow.ChildWorkflowFuture, len(currentBatch))
+    for i, prepared := range preparedClusters {
+        if prepared.Error != "" || prepared.Pool == nil {
+            failureCount++
+            continue
+        }
+        childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+            WorkflowID:        fmt.Sprintf("%s-child-%s", params.BatchJobID, currentBatch[i].ClusterID),
+            ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
+        })
+        futures[i] = workflow.ExecuteChildWorkflow(childCtx, ClusterUpgradeWorkflow, childParams)
     }
-    
-    wg.Wait()
-    return nil
-}
-```
 
-### 2. Progress Tracking
+    if params.FailureThreshold > 0 && failureCount >= params.FailureThreshold {
+        aborted = true
+    }
 
-```go
-func TrackBatchProgress(ctx workflow.Context, batchUpgradeID string) {
-    ticker := workflow.NewTimer(ctx, 30*time.Second)
-    
-    for {
-        select {
-        case <-ticker.GetChannel():
-            // Update progress
-            progress := calculateBatchProgress(batchUpgradeID)
-            updateBatchProgress(ctx, batchUpgradeID, progress)
-            
-            // Check for completion
-            if progress.IsComplete() {
-                return
+    // Always drain every child that was started in this wave.
+    for i, future := range futures {
+        if future == nil {
+            continue
+        }
+        if err := future.Get(ctx, nil); err != nil {
+            failureCount++
+            if params.FailureThreshold > 0 && failureCount >= params.FailureThreshold {
+                aborted = true
             }
-            
-            ticker = workflow.NewTimer(ctx, 30*time.Second)
+        } else {
+            successCount++
         }
     }
+
+    if aborted {
+        // Every cluster after this wave is recorded as skipped.
+        skippedCount += len(params.SelectedClusters) - batchEnd
+    }
 }
 ```
+
+Preparation failures count as cluster failures: if the wave activity fails outright, or returns fewer results than clusters, every cluster in that wave is marked failed.
+
+### 2. Failure Threshold
+
+| Behaviour | Detail |
+|---|---|
+| Default | `0`, which disables early abort — the batch always attempts every selected cluster |
+| Scope | Cumulative failures across the whole batch, not per wave |
+| Evaluation points | After wave preparation, and after each child workflow result |
+| Effect | Skips the **remaining** waves only; children already launched are still awaited |
+| Terminal status | `FAILED`, with error message `Batch upgrade aborted: failure threshold (N) reached. Succeeded: X, Failed: Y, Skipped: Z` |
+| Skipped clusters | Counted in `skipped_count` and surfaced as the warning `Some clusters were skipped during batch upgrade`. They never get a child job row, so they do not appear in the `clusters` array of the status response |
+
+### 3. Progress Tracking
+
+There is no polling timer inside the batch workflow. Progress is derived on read:
+
+- The batch row carries the terminal tallies (`succeeded_count`, `failed_count`, `skipped_count`), written once by `CompleteBatchJobActivity`.
+- `GET /v1/clusters/batchUpgrade/{batchUpgradeId}` joins the batch row with its child `cluster_upgrade_jobs` (`GetClusterUpgradeJobsByBatchID`, unscoped so completed children stay visible) and reports each child's status, start time, end time, and error details.
+- Batch-level failures are reported as a single `BATCH_UPGRADE_PARTIAL` / `BATCH_UPGRADE_ERROR` entry alongside per-cluster errors.
+
+## Upgrade Job Lifecycle
+
+Both single and batch upgrade jobs follow `PENDING` → `IN_PROGRESS` → `COMPLETED` / `FAILED`. The orchestrator creates the row as `PENDING` and then starts the workflow, using the job UUID as the Temporal workflow ID.
+
+### 1. Atomic PENDING → IN_PROGRESS Claim
+
+The workflow's first status activity claims the job with a single conditional `UPDATE` rather than a read-modify-write. `TransitionPendingUpgradeJobToInProgress` (`database/vcp/upgrade_supervisor.go`) issues the following against `cluster_upgrade_jobs` or `batch_cluster_upgrade_jobs`, depending on job kind:
+
+```sql
+UPDATE <cluster_upgrade_jobs | batch_cluster_upgrade_jobs>
+   SET status = 'IN_PROGRESS', started_at = ?, updated_at = ?, error_details = NULL, deleted_at = NULL
+ WHERE uuid = ? AND status = 'PENDING'
+```
+
+- One row updated: the job is claimed.
+- Zero rows updated but the job is already `IN_PROGRESS`: treated as a successful claim, so activity retries and workflow replays are idempotent and do not overwrite `started_at`.
+- Otherwise (row missing, or already terminal): the activity fails with a **non-retryable** Temporal application error, because retrying cannot change the outcome.
+
+`started_at` is therefore only ever set by this claim. Completion (`COMPLETED` / `FAILED`) is the only path that sets `completed_at` and `deleted_at`.
+
+### 2. Pickup Timeout Supervisor
+
+A job can sit in `PENDING` forever if the workflow was never picked up (no worker, lost task, Temporal outage). The workflow supervisor task runs `upgradeJobPickupSupervisor` on each pass to clean these up (`core/tasks/upgrade_job_supervisor.go`):
+
+1. List jobs still `PENDING` with `started_at IS NULL` and `created_at <= now - UPGRADE_JOB_PICKUP_TIMEOUT`, oldest first and capped at 100 per scan to bound Temporal describe/terminate work. Batch child jobs are excluded (`batch_upgrade_id IS NULL`) because their lifecycle is owned by the parent batch workflow.
+2. `DescribeWorkflowExecution` for the job UUID:
+   - Temporal reports `NotFound` → the workflow is genuinely missing, proceed with cleanup.
+   - Temporal reports `RUNNING` → proceed with cleanup and terminate the workflow afterwards.
+   - Describe fails, or status is unspecified/incomplete → **defer**; the next pass retries. The supervisor never fails a job on ambiguous Temporal state.
+3. In a short transaction, lock the row `FOR UPDATE` while it is still `PENDING` / unstarted, then set `status = FAILED`, `completed_at`, `deleted_at`, and error details `UPGRADE_PICKUP_TIMEOUT` / `UPGRADE_TIMEOUT` (`retryable: true`). For a batch job, `skipped_count` is set to `total_clusters`.
+4. Terminate the Temporal workflow **outside** the transaction, so no row lock is held across an RPC. A terminate failure is logged but does not undo the `FAILED` marking.
+
+If the job started between the scan and the locked re-check, the lock query matches nothing and the cleanup is abandoned, which lets the real workflow win the race.
 
 ## Handling Disabled Clusters
 
@@ -1885,43 +2040,36 @@ const (
 
 ### 2. Retry Logic
 
-```go
-func executeWithRetry(ctx workflow.Context, operation func() error, maxRetries int, retryDelay time.Duration) error {
-    var lastErr error
-    
-    for attempt := 0; attempt <= maxRetries; attempt++ {
-        err := operation()
-        if err == nil {
-            return nil
-        }
-        
-        lastErr = err
-        
-        // Check if error is retryable
-        if !isRetryableError(err) {
-            return err
-        }
-        
-        if attempt < maxRetries {
-            workflow.Sleep(ctx, retryDelay)
-        }
-    }
-    
-    return lastErr
-}
-```
-
-### 3. Rollback Strategy
+Retries are delegated to Temporal activity options rather than hand-rolled loops:
 
 ```go
-func executeRollback(ctx workflow.Context, clusterID string, rollbackPoint string) error {
-    // 1. Stop current upgrade process
-    // 2. Restore from backup
-    // 3. Verify cluster health
-    // 4. Update job status
-    // 5. Notify stakeholders
+ao := workflow.ActivityOptions{
+    StartToCloseTimeout: 60 * time.Second,
+    RetryPolicy: &temporal.RetryPolicy{
+        MaximumAttempts:        3,
+        NonRetryableErrorTypes: []string{"PanicError"},
+    },
 }
+statusCtx := workflow.WithActivityOptions(ctx, ao)
 ```
+
+Activities opt out of retries by returning a non-retryable application error (`vsaerrors.WrapAsNonRetryableTemporalApplicationError`), which is what the job-claim path does when a job is missing or already terminal. Storage calls additionally retry transient database errors inside the retry-engine wrapper.
+
+### 3. Batch Error Codes
+
+Batch jobs record a single `UpgradeErrorDetails` entry, whose code identifies where the batch failed:
+
+| Error code | Error type | Raised when |
+|---|---|---|
+| `BATCH_UPGRADE_FAILED` | `BATCH_UPGRADE_ERROR` | The Temporal workflow could not be started after the batch row was created |
+| `BATCH_UPGRADE_PARTIAL` | `BATCH_UPGRADE_ERROR` | The batch finished with at least one failed cluster, including a failure-threshold abort |
+| `UPGRADE_PICKUP_TIMEOUT` | `UPGRADE_TIMEOUT` | The job stayed `PENDING` past `UPGRADE_JOB_PICKUP_TIMEOUT` (marked `retryable: true`) |
+
+Per-cluster failures stay on the child `cluster_upgrade_jobs` rows and are returned alongside the batch error in the status response.
+
+### 4. Rollback Strategy
+
+**Status**: 🚧 **Not implemented.** Neither single nor batch upgrades revert a cluster to its previous build images. The single-cluster post-upgrade phase performs cleanup (for example powering a disabled cluster back off) and the job is marked `FAILED`, but there is no restore step and no batch-level rollback. Recovery today is a new upgrade request, using `forceUpgrade` if the target build images need to be pinned.
 
 ## Implementation Plan
 
@@ -1954,68 +2102,70 @@ func executeRollback(ctx workflow.Context, clusterID string, rollbackPoint strin
 3. **Error Handling**: Advanced error handling and retry logic
 4. **Documentation**: Complete API documentation for single cluster upgrade
 
-### Phase 2: Batch Cluster Upgrade (Weeks 7-12)
+### Phase 2: Batch Cluster Upgrade
 
-#### Week 7-8: Filtering and Selection
-1. **Filter Engine**: Implement cluster filtering logic
-2. **Selection Algorithms**: Percentage and pool list selection
-3. **Database Queries**: Optimize cluster selection queries
-4. **Version Management**: Extend version resolution to batch upgrades
-5. **Testing**: Test filtering and selection logic
+#### ✅ Filtering and Selection (Completed)
+1. **Filter Engine**: Zone, ONTAP version, and cluster state filters for percentage selection
+2. **Selection Algorithms**: Percentage and pool list selection with `maxClusters` cap
+3. **Prechecks**: Per-pool eligibility validation shared with the single cluster path
+4. **Version Management**: Target build image resolution reused from the single upgrade flow
 
-#### Week 9-10: Batch Processing
-1. **Batch Workflow**: Implement batch upgrade workflow with force flag support
-2. **Concurrency Control**: Add batch processing with concurrency limits
-3. **Progress Tracking**: Implement batch progress monitoring
-4. **API Endpoints**: Add batch upgrade endpoints with version management
-5. **Force Upgrade**: Support arbitrary version upgrades in batch mode
+#### ✅ Batch Processing (Completed)
+1. **Batch Workflow**: `BatchClusterUpgradeWorkflow` driving child `ClusterUpgradeWorkflow` executions
+2. **Concurrency Control**: Wave-based processing bounded by `maxConcurrency`
+3. **Failure Threshold**: Cumulative failure count aborting the remaining waves
+4. **API Endpoints**: `POST /v1/clusters/batchUpgrade` and `GET /v1/clusters/batchUpgrade/{batchUpgradeId}`
+5. **Force Upgrade**: Arbitrary build image combinations supported in batch mode
 
-#### Week 11-12: Advanced Features and Testing
-1. **Error Handling**: Advanced error handling and rollback
-2. **Monitoring**: Comprehensive logging and monitoring
-3. **Performance Testing**: Load and stress testing
-4. **Documentation**: Complete API documentation and user guides
+#### ✅ Reliability (Completed)
+1. **Idempotency**: Deterministic child job UUIDs and idempotent wave preparation
+2. **Atomic Claim**: Conditional `PENDING` → `IN_PROGRESS` transition
+3. **Pickup Timeout**: Supervisor cleanup for jobs never picked up by a worker
+4. **Detached Children**: `PARENT_CLOSE_POLICY_ABANDON` so batch abort never cancels a running upgrade
+
+#### 🚧 Not Implemented
+1. **Batch Rollback**: There is no batch-level rollback; failed clusters are reported, not reverted
+2. **Inter-Wave Delay**: Waves run back to back with no configurable pause
+3. **Maintenance Windows / Scheduling**: Batch upgrades start immediately when requested
 
 ## Configuration
 
 ### Environment Variables
 
 ```bash
-# ONTAP version for upgrades (VCP's current version)
-ONTAP_VERSION=9.17.1
+# VCP's current ONTAP version, used as the fallback current version for a pool
+# with no build info
+ONTAP_VERSION_DETAILS=9.17.1P2
 
-# VSA and Mediator image names for current version
+# VSA and Mediator image names for the current version. VSA_IMAGE_NAME is the
+# anchor for normal (non-force) upgrades: the target row in image_versions is the
+# one whose vsa_name matches this value.
 VSA_IMAGE_NAME=x-9-17-1x49-gcnv
 VSA_MEDIATOR_IMAGE_NAME=cvo-mediator-x-9-17-1x49
 
-# Upgrade workflow timeouts
-VLM_UPGRADE_VSA_CLUSTER_WF_TIMEOUT_MINUTES=180
-VLM_BATCH_UPGRADE_VSA_CLUSTER_WF_TIMEOUT_MINUTES=480
-
-# Batch processing settings (configurable)
-BATCH_UPGRADE_DEFAULT_CONCURRENCY=5
-BATCH_UPGRADE_DEFAULT_DELAY_BETWEEN_BATCHES=30m
-BATCH_UPGRADE_DEFAULT_FAILURE_THRESHOLD=10
-
-# Retry settings
-UPGRADE_RETRY_MAX_ATTEMPTS=3
-UPGRADE_RETRY_INITIAL_DELAY=1m
-UPGRADE_RETRY_MAX_DELAY=10m
-
-# Version management settings
-ENABLE_FORCE_UPGRADE=true
-VERSION_VALIDATION_ENABLED=true
+# How long an upgrade job may stay PENDING before the workflow supervisor fails
+# it with UPGRADE_PICKUP_TIMEOUT. Default 60s.
+UPGRADE_JOB_PICKUP_TIMEOUT=60s
 ```
 
-### Feature Flags
+### Batch Defaults
 
-```bash
-# Enable/disable upgrade features
-VSA_CLUSTER_UPGRADE_ENABLED=true
-BATCH_UPGRADE_ENABLED=true
-UPGRADE_ROLLBACK_ENABLED=true
-UPGRADE_MAINTENANCE_WINDOW_ENABLED=true
-```
+Batch tuning is per-request, not per-environment. There are no batch environment variables; the defaults live in the OpenAPI schema and in the GCP orchestrator:
+
+| Field | Default | Source | Meaning |
+|---|---|---|---|
+| `maxConcurrency` | `5` | `vcp-core/api.yaml`, `defaultMaxConcurrency` | Clusters upgraded per wave |
+| `failureThreshold` | `0` | `vcp-core/api.yaml`, `defaultFailureThreshold` | Failures before the remaining waves are skipped; `0` disables the abort |
+| `maxClusters` | `0` | `vcp-core/api.yaml` | Cap on selected clusters; `0` means no cap |
+| `forceUpgrade` | `false` | `vcp-core/api.yaml` | Allow arbitrary build image combinations |
+
+Because `failureThreshold` defaults to `0`, a caller that omits the field gets **no** early abort: the batch attempts every selected cluster. Set it explicitly to bound the blast radius.
+
+### Retry Behaviour
+
+Retries are configured in code, not by environment variables:
+- Batch status and wave-preparation activities use a Temporal retry policy of 3 maximum attempts, with `PanicError` non-retryable.
+- Job-claim failures for a missing or terminal job are raised as non-retryable application errors so Temporal stops immediately.
 
 ## Monitoring and Observability
 
@@ -2033,7 +2183,8 @@ UPGRADE_MAINTENANCE_WINDOW_ENABLED=true
 ### 3. Alerts
 - Upgrade failure alerts
 - Batch processing timeout alerts
-- Rollback execution alerts
+- Failure-threshold aborts (batches ending with a non-zero `skipped_count`)
+- Pickup timeouts (`UPGRADE_PICKUP_TIMEOUT`), which indicate worker or Temporal problems rather than upgrade problems
 - High error rate alerts
 
 ## Security Considerations
@@ -2047,12 +2198,14 @@ UPGRADE_MAINTENANCE_WINDOW_ENABLED=true
 ## Future Enhancements
 
 1. **Scheduled Upgrades**: Support for scheduled maintenance windows
-2. **Blue-Green Deployments**: Zero-downtime upgrade strategies
-3. **Canary Upgrades**: Gradual rollout of upgrades
-4. **Upgrade Dependencies**: Handle inter-cluster dependencies
-5. **Custom Upgrade Scripts**: Support for custom pre/post upgrade scripts
-6. **Upgrade Validation**: Automated health checks and validation
-7. **Multi-Cloud Support**: Extend to other cloud providers beyond GCP
+2. **Inter-Wave Delay**: Configurable pause between batch waves for staged rollouts
+3. **Rollback**: Restore a cluster to its previous build images after a failed upgrade
+4. **Blue-Green Deployments**: Zero-downtime upgrade strategies
+5. **Canary Upgrades**: Gradual rollout of upgrades
+6. **Upgrade Dependencies**: Handle inter-cluster dependencies
+7. **Custom Upgrade Scripts**: Support for custom pre/post upgrade scripts
+8. **Upgrade Validation**: Automated health checks and validation
+9. **Multi-Cloud Support**: Extend to other cloud providers beyond GCP
 
 ---
 

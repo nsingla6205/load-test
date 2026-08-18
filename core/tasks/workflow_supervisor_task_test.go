@@ -344,6 +344,8 @@ func TestRunWorkflowSupervisorTaskUsesProvidedHandlers(t *testing.T) {
 	})).Return([]*datamodel.Job{}, nil).Once()
 
 	// CreatePool is not eligible for PROCESSING scan, so no second call
+	storage.EXPECT().ListPendingUpgradeJobsCreatedBefore(mock.Anything, mock.Anything).
+		Return([]database.PendingUpgradeJob{}, nil).Once()
 
 	runWorkflowSupervisorTask(context.Background(), storage, temporal, "corr-id", handler)
 }
@@ -390,6 +392,8 @@ func TestRunWorkflowSupervisorTaskRegistersDefaultHandlers(t *testing.T) {
 		}
 		return false
 	})).Return([]*datamodel.Job{}, nil).Once()
+	storage.EXPECT().ListPendingUpgradeJobsCreatedBefore(mock.Anything, mock.Anything).
+		Return([]database.PendingUpgradeJob{}, nil).Once()
 
 	runWorkflowSupervisorTask(context.Background(), storage, temporal, "corr-id")
 }

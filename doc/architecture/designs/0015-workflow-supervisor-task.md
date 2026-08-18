@@ -75,6 +75,7 @@ All handlers tolerate "not found" conditions to support idempotent retries.
 - `WORKFLOW_SUPERVISOR_NOT_FOUND_GRACE_PERIOD`: Grace period for missing workflows (default 5 minutes).
 - `WORKFLOW_SUPERVISOR_PROCESSING_TIMEOUT_GRACE_PERIOD`: Additional wait time after the workflow timeout before treating a PROCESSING job as timed out (default 5 minutes).
 - `WORKFLOW_SUPERVISOR_PROCESSING_TIMEOUT_ENABLED`: Feature flag to enable/disable the PROCESSING state scan (default `true`).
+- `UPGRADE_JOB_PICKUP_TIMEOUT`: Maximum time a top-level single or batch cluster upgrade may remain `PENDING` without a start timestamp before it is terminated and marked `FAILED` (default 60 seconds).
 - `resourceCleanupTimeout`: Hard-coded 30s timeout for handler execution.
 - `temporalDescribeTimeout`: Hard-coded 15s timeout for describe calls.
 

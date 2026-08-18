@@ -494,6 +494,8 @@ type (
 		CreateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) (*datamodel.ClusterUpgradeJob, error)
 		GetClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.ClusterUpgradeJob, error)
 		GetClusterUpgradeJobsByClusterID(ctx context.Context, clusterID string) ([]*datamodel.ClusterUpgradeJob, error)
+		ListPendingUpgradeJobsCreatedBefore(ctx context.Context, cutoff time.Time) ([]PendingUpgradeJob, error)
+		TransitionPendingUpgradeJobToInProgress(ctx context.Context, kind UpgradeJobKind, jobUUID string, startedAt time.Time) (bool, error)
 		UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) error
 
 		// Batch cluster upgrade methods

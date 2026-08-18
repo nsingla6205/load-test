@@ -8,9 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
 
@@ -273,15 +275,13 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
 
-		batchJob := &datamodel.BatchClusterUpgradeJob{
-			BaseModel: datamodel.BaseModel{UUID: "batch-1"},
-			Status:    string(models.UpgradeStatusPending),
-		}
-
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(batchJob, nil)
-		mockStorage.On("UpdateBatchClusterUpgradeJob", ctx, mock.MatchedBy(func(job *datamodel.BatchClusterUpgradeJob) bool {
-			return job.Status == string(models.UpgradeStatusInProgress) && job.StartedAt != nil
-		})).Return(nil)
+		mockStorage.On(
+			"TransitionPendingUpgradeJobToInProgress",
+			ctx,
+			database.UpgradeJobKindBatch,
+			"batch-1",
+			mock.AnythingOfType("time.Time"),
+		).Return(true, nil)
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusInProgress), "")
 		assert.NoError(t, err)
@@ -304,7 +304,9 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 				job.ErrorDetails != nil &&
 				job.ErrorDetails.ErrorCode == "BATCH_UPGRADE_FAILED" &&
 				job.ErrorDetails.ErrorMessage == "something went wrong" &&
-				!job.ErrorDetails.Retryable
+				!job.ErrorDetails.Retryable &&
+				job.CompletedAt != nil &&
+				job.DeletedAt != nil
 		})).Return(nil)
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusFailed), "something went wrong")
@@ -317,21 +319,13 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
 
-		batchJob := &datamodel.BatchClusterUpgradeJob{
-			BaseModel: datamodel.BaseModel{UUID: "batch-1"},
-			Status:    string(models.UpgradeStatusFailed),
-			ErrorDetails: &datamodel.UpgradeErrorDetails{
-				ErrorCode:    "BATCH_UPGRADE_FAILED",
-				ErrorMessage: "previous failure",
-				ErrorType:    "BATCH_UPGRADE_ERROR",
-			},
-		}
-
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(batchJob, nil)
-		mockStorage.On("UpdateBatchClusterUpgradeJob", ctx, mock.MatchedBy(func(job *datamodel.BatchClusterUpgradeJob) bool {
-			return job.Status == string(models.UpgradeStatusInProgress) &&
-				job.ErrorDetails == nil
-		})).Return(nil)
+		mockStorage.On(
+			"TransitionPendingUpgradeJobToInProgress",
+			ctx,
+			database.UpgradeJobKindBatch,
+			"batch-1",
+			mock.AnythingOfType("time.Time"),
+		).Return(true, nil)
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusInProgress), "")
 		assert.NoError(t, err)
@@ -343,7 +337,13 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
 
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(nil, errors.New("db error"))
+		mockStorage.On(
+			"TransitionPendingUpgradeJobToInProgress",
+			ctx,
+			database.UpgradeJobKindBatch,
+			"batch-1",
+			mock.AnythingOfType("time.Time"),
+		).Return(false, errors.New("db error"))
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusInProgress), "")
 		assert.Error(t, err)
@@ -355,10 +355,19 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
 
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(nil, nil)
+		mockStorage.On(
+			"TransitionPendingUpgradeJobToInProgress",
+			ctx,
+			database.UpgradeJobKindBatch,
+			"batch-1",
+			mock.AnythingOfType("time.Time"),
+		).Return(false, nil)
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusInProgress), "")
-		assert.ErrorContains(t, err, "batch cluster upgrade job batch-1 not found")
+		assert.Error(t, err)
+		var appErr *temporal.ApplicationError
+		require.True(t, errors.As(err, &appErr))
+		assert.True(t, appErr.NonRetryable())
 		mockStorage.AssertExpectations(t)
 	})
 
@@ -367,20 +376,42 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
 
-		batchJob := &datamodel.BatchClusterUpgradeJob{
-			BaseModel: datamodel.BaseModel{UUID: "batch-1"},
-			Status:    string(models.UpgradeStatusPending),
-		}
-
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(batchJob, nil)
-		mockStorage.On("UpdateBatchClusterUpgradeJob", ctx, mock.Anything).Return(errors.New("update failed"))
+		mockStorage.On(
+			"TransitionPendingUpgradeJobToInProgress",
+			ctx,
+			database.UpgradeJobKindBatch,
+			"batch-1",
+			mock.AnythingOfType("time.Time"),
+		).Return(false, errors.New("update failed"))
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusInProgress), "")
 		assert.Error(t, err)
 		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("DoesNotSetStartedAtForNonInProgressStatus", func(t *testing.T) {
+	t.Run("MissingJobIsNonRetryableForTerminalStatus", func(t *testing.T) {
+		for name, getErr := range map[string]error{
+			"get returns nil":  nil,
+			"record not found": gorm.ErrRecordNotFound,
+		} {
+			t.Run(name, func(t *testing.T) {
+				mockStorage := database.NewMockStorage(t)
+				activity := &BatchClusterUpgradeActivity{SE: mockStorage}
+				ctx := context.Background()
+
+				mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(nil, getErr)
+
+				err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusFailed), "")
+				assert.Error(t, err)
+				var appErr *temporal.ApplicationError
+				require.True(t, errors.As(err, &appErr))
+				assert.True(t, appErr.NonRetryable())
+				mockStorage.AssertExpectations(t)
+			})
+		}
+	})
+
+	t.Run("SetsCompletedAtAndDeletedAtForFailedStatus", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
 		ctx := context.Background()
@@ -392,7 +423,11 @@ func TestUpdateBatchJobStatusActivity(t *testing.T) {
 
 		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(batchJob, nil)
 		mockStorage.On("UpdateBatchClusterUpgradeJob", ctx, mock.MatchedBy(func(job *datamodel.BatchClusterUpgradeJob) bool {
-			return job.Status == string(models.UpgradeStatusFailed) && job.ErrorDetails == nil
+			return job.Status == string(models.UpgradeStatusFailed) &&
+				job.ErrorDetails == nil &&
+				job.CompletedAt != nil &&
+				job.DeletedAt != nil &&
+				job.StartedAt == nil
 		})).Return(nil)
 
 		err := activity.UpdateBatchJobStatusActivity(ctx, "batch-1", string(models.UpgradeStatusFailed), "")
@@ -519,16 +554,26 @@ func TestCompleteBatchJobActivity(t *testing.T) {
 		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("ReturnsErrorWhenGetReturnsNil", func(t *testing.T) {
-		mockStorage := database.NewMockStorage(t)
-		activity := &BatchClusterUpgradeActivity{SE: mockStorage}
-		ctx := context.Background()
+	t.Run("MissingJobIsNonRetryable", func(t *testing.T) {
+		for name, getErr := range map[string]error{
+			"get returns nil":  nil,
+			"record not found": gorm.ErrRecordNotFound,
+		} {
+			t.Run(name, func(t *testing.T) {
+				mockStorage := database.NewMockStorage(t)
+				activity := &BatchClusterUpgradeActivity{SE: mockStorage}
+				ctx := context.Background()
 
-		mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(nil, nil)
+				mockStorage.On("GetBatchClusterUpgradeJobByUUID", ctx, "batch-1").Return(nil, getErr)
 
-		err := activity.CompleteBatchJobActivity(ctx, "batch-1", string(models.UpgradeStatusCompleted), "", 5, 0, 0)
-		assert.ErrorContains(t, err, "batch cluster upgrade job batch-1 not found")
-		mockStorage.AssertExpectations(t)
+				err := activity.CompleteBatchJobActivity(ctx, "batch-1", string(models.UpgradeStatusCompleted), "", 5, 0, 0)
+				assert.Error(t, err)
+				var appErr *temporal.ApplicationError
+				require.True(t, errors.As(err, &appErr))
+				assert.True(t, appErr.NonRetryable())
+				mockStorage.AssertExpectations(t)
+			})
+		}
 	})
 
 	t.Run("ReturnsErrorWhenUpdateFails", func(t *testing.T) {

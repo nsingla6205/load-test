@@ -20445,6 +20445,65 @@ func (_c *MockStorage_ListPendingResourceDeletions_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// ListPendingUpgradeJobsCreatedBefore provides a mock function with given fields: ctx, cutoff
+func (_m *MockStorage) ListPendingUpgradeJobsCreatedBefore(ctx context.Context, cutoff time.Time) ([]PendingUpgradeJob, error) {
+	ret := _m.Called(ctx, cutoff)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListPendingUpgradeJobsCreatedBefore")
+	}
+
+	var r0 []PendingUpgradeJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) ([]PendingUpgradeJob, error)); ok {
+		return rf(ctx, cutoff)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) []PendingUpgradeJob); ok {
+		r0 = rf(ctx, cutoff)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]PendingUpgradeJob)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, cutoff)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ListPendingUpgradeJobsCreatedBefore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListPendingUpgradeJobsCreatedBefore'
+type MockStorage_ListPendingUpgradeJobsCreatedBefore_Call struct {
+	*mock.Call
+}
+
+// ListPendingUpgradeJobsCreatedBefore is a helper method to define mock.On call
+//   - ctx context.Context
+//   - cutoff time.Time
+func (_e *MockStorage_Expecter) ListPendingUpgradeJobsCreatedBefore(ctx interface{}, cutoff interface{}) *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call {
+	return &MockStorage_ListPendingUpgradeJobsCreatedBefore_Call{Call: _e.mock.On("ListPendingUpgradeJobsCreatedBefore", ctx, cutoff)}
+}
+
+func (_c *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call) Run(run func(ctx context.Context, cutoff time.Time)) *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call) Return(_a0 []PendingUpgradeJob, _a1 error) *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call) RunAndReturn(run func(context.Context, time.Time) ([]PendingUpgradeJob, error)) *MockStorage_ListPendingUpgradeJobsCreatedBefore_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListPinnedAccountHostsByAccount provides a mock function with given fields: ctx, accountID
 func (_m *MockStorage) ListPinnedAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
 	ret := _m.Called(ctx, accountID)
@@ -22747,6 +22806,65 @@ func (_c *MockStorage_SvmExistsByExternalIdentifier_Call) Return(_a0 bool, _a1 e
 }
 
 func (_c *MockStorage_SvmExistsByExternalIdentifier_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockStorage_SvmExistsByExternalIdentifier_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// TransitionPendingUpgradeJobToInProgress provides a mock function with given fields: ctx, kind, jobUUID, startedAt
+func (_m *MockStorage) TransitionPendingUpgradeJobToInProgress(ctx context.Context, kind UpgradeJobKind, jobUUID string, startedAt time.Time) (bool, error) {
+	ret := _m.Called(ctx, kind, jobUUID, startedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransitionPendingUpgradeJobToInProgress")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, UpgradeJobKind, string, time.Time) (bool, error)); ok {
+		return rf(ctx, kind, jobUUID, startedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, UpgradeJobKind, string, time.Time) bool); ok {
+		r0 = rf(ctx, kind, jobUUID, startedAt)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, UpgradeJobKind, string, time.Time) error); ok {
+		r1 = rf(ctx, kind, jobUUID, startedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_TransitionPendingUpgradeJobToInProgress_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransitionPendingUpgradeJobToInProgress'
+type MockStorage_TransitionPendingUpgradeJobToInProgress_Call struct {
+	*mock.Call
+}
+
+// TransitionPendingUpgradeJobToInProgress is a helper method to define mock.On call
+//   - ctx context.Context
+//   - kind UpgradeJobKind
+//   - jobUUID string
+//   - startedAt time.Time
+func (_e *MockStorage_Expecter) TransitionPendingUpgradeJobToInProgress(ctx interface{}, kind interface{}, jobUUID interface{}, startedAt interface{}) *MockStorage_TransitionPendingUpgradeJobToInProgress_Call {
+	return &MockStorage_TransitionPendingUpgradeJobToInProgress_Call{Call: _e.mock.On("TransitionPendingUpgradeJobToInProgress", ctx, kind, jobUUID, startedAt)}
+}
+
+func (_c *MockStorage_TransitionPendingUpgradeJobToInProgress_Call) Run(run func(ctx context.Context, kind UpgradeJobKind, jobUUID string, startedAt time.Time)) *MockStorage_TransitionPendingUpgradeJobToInProgress_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(UpgradeJobKind), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStorage_TransitionPendingUpgradeJobToInProgress_Call) Return(_a0 bool, _a1 error) *MockStorage_TransitionPendingUpgradeJobToInProgress_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_TransitionPendingUpgradeJobToInProgress_Call) RunAndReturn(run func(context.Context, UpgradeJobKind, string, time.Time) (bool, error)) *MockStorage_TransitionPendingUpgradeJobToInProgress_Call {
 	_c.Call.Return(run)
 	return _c
 }

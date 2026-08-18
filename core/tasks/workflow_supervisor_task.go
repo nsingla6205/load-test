@@ -152,6 +152,11 @@ func runWorkflowSupervisorTask(ctx context.Context, storage database.Storage, te
 
 	runner.registerHandlers(handlers...)
 	runner.scan(ctx)
+	(&upgradeJobPickupSupervisor{
+		storage:  storage,
+		temporal: temporal,
+		config:   defaultUpgradeJobSupervisorConfig(),
+	}).scan(ctx)
 }
 
 // registerHandlers installs one or more handler implementations keyed by their

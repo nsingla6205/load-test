@@ -5996,6 +5996,38 @@ func (re *retryEngine) GetClusterUpgradeJobsByClusterID(ctx context.Context, clu
 	return var0, err
 }
 
+func (re *retryEngine) ListPendingUpgradeJobsCreatedBefore(ctx context.Context, cutoff time.Time) ([]PendingUpgradeJob, error) {
+	var var0 []PendingUpgradeJob
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListPendingUpgradeJobsCreatedBefore(ctx, cutoff)
+		if err != nil {
+			re.logError("ListPendingUpgradeJobsCreatedBefore", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) TransitionPendingUpgradeJobToInProgress(ctx context.Context, kind UpgradeJobKind, jobUUID string, startedAt time.Time) (bool, error) {
+	var var0 bool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.TransitionPendingUpgradeJobToInProgress(ctx, kind, jobUUID, startedAt)
+		if err != nil {
+			re.logError("TransitionPendingUpgradeJobToInProgress", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

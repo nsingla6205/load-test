@@ -1833,6 +1833,16 @@ func (s *PersistenceStore) GetClusterUpgradeJobsByClusterID(ctx context.Context,
 	return s.dataStore.GetClusterUpgradeJobsByClusterID(ctx, clusterID)
 }
 
+// ListPendingUpgradeJobsCreatedBefore retrieves top-level upgrade jobs that have not started before the cutoff.
+func (s *PersistenceStore) ListPendingUpgradeJobsCreatedBefore(ctx context.Context, cutoff time.Time) ([]PendingUpgradeJob, error) {
+	return s.dataStore.ListPendingUpgradeJobsCreatedBefore(ctx, cutoff)
+}
+
+// TransitionPendingUpgradeJobToInProgress atomically claims an upgrade job for workflow execution.
+func (s *PersistenceStore) TransitionPendingUpgradeJobToInProgress(ctx context.Context, kind UpgradeJobKind, jobUUID string, startedAt time.Time) (bool, error) {
+	return s.dataStore.TransitionPendingUpgradeJobToInProgress(ctx, kind, jobUUID, startedAt)
+}
+
 // UpdateClusterUpgradeJob updates an existing cluster upgrade job
 func (s *PersistenceStore) UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) error {
 	return s.dataStore.UpdateClusterUpgradeJob(ctx, upgradeJob)
