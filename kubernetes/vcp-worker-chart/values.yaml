@@ -578,6 +578,7 @@ workerConfig:
     project: "" # project in which ADC cloud run to be deployed
     region: "" # region in which ADC cloud run to be deployed
     certSecretName: "" # name of the secret containing ADC certificate
+    restPort: 80 # REST port exposed by ADC Cloud Run
 
 #Enabling or Disabling Secret Manager for Microservice Secrets
 secretManagerEnabled: false

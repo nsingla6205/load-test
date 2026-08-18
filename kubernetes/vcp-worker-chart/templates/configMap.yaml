@@ -337,6 +337,11 @@ data:
   ADC_PROJECT: {{$.Values.workerConfig.adc.project | quote }}
   ADC_REGION: {{$.Values.workerConfig.adc.region | quote }}
   ADC_CERT_SECRET_NAME: {{$.Values.workerConfig.adc.certSecretName | quote }}
+  {{- $adcRestPort := int $.Values.workerConfig.adc.restPort }}
+  {{- if or (lt $adcRestPort 1) (gt $adcRestPort 65535) }}
+  {{- fail "workerConfig.adc.restPort must be between 1 and 65535" }}
+  {{- end }}
+  ADC_REST_PORT: {{ $adcRestPort | quote }}
 
   START_TO_CLOSE_WORKFLOW_TIMEOUT: {{$.Values.workerConfig.startToCloseTimeout | quote }}
   START_TO_CLOSE_WORKFLOW_TIMEOUT_CMEK_BACKUP_ROTATE : {{$.Values.workerConfig.startToCloseTimeoutCmekBackupRotate | quote }}

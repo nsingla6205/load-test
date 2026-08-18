@@ -466,11 +466,12 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 	}
 
 	cloudRunConfig := &hyperscalermodels.CloudRunServiceConfig{
-		ProjectID:   adcProjectID,
-		LocationID:  adcRegion,
-		ServiceName: fmt.Sprintf("adc-svc-%s", saTimestamp),
-		Image:       adcImage,
-		Description: fmt.Sprintf("ADC Cloud Run service for SFR %s", backup.UUID),
+		ProjectID:     adcProjectID,
+		LocationID:    adcRegion,
+		ServiceName:   fmt.Sprintf("adc-svc-%s", saTimestamp),
+		Image:         adcImage,
+		Description:   fmt.Sprintf("ADC Cloud Run service for SFR %s", backup.UUID),
+		ContainerPort: int64(adcRestPort),
 		Labels: map[string]string{
 			"app":        "adc",
 			"component":  "backup",
@@ -482,7 +483,7 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 		Ingress: "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER",
 		EnvVars: map[string]string{
 			"RUN_REST":       "1",
-			"REST_PORT":      "80",
+			"REST_PORT":      fmt.Sprintf("%d", adcRestPort),
 			"PROVIDER":       "GoogleCloud",
 			"LOG_LEVEL":      "2",
 			"ENABLE_COPY":    "1",
@@ -516,7 +517,7 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 			PeriodSeconds:       10,
 			TimeoutSeconds:      5,
 			FailureThreshold:    30,
-			TCPSocket:           &hyperscalermodels.TCPSocketAction{Port: 80},
+			TCPSocket:           &hyperscalermodels.TCPSocketAction{Port: int64(adcRestPort)},
 		},
 	}
 

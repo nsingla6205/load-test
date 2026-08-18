@@ -32,6 +32,7 @@ type AdcWF struct {
 var (
     adcPort        = 443
     adcImage       = env.GetString("ADC_IMAGE", "")
+    adcRestPort    = env.GetInt("ADC_REST_PORT", 80)
     adcRegion      = env.GetString("ADC_REGION", "")
     adcProjectID   = env.GetString("ADC_PROJECT", "")
     adcProvideType = env.GetString("ADC_PROVIDE_TYPE", "GoogleCloud")
@@ -147,7 +148,8 @@ func (wf *AdcWF) progressiveSleep(ctx workflow.Context, startTime time.Time) err
 ### Service Configuration
 
 **ADC Service Settings**:
-- **Port**: 443 (HTTPS)
+- **Object-store port**: 443 (HTTPS)
+- **Cloud Run REST port**: Configurable via `ADC_REST_PORT` (default: 80). This value is applied to the ADC `REST_PORT` environment variable, Cloud Run container port, and startup probe.
 - **Image**: Configurable via `ADC_IMAGE` environment variable
 - **Region**: Configurable via `ADC_REGION` environment variable
 - **Project ID**: Configurable via `ADC_PROJECT` environment variable

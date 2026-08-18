@@ -1,19 +1,20 @@
 package hyperscaler
 
 type CloudRunServiceConfig struct {
-	ProjectID    string
-	LocationID   string
-	ServiceName  string
-	Image        string
-	Description  string
-	Labels       map[string]string
-	Annotations  map[string]string
-	Ingress      string // "INGRESS_TRAFFIC_ALL", "INGRESS_TRAFFIC_INTERNAL_ONLY", "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
-	EnvVars      map[string]string
-	VolumeMounts []VolumeMount
-	Volumes      []Volume
-	Resources    *ResourceConfig
-	StartupProbe *ProbeConfig
+	ProjectID     string
+	LocationID    string
+	ServiceName   string
+	Image         string
+	Description   string
+	Labels        map[string]string
+	Annotations   map[string]string
+	Ingress       string // "INGRESS_TRAFFIC_ALL", "INGRESS_TRAFFIC_INTERNAL_ONLY", "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+	EnvVars       map[string]string
+	VolumeMounts  []VolumeMount
+	Volumes       []Volume
+	Resources     *ResourceConfig
+	StartupProbe  *ProbeConfig
+	ContainerPort int64
 }
 
 // ProbeConfig represents a probe configuration (startup, liveness, or readiness)

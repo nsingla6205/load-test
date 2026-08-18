@@ -19,6 +19,7 @@ import (
 var (
 	adcPort        = 443
 	adcImage       = env.GetString("ADC_IMAGE", "")
+	adcRestPort    = normalizeADCRestPort(env.GetInt("ADC_REST_PORT", defaultADCRestPort))
 	adcRegion      = env.GetString("ADC_REGION", "")
 	adcProjectID   = env.GetString("ADC_PROJECT", "")
 	adcProvideType = env.GetString("ADC_PROVIDE_TYPE", "GoogleCloud")
@@ -28,6 +29,18 @@ var (
 	adcMaxCloudRunAttempts         = 20
 	adcWorkflowHeartbeatTimeoutSec = env.GetUint64("ADC_WORKFLOW_HEARTBEAT_TIMEOUT_SEC", 600)
 )
+
+const (
+	defaultADCRestPort = 80
+	maxTCPPort         = 65535
+)
+
+func normalizeADCRestPort(port int) int {
+	if port < 1 || port > maxTCPPort {
+		return defaultADCRestPort
+	}
+	return port
+}
 
 // Progressive sleep phase constants
 const (
@@ -222,11 +235,12 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 
 	// Step 3: Deploy ADC Cloud Run service
 	cloudRunConfig := &hyperscalermodels.CloudRunServiceConfig{
-		ProjectID:   adcProjectID,
-		LocationID:  adcRegion,
-		ServiceName: fmt.Sprintf("adc-svc-%s", saTimestamp),
-		Image:       adcImage,
-		Description: fmt.Sprintf("ADC Cloud Run service for %s", backup.UUID),
+		ProjectID:     adcProjectID,
+		LocationID:    adcRegion,
+		ServiceName:   fmt.Sprintf("adc-svc-%s", saTimestamp),
+		Image:         adcImage,
+		Description:   fmt.Sprintf("ADC Cloud Run service for %s", backup.UUID),
+		ContainerPort: int64(adcRestPort),
 		Labels: map[string]string{
 			"app":        "adc",
 			"component":  "backup",
@@ -238,7 +252,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 		Ingress: "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER", // Use internal load balancer ingress
 		EnvVars: map[string]string{
 			"RUN_REST":       "1",
-			"REST_PORT":      "80",
+			"REST_PORT":      fmt.Sprintf("%d", adcRestPort),
 			"PROVIDER":       "GoogleCloud",
 			"LOG_LEVEL":      "2",
 			"ENABLE_COPY":    "1",
@@ -272,7 +286,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 			PeriodSeconds:       10,
 			TimeoutSeconds:      5,
 			FailureThreshold:    30,
-			TCPSocket:           &hyperscalermodels.TCPSocketAction{Port: 80},
+			TCPSocket:           &hyperscalermodels.TCPSocketAction{Port: int64(adcRestPort)},
 		},
 	}
 

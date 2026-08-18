@@ -37,6 +37,14 @@ func (gcpService *GcpServices) CreateCloudRunService(ctx context.Context, config
 		})
 	}
 
+	containerPort := config.ContainerPort
+	if containerPort == 0 {
+		containerPort = 80
+	}
+	if containerPort < 1 || containerPort > 65535 {
+		return nil, fmt.Errorf("container port must be between 1 and 65535: %d", containerPort)
+	}
+
 	// Define the container
 	container := &cloudrun.GoogleCloudRunV2Container{
 		Image:        config.Image,
@@ -44,7 +52,7 @@ func (gcpService *GcpServices) CreateCloudRunService(ctx context.Context, config
 		VolumeMounts: volumeMounts,
 		Ports: []*cloudrun.GoogleCloudRunV2ContainerPort{
 			{
-				ContainerPort: 80,
+				ContainerPort: containerPort,
 			},
 		},
 	}
