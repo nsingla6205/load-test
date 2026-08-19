@@ -74,6 +74,7 @@ const (
 	ErrGCPCustomerIPExhaustion                    = 3009
 	ErrGCPConsumerNetworkNotFound                 = 3010
 	ErrGCPServiceDisabledError                    = 3011
+	ErrGCPTerminalOperationError                  = 3012
 
 	// VLM-specific GCP errors (9000-9999 range)
 	ErrVLMQuotaExceededRegional                = 9001

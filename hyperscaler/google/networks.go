@@ -161,20 +161,27 @@ func _createTPSubnetOp(gcpService *GcpServices, request *servicenetworking.AddSu
 	parent := fmt.Sprintf("services/%s/projects/%s", gcpService.GetServiceNetworkingEndpoint(), tenantProjectNumber)
 	tu, err := gcpService.AdminGCPService.networkingService.Services.AddSubnetwork(parent, request).Context(gcpService.Ctx).Do()
 	if err != nil || (tu != nil && tu.Error != nil) {
+		terminalOperationError := err == nil
+		providerErrorMessage := ""
 		if err == nil {
-			err = &googleapi.Error{Message: tu.Error.Message}
+			providerErrorMessage = tu.Error.Message
+		} else {
+			providerErrorMessage = err.Error()
 		}
-		if err != nil {
-			if strings.Contains(err.Error(), "are not successfully connected yet") || strings.Contains(err.Error(), serviceNetworkingConnectionErrorMsg) {
-				gcpService.Logger.Errorf("CreateTPSubnetOp failed : with peering error : %v", err.Error())
-				return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, err))
-			} else if strings.Contains(err.Error(), ipExhaustionErrorMsg) {
-				gcpService.Logger.Errorf("CreateTPSubnetOp failed : with IP Exhaustion error : %v", err.Error())
-				return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPCustomerIPExhaustion, err))
-			}
-			gcpService.Logger.Errorf("CreateTPSubnetOp failed with retryable error: %s", err.Error())
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceProvisionError, err)
+		if strings.Contains(providerErrorMessage, "are not successfully connected yet") || strings.Contains(providerErrorMessage, serviceNetworkingConnectionErrorMsg) {
+			gcpService.Logger.Error("CreateTPSubnetOp failed with peering error")
+			// Do not attach provider message: Temporal details can expose tenant resource paths.
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, nil))
+		} else if strings.Contains(providerErrorMessage, ipExhaustionErrorMsg) {
+			gcpService.Logger.Error("CreateTPSubnetOp failed with IP exhaustion")
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPCustomerIPExhaustion, nil))
 		}
+		if terminalOperationError {
+			gcpService.Logger.Errorf("CreateTPSubnetOp failed with an unclassified terminal GCP operation error for operationName=%s", tu.Name)
+			return nil, newTerminalGCPOperationError()
+		}
+		gcpService.Logger.Errorf("CreateTPSubnetOp failed with retryable error: %s", vsaerrors.RedactProviderError(providerErrorMessage))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceProvisionError, err)
 	}
 	gcpService.Logger.Debugf("CreateTPSubnetOp for tenant project : %s successful", tenantProjectNumber)
 	return convertServiceNetOpToComputeOp(tu), nil
@@ -413,38 +420,71 @@ func (gcpService *GcpServices) UpdateFirewall(firewallRule *models.Firewall) (st
 func (gcpService *GcpServices) GetServiceNetOpStatus(operationName string) (*models.ComputeOperation, error) {
 	op, err := gcpService.AdminGCPService.networkingService.Operations.Get(operationName).Do()
 	if err != nil {
-		gcpService.Logger.Errorf(fmt.Sprintf("GetServiceNetOpStatus failed with error : %s", err.Error()))
+		gcpService.Logger.Errorf("GetServiceNetOpStatus failed: operationName=%s error=%s", operationName, vsaerrors.RedactProviderError(err.Error()))
 		return nil, err
 	}
 	if op != nil && op.Error != nil {
-		gcpService.Logger.Errorf(fmt.Sprintf("GetServiceNetOpStatus's operation failed with error : %s", op.Error.Message))
-		err = &googleapi.Error{Message: op.Error.Message}
-		if strings.Contains(err.Error(), serviceNetworkingConnectionErrorMsg) {
-			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, fmt.Errorf("GetServiceNetOpStatus SN Producer Host peering Error: %v", err)))
-		} else if strings.Contains(err.Error(), ipExhaustionErrorMsg) {
-			gcpService.Logger.Errorf("GetServiceNetOpStatus failed with IP Exhaustion error: %v", err.Error())
-			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPCustomerIPExhaustion, err))
-		} else if strings.Contains(err.Error(), consumerNetworkNotFoundErrorMsg) {
-			gcpService.Logger.Errorf("GetServiceNetOpStatus failed: consumer network not found: %v", err.Error())
-			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPConsumerNetworkNotFound, err))
+		// operationName is a safe correlation handle; never log op.Error.Message.
+		gcpService.Logger.Errorf("GetServiceNetOpStatus operation failed: operationName=%s", operationName)
+		providerErrorMessage := op.Error.Message
+		if strings.Contains(providerErrorMessage, serviceNetworkingConnectionErrorMsg) {
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, nil))
+		} else if strings.Contains(providerErrorMessage, ipExhaustionErrorMsg) {
+			gcpService.Logger.Error("GetServiceNetOpStatus failed with IP exhaustion")
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPCustomerIPExhaustion, nil))
+		} else if strings.Contains(providerErrorMessage, consumerNetworkNotFoundErrorMsg) {
+			gcpService.Logger.Error("GetServiceNetOpStatus failed: consumer network not found")
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPConsumerNetworkNotFound, nil))
 		}
-		return nil, err
+		return nil, newTerminalGCPOperationError()
 	}
 	gcpService.Logger.Debug(fmt.Sprintf("Fetching GetServiceNetOpStatus successful : %s", op.Name))
 	return convertServiceNetOpToComputeOp(op), nil
+}
+
+// newTerminalGCPOperationError reports a GCP long-running operation that finished in a
+// failed state.
+func newTerminalGCPOperationError() error {
+	// Temporal NonRetryable: polling the same completed LRO again cannot succeed.
+	// Catalog retriable=true (3012): the customer may submit a new request.
+	// Do not attach the provider error: OriginalErr is serialized into Temporal
+	// details and GCP messages can contain tenant resource identifiers.
+	return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+		vsaerrors.NewVCPError(vsaerrors.ErrGCPTerminalOperationError, nil),
+	)
+}
+
+// firstComputeOperationErrorMessage returns the first nested operation error
+// message when present. Always bounds-checks Errors so an empty or nil slice
+// cannot panic (GCP may return {"error": {}}).
+func firstComputeOperationErrorMessage(op *compute.Operation) string {
+	if op == nil || op.Error == nil || len(op.Error.Errors) == 0 {
+		return ""
+	}
+	if op.Error.Errors[0] == nil {
+		return ""
+	}
+	return op.Error.Errors[0].Message
 }
 
 // GetComputeGlobalOpStatus gets ComputeOperation object for the given tenantProject, operationName
 func (gcpService *GcpServices) GetComputeGlobalOpStatus(tenantProject, operationName string) (*models.ComputeOperation, error) {
 	op, err := gcpService.AdminGCPService.computeService.GlobalOperations.Get(tenantProject, operationName).Do()
 	if err != nil {
-		gcpService.Logger.Errorf("Failed to get compute global operation status for project %s with operation name %s: %v", tenantProject, operationName, err)
+		gcpService.Logger.Errorf("Failed to get compute global operation status: project=%s operationName=%s error=%s",
+			tenantProject, operationName, vsaerrors.RedactProviderError(err.Error()))
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
 	}
 
 	if op != nil && op.Error != nil {
-		gcpService.Logger.Errorf("GetComputeGlobalOpStatus's operation failed for project %s with operation name %s: %v", tenantProject, operationName, &googleapi.Error{Message: op.Error.Errors[0].Message})
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, &googleapi.Error{Message: op.Error.Errors[0].Message})
+		// Safe correlation fields only. Never index Errors without a length check
+		// and never return provider messages (tenant resource paths).
+		if msg := firstComputeOperationErrorMessage(op); msg != "" {
+			gcpService.Logger.Debugf("GetComputeGlobalOpStatus nested provider error (redacted): operationName=%s detail=%s",
+				operationName, vsaerrors.RedactProviderError(msg))
+		}
+		gcpService.Logger.Errorf("GetComputeGlobalOpStatus operation failed: project=%s operationName=%s", tenantProject, operationName)
+		return nil, newTerminalGCPOperationError()
 	}
 	gcpService.Logger.Debug(fmt.Sprintf("Fetching getComputeGlobalOpStatus successful : %s", op.Name))
 	return convertComputeOpToComputeOp(op), nil
@@ -454,12 +494,17 @@ func (gcpService *GcpServices) GetComputeGlobalOpStatus(tenantProject, operation
 func (gcpService *GcpServices) GetComputeRegionalOpStatus(projectNumber, region, operationName string) (*models.ComputeOperation, error) {
 	op, err := gcpService.AdminGCPService.computeService.RegionOperations.Get(projectNumber, region, operationName).Do()
 	if err != nil {
-		gcpService.Logger.Errorf("Failed to get compute regional operation status for project %s with region %s operation name %s: %v", projectNumber, region, operationName, err)
+		gcpService.Logger.Errorf("Failed to get compute regional operation status: project=%s region=%s operationName=%s error=%s",
+			projectNumber, region, operationName, vsaerrors.RedactProviderError(err.Error()))
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
 	}
 	if op != nil && op.Error != nil {
-		gcpService.Logger.Debug(fmt.Sprintf("getComputeRegionalOpStatus's operation failed with error : %s", op.Error.Errors[0].Message))
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, &googleapi.Error{Message: op.Error.Errors[0].Message})
+		if msg := firstComputeOperationErrorMessage(op); msg != "" {
+			gcpService.Logger.Debugf("GetComputeRegionalOpStatus nested provider error (redacted): operationName=%s detail=%s",
+				operationName, vsaerrors.RedactProviderError(msg))
+		}
+		gcpService.Logger.Errorf("GetComputeRegionalOpStatus operation failed: project=%s region=%s operationName=%s", projectNumber, region, operationName)
+		return nil, newTerminalGCPOperationError()
 	}
 	gcpService.Logger.Debug(fmt.Sprintf("Fetching GetComputeRegionalOpStatus successful : %s", operationName))
 	return convertComputeOpToComputeOp(op), nil

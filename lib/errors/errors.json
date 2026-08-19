@@ -287,6 +287,12 @@
     "retriable": false,
     "http_code": 403
   },
+  "3012": {
+    "description": "GCP long-running operation failed. Catalog retriable=true so the customer may submit a new request; Temporal wraps as NonRetryable because re-polling the same completed LRO cannot succeed.",
+    "message": "The cloud provider could not complete the operation. Please try again.",
+    "retriable": true,
+    "http_code": 503
+  },
   "3100": {
     "description": "OCI Client Initialization Error",
     "message": "An internal error occurred.",

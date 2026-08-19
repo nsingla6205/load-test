@@ -25,6 +25,14 @@ import (
 	"google.golang.org/api/servicenetworking/v1"
 )
 
+const (
+	// Clearly fictional GCP path fragments for tests — do not substitute real
+	// project numbers or VPC names from staging/production.
+	testProviderProjectID    = "test-project-00000000"
+	testProviderNetworkID    = "test-vpc-do-not-use"
+	testProviderResourcePath = "projects/" + testProviderProjectID + "/networks/" + testProviderNetworkID
+)
+
 // retryTestOperation retries a test operation with exponential backoff
 func retryTestOperation(t *testing.T, maxRetries int, operation func() error) error {
 	var lastErr error
@@ -55,6 +63,48 @@ func testReset(t *testing.T) {
 	AddSecretVersion = _addSecretVersion
 	GetSecretVersion = _getSecretVersion
 	iamPolicyConflictBackoff = _iamPolicyConflictBackoff
+}
+
+// assertTerminalGCPOperationError asserts err is the non-retryable terminal GCP operation
+// error and that providerDetails from the raw GCP response is not propagated.
+func assertTerminalGCPOperationError(t *testing.T, err error, providerDetails string) {
+	t.Helper()
+
+	var appErr *temporal.ApplicationError
+	if !assert.ErrorAs(t, err, &appErr) {
+		return
+	}
+	assert.True(t, appErr.NonRetryable())
+
+	var (
+		trackingID   int
+		errorDetails string
+	)
+	assert.NoError(t, appErr.Details(&trackingID, &errorDetails))
+	assert.Equal(t, vsaerrors.ErrGCPTerminalOperationError, trackingID)
+	assert.Equal(t, "The cloud provider could not complete the operation. Please try again.", errorDetails)
+	assert.NotContains(t, errorDetails, providerDetails)
+	assert.NotContains(t, err.Error(), "googleapi: Error 0")
+	assert.NotContains(t, err.Error(), providerDetails)
+	assert.Contains(t, err.Error(), "The cloud provider could not complete the operation")
+}
+
+func assertProviderDetailsRedacted(t *testing.T, err error, providerDetails string) {
+	t.Helper()
+
+	var appErr *temporal.ApplicationError
+	if !assert.ErrorAs(t, err, &appErr) {
+		return
+	}
+	assert.True(t, appErr.NonRetryable())
+
+	var (
+		trackingID   int
+		errorDetails string
+	)
+	assert.NoError(t, appErr.Details(&trackingID, &errorDetails))
+	assert.NotContains(t, errorDetails, providerDetails)
+	assert.NotContains(t, err.Error(), providerDetails)
 }
 
 func Test_GetTenantProject(t *testing.T) {
@@ -241,7 +291,7 @@ func Test_CreateTPSubnetOpInternal(t *testing.T) {
 	t.Run("When_CreateTPSubnetOpGoogleFails", func(tt *testing.T) {
 		defer testReset(tt)
 		ctx := context.Background()
-		errMsg := "Please create Service Networking connection with service 'netapp-sqa-autopush-endpoint.appspot.com' from consumer project '452619736732' network 'vpc-ap-tst' again.\\nHelp Token: AVzH8v1Y08A4HRQKRMzS6bVbeOO44HRY9Tg4k12uNjlwNXqwat_lZukbsxoB2TBH2FKBctDZDLYtD6CdaLke-XzSkgYvkeTwsnzwgRId7S25scxj"
+		errMsg := "Please create Service Networking connection with service 'test-endpoint.example.com' from consumer project '" + testProviderProjectID + "' network '" + testProviderNetworkID + "' again."
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if req.URL.Path == url {
 				response, err := json.Marshal(&servicenetworking.Operation{Name: "net-op-1", Error: &servicenetworking.Status{Message: errMsg}})
@@ -287,6 +337,8 @@ func Test_CreateTPSubnetOpInternal(t *testing.T) {
 			if !strings.Contains(err.(*temporal.ApplicationError).Message(), "Setup/Configure Private Service Access (PSA) Peering") {
 				tt.Errorf("Unexpected error: %s", err.(*temporal.ApplicationError).Message())
 			}
+			assertProviderDetailsRedacted(tt, err, testProviderProjectID)
+			assertProviderDetailsRedacted(tt, err, testProviderNetworkID)
 		}
 		CreateTPSubnetOp = _createTPSubnetOp
 	})
@@ -342,16 +394,22 @@ func Test_CreateTPSubnetOpInternal(t *testing.T) {
 		}
 		CreateTPSubnetOp = _createTPSubnetOp
 	})
-	t.Run("WhenOKWithError", func(tt *testing.T) {
+	t.Run("WhenOperationReturnsUnclassifiedTerminalError", func(tt *testing.T) {
 		defer testReset(tt)
 		ctx := context.Background()
-		errMsg := "Please create Service Networking connection with service 'netapp-sqa-autopush-endpoint.appspot.com' from consumer project '452619736732' network 'vpc-ap-tst' again.\\nHelp Token: AVzH8v1Y08A4HRQKRMzS6bVbeOO44HRY9Tg4k12uNjlwNXqwat_lZukbsxoB2TBH2FKBctDZDLYtD6CdaLke-XzSkgYvkeTwsnzwgRId7S25scxj"
+		errMsg := "Operation for " + testProviderResourcePath + " terminated\nforbidden_resource=true"
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if req.URL.Path == url {
-				response, _ := json.Marshal(&servicenetworking.Operation{Name: "net-op-1", Error: &servicenetworking.Status{Message: errMsg}})
+				response, err := json.Marshal(&servicenetworking.Operation{Name: "net-op-1", Error: &servicenetworking.Status{Message: errMsg}})
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				rw.WriteHeader(http.StatusOK)
 				_, _ = rw.Write(response)
 				return
 			}
+			rw.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
 		svc, err := servicenetworking.NewService(
@@ -359,6 +417,8 @@ func Test_CreateTPSubnetOpInternal(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error getting service up: '%s'", err.Error())
 		}
+		serviceConsumerManagementEndpoint = "endpoint.goog"
+		serviceNetworkingEndpoint = "endpoint.goog"
 
 		gService := &GcpServices{
 			AdminGCPService: &AdminGCPService{
@@ -376,6 +436,7 @@ func Test_CreateTPSubnetOpInternal(t *testing.T) {
 			if out != nil {
 				tt.Errorf("Expected nil")
 			}
+			assertTerminalGCPOperationError(tt, err, testProviderResourcePath)
 		}
 		CreateTPSubnetOp = _createTPSubnetOp
 	})
@@ -2776,7 +2837,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 					Name: operationName,
 					Done: true,
 					Error: &servicenetworking.Status{
-						Message: "Operation failed",
+						Message: "Operation failed for " + testProviderResourcePath + "\nforged_field=true",
 					},
 				}
 				responseJson, _ := json.Marshal(response)
@@ -2808,7 +2869,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 
 		assert.Error(tt, err)
 		assert.Nil(tt, result)
-		assert.Contains(tt, err.Error(), "Operation failed")
+		assertTerminalGCPOperationError(tt, err, testProviderResourcePath)
 	})
 
 	t.Run("Error_HTTPError", func(tt *testing.T) {
@@ -2847,7 +2908,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 					Name: operationName,
 					Done: true,
 					Error: &servicenetworking.Status{
-						Message: "Couldn't find free blocks in allocated IP ranges. Please allocate new ranges for this service provider",
+						Message: ipExhaustionErrorMsg + " for " + testProviderResourcePath,
 					},
 				}
 				responseJson, _ := json.Marshal(response)
@@ -2884,6 +2945,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 		assert.True(tt, errors.As(err, &appErr))
 		assert.True(tt, appErr.NonRetryable())
 		assert.Contains(tt, err.Error(), "Couldn't find free blocks in allocated IP ranges")
+		assertProviderDetailsRedacted(tt, err, testProviderResourcePath)
 	})
 	t.Run("Error_ConsumerNetworkNotFound", func(tt *testing.T) {
 		operationName := "operations/operation-network-not-found"
@@ -2893,8 +2955,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 					Name: operationName,
 					Done: true,
 					Error: &servicenetworking.Status{
-						// Exact GCP error message format from real incident (VSCP-4952)
-						Message: "Consumer project '420072370072' network 'wf-gcp-gb-vpchost-prod-network' does not exist.\nHelp Token: AerXPhWXSrbR8nxn58cQGE3gkoCzfXATkVH_3Oo0BSOGwblGC6DsNO0-xYWcSQnnDe4nIOwbILh2snbGqEhGJpMawRAIDHnV9JekpgLspPh4Ek2O",
+						Message: "Consumer network " + testProviderResourcePath + " does not exist.\nforged_field=true",
 					},
 				}
 				responseJson, _ := json.Marshal(response)
@@ -2936,6 +2997,7 @@ func Test_GetServiceNetOpStatus(t *testing.T) {
 		assert.Equal(tt, vsaerrors.ErrGCPConsumerNetworkNotFound, trackingID)
 		// Verify customer-facing message indicates network not found (not a generic 500)
 		assert.Contains(tt, err.Error(), "The specified network does not exist")
+		assertProviderDetailsRedacted(tt, err, testProviderResourcePath)
 	})
 }
 
@@ -3269,9 +3331,43 @@ func Test_getComputeRegionalOpStatus(t *testing.T) {
 			if out != nil {
 				tt.Errorf("Unexpected output: %+v\n", out)
 			}
-			if !strings.Contains(err.(*vsaerrors.CustomError).OriginalErr.Error(), "operation not found") {
-				tt.Errorf("Unexpected error: %s", err.(*vsaerrors.CustomError).OriginalErr.Error())
+			assertTerminalGCPOperationError(tt, err, "operation not found")
+		}
+	})
+	t.Run("WhenOperationErroredWithoutDetails", func(tt *testing.T) {
+		resp := &compute.Operation{Error: &compute.OperationError{}}
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == url {
+				response, err := json.Marshal(resp)
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _ = rw.Write(response)
+				return
 			}
+		}))
+		defer server.Close()
+		svc, err := compute.NewService(
+			context.TODO(), option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+		adminService := AdminGCPService{computeService: svc}
+
+		gService := &GcpServices{
+			serviceNetworkingEndpoint: "endpoint.goog",
+			AdminGCPService:           &adminService,
+			Logger:                    log.NewLogger(),
+		}
+		out, err := gService.GetComputeRegionalOpStatus(projectNumber, region, operationName)
+		if err == nil {
+			tt.Error("Expected an error but got nothing")
+		} else {
+			if out != nil {
+				tt.Errorf("Unexpected output: %+v\n", out)
+			}
+			assertTerminalGCPOperationError(tt, err, projectNumber)
 		}
 	})
 	t.Run("WhenOK", func(tt *testing.T) {
@@ -3387,9 +3483,44 @@ func TestGetComputeGlobalOpStatus(t *testing.T) {
 			if out != nil {
 				tt.Errorf("Unexpected output: %+v\n", out)
 			}
-			if !strings.Contains(err.(*vsaerrors.CustomError).OriginalErr.Error(), "operation not found") {
-				tt.Errorf("Unexpected error: %s", err.(*vsaerrors.CustomError).OriginalErr.Error())
+			assertTerminalGCPOperationError(tt, err, "operation not found")
+		}
+	})
+	t.Run("WhenOperationErroredWithoutDetails", func(tt *testing.T) {
+		// GCP may return a non-nil Error with an empty Errors slice; must not panic.
+		resp := &compute.Operation{Error: &compute.OperationError{}}
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == url {
+				response, err := json.Marshal(resp)
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _ = rw.Write(response)
+				return
 			}
+		}))
+		defer server.Close()
+		svc, err := compute.NewService(
+			context.TODO(), option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+		adminService := AdminGCPService{computeService: svc}
+
+		gService := &GcpServices{
+			serviceNetworkingEndpoint: "endpoint.goog",
+			AdminGCPService:           &adminService,
+			Logger:                    log.NewLogger(),
+		}
+		out, err := gService.GetComputeGlobalOpStatus(projectNumber, operationName)
+		if err == nil {
+			tt.Error("Expected an error but got nothing")
+		} else {
+			if out != nil {
+				tt.Errorf("Unexpected output: %+v\n", out)
+			}
+			assertTerminalGCPOperationError(tt, err, projectNumber)
 		}
 	})
 	t.Run("WhenOK", func(tt *testing.T) {
