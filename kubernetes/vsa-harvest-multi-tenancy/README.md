@@ -1,37 +1,40 @@
 # vsa-harvest-multi-tenancy
 
-Deploys one direct harvest-multi poller per ONTAP cluster for **multi-tenancy**.
-Isolated from single-tenancy [`vsa-harvest-otel`](../vsa-harvest-otel) (PM2 farm in `vcp`).
+Deploys one direct harvest-multi poller per ONTAP cluster for **multi-tenancy**,
+with an in-chart OpenTelemetry sidecar for **tenant-project** metric export.
+Isolated from single-tenancy [`vsa-harvest-otel`](../vsa-harvest-otel) (PM2 farm),
+but runs in the **same `vcp` namespace** as separate Deployments.
 
 ## Topology
 
 | Path | Chart | Namespace |
 |---|---|---|
 | Single-tenancy (unchanged) | `vsa-harvest-otel` | `vcp` |
-| Multi-tenancy (this chart) | `vsa-harvest-multi-tenancy` | `ontap-monitoring` |
+| Multi-tenancy (this chart) | `vsa-harvest-multi-tenancy` | `vcp` |
 
 Chart versioning matches `vsa-harvest-otel`: CI stamps `Chart.yaml`
 `version`/`appVersion` from the VCP release tag. Regional
 `chartVersion` must use that same published tag (do not keep a separate
 `0.1.0` channel).
 
-OTel for MT is a **separate** `ontap-opentelemetry-collector` release with
-`multiTenancy.enabled: true` (see `ci/otel-multi-tenancy-values.example.yaml`).
+**OTel for MT lives in this chart** as a sidecar on each harvest poller pod
+(same pattern as `vsa-harvest-otel`). Do **not** change the
+`ontap-open-telemetry` repo for MT; the separate MT OTel Helm release is not
+required for this path.
 
 ## Feature flag
 
 `multiTenancy.enabled` defaults to **true**. Prod runs **both** this chart and
 single-tenancy `vsa-harvest-otel` because clusters exist on both paths. Use the
-same flag name in each independently deployed chart:
+same flag name in Core for the Istio allow:
 
 ```yaml
 multiTenancy:
   enabled: true   # default
 ```
 
-- This chart: deploys MT pollers when enabled; renders nothing when false.
+- This chart: deploys MT pollers (+ OTel sidecar when `otel.enabled`) when enabled; renders nothing when false.
 - VCP Core chart: MT Istio allow for `getAllVolumeTenancy` when enabled.
-- ONTAP OTel chart: tenant-project routing when enabled (separate release).
 - Single-tenancy `vsa-harvest-otel` is unaffected either way.
 
 ## Inventory (gcnv-harvest compatible)
@@ -51,25 +54,29 @@ Secret Manager payload per `secret` key: `pvt_ip`, `username`, `password`.
 
 ```bash
 helm upgrade --install vsa-harvest-mt ./kubernetes/vsa-harvest-multi-tenancy \
-  --namespace ontap-monitoring --create-namespace \
+  --namespace vcp --create-namespace \
   -f kubernetes/vsa-harvest-multi-tenancy/ci/overrides-example.yaml
 ```
 
-Each cluster renders Service DNS:
+Each cluster renders Service DNS (useful for debugging / external scrapers):
 
 ```text
-harvest-poller-<lowercase-name>.ontap-monitoring.svc.cluster.local:12990
+harvest-poller-<lowercase-name>.vcp.svc.cluster.local:12990
 ```
 
-Keep the same lowercased names in OTel `clusters[]`.
+The OTel sidecar scrapes **`127.0.0.1:<service.port>`** on the same pod — no
+separate OTel `clusters[]` list to keep in sync.
 
 ## Exports
 
 - **Consumer project**: Harvest ServiceControl (`project` label)
-- **Tenant project**: OTel `tenant_project` → `gcp.project.id` (tenant-only for this pass)
+- **Tenant project**: OTel sidecar (`tenant_project` → `gcp.project.id`);
+  samples without `tenant_project` are dropped. No stamp/monitoring dual export
+  on the MT path.
 
 ## Dependencies
 
 - Core API `GET /v1/getAllVolumeTenancy` available in the environment
-- Istio allow from `ontap-monitoring/sa/harvest-multi-tenancy` to that path
-- PE IAM: OTel SA needs Monitoring Metric Writer on customer tenant projects
+- Istio allow from `vcp/sa/harvest-multi-tenancy` to that path
+- PE IAM: the harvest WI GCP SA needs ServiceControl + Core API access **and**
+  Monitoring Metric Writer on customer tenant projects (sidecar shares the poller SA)

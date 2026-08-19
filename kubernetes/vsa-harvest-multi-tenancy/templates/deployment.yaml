@@ -20,6 +20,9 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") $ | sha256sum }}
+        {{- if and $.Values.otel.enabled $.Values.otel.configMap.create }}
+        checksum/otel-config: {{ include (print $.Template.BasePath "/otel-configmap.yaml") $ | sha256sum }}
+        {{- end }}
         {{- with $.Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -36,7 +39,11 @@ spec:
       {{- end }}
       containers:
         - name: poller
+          {{- if $.Values.image.digest }}
+          image: "{{ $.Values.image.repository }}@{{ $.Values.image.digest }}"
+          {{- else }}
           image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          {{- end }}
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           command:
             - /opt/harvest/bin/poller
@@ -87,10 +94,52 @@ spec:
               readOnly: true
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
+        {{- if and $.Values.otel.enabled $.Values.otel.configMap.create }}
+        - name: otel-collector
+          image: "{{ $.Values.otel.image.repository }}:{{ $.Values.otel.image.tag }}"
+          imagePullPolicy: {{ $.Values.otel.image.pullPolicy }}
+          command:
+            - /{{ $.Values.otel.command.name }}
+            - --config=/conf/relay.yaml
+            {{- range $.Values.otel.command.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: otel-health
+              containerPort: {{ $.Values.otel.healthCheckPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: otel-health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: otel-health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: otel-configmap
+              mountPath: /conf/relay.yaml
+              subPath: relay.yaml
+              readOnly: true
+          resources:
+            {{- toYaml $.Values.otel.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: harvest-config
           secret:
             secretName: {{ $resourceName }}-config
+        {{- if and $.Values.otel.enabled $.Values.otel.configMap.create }}
+        - name: otel-configmap
+          configMap:
+            name: {{ include "vsa-harvest-multi-tenancy.fullname" $ }}-otel
+            items:
+              - key: relay
+                path: relay.yaml
+        {{- end }}
       {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

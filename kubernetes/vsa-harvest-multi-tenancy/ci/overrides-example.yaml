@@ -1,14 +1,13 @@
 # Example overrides matching gcnv-harvest cloud-deploy/harvest/overrides.yaml shape.
-# Keep inventory.clusters[].name in sync with OTel clusters[] (lowercased).
+# OTel sidecar is in-chart (localhost scrape); no separate OTel clusters[] list.
+# MT pollers deploy into ns vcp (same as Core / vsa-harvest-otel).
 #
 # helm upgrade --install vsa-harvest-mt ./kubernetes/vsa-harvest-multi-tenancy \
-#   --namespace ontap-monitoring --create-namespace \
+#   --namespace vcp --create-namespace \
 #   -f kubernetes/vsa-harvest-multi-tenancy/ci/overrides-example.yaml
 
 multiTenancy:
   enabled: true
-
-namespaceOverride: "ontap-monitoring"
 
 serviceAccount:
   create: true
@@ -26,6 +25,11 @@ coreAPI:
 serviceControl:
   url: https://servicecontrol.googleapis.com
   serviceName: autopush-netapp.sandbox.googleapis.com
+
+otel:
+  enabled: true
+  # Fallback only; samples route to tenant_project via gcp.project.id.
+  project: netapp-us-c1-autopush-sde-tst
 
 # MT-only inventory (separate from gcnv-harvest). Replace with real MT clusters.
 inventory:

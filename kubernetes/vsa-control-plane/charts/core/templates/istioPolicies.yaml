@@ -66,7 +66,7 @@ spec:
     - from:
         - source:
             principals:
-              - "cluster.local/ns/ontap-monitoring/sa/harvest-multi-tenancy"
+              - "cluster.local/ns/vcp/sa/harvest-multi-tenancy"
       to:
         - operation:
             paths: ["/v1/getAllVolumeTenancy"]

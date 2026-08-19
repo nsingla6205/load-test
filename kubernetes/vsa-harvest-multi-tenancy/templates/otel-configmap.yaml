@@ -1,0 +1,105 @@
+{{- if and .Values.multiTenancy.enabled .Values.otel.enabled .Values.otel.configMap.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vsa-harvest-multi-tenancy.fullname" . }}-otel
+  namespace: {{ include "vsa-harvest-multi-tenancy.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "vsa-harvest-multi-tenancy.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: otel-collector
+data:
+  relay: |
+    exporters:
+        debug:
+            verbosity: {{ .Values.otel.logLevel }}
+        googlecloud:
+            # Fixed project is a fallback only. Tenant routing sets
+            # gcp.project.id from Harvest's tenant_project label so each
+            # sample is exported to the matching customer tenant project.
+            # When otel.project is unset the exporter resolves the project from
+            # the pod credentials instead.
+            {{- with .Values.otel.project }}
+            project: {{ . | quote }}
+            {{- end }}
+            metric:
+                prefix: custom.googleapis.com
+                skip_create_descriptor: true
+                service_resource_labels: false
+                instrumentation_library_labels: false
+            sending_queue:
+                enabled: {{ .Values.otel.sendingQueueEnabled }}
+                queue_size: 40000
+    extensions:
+        health_check:
+            endpoint: "0.0.0.0:{{ .Values.otel.healthCheckPort }}"
+    processors:
+        filter/tenant:
+            error_mode: ignore
+            metrics:
+                datapoint:
+                    - 'attributes["tenant_project"] == nil'
+                    - 'attributes["tenant_project"] == ""'
+        groupbyattrs/tenant:
+            keys:
+                - tenant_project
+                - cluster
+        transform/tenant:
+            error_mode: ignore
+            metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["gcp.project.id"], attributes["tenant_project"])
+                    - set(attributes["k8s.cluster.name"], attributes["cluster"])
+                    - delete_key(attributes, "tenant_project")
+        resourcedetection:
+            detectors: [gcp]
+            timeout: 10s
+        batch:
+            send_batch_size: 200
+            send_batch_max_size: 200
+            timeout: 200ms
+        memory_limiter:
+            check_interval: 5s
+            limit_percentage: 80
+            spike_limit_percentage: 30
+    receivers:
+        prometheus:
+            config:
+                scrape_configs:
+                - job_name: "otel-tenant-scrape-job"
+                  scrape_interval: {{ .Values.otel.scrapeInterval }}
+                  static_configs:
+                    - targets: ["127.0.0.1:{{ .Values.service.port }}"]
+                  metric_relabel_configs:
+                  - source_labels: ['__name__']
+                    action: keep
+                    regex: '{{ .Values.otel.tenantMetricRegex }}'
+                  - source_labels: [source_cluster, source_location, source_volume, source_vserver]
+                    separator: '_'
+                    target_label: source_details
+                    replacement: '$${1}_$${2}_$${3}_$${4}'
+                  - source_labels: [destination_location, destination_node, destination_volume, destination_vserver]
+                    separator: '_'
+                    target_label: destination_details
+                    replacement: '$${1}_$${2}_$${3}_$${4}'
+                  - source_labels: [aggr, partition, plex]
+                    separator: '_'
+                    target_label: aggr_details
+                    replacement: '$${1}_$${2}_$${3}'
+                  - action: labeldrop
+                    regex: 'source_cluster|source_location|source_volume|source_vserver'
+                  - action: labeldrop
+                    regex: 'destination_location|destination_node|destination_volume|destination_vserver'
+                  - action: labeldrop
+                    regex: 'aggr|partition|plex'
+    service:
+        extensions:
+            - health_check
+        pipelines:
+            # Tenant-only: no stamp/monitoring-project dual export on the MT path.
+            metrics/tenants:
+                receivers: [prometheus]
+                processors: [filter/tenant, resourcedetection, groupbyattrs/tenant, transform/tenant, batch]
+                exporters: [googlecloud, debug]
+{{- end }}

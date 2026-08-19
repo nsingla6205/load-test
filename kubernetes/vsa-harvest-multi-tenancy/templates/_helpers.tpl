@@ -11,12 +11,12 @@
 {{- end -}}
 
 {{- define "vsa-harvest-multi-tenancy.namespace" -}}
-{{- default .Release.Namespace .Values.namespaceOverride -}}
+vcp
 {{- end -}}
 
 {{/*
 Lowercase cluster name used for poller identity, TENANCY_CLUSTER_NAME, and
-Service DNS (harvest-poller-<name>), matching gcnv-harvest + OTel scrape targets.
+Service DNS (harvest-poller-<name>). OTel sidecar scrapes localhost on the pod.
 */}}
 {{- define "vsa-harvest-multi-tenancy.clusterName" -}}
 {{- . | lower -}}
