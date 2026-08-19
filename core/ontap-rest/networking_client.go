@@ -16,6 +16,7 @@ type NetworkingClient interface {
 	NetworkIPInterfacesGet(params *NetworkIPInterfacesGetParams, ucbf UserCallbackFunc[[]*IPInterface]) error
 	NetworkIPRouteCreateDefault(params *NetworkIPDefaultRouteCreateParams) error
 	NetworkIPInterfaceCreate(params *NetworkIPInterfacesCreateParams) (*IPInterface, error)
+	NetworkIPInterfaceDelete(uuid string) error
 
 	NetworkPing(params *networkpriv.NetworkPingParams) (*networkpriv.NetworkPingOK, *networkpriv.NetworkPingAccepted, error)
 
@@ -256,7 +257,11 @@ func (nc *networkingClient) NetworkIPRouteCreateDefault(params *NetworkIPDefault
 }
 
 func (nc *networkingClient) NetworkIPInterfaceCreate(params *NetworkIPInterfacesCreateParams) (*IPInterface, error) {
-	rsp, err := nc.api.NetworkIPInterfacesCreate(networking.NewNetworkIPInterfacesCreateParams().WithInfo(&models.IPInterface{
+	scope := params.Scope
+	if scope == "" {
+		scope = models.IPInterfaceScopeSvm
+	}
+	info := &models.IPInterface{
 		Enabled:               nillable.ToPointer(true),
 		FailIfSubnetConflicts: nillable.ToPointer(true),
 		IP: &models.IPInfo{
@@ -272,14 +277,22 @@ func (nc *networkingClient) NetworkIPInterfaceCreate(params *NetworkIPInterfaces
 			},
 		},
 		Name:  &params.Name,
-		Scope: nillable.ToPointer(models.IPInterfaceScopeSvm),
+		Scope: nillable.ToPointer(scope),
 		ServicePolicy: &models.IPInterfaceInlineServicePolicy{
 			Name: &params.ServicePolicy,
 		},
-		Svm: &models.IPInterfaceInlineSvm{
+	}
+	if scope == models.IPInterfaceScopeSvm {
+		info.Svm = &models.IPInterfaceInlineSvm{
 			Name: &params.SvmName,
-		},
-	}).WithReturnRecords(nillable.ToPointer("true")), nil)
+		}
+	}
+	if params.IPSpace != "" {
+		info.Ipspace = &models.IPInterfaceInlineIpspace{
+			Name: &params.IPSpace,
+		}
+	}
+	rsp, err := nc.api.NetworkIPInterfacesCreate(networking.NewNetworkIPInterfacesCreateParams().WithInfo(info).WithReturnRecords(nillable.ToPointer("true")), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -287,8 +300,13 @@ func (nc *networkingClient) NetworkIPInterfaceCreate(params *NetworkIPInterfaces
 	if len(rsp.Payload.IPInterfaceResponseInlineRecords) != 1 {
 		return nil, errors.Errorf("Unexpected response from storage server when creating network interface: '%d'", len(rsp.Payload.IPInterfaceResponseInlineRecords))
 	}
-
 	return &IPInterface{IPInterface: *rsp.Payload.IPInterfaceResponseInlineRecords[0]}, nil
+}
+
+// NetworkIPInterfaceDelete deletes a network IP interface by UUID.
+func (nc *networkingClient) NetworkIPInterfaceDelete(uuid string) error {
+	_, err := nc.api.NetworkIPInterfaceDelete(networking.NewNetworkIPInterfaceDeleteParams().WithUUID(uuid), nil)
+	return err
 }
 
 func (nc *networkingClient) InterclusterLifsGet(params *NetworkIPInterfacesGetParams) ([]*IPInterface, error) {

@@ -264,6 +264,11 @@ type (
 		GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error)
 		DeleteLifsBySvmID(ctx context.Context, svmID int64) error
 		GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error)
+		GetInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) ([]*datamodel.Lif, error)
+		GetInterclusterLifIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error)
+		AllocateInterclusterLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error)
+		UpdateInterclusterLifExternalUUID(ctx context.Context, lifUUID, externalUUID string) error
+		DeleteInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) error
 		DeleteNode(ctx context.Context, node *datamodel.Node) error
 		DeletingNode(ctx context.Context, node *datamodel.Node) error
 		UpdateNodesInstanceType(ctx context.Context, poolID int64, newInstanceType string) error

@@ -67,8 +67,11 @@ require (
 )
 
 require (
+	cloud.google.com/go/longrunning v0.11.0 // indirect
+	cloud.google.com/go/spanner v1.89.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.6.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -92,7 +95,10 @@ require (
 	github.com/gofrs/flock v0.10.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/googleapis/go-gorm-spanner v1.10.1 // indirect
+	github.com/googleapis/go-sql-spanner v1.25.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jellydator/ttlcache/v3 v3.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
@@ -112,6 +118,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xyproto/randomstring v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.37.0 // indirect
@@ -224,7 +231,7 @@ require (
 require (
 	github.com/agiledragon/gomonkey/v2 v2.14.0
 	github.com/cschleiden/go-workflows v1.4.1
-	github.com/greenqloud/cloud-volumes-network v0.0.0-20260706071356-f7e516c9189c
+	github.com/greenqloud/cloud-volumes-network v0.0.0-20260811082136-7688888e511f
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/core v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/database v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler v0.0.0

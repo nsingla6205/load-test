@@ -149,240 +149,6 @@ func (_c *MockOntapClient_ExecuteCLI_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
-// GetVolume provides a mock function with given fields: ctx, volumeUUID
-func (_m *MockOntapClient) GetVolume(ctx context.Context, volumeUUID string) (*VolumeInfo, error) {
-	ret := _m.Called(ctx, volumeUUID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetVolume")
-	}
-
-	var r0 *VolumeInfo
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*VolumeInfo, error)); ok {
-		return rf(ctx, volumeUUID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *VolumeInfo); ok {
-		r0 = rf(ctx, volumeUUID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*VolumeInfo)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, volumeUUID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockOntapClient_GetVolume_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVolume'
-type MockOntapClient_GetVolume_Call struct {
-	*mock.Call
-}
-
-// GetVolume is a helper method to define mock.On call
-//   - ctx context.Context
-//   - volumeUUID string
-func (_e *MockOntapClient_Expecter) GetVolume(ctx interface{}, volumeUUID interface{}) *MockOntapClient_GetVolume_Call {
-	return &MockOntapClient_GetVolume_Call{Call: _e.mock.On("GetVolume", ctx, volumeUUID)}
-}
-
-func (_c *MockOntapClient_GetVolume_Call) Run(run func(ctx context.Context, volumeUUID string)) *MockOntapClient_GetVolume_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockOntapClient_GetVolume_Call) Return(_a0 *VolumeInfo, _a1 error) *MockOntapClient_GetVolume_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockOntapClient_GetVolume_Call) RunAndReturn(run func(context.Context, string) (*VolumeInfo, error)) *MockOntapClient_GetVolume_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListAggregates provides a mock function with given fields: ctx
-func (_m *MockOntapClient) ListAggregates(ctx context.Context) ([]AggregateInfo, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListAggregates")
-	}
-
-	var r0 []AggregateInfo
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]AggregateInfo, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) []AggregateInfo); ok {
-		r0 = rf(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]AggregateInfo)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockOntapClient_ListAggregates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAggregates'
-type MockOntapClient_ListAggregates_Call struct {
-	*mock.Call
-}
-
-// ListAggregates is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *MockOntapClient_Expecter) ListAggregates(ctx interface{}) *MockOntapClient_ListAggregates_Call {
-	return &MockOntapClient_ListAggregates_Call{Call: _e.mock.On("ListAggregates", ctx)}
-}
-
-func (_c *MockOntapClient_ListAggregates_Call) Run(run func(ctx context.Context)) *MockOntapClient_ListAggregates_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
-	})
-	return _c
-}
-
-func (_c *MockOntapClient_ListAggregates_Call) Return(_a0 []AggregateInfo, _a1 error) *MockOntapClient_ListAggregates_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockOntapClient_ListAggregates_Call) RunAndReturn(run func(context.Context) ([]AggregateInfo, error)) *MockOntapClient_ListAggregates_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListSVMs provides a mock function with given fields: ctx
-func (_m *MockOntapClient) ListSVMs(ctx context.Context) ([]SVMInfo, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListSVMs")
-	}
-
-	var r0 []SVMInfo
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]SVMInfo, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) []SVMInfo); ok {
-		r0 = rf(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]SVMInfo)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockOntapClient_ListSVMs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSVMs'
-type MockOntapClient_ListSVMs_Call struct {
-	*mock.Call
-}
-
-// ListSVMs is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *MockOntapClient_Expecter) ListSVMs(ctx interface{}) *MockOntapClient_ListSVMs_Call {
-	return &MockOntapClient_ListSVMs_Call{Call: _e.mock.On("ListSVMs", ctx)}
-}
-
-func (_c *MockOntapClient_ListSVMs_Call) Run(run func(ctx context.Context)) *MockOntapClient_ListSVMs_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
-	})
-	return _c
-}
-
-func (_c *MockOntapClient_ListSVMs_Call) Return(_a0 []SVMInfo, _a1 error) *MockOntapClient_ListSVMs_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockOntapClient_ListSVMs_Call) RunAndReturn(run func(context.Context) ([]SVMInfo, error)) *MockOntapClient_ListSVMs_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListVolumesForInventory provides a mock function with given fields: ctx, maxRecords
-func (_m *MockOntapClient) ListVolumesForInventory(ctx context.Context, maxRecords int) ([]VolumeInventoryInfo, error) {
-	ret := _m.Called(ctx, maxRecords)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListVolumesForInventory")
-	}
-
-	var r0 []VolumeInventoryInfo
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int) ([]VolumeInventoryInfo, error)); ok {
-		return rf(ctx, maxRecords)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int) []VolumeInventoryInfo); ok {
-		r0 = rf(ctx, maxRecords)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]VolumeInventoryInfo)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
-		r1 = rf(ctx, maxRecords)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockOntapClient_ListVolumesForInventory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListVolumesForInventory'
-type MockOntapClient_ListVolumesForInventory_Call struct {
-	*mock.Call
-}
-
-// ListVolumesForInventory is a helper method to define mock.On call
-//   - ctx context.Context
-//   - maxRecords int
-func (_e *MockOntapClient_Expecter) ListVolumesForInventory(ctx interface{}, maxRecords interface{}) *MockOntapClient_ListVolumesForInventory_Call {
-	return &MockOntapClient_ListVolumesForInventory_Call{Call: _e.mock.On("ListVolumesForInventory", ctx, maxRecords)}
-}
-
-func (_c *MockOntapClient_ListVolumesForInventory_Call) Run(run func(ctx context.Context, maxRecords int)) *MockOntapClient_ListVolumesForInventory_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int))
-	})
-	return _c
-}
-
-func (_c *MockOntapClient_ListVolumesForInventory_Call) Return(_a0 []VolumeInventoryInfo, _a1 error) *MockOntapClient_ListVolumesForInventory_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockOntapClient_ListVolumesForInventory_Call) RunAndReturn(run func(context.Context, int) ([]VolumeInventoryInfo, error)) *MockOntapClient_ListVolumesForInventory_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetQoSPolicy provides a mock function with given fields: ctx, policyUUID
 func (_m *MockOntapClient) GetQoSPolicy(ctx context.Context, policyUUID string) (*QoSPolicyInfo, error) {
 	ret := _m.Called(ctx, policyUUID)
@@ -438,6 +204,65 @@ func (_c *MockOntapClient_GetQoSPolicy_Call) Return(_a0 *QoSPolicyInfo, _a1 erro
 }
 
 func (_c *MockOntapClient_GetQoSPolicy_Call) RunAndReturn(run func(context.Context, string) (*QoSPolicyInfo, error)) *MockOntapClient_GetQoSPolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetVolume provides a mock function with given fields: ctx, volumeUUID
+func (_m *MockOntapClient) GetVolume(ctx context.Context, volumeUUID string) (*VolumeInfo, error) {
+	ret := _m.Called(ctx, volumeUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetVolume")
+	}
+
+	var r0 *VolumeInfo
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*VolumeInfo, error)); ok {
+		return rf(ctx, volumeUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *VolumeInfo); ok {
+		r0 = rf(ctx, volumeUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*VolumeInfo)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, volumeUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOntapClient_GetVolume_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVolume'
+type MockOntapClient_GetVolume_Call struct {
+	*mock.Call
+}
+
+// GetVolume is a helper method to define mock.On call
+//   - ctx context.Context
+//   - volumeUUID string
+func (_e *MockOntapClient_Expecter) GetVolume(ctx interface{}, volumeUUID interface{}) *MockOntapClient_GetVolume_Call {
+	return &MockOntapClient_GetVolume_Call{Call: _e.mock.On("GetVolume", ctx, volumeUUID)}
+}
+
+func (_c *MockOntapClient_GetVolume_Call) Run(run func(ctx context.Context, volumeUUID string)) *MockOntapClient_GetVolume_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOntapClient_GetVolume_Call) Return(_a0 *VolumeInfo, _a1 error) *MockOntapClient_GetVolume_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOntapClient_GetVolume_Call) RunAndReturn(run func(context.Context, string) (*VolumeInfo, error)) *MockOntapClient_GetVolume_Call {
 	_c.Call.Return(run)
 	return _c
 }

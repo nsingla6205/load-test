@@ -2956,6 +2956,84 @@ func (re *retryEngine) GetInterclusterLifs(ctx context.Context, accountUUID, ipR
 	return var0, err
 }
 
+func (re *retryEngine) GetInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetInterclusterLifsForAccountHost(ctx, accountID, hostID)
+		if err != nil {
+			re.logError("GetInterclusterLifsForAccountHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetInterclusterLifIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	var var0 []*datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetInterclusterLifIPRanges(ctx, accountUUID, network)
+		if err != nil {
+			re.logError("GetInterclusterLifIPRanges", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) AllocateInterclusterLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.AllocateInterclusterLifIPs(ctx, ipRangeUUID, reservations)
+		if err != nil {
+			re.logError("AllocateInterclusterLifIPs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateInterclusterLifExternalUUID(ctx context.Context, lifUUID, externalUUID string) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateInterclusterLifExternalUUID(ctx, lifUUID, externalUUID)
+		if err != nil {
+			re.logError("UpdateInterclusterLifExternalUUID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) DeleteInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.DeleteInterclusterLifsForAccountHost(ctx, accountID, hostID)
+		if err != nil {
+			re.logError("DeleteInterclusterLifsForAccountHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) DeleteNode(ctx context.Context, node *datamodel.Node) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

@@ -196,16 +196,43 @@ func TestPOClusterClient_EnsureVlanNetPorts(t *testing.T) {
 }
 
 func TestPOClusterClient_CreateDefaultRoute(t *testing.T) {
-	f := newPOClusterClientFixture(t)
-	f.provider.On("CreateNetworkIpRoute", vsa.CreateNetworkIPRouteParams{
-		SvmName: "svm-1",
-		Gateway: "10.1.1.1",
-		IPSpace: "ipspace-1",
-	}).Return(nil)
-	require.NoError(t, f.client.CreateDefaultRoute("svm-1", "10.1.1.1", "ipspace-1"))
+	t.Run("creates route", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.provider.On("CreateNetworkIpRoute", vsa.CreateNetworkIPRouteParams{
+			SvmName: "svm-1",
+			Gateway: "10.1.1.1",
+			IPSpace: "ipspace-1",
+		}).Return(nil)
+		require.NoError(t, f.client.CreateDefaultRoute("svm-1", "10.1.1.1", "ipspace-1"))
+	})
 
-	err := f.client.CreateDefaultRoute("svm-1", "10.1.1.1", "")
-	require.Error(t, err)
+	t.Run("rejects empty ipspace", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		require.Error(t, f.client.CreateDefaultRoute("svm-1", "10.1.1.1", ""))
+	})
+
+	// IPspace-scoped invocation (empty svm) is used by the IC LIF ensure
+	// path; "already exists" must be swallowed so Temporal retries and
+	// re-entrant ensure runs stay idempotent.
+	t.Run("already exists is not an error", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.provider.On("CreateNetworkIpRoute", vsa.CreateNetworkIPRouteParams{
+			SvmName: "",
+			Gateway: "10.0.0.1",
+			IPSpace: "ipspace-ic",
+		}).Return(errors.New("route already exists")).Once()
+		require.NoError(t, f.client.CreateDefaultRoute("", "10.0.0.1", "ipspace-ic"))
+	})
+
+	t.Run("other errors propagate", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.provider.On("CreateNetworkIpRoute", vsa.CreateNetworkIPRouteParams{
+			SvmName: "svm-1",
+			Gateway: "10.1.1.1",
+			IPSpace: "ipspace-1",
+		}).Return(errors.New("cluster off")).Once()
+		require.Error(t, f.client.CreateDefaultRoute("svm-1", "10.1.1.1", "ipspace-1"))
+	})
 }
 
 func TestPOClusterClient_EnsureSvm(t *testing.T) {

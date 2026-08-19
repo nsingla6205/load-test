@@ -26,6 +26,8 @@ import (
 func newPOTestEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	t.Helper()
 
+	t.Setenv("ENABLE_IC_LIFS_FOR_PO_POOLS", "false")
+
 	origVerifyKMS := verifyKmsConfigReachability
 	verifyKmsConfigReachability = func(ctx workflow.Context, kmsConfigID string) error { return nil }
 	t.Cleanup(func() { verifyKmsConfigReachability = origVerifyKMS })
@@ -43,6 +45,13 @@ func newPOTestEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	env.RegisterActivity(activities.NewCVNActivity())
 	env.RegisterActivity(&activities.IPRangeActivity{})
 	env.RegisterActivity(&activities.PODataLifActivity{})
+	env.RegisterActivity(&activities.POICVNActivity{})
+	env.RegisterActivity(&activities.POICLifActivity{})
+
+	// Even when ENABLE_IC_LIFS_FOR_PO_POOLS=false the parent still spawns
+	// POICLifEnsureWorkflow as a child; the child short-circuits internally,
+	// so we only need to register it on the test env.
+	env.RegisterWorkflow(POICLifEnsureWorkflow)
 
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{
@@ -680,6 +689,7 @@ func TestUpdatePOPoolWorkflow_MetadataAndSizeOnly(t *testing.T) {
 		ServiceLevel:  common.ServiceLevelExtreme,
 		APIAccessMode: common.ONTAPMode,
 		Description:   "before",
+		Account:       &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"}, Name: "test-account"},
 		PoolAttributes: &datamodel.PoolAttributes{
 			ServiceLevel:    common.ServiceLevelExtreme,
 			Iops:            origIops,
@@ -746,6 +756,7 @@ func TestUpdatePOPoolWorkflow_LabelsCreatePoolAttributes(t *testing.T) {
 		SizeInBytes:   int64(common.BytesPerTiB),
 		ServiceLevel:  common.ServiceLevelExtreme,
 		APIAccessMode: common.ONTAPMode,
+		Account:       &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"}, Name: "test-account"},
 	}
 	params := &common.UpdatePoolParams{
 		AccountName: "test-account",
@@ -775,6 +786,7 @@ func TestUpdatePOPoolWorkflow_UpdatedPoolFailure(t *testing.T) {
 		SizeInBytes:   int64(common.BytesPerTiB),
 		ServiceLevel:  common.ServiceLevelExtreme,
 		APIAccessMode: common.ONTAPMode,
+		Account:       &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"}, Name: "test-account"},
 	}
 	params := &common.UpdatePoolParams{
 		AccountName: "test-account",

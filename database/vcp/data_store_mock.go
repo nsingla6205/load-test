@@ -4,10 +4,12 @@ package database
 
 import (
 	context "context"
-	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+
+	time "time"
+
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
@@ -185,6 +187,66 @@ func (_c *MockDataStore_AllocateDataLifIPs_Call) Return(_a0 []*datamodel.Lif, _a
 }
 
 func (_c *MockDataStore_AllocateDataLifIPs_Call) RunAndReturn(run func(context.Context, string, []*datamodel.Lif) ([]*datamodel.Lif, error)) *MockDataStore_AllocateDataLifIPs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AllocateInterclusterLifIPs provides a mock function with given fields: ctx, ipRangeUUID, reservations
+func (_m *MockDataStore) AllocateInterclusterLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, ipRangeUUID, reservations)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AllocateInterclusterLifIPs")
+	}
+
+	var r0 []*datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, ipRangeUUID, reservations)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) []*datamodel.Lif); ok {
+		r0 = rf(ctx, ipRangeUUID, reservations)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Lif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []*datamodel.Lif) error); ok {
+		r1 = rf(ctx, ipRangeUUID, reservations)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_AllocateInterclusterLifIPs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllocateInterclusterLifIPs'
+type MockDataStore_AllocateInterclusterLifIPs_Call struct {
+	*mock.Call
+}
+
+// AllocateInterclusterLifIPs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipRangeUUID string
+//   - reservations []*datamodel.Lif
+func (_e *MockDataStore_Expecter) AllocateInterclusterLifIPs(ctx interface{}, ipRangeUUID interface{}, reservations interface{}) *MockDataStore_AllocateInterclusterLifIPs_Call {
+	return &MockDataStore_AllocateInterclusterLifIPs_Call{Call: _e.mock.On("AllocateInterclusterLifIPs", ctx, ipRangeUUID, reservations)}
+}
+
+func (_c *MockDataStore_AllocateInterclusterLifIPs_Call) Run(run func(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif)) *MockDataStore_AllocateInterclusterLifIPs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]*datamodel.Lif))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_AllocateInterclusterLifIPs_Call) Return(_a0 []*datamodel.Lif, _a1 error) *MockDataStore_AllocateInterclusterLifIPs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_AllocateInterclusterLifIPs_Call) RunAndReturn(run func(context.Context, string, []*datamodel.Lif) ([]*datamodel.Lif, error)) *MockDataStore_AllocateInterclusterLifIPs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1153,6 +1215,8 @@ type MockDataStore_CountActiveSVMsByIPSpace_Call struct {
 }
 
 // CountActiveSVMsByIPSpace is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipSpace string
 func (_e *MockDataStore_Expecter) CountActiveSVMsByIPSpace(ctx interface{}, ipSpace interface{}) *MockDataStore_CountActiveSVMsByIPSpace_Call {
 	return &MockDataStore_CountActiveSVMsByIPSpace_Call{Call: _e.mock.On("CountActiveSVMsByIPSpace", ctx, ipSpace)}
 }
@@ -4707,6 +4771,54 @@ func (_c *MockDataStore_DeleteImageVersion_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// DeleteInterclusterLifsForAccountHost provides a mock function with given fields: ctx, accountID, hostID
+func (_m *MockDataStore) DeleteInterclusterLifsForAccountHost(ctx context.Context, accountID int64, hostID int64) error {
+	ret := _m.Called(ctx, accountID, hostID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteInterclusterLifsForAccountHost")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, accountID, hostID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_DeleteInterclusterLifsForAccountHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteInterclusterLifsForAccountHost'
+type MockDataStore_DeleteInterclusterLifsForAccountHost_Call struct {
+	*mock.Call
+}
+
+// DeleteInterclusterLifsForAccountHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+//   - hostID int64
+func (_e *MockDataStore_Expecter) DeleteInterclusterLifsForAccountHost(ctx interface{}, accountID interface{}, hostID interface{}) *MockDataStore_DeleteInterclusterLifsForAccountHost_Call {
+	return &MockDataStore_DeleteInterclusterLifsForAccountHost_Call{Call: _e.mock.On("DeleteInterclusterLifsForAccountHost", ctx, accountID, hostID)}
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsForAccountHost_Call) Run(run func(ctx context.Context, accountID int64, hostID int64)) *MockDataStore_DeleteInterclusterLifsForAccountHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsForAccountHost_Call) Return(_a0 error) *MockDataStore_DeleteInterclusterLifsForAccountHost_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsForAccountHost_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockDataStore_DeleteInterclusterLifsForAccountHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteJob provides a mock function with given fields: ctx, id, errorDetails
 func (_m *MockDataStore) DeleteJob(ctx context.Context, id string, errorDetails string) error {
 	ret := _m.Called(ctx, id, errorDetails)
@@ -5141,63 +5253,6 @@ func (_c *MockDataStore_DeletePool_Call) Return(_a0 error) *MockDataStore_Delete
 }
 
 func (_c *MockDataStore_DeletePool_Call) RunAndReturn(run func(context.Context, *datamodel.Pool) error) *MockDataStore_DeletePool_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// RestoreDeletedPoolAndMarkError provides a mock function with given fields: ctx, poolUUID, errMessage
-func (_m *MockDataStore) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID string, errMessage string) (*datamodel.Pool, error) {
-	ret := _m.Called(ctx, poolUUID, errMessage)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RestoreDeletedPoolAndMarkError")
-	}
-
-	var r0 *datamodel.Pool
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*datamodel.Pool, error)); ok {
-		return rf(ctx, poolUUID, errMessage)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *datamodel.Pool); ok {
-		r0 = rf(ctx, poolUUID, errMessage)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Pool)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, poolUUID, errMessage)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_RestoreDeletedPoolAndMarkError_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreDeletedPoolAndMarkError'
-type MockDataStore_RestoreDeletedPoolAndMarkError_Call struct {
-	*mock.Call
-}
-
-// RestoreDeletedPoolAndMarkError is a helper method to define mock.On call
-func (_e *MockDataStore_Expecter) RestoreDeletedPoolAndMarkError(ctx interface{}, poolUUID interface{}, errMessage interface{}) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
-	return &MockDataStore_RestoreDeletedPoolAndMarkError_Call{Call: _e.mock.On("RestoreDeletedPoolAndMarkError", ctx, poolUUID, errMessage)}
-}
-
-func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Run(run func(ctx context.Context, poolUUID string, errMessage string)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Return(_a0 *datamodel.Pool, _a1 error) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) RunAndReturn(run func(context.Context, string, string) (*datamodel.Pool, error)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -11427,6 +11482,125 @@ func (_c *MockDataStore_GetIPRanges_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// GetImageVersionByOntapVersion provides a mock function with given fields: ctx, ontapVersion
+func (_m *MockDataStore) GetImageVersionByOntapVersion(ctx context.Context, ontapVersion string) (*datamodel.ImageVersion, error) {
+	ret := _m.Called(ctx, ontapVersion)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetImageVersionByOntapVersion")
+	}
+
+	var r0 *datamodel.ImageVersion
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.ImageVersion, error)); ok {
+		return rf(ctx, ontapVersion)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.ImageVersion); ok {
+		r0 = rf(ctx, ontapVersion)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.ImageVersion)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, ontapVersion)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetImageVersionByOntapVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetImageVersionByOntapVersion'
+type MockDataStore_GetImageVersionByOntapVersion_Call struct {
+	*mock.Call
+}
+
+// GetImageVersionByOntapVersion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ontapVersion string
+func (_e *MockDataStore_Expecter) GetImageVersionByOntapVersion(ctx interface{}, ontapVersion interface{}) *MockDataStore_GetImageVersionByOntapVersion_Call {
+	return &MockDataStore_GetImageVersionByOntapVersion_Call{Call: _e.mock.On("GetImageVersionByOntapVersion", ctx, ontapVersion)}
+}
+
+func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) Run(run func(ctx context.Context, ontapVersion string)) *MockDataStore_GetImageVersionByOntapVersion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) Return(_a0 *datamodel.ImageVersion, _a1 error) *MockDataStore_GetImageVersionByOntapVersion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) RunAndReturn(run func(context.Context, string) (*datamodel.ImageVersion, error)) *MockDataStore_GetImageVersionByOntapVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetInterclusterLifIPRanges provides a mock function with given fields: ctx, accountUUID, network
+func (_m *MockDataStore) GetInterclusterLifIPRanges(ctx context.Context, accountUUID string, network string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, accountUUID, network)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetInterclusterLifIPRanges")
+	}
+
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, accountUUID, network)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, accountUUID, network)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, accountUUID, network)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetInterclusterLifIPRanges_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetInterclusterLifIPRanges'
+type MockDataStore_GetInterclusterLifIPRanges_Call struct {
+	*mock.Call
+}
+
+// GetInterclusterLifIPRanges is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountUUID string
+//   - network string
+func (_e *MockDataStore_Expecter) GetInterclusterLifIPRanges(ctx interface{}, accountUUID interface{}, network interface{}) *MockDataStore_GetInterclusterLifIPRanges_Call {
+	return &MockDataStore_GetInterclusterLifIPRanges_Call{Call: _e.mock.On("GetInterclusterLifIPRanges", ctx, accountUUID, network)}
+}
+
+func (_c *MockDataStore_GetInterclusterLifIPRanges_Call) Run(run func(ctx context.Context, accountUUID string, network string)) *MockDataStore_GetInterclusterLifIPRanges_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetInterclusterLifIPRanges_Call) Return(_a0 []*datamodel.IPRange, _a1 error) *MockDataStore_GetInterclusterLifIPRanges_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetInterclusterLifIPRanges_Call) RunAndReturn(run func(context.Context, string, string) ([]*datamodel.IPRange, error)) *MockDataStore_GetInterclusterLifIPRanges_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetInterclusterLifs provides a mock function with given fields: ctx, accountUUID, ipRangeUUID
 func (_m *MockDataStore) GetInterclusterLifs(ctx context.Context, accountUUID *string, ipRangeUUID *string) ([]*datamodel.Lif, error) {
 	ret := _m.Called(ctx, accountUUID, ipRangeUUID)
@@ -11487,29 +11661,29 @@ func (_c *MockDataStore_GetInterclusterLifs_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// GetImageVersionByOntapVersion provides a mock function with given fields: ctx, ontapVersion
-func (_m *MockDataStore) GetImageVersionByOntapVersion(ctx context.Context, ontapVersion string) (*datamodel.ImageVersion, error) {
-	ret := _m.Called(ctx, ontapVersion)
+// GetInterclusterLifsForAccountHost provides a mock function with given fields: ctx, accountID, hostID
+func (_m *MockDataStore) GetInterclusterLifsForAccountHost(ctx context.Context, accountID int64, hostID int64) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, accountID, hostID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetImageVersionByOntapVersion")
+		panic("no return value specified for GetInterclusterLifsForAccountHost")
 	}
 
-	var r0 *datamodel.ImageVersion
+	var r0 []*datamodel.Lif
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.ImageVersion, error)); ok {
-		return rf(ctx, ontapVersion)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, accountID, hostID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.ImageVersion); ok {
-		r0 = rf(ctx, ontapVersion)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) []*datamodel.Lif); ok {
+		r0 = rf(ctx, accountID, hostID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.ImageVersion)
+			r0 = ret.Get(0).([]*datamodel.Lif)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, ontapVersion)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
+		r1 = rf(ctx, accountID, hostID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -11517,31 +11691,32 @@ func (_m *MockDataStore) GetImageVersionByOntapVersion(ctx context.Context, onta
 	return r0, r1
 }
 
-// MockDataStore_GetImageVersionByOntapVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetImageVersionByOntapVersion'
-type MockDataStore_GetImageVersionByOntapVersion_Call struct {
+// MockDataStore_GetInterclusterLifsForAccountHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetInterclusterLifsForAccountHost'
+type MockDataStore_GetInterclusterLifsForAccountHost_Call struct {
 	*mock.Call
 }
 
-// GetImageVersionByOntapVersion is a helper method to define mock.On call
+// GetInterclusterLifsForAccountHost is a helper method to define mock.On call
 //   - ctx context.Context
-//   - ontapVersion string
-func (_e *MockDataStore_Expecter) GetImageVersionByOntapVersion(ctx interface{}, ontapVersion interface{}) *MockDataStore_GetImageVersionByOntapVersion_Call {
-	return &MockDataStore_GetImageVersionByOntapVersion_Call{Call: _e.mock.On("GetImageVersionByOntapVersion", ctx, ontapVersion)}
+//   - accountID int64
+//   - hostID int64
+func (_e *MockDataStore_Expecter) GetInterclusterLifsForAccountHost(ctx interface{}, accountID interface{}, hostID interface{}) *MockDataStore_GetInterclusterLifsForAccountHost_Call {
+	return &MockDataStore_GetInterclusterLifsForAccountHost_Call{Call: _e.mock.On("GetInterclusterLifsForAccountHost", ctx, accountID, hostID)}
 }
 
-func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) Run(run func(ctx context.Context, ontapVersion string)) *MockDataStore_GetImageVersionByOntapVersion_Call {
+func (_c *MockDataStore_GetInterclusterLifsForAccountHost_Call) Run(run func(ctx context.Context, accountID int64, hostID int64)) *MockDataStore_GetInterclusterLifsForAccountHost_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
 	})
 	return _c
 }
 
-func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) Return(_a0 *datamodel.ImageVersion, _a1 error) *MockDataStore_GetImageVersionByOntapVersion_Call {
+func (_c *MockDataStore_GetInterclusterLifsForAccountHost_Call) Return(_a0 []*datamodel.Lif, _a1 error) *MockDataStore_GetInterclusterLifsForAccountHost_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockDataStore_GetImageVersionByOntapVersion_Call) RunAndReturn(run func(context.Context, string) (*datamodel.ImageVersion, error)) *MockDataStore_GetImageVersionByOntapVersion_Call {
+func (_c *MockDataStore_GetInterclusterLifsForAccountHost_Call) RunAndReturn(run func(context.Context, int64, int64) ([]*datamodel.Lif, error)) *MockDataStore_GetInterclusterLifsForAccountHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -15959,6 +16134,8 @@ type MockDataStore_GetSvmForPoolIDUnscoped_Call struct {
 }
 
 // GetSvmForPoolIDUnscoped is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
 func (_e *MockDataStore_Expecter) GetSvmForPoolIDUnscoped(ctx interface{}, poolID interface{}) *MockDataStore_GetSvmForPoolIDUnscoped_Call {
 	return &MockDataStore_GetSvmForPoolIDUnscoped_Call{Call: _e.mock.On("GetSvmForPoolIDUnscoped", ctx, poolID)}
 }
@@ -22008,6 +22185,66 @@ func (_c *MockDataStore_RestoreDeletedBackupVault_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// RestoreDeletedPoolAndMarkError provides a mock function with given fields: ctx, poolUUID, errMessage
+func (_m *MockDataStore) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID string, errMessage string) (*datamodel.Pool, error) {
+	ret := _m.Called(ctx, poolUUID, errMessage)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RestoreDeletedPoolAndMarkError")
+	}
+
+	var r0 *datamodel.Pool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*datamodel.Pool, error)); ok {
+		return rf(ctx, poolUUID, errMessage)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *datamodel.Pool); ok {
+		r0 = rf(ctx, poolUUID, errMessage)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Pool)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, poolUUID, errMessage)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_RestoreDeletedPoolAndMarkError_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreDeletedPoolAndMarkError'
+type MockDataStore_RestoreDeletedPoolAndMarkError_Call struct {
+	*mock.Call
+}
+
+// RestoreDeletedPoolAndMarkError is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - errMessage string
+func (_e *MockDataStore_Expecter) RestoreDeletedPoolAndMarkError(ctx interface{}, poolUUID interface{}, errMessage interface{}) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	return &MockDataStore_RestoreDeletedPoolAndMarkError_Call{Call: _e.mock.On("RestoreDeletedPoolAndMarkError", ctx, poolUUID, errMessage)}
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Run(run func(ctx context.Context, poolUUID string, errMessage string)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Return(_a0 *datamodel.Pool, _a1 error) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) RunAndReturn(run func(context.Context, string, string) (*datamodel.Pool, error)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RevertedVolume provides a mock function with given fields: ctx, volume, snapshot
 func (_m *MockDataStore) RevertedVolume(ctx context.Context, volume *datamodel.Volume, snapshot *datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	ret := _m.Called(ctx, volume, snapshot)
@@ -24634,6 +24871,54 @@ func (_c *MockDataStore_UpdateImageVersion_Call) Return(_a0 error) *MockDataStor
 }
 
 func (_c *MockDataStore_UpdateImageVersion_Call) RunAndReturn(run func(context.Context, *datamodel.ImageVersion) error) *MockDataStore_UpdateImageVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateInterclusterLifExternalUUID provides a mock function with given fields: ctx, lifUUID, externalUUID
+func (_m *MockDataStore) UpdateInterclusterLifExternalUUID(ctx context.Context, lifUUID string, externalUUID string) error {
+	ret := _m.Called(ctx, lifUUID, externalUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateInterclusterLifExternalUUID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, lifUUID, externalUUID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateInterclusterLifExternalUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateInterclusterLifExternalUUID'
+type MockDataStore_UpdateInterclusterLifExternalUUID_Call struct {
+	*mock.Call
+}
+
+// UpdateInterclusterLifExternalUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - lifUUID string
+//   - externalUUID string
+func (_e *MockDataStore_Expecter) UpdateInterclusterLifExternalUUID(ctx interface{}, lifUUID interface{}, externalUUID interface{}) *MockDataStore_UpdateInterclusterLifExternalUUID_Call {
+	return &MockDataStore_UpdateInterclusterLifExternalUUID_Call{Call: _e.mock.On("UpdateInterclusterLifExternalUUID", ctx, lifUUID, externalUUID)}
+}
+
+func (_c *MockDataStore_UpdateInterclusterLifExternalUUID_Call) Run(run func(ctx context.Context, lifUUID string, externalUUID string)) *MockDataStore_UpdateInterclusterLifExternalUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateInterclusterLifExternalUUID_Call) Return(_a0 error) *MockDataStore_UpdateInterclusterLifExternalUUID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateInterclusterLifExternalUUID_Call) RunAndReturn(run func(context.Context, string, string) error) *MockDataStore_UpdateInterclusterLifExternalUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }

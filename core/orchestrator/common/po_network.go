@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 // POIPSpaceName returns the ONTAP ipspace name for a PO pool datapath:
@@ -199,4 +200,78 @@ func PORequiredDataLifCount(nodeCount int) int {
 		return 0
 	}
 	return nodeCount
+}
+
+// POInterclusterServicePolicy is the ONTAP service policy for intercluster LIFs.
+const POInterclusterServicePolicy = "default-intercluster"
+
+// PODefaultICLifSubnetMaskSize is the default CVN secondary-range prefix for IC LIFs.
+const PODefaultICLifSubnetMaskSize = 28
+
+// POICLifHexSuffixLen is the length (in hex characters) of the per-LIF random
+// tail appended after the account-scoped prefix. Six hex chars give 2^24
+// values per batch, which is comfortably unique for the small per-account
+// node counts we generate at a time.
+const POICLifHexSuffixLen = 6
+
+// GeneratePOICLifNames returns count unique intercluster LIF names of the
+// form "ic-lif-<accountUUID without dashes>-<6hex>". Dash stripping matches
+// the data-path naming convention (ipspace_/bdomain_/svm_ all embed the
+// account UUID via NormalizePOAccountUUID) and keeps the LIF name's three
+// hyphens as pure structural separators. The 6-hex tail ensures per-batch
+// uniqueness within an account. Total length is 7 + 32 + 1 + 6 = 46 chars,
+// well under the 63-char ONTAP LIF limit.
+//
+// The hex tail is drawn from the same crypto/rand primitive
+// (GenerateSVMPostfix) as GeneratePODataLifPostfixes so both LIF-naming
+// paths share one randomness source.
+//
+// Intended for use inside a Temporal workflow.SideEffect so randomness
+// does not break replay determinism — mirrors GeneratePODataLifPostfixes.
+func GeneratePOICLifNames(accountUUID string, count int) ([]string, error) {
+	if count <= 0 {
+		return nil, fmt.Errorf("ic lif name count must be positive, got %d", count)
+	}
+	if accountUUID == "" {
+		return nil, fmt.Errorf("account UUID must not be empty")
+	}
+	prefix := "ic-lif-" + NormalizePOAccountUUID(accountUUID) + "-"
+	used := make(map[string]bool, count)
+	result := make([]string, 0, count)
+	for attempts := 0; len(result) < count && attempts < count*10; attempts++ {
+		hex6, err := GenerateSVMPostfix(POICLifHexSuffixLen)
+		if err != nil {
+			return nil, err
+		}
+		if used[hex6] {
+			continue
+		}
+		used[hex6] = true
+		result = append(result, prefix+hex6)
+	}
+	if len(result) < count {
+		return nil, fmt.Errorf("unable to generate %d unique ic lif names", count)
+	}
+	return result, nil
+}
+
+// POICLifConfig holds configuration for PO intercluster LIF ensure.
+type POICLifConfig struct {
+	Enabled        bool
+	SubnetMaskSize int
+	BasePort       string
+}
+
+// DefaultPOICLifConfig loads PO IC LIF config from environment.
+// Subnet mask must be 27 or 28; other values fall back to PODefaultICLifSubnetMaskSize.
+func DefaultPOICLifConfig() POICLifConfig {
+	mask := env.GetInt(env.EnvPOICLifSubnetMaskSize, PODefaultICLifSubnetMaskSize)
+	if mask != MinSubnetMaskSize && mask != MaxSubnetMaskSize {
+		mask = PODefaultICLifSubnetMaskSize
+	}
+	return POICLifConfig{
+		Enabled:        env.GetBool(env.EnvEnableICLifsForPOPools, true),
+		SubnetMaskSize: mask,
+		BasePort:       env.GetString(env.EnvPOLifBasePort, "a0a"),
+	}
 }

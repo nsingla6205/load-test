@@ -356,6 +356,19 @@ func TestAllocateDataLifIPs(t *testing.T) {
 		assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
 	})
 
+	t.Run("rejectsInterclusterLifRange", func(t *testing.T) {
+		store := setupIPRangeStore(t)
+		icRange, account := seedICLifIPRange(t, store)
+		_, err := store.AllocateDataLifIPs(ctx, icRange.UUID, []*datamodel.Lif{
+			{Name: "po-lif-a", AccountID: account.ID, NodeID: 1},
+		})
+		require.Error(t, err)
+		var customErr *vsaerrors.CustomError
+		require.True(t, vsaerrors.As(err, &customErr))
+		assert.True(t, customErr.IsError(vsaerrors.ErrInputValidationError))
+		assert.Contains(t, customErr.Unwrap().Error(), "lif_type")
+	})
+
 	t.Run("failsWhenRangeCannotSatisfyCount", func(t *testing.T) {
 		store := setupIPRangeStore(t)
 		ipRange, account, _ := seedDataLIFIPRange(t, store)

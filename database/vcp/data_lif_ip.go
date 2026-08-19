@@ -33,17 +33,27 @@ func dataLifBySvmID(svmID int64) *datamodel.Lif {
 	}
 }
 
-// GetAllocatedIPsInIPRange returns IP addresses already reserved by active data LIF rows.
+// GetAllocatedIPsInIPRange returns IP addresses already reserved by active LIF
+// rows for the range, regardless of LIF type.
 func (d *DataStoreRepository) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
 	if ipRangeID <= 0 {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			customerrors.NewUserInputValidationErr("ipRangeID must be positive"))
 	}
+	return queryAllocatedIPsInIPRange(ctx, d.db.GORM(), ipRangeID)
+}
 
+// queryAllocatedIPsInIPRange executes the "active LIFs by ip_range" scan on
+// the supplied gorm handle. Callers inside a transaction (e.g. IC LIF
+// allocation with SELECT FOR UPDATE on the range row) pass the tx handle so
+// the scan observes the tx's view; the exported wrapper uses the master
+// handle.
+func queryAllocatedIPsInIPRange(ctx context.Context, db *gorm.DB, ipRangeID int64) (map[string]bool, error) {
 	var lifs []*datamodel.Lif
-	err := d.db.GORM().WithContext(ctx).
+	err := db.WithContext(ctx).
 		Model(&datamodel.Lif{}).
-		Find(&lifs, dataLifByIPRangeID(ipRangeID)).Error
+		Where("ip_range_id = ? AND deleted_at IS NULL", ipRangeID).
+		Find(&lifs).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
@@ -210,6 +220,10 @@ func (d *DataStoreRepository) AllocateDataLifIPs(ctx context.Context, ipRangeUUI
 	ipRange, err := d.GetIPRangeByUUID(ctx, ipRangeUUID)
 	if err != nil {
 		return nil, err
+	}
+	if ipRange.LifType != LifTypeDataLIF {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("ip range %s has lif_type %q, expected %q", ipRange.UUID, ipRange.LifType, LifTypeDataLIF))
 	}
 
 	if svmID := reservationSvmID(reservations); svmID > 0 {

@@ -724,7 +724,7 @@ func networkIPInterfacesGetParamsToONTAP(params *NetworkIPInterfacesGetParams) *
 	return otParams
 }
 
-// NetworkIPInterfacesCreateParams is the input param struct for networkingClient.NetworkIPInterfacesGet
+// NetworkIPInterfacesCreateParams is the input param struct for networkingClient.NetworkIPInterfaceCreate
 type NetworkIPInterfacesCreateParams struct {
 	Name          string
 	IPAddress     string
@@ -733,6 +733,9 @@ type NetworkIPInterfacesCreateParams struct {
 	HomePort      string
 	HomeNode      string
 	ServicePolicy string
+	// Scope is "svm" (default) or "cluster". Cluster-scoped LIFs omit SvmName.
+	Scope   string
+	IPSpace string
 }
 
 // IPInterface is a simple wrapper of models.IPInterface

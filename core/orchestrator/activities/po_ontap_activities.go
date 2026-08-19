@@ -10,6 +10,7 @@ import (
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -63,6 +64,15 @@ type POClusterClient interface {
 	ConfigureKmsOnSvm(in ConfigureKmsOnSvmInput) error
 	CleanupPOAccountClusterNetwork(accountUUID, ipSpace string) error
 	HasSVMsInIPSpace(ipSpace string) (bool, error)
+
+	// Intercluster LIF operations.
+	GetInterclusterLifs(servicePolicy string) ([]*vsa.InterclusterLif, error)
+	CreateInterclusterLif(in POInterclusterLifSpec) (*POInterclusterLifResult, error)
+	DeleteInterclusterLif(externalUUID string) error
+	DeleteIPSpaceDefaultRoute(ipSpace, gateway string) error
+	DeleteVlanNetPorts(ipSpace, broadcastDomain, basePort string, vlanTag int, nodeNames []string) error
+	DeleteBroadcastDomain(ipSpace, name string) error
+	DeleteIPSpace(name string) error
 }
 
 // ApplyQoSClientParams carries the already-computed QoS ceilings to the cluster
@@ -73,6 +83,23 @@ type ApplyQoSClientParams struct {
 	PolicyName    string
 	MaxThroughput int64
 	MaxIOPS       int64
+}
+
+// POInterclusterLifSpec describes a single intercluster LIF to create.
+type POInterclusterLifSpec struct {
+	Name          string
+	IPAddress     string
+	Netmask       string
+	HomeNode      string
+	HomePort      string
+	ServicePolicy string
+	IPSpace       string
+}
+
+// POInterclusterLifResult is the ONTAP response for a created intercluster LIF.
+type POInterclusterLifResult struct {
+	Name         string
+	ExternalUUID string
 }
 
 // POClusterClientFactory builds a POClusterClient for the PO host identified by hostUUID.
@@ -705,15 +732,26 @@ func (c *poClusterClient) EnsureVlanNetPorts(ipSpace, broadcastDomain, basePort 
 	return nil
 }
 
+// CreateDefaultRoute creates a default (gateway) route in ipSpace. When
+// svmName is empty the route is IPspace-scoped (shared by every SVM in the
+// ipspace), matching the IC LIF ensure semantics. The "already exists"
+// case is swallowed so retries and re-entrant ensure runs stay idempotent.
 func (c *poClusterClient) CreateDefaultRoute(svmName, gateway, ipSpace string) error {
 	if err := validatePOIPSpace(ipSpace); err != nil {
 		return err
 	}
-	return c.provider.CreateNetworkIpRoute(vsa.CreateNetworkIPRouteParams{
+	err := c.provider.CreateNetworkIpRoute(vsa.CreateNetworkIPRouteParams{
 		SvmName: svmName,
 		Gateway: gateway,
 		IPSpace: ipSpace,
 	})
+	if err != nil {
+		if isAlreadyExistsErr(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (c *poClusterClient) EnsureSvm(in CreatePOSvmInput) (string, error) {
@@ -972,4 +1010,473 @@ func deleteIPSpace(net ontapRest.NetworkingClient, name string) error {
 		return err
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Intercluster LIF client methods
+// ---------------------------------------------------------------------------
+
+func (c *poClusterClient) GetInterclusterLifs(servicePolicy string) ([]*vsa.InterclusterLif, error) {
+	return c.provider.GetInterclusterLIFs(servicePolicy)
+}
+
+func (c *poClusterClient) CreateInterclusterLif(in POInterclusterLifSpec) (*POInterclusterLifResult, error) {
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return nil, err
+	}
+	params := &ontapRest.NetworkIPInterfacesCreateParams{
+		Name:          in.Name,
+		IPAddress:     in.IPAddress,
+		Netmask:       in.Netmask,
+		HomeNode:      in.HomeNode,
+		HomePort:      in.HomePort,
+		ServicePolicy: in.ServicePolicy,
+		Scope:         ontapmodels.IPInterfaceScopeCluster,
+		IPSpace:       in.IPSpace,
+	}
+	iface, err := restClient.Networking().NetworkIPInterfaceCreate(params)
+	if err != nil {
+		return nil, err
+	}
+	if iface == nil || iface.UUID == nil || iface.Name == nil {
+		return nil, fmt.Errorf("ONTAP returned invalid intercluster LIF response")
+	}
+	return &POInterclusterLifResult{
+		Name:         *iface.Name,
+		ExternalUUID: *iface.UUID,
+	}, nil
+}
+
+func (c *poClusterClient) DeleteInterclusterLif(externalUUID string) error {
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return err
+	}
+	err = restClient.Networking().NetworkIPInterfaceDelete(externalUUID)
+	if err != nil && !utilErrors.IsNotFoundErr(err) {
+		return err
+	}
+	return nil
+}
+
+// DeleteIPSpaceDefaultRoute is a best-effort no-op today: the ONTAP REST API
+// does not expose a single-route delete by (ipspace, gateway). IC LIF ensure
+// still calls this from rollback for future compatibility, but the route
+// will remain until the IPspace itself is deleted (which cascades). Retries
+// stay safe because CreateDefaultRoute tolerates the "already exists" case.
+func (c *poClusterClient) DeleteIPSpaceDefaultRoute(_, _ string) error {
+	return nil
+}
+
+// DeleteVlanNetPorts removes every VLAN-typed ethernet port in the given
+// ONTAP ipspace. The broadcast-domain, base-port, vlan-tag and node-name
+// arguments are accepted for interface parity with EnsureVlanNetPorts but are
+// not needed for the delete path: the IC LIF ipspace is dedicated per
+// (account, IC VLAN) so scoping by ipspace alone is sufficient and covers
+// any per-node VLAN ports the ensure step created.
+func (c *poClusterClient) DeleteVlanNetPorts(ipSpace, _ string, _ string, _ int, _ []string) error {
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return err
+	}
+	net := restClient.Networking()
+	ports, err := net.NetworkEthernetPortsGet(&ontapRest.NetworkEthernetPortsGetParams{
+		BaseParams: ontapRest.BaseParams{Fields: []string{"uuid", "type"}},
+		IPSpace:    ipSpace,
+		Type:       ontapRestPortTypeVlan,
+	})
+	if err != nil {
+		return err
+	}
+	for _, port := range ports {
+		if port == nil || port.UUID == nil || strings.TrimSpace(*port.UUID) == "" {
+			continue
+		}
+		if delErr := deleteEthernetPort(restClient, *port.UUID); delErr != nil {
+			return delErr
+		}
+	}
+	return nil
+}
+
+func (c *poClusterClient) DeleteBroadcastDomain(ipSpace, name string) error {
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return err
+	}
+	return deleteBroadcastDomain(restClient.Networking(), name)
+}
+
+func (c *poClusterClient) DeleteIPSpace(name string) error {
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return err
+	}
+	return deleteIPSpace(restClient.Networking(), name)
+}
+
+// ---------------------------------------------------------------------------
+// Intercluster LIF Temporal Activities
+// ---------------------------------------------------------------------------
+
+// CreatePOInterclusterLifInput is the input to CreatePOInterclusterLif.
+type CreatePOInterclusterLifInput struct {
+	HostUUID string
+	Lif      POInterclusterLifSpec
+}
+
+// CreatePOInterclusterLif creates a single intercluster LIF on ONTAP and returns
+// its name and external UUID.
+func (a *POOntapActivity) CreatePOInterclusterLif(ctx context.Context, in CreatePOInterclusterLifInput) (*POInterclusterLifResult, error) {
+	if in.Lif.Name == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("intercluster LIF name must not be empty")))
+	}
+	if err := validatePOIPSpace(in.Lif.IPSpace); err != nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating intercluster LIF %s on ONTAP host %s", in.Lif.Name, in.HostUUID))
+	client, err := a.client(ctx, in.HostUUID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	result, err := client.CreateInterclusterLif(in.Lif)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return result, nil
+}
+
+// RollbackPOInterclusterLifsInput is the input to RollbackPOInterclusterLifs.
+type RollbackPOInterclusterLifsInput struct {
+	HostUUID        string
+	AccountID       int64
+	HostID          int64
+	IPSpace         string
+	BroadcastDomain string
+	BasePort        string
+	VlanID          int
+	Gateway         string
+	NodeNames       []string
+	CreatedLifs     []POInterclusterLifResult
+}
+
+// RollbackPOInterclusterLifs performs best-effort cleanup of IC LIF ONTAP and
+// VCP resources in reverse dependency order. It never calls CVN delete APIs.
+// Every step is attempted even if a prior step fails; errors are joined.
+func (a *POOntapActivity) RollbackPOInterclusterLifs(ctx context.Context, in RollbackPOInterclusterLifsInput) error {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Rolling back IC LIFs for account %d on host %s", in.AccountID, in.HostUUID))
+
+	var errs []error
+
+	client, clientErr := a.client(ctx, in.HostUUID)
+	if clientErr != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, clientErr))
+	}
+
+	// 1. Delete route. DeleteIPSpaceDefaultRoute is a no-op today (documented
+	// at poClusterClient.DeleteIPSpaceDefaultRoute), so this stays safe to
+	// invoke whenever the scaffolding fields are populated.
+	if in.Gateway != "" && in.IPSpace != "" {
+		if err := client.DeleteIPSpaceDefaultRoute(in.IPSpace, in.Gateway); err != nil {
+			errs = append(errs, fmt.Errorf("delete route: %w", err))
+		}
+	}
+
+	// 2. Delete ONTAP intercluster LIFs.
+	for _, lif := range in.CreatedLifs {
+		if lif.ExternalUUID == "" {
+			continue
+		}
+		if err := client.DeleteInterclusterLif(lif.ExternalUUID); err != nil {
+			errs = append(errs, fmt.Errorf("delete ONTAP LIF %s: %w", lif.ExternalUUID, err))
+		}
+	}
+
+	// 3. Delete VCP intercluster LIF rows.
+	if a.SE != nil && in.AccountID > 0 && in.HostID > 0 {
+		if err := a.SE.DeleteInterclusterLifsForAccountHost(ctx, in.AccountID, in.HostID); err != nil {
+			errs = append(errs, fmt.Errorf("delete VCP IC LIF rows: %w", err))
+		}
+	}
+
+	// 4. Delete VLAN ports.
+	if in.IPSpace != "" && in.VlanID != 0 && len(in.NodeNames) > 0 {
+		if err := client.DeleteVlanNetPorts(in.IPSpace, in.BroadcastDomain, in.BasePort, in.VlanID, in.NodeNames); err != nil {
+			errs = append(errs, fmt.Errorf("delete VLAN ports: %w", err))
+		}
+	}
+
+	// 5. Delete broadcast domain.
+	if in.BroadcastDomain != "" && in.IPSpace != "" {
+		if err := client.DeleteBroadcastDomain(in.IPSpace, in.BroadcastDomain); err != nil {
+			errs = append(errs, fmt.Errorf("delete broadcast domain: %w", err))
+		}
+	}
+
+	// 6. Delete IPspace.
+	if in.IPSpace != "" {
+		if err := client.DeleteIPSpace(in.IPSpace); err != nil {
+			errs = append(errs, fmt.Errorf("delete ipspace: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		joined := errors.Join(errs...)
+		return vsaerrors.WrapAsTemporalApplicationError(
+			fmt.Errorf("IC LIF rollback completed with errors: %w", joined))
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Intercluster LIF DB Activities
+// ---------------------------------------------------------------------------
+
+// POICLifActivity manages PO intercluster LIF database operations.
+//
+// The optional ClientFactory is used by POICLifPrecheck to enumerate ONTAP
+// cluster nodes. When nil, a default cluster client is built from the host
+// row's admin credentials (mirroring POOntapActivity's factory pattern).
+type POICLifActivity struct {
+	SE            database.Storage
+	ClientFactory POClusterClientFactory
+}
+
+// clusterClient returns a POClusterClient for the given host, using the
+// injected factory when provided and otherwise building a default client
+// from the host's admin credentials. Mirrors POOntapActivity.client so
+// POICLifPrecheck can enumerate ONTAP nodes without depending on the
+// sibling activity struct.
+func (a *POICLifActivity) clusterClient(ctx context.Context, hostUUID string) (POClusterClient, error) {
+	if err := validatePOHostUUID(hostUUID); err != nil {
+		return nil, err
+	}
+	if a.ClientFactory != nil {
+		return a.ClientFactory(ctx, hostUUID)
+	}
+	if a.SE == nil {
+		return nil, errors.New("storage is not configured for PO IC LIF cluster client")
+	}
+	host, err := a.SE.GetHost(ctx, strings.TrimSpace(hostUUID))
+	if err != nil {
+		return nil, fmt.Errorf("load PO host %q: %w", hostUUID, err)
+	}
+	provider, err := poGetProviderForHost(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	return &poClusterClient{provider: provider}, nil
+}
+
+// POICLifPrecheckInput is the input to POICLifPrecheck.
+type POICLifPrecheckInput struct {
+	AccountID int64
+	HostUUID  string
+}
+
+// POICLifPrecheckOutput is the result of POICLifPrecheck. Complete=true
+// means the persisted IC LIF set already covers every current node, so
+// executePOICLifEnsureChild can short-circuit the child workflow.
+type POICLifPrecheckOutput struct {
+	Complete bool
+}
+
+// POICLifPrecheck consolidates the reads the IC LIF ensure workflow does
+// at its top (host id + cluster node listing + node id resolution +
+// existing IC LIF read) into a single parent-scope activity, then reports
+// whether the persisted IC LIF set already covers every current node
+// exactly once. Callers invoke this before ExecuteChildWorkflow so a
+// repeat pool create on an already-complete (account, host) never spawns
+// the child (and therefore never collides on the derived child
+// WorkflowID). The child workflow retains its own internal completeness
+// check as defense-in-depth against a precheck→child-start race.
+func (a *POICLifActivity) POICLifPrecheck(ctx context.Context, in POICLifPrecheckInput) (*POICLifPrecheckOutput, error) {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Prechecking IC LIF completeness for account %d host %s", in.AccountID, in.HostUUID))
+	if in.AccountID <= 0 || strings.TrimSpace(in.HostUUID) == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				errors.New("POICLifPrecheck requires accountID > 0 and hostUUID")))
+	}
+	if a.SE == nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+				errors.New("POICLifActivity storage is not configured")))
+	}
+
+	host, err := a.SE.GetHost(ctx, in.HostUUID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	hostID := host.ID
+
+	client, err := a.clusterClient(ctx, in.HostUUID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	nodeNames, err := client.GetNodeNames()
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if len(nodeNames) == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(errors.New("cluster returned no nodes"))
+	}
+
+	nodeIDs, err := a.SE.GetNodesByHostIDAndNames(ctx, hostID, nodeNames)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	existing, err := a.SE.GetInterclusterLifsForAccountHost(ctx, in.AccountID, hostID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	return &POICLifPrecheckOutput{
+		Complete: commonparams.IsICLifSetComplete(existing, nodeIDs),
+	}, nil
+}
+
+// AllocatePOInterclusterLifIPsInput allocates IC LIF IP reservations.
+type AllocatePOInterclusterLifIPsInput struct {
+	IPRangeUUID  string
+	AccountID    int64
+	Reservations []POICLifReservation
+}
+
+// POICLifReservation is a single IC LIF reservation request.
+type POICLifReservation struct {
+	Name   string
+	NodeID int64
+}
+
+// validatePOICLifReservations enforces the caller contract for IC LIF
+// reservations: at least one reservation, non-empty names, positive account
+// and node ids. Kept at the activity layer so the DB layer stays free of
+// input validation.
+func validatePOICLifReservations(accountID int64, reservations []POICLifReservation) error {
+	if len(reservations) == 0 {
+		return fmt.Errorf("at least one reservation is required")
+	}
+	if accountID <= 0 {
+		return fmt.Errorf("accountID must be positive, got %d", accountID)
+	}
+	for i, r := range reservations {
+		if strings.TrimSpace(r.Name) == "" {
+			return fmt.Errorf("reservation[%d] name must not be empty", i)
+		}
+		if r.NodeID <= 0 {
+			return fmt.Errorf("reservation[%d] node id must be positive", i)
+		}
+	}
+	return nil
+}
+
+// AllocatePOInterclusterLifIPs reserves IC LIF IPs in the lifs table.
+func (a *POICLifActivity) AllocatePOInterclusterLifIPs(ctx context.Context, in AllocatePOInterclusterLifIPsInput) ([]*POICLifAllocated, error) {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Allocating %d IC LIF IPs from range %s", len(in.Reservations), in.IPRangeUUID))
+	if a.SE == nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("POICLifActivity storage is not configured")))
+	}
+	if err := validatePOICLifReservations(in.AccountID, in.Reservations); err != nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+
+	reservations := make([]*datamodel.Lif, 0, len(in.Reservations))
+	for _, r := range in.Reservations {
+		reservations = append(reservations, &datamodel.Lif{
+			Name:      r.Name,
+			AccountID: in.AccountID,
+			NodeID:    r.NodeID,
+		})
+	}
+
+	created, err := a.SE.AllocateInterclusterLifIPs(ctx, in.IPRangeUUID, reservations)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	result := make([]*POICLifAllocated, 0, len(created))
+	for _, lif := range created {
+		if lif == nil {
+			continue
+		}
+		result = append(result, &POICLifAllocated{
+			UUID:       lif.UUID,
+			Name:       lif.Name,
+			IPAddress:  lif.IPAddress,
+			SubnetMask: lif.SubnetMask,
+			NodeID:     lif.NodeID,
+		})
+	}
+	return result, nil
+}
+
+// POICLifAllocated is the result of a single IC LIF IP allocation.
+type POICLifAllocated struct {
+	UUID       string
+	Name       string
+	IPAddress  string
+	SubnetMask string
+	NodeID     int64
+}
+
+// UpdatePOInterclusterLifExternalUUIDInput updates the ONTAP UUID on a VCP IC LIF row.
+type UpdatePOInterclusterLifExternalUUIDInput struct {
+	LifUUID      string
+	ExternalUUID string
+}
+
+// UpdatePOInterclusterLifExternalUUID persists the ONTAP LIF UUID.
+func (a *POICLifActivity) UpdatePOInterclusterLifExternalUUID(ctx context.Context, in UpdatePOInterclusterLifExternalUUIDInput) error {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Updating IC LIF %s external UUID to %s", in.LifUUID, in.ExternalUUID))
+	if a.SE == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("POICLifActivity storage is not configured")))
+	}
+	if err := a.SE.UpdateInterclusterLifExternalUUID(ctx, in.LifUUID, in.ExternalUUID); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return nil
+}
+
+// GetPOInterclusterLifsForAccountHostInput is the input to GetPOInterclusterLifsForAccountHost.
+type GetPOInterclusterLifsForAccountHostInput struct {
+	AccountID int64
+	HostID    int64
+}
+
+// GetPOInterclusterLifsForAccountHost loads active IC LIF rows for an account+host.
+func (a *POICLifActivity) GetPOInterclusterLifsForAccountHost(ctx context.Context, in GetPOInterclusterLifsForAccountHostInput) ([]*datamodel.Lif, error) {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Loading IC LIFs for account %d host %d", in.AccountID, in.HostID))
+	if a.SE == nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("POICLifActivity storage is not configured")))
+	}
+	lifs, err := a.SE.GetInterclusterLifsForAccountHost(ctx, in.AccountID, in.HostID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return lifs, nil
+}
+
+// ResolveHostID maps a host UUID to its database ID (hosts.id).
+func (a *POICLifActivity) ResolveHostID(ctx context.Context, hostUUID string) (int64, error) {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Resolving host ID for %s", hostUUID))
+	if a.SE == nil {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("POICLifActivity storage is not configured")))
+	}
+	host, err := a.SE.GetHost(ctx, hostUUID)
+	if err != nil {
+		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return host.ID, nil
 }

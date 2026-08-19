@@ -114,6 +114,12 @@ const (
 
 	// EnvPOVlanBandwidth is the CVN VLAN bandwidth tier for PO pools (e.g. BPS_50G).
 	EnvPOVlanBandwidth = "PO_VLAN_BANDWIDTH"
+
+	// EnvEnableICLifsForPOPools gates intercluster LIF ensure on PO pool create.
+	EnvEnableICLifsForPOPools = "ENABLE_IC_LIFS_FOR_PO_POOLS"
+
+	// EnvPOICLifSubnetMaskSize is the CVN secondary-range prefix length for PO IC LIFs (27 or 28).
+	EnvPOICLifSubnetMaskSize = "PO_IC_LIF_SUBNET_MASK_SIZE"
 )
 
 func init() {

@@ -961,6 +961,26 @@ func (s *PersistenceStore) GetInterclusterLifs(ctx context.Context, accountUUID,
 	return s.dataStore.GetInterclusterLifs(ctx, accountUUID, ipRangeUUID)
 }
 
+func (s *PersistenceStore) GetInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) ([]*datamodel.Lif, error) {
+	return s.dataStore.GetInterclusterLifsForAccountHost(ctx, accountID, hostID)
+}
+
+func (s *PersistenceStore) GetInterclusterLifIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	return s.dataStore.GetInterclusterLifIPRanges(ctx, accountUUID, network)
+}
+
+func (s *PersistenceStore) AllocateInterclusterLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	return s.dataStore.AllocateInterclusterLifIPs(ctx, ipRangeUUID, reservations)
+}
+
+func (s *PersistenceStore) UpdateInterclusterLifExternalUUID(ctx context.Context, lifUUID, externalUUID string) error {
+	return s.dataStore.UpdateInterclusterLifExternalUUID(ctx, lifUUID, externalUUID)
+}
+
+func (s *PersistenceStore) DeleteInterclusterLifsForAccountHost(ctx context.Context, accountID, hostID int64) error {
+	return s.dataStore.DeleteInterclusterLifsForAccountHost(ctx, accountID, hostID)
+}
+
 func (s *PersistenceStore) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
 	return s.dataStore.DeleteLifsBySvmID(ctx, svmID)
 }

@@ -588,6 +588,24 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 		}
 	}
 
+	// Ensure intercluster LIFs exist (one per node) for cross-cluster replication.
+	// Runs after all other pool-create substeps so that a failure here does not
+	// leave partial state that has to unwind SVM/data-LIF/QoS/KMS work, and the
+	// pool is not marked READY unless the IC LIF set is complete. Serialization
+	// per (accountUUID, hostUUID) is provided by the child workflow's WorkflowID
+	// with WORKFLOW_ID_CONFLICT_POLICY_FAIL; concurrent starts fail fast with a
+	// 409-mapped conflict.
+	_, icErr := executePOICLifEnsureChild(ctx, POICLifEnsureInput{
+		AccountUUID:     accountUUID,
+		HostUUID:        poHostUUID,
+		RemoteAccountID: params.VendorSubNetID,
+		MicrozoneUUID:   poHostUUID,
+		AccountID:       dbPool.AccountID,
+	})
+	if icErr != nil {
+		return ConvertToVSAError(icErr)
+	}
+
 	// Mark the pool READY.
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return cancelErr

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/networking"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	networkpriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
@@ -169,6 +171,71 @@ func TestNetworkIPInterfaceCreate(t *testing.T) {
 		assert.Error(tt, err)
 		assert.EqualError(tt, err, "Unexpected response from storage server when creating network interface: '2'")
 	})
+
+	t.Run("WhenClusterScope_ThenIncludeIPSpaceNameAndOmitSVM", func(tt *testing.T) {
+		ipName := "ic-lif-1"
+		ipspace := "ipspace_acct_4001"
+		cap := &capturingTransport{response: &networking.NetworkIPInterfacesCreateCreated{
+			Payload: &models.IPInterfaceResponse{
+				IPInterfaceResponseInlineRecords: []*models.IPInterface{
+					{Name: &ipName},
+				},
+			},
+		}}
+		client := &networkingClient{api: networking.New(cap, nil)}
+		_, err := client.NetworkIPInterfaceCreate(&NetworkIPInterfacesCreateParams{
+			Name:    ipName,
+			Scope:   models.IPInterfaceScopeCluster,
+			IPSpace: ipspace,
+		})
+		require.NoError(tt, err)
+		require.NotNil(tt, cap.lastOp)
+		createParams, ok := cap.lastOp.Params.(*networking.NetworkIPInterfacesCreateParams)
+		require.True(tt, ok)
+		require.NotNil(tt, createParams.Info)
+		require.NotNil(tt, createParams.Info.Scope)
+		assert.Equal(tt, models.IPInterfaceScopeCluster, *createParams.Info.Scope)
+		assert.Nil(tt, createParams.Info.Svm)
+		require.NotNil(tt, createParams.Info.Ipspace)
+		require.NotNil(tt, createParams.Info.Ipspace.Name)
+		assert.Equal(tt, ipspace, *createParams.Info.Ipspace.Name)
+	})
+
+	t.Run("WhenSvmScope_ThenOmitIPSpace", func(tt *testing.T) {
+		ipName := "data-lif-1"
+		cap := &capturingTransport{response: &networking.NetworkIPInterfacesCreateCreated{
+			Payload: &models.IPInterfaceResponse{
+				IPInterfaceResponseInlineRecords: []*models.IPInterface{
+					{Name: &ipName},
+				},
+			},
+		}}
+		client := &networkingClient{api: networking.New(cap, nil)}
+		_, err := client.NetworkIPInterfaceCreate(&NetworkIPInterfacesCreateParams{
+			Name:    ipName,
+			SvmName: "svm1",
+			Scope:   models.IPInterfaceScopeSvm,
+		})
+		require.NoError(tt, err)
+		require.NotNil(tt, cap.lastOp)
+		createParams, ok := cap.lastOp.Params.(*networking.NetworkIPInterfacesCreateParams)
+		require.True(tt, ok)
+		require.NotNil(tt, createParams.Info)
+		assert.Nil(tt, createParams.Info.Ipspace)
+		require.NotNil(tt, createParams.Info.Svm)
+		require.NotNil(tt, createParams.Info.Svm.Name)
+		assert.Equal(tt, "svm1", *createParams.Info.Svm.Name)
+	})
+}
+
+type capturingTransport struct {
+	lastOp   *runtime.ClientOperation
+	response interface{}
+}
+
+func (c *capturingTransport) Submit(op *runtime.ClientOperation) (interface{}, error) {
+	c.lastOp = op
+	return c.response, nil
 }
 
 func TestNetworkPing(t *testing.T) {

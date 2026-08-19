@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -78,6 +79,44 @@ func (m *mockPOClusterClient) HasSVMsInIPSpace(ipSpace string) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockPOClusterClient) GetInterclusterLifs(servicePolicy string) ([]*vsa.InterclusterLif, error) {
+	args := m.Called(servicePolicy)
+	var lifs []*vsa.InterclusterLif
+	if v := args.Get(0); v != nil {
+		lifs = v.([]*vsa.InterclusterLif)
+	}
+	return lifs, args.Error(1)
+}
+
+func (m *mockPOClusterClient) CreateInterclusterLif(in activities.POInterclusterLifSpec) (*activities.POInterclusterLifResult, error) {
+	args := m.Called(in)
+	var res *activities.POInterclusterLifResult
+	if v := args.Get(0); v != nil {
+		res = v.(*activities.POInterclusterLifResult)
+	}
+	return res, args.Error(1)
+}
+
+func (m *mockPOClusterClient) DeleteInterclusterLif(externalUUID string) error {
+	return m.Called(externalUUID).Error(0)
+}
+
+func (m *mockPOClusterClient) DeleteIPSpaceDefaultRoute(ipSpace, gateway string) error {
+	return m.Called(ipSpace, gateway).Error(0)
+}
+
+func (m *mockPOClusterClient) DeleteVlanNetPorts(ipSpace, broadcastDomain, basePort string, vlanTag int, nodeNames []string) error {
+	return m.Called(ipSpace, broadcastDomain, basePort, vlanTag, nodeNames).Error(0)
+}
+
+func (m *mockPOClusterClient) DeleteBroadcastDomain(ipSpace, name string) error {
+	return m.Called(ipSpace, name).Error(0)
+}
+
+func (m *mockPOClusterClient) DeleteIPSpace(name string) error {
+	return m.Called(name).Error(0)
+}
+
 const poTestHostUUID = "host-uuid-1"
 
 func newPOActivityWithClient(client activities.POClusterClient) *activities.POOntapActivity {
@@ -139,7 +178,7 @@ func TestCreatePODataLifs(t *testing.T) {
 
 		in := activities.CreatePODataLifsInput{
 			HostUUID: poTestHostUUID,
-			SvmName:       "po-svm-01",
+			SvmName:  "po-svm-01",
 			Lifs: []activities.PODataLifSpec{
 				{Name: "lif-1", IPAddress: "10.1.1.10"},
 				{Name: "lif-2", IPAddress: "10.1.1.11"},
@@ -171,8 +210,8 @@ func TestCreatePODataLifs(t *testing.T) {
 
 		in := activities.CreatePODataLifsInput{
 			HostUUID: poTestHostUUID,
-			SvmName:       "po-svm-01",
-			Lifs:          []activities.PODataLifSpec{{Name: "lif-1", IPAddress: "10.1.1.10"}},
+			SvmName:  "po-svm-01",
+			Lifs:     []activities.PODataLifSpec{{Name: "lif-1", IPAddress: "10.1.1.10"}},
 		}
 
 		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
@@ -181,6 +220,55 @@ func TestCreatePODataLifs(t *testing.T) {
 
 		_, err := env.ExecuteActivity(act.CreatePODataLifs, in)
 		require.Error(t, err)
+	})
+}
+
+func TestCreatePOInterclusterLif(t *testing.T) {
+	lif := activities.POInterclusterLifSpec{
+		Name:          "ic-lif-node-1",
+		IPAddress:     "10.10.0.10",
+		Netmask:       "255.255.255.240",
+		HomeNode:      "node-1",
+		HomePort:      "a0a-4001",
+		ServicePolicy: commonparams.POInterclusterServicePolicy,
+		IPSpace:       "ipspace_acct_4001",
+	}
+
+	t.Run("creates cluster-scoped lif", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("CreateInterclusterLif", lif).Return(&activities.POInterclusterLifResult{
+			Name: "ic-lif-node-1", ExternalUUID: "ext-uuid-1",
+		}, nil).Once()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CreatePOInterclusterLif)
+
+		val, err := env.ExecuteActivity(act.CreatePOInterclusterLif, activities.CreatePOInterclusterLifInput{
+			HostUUID: poTestHostUUID,
+			Lif:      lif,
+		})
+		require.NoError(t, err)
+		var got activities.POInterclusterLifResult
+		require.NoError(t, val.Get(&got))
+		assert.Equal(t, "ext-uuid-1", got.ExternalUUID)
+		client.AssertExpectations(t)
+	})
+
+	t.Run("rejects empty ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CreatePOInterclusterLif)
+
+		empty := lif
+		empty.IPSpace = ""
+		_, err := env.ExecuteActivity(act.CreatePOInterclusterLif, activities.CreatePOInterclusterLifInput{
+			HostUUID: poTestHostUUID,
+			Lif:      empty,
+		})
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CreateInterclusterLif", mock.Anything)
 	})
 }
 
@@ -272,11 +360,11 @@ func TestApplyQoSPolicy(t *testing.T) {
 	t.Run("extreme tier derives ceiling from offering x size", func(t *testing.T) {
 		// 1 TiB at the default EXTREME multiplier (128 MiBps/TiB) → 128 MiBps.
 		in := activities.ApplyQoSPolicyInput{
-			HostUUID: poTestHostUUID,
-			SvmName:       "po-svm-01",
-			SvmUUID:       "svm-uuid-1",
-			ServiceLevel:  commonparams.ServiceLevelExtreme,
-			SizeInBytes:   uint64(commonparams.BytesPerTiB),
+			HostUUID:     poTestHostUUID,
+			SvmName:      "po-svm-01",
+			SvmUUID:      "svm-uuid-1",
+			ServiceLevel: commonparams.ServiceLevelExtreme,
+			SizeInBytes:  uint64(commonparams.BytesPerTiB),
 		}
 		client := &mockPOClusterClient{}
 		client.On("ApplyQoSPolicy", activities.ApplyQoSClientParams{
@@ -299,11 +387,11 @@ func TestApplyQoSPolicy(t *testing.T) {
 	t.Run("premium tier uses premium policy", func(t *testing.T) {
 		// 1 TiB at the default PREMIUM multiplier (64 MiBps/TiB) → 64 MiBps.
 		in := activities.ApplyQoSPolicyInput{
-			HostUUID: poTestHostUUID,
-			SvmName:       "po-svm-01",
-			SvmUUID:       "svm-uuid-1",
-			ServiceLevel:  commonparams.ServiceLevelPremium,
-			SizeInBytes:   uint64(commonparams.BytesPerTiB),
+			HostUUID:     poTestHostUUID,
+			SvmName:      "po-svm-01",
+			SvmUUID:      "svm-uuid-1",
+			ServiceLevel: commonparams.ServiceLevelPremium,
+			SizeInBytes:  uint64(commonparams.BytesPerTiB),
 		}
 		client := &mockPOClusterClient{}
 		client.On("ApplyQoSPolicy", activities.ApplyQoSClientParams{
@@ -500,6 +588,42 @@ func TestCreatePODefaultRoute(t *testing.T) {
 			IPSpace:  "ipspace-1",
 		})
 		require.NoError(t, err)
+		client.AssertExpectations(t)
+	})
+
+	t.Run("already exists is tolerated by client", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("CreateDefaultRoute", "", "10.0.0.1", "ipspace-ic").Return(nil).Once()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CreatePODefaultRoute)
+
+		_, err := env.ExecuteActivity(act.CreatePODefaultRoute, activities.CreatePODefaultRouteInput{
+			HostUUID: poTestHostUUID,
+			SvmName:  "",
+			Gateway:  "10.0.0.1",
+			IPSpace:  "ipspace-ic",
+		})
+		require.NoError(t, err)
+		client.AssertExpectations(t)
+	})
+
+	t.Run("propagates client error", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("CreateDefaultRoute", "po-svm-01", "10.1.1.1", "ipspace-1").Return(errors.New("cluster off")).Once()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CreatePODefaultRoute)
+
+		_, err := env.ExecuteActivity(act.CreatePODefaultRoute, activities.CreatePODefaultRouteInput{
+			HostUUID: poTestHostUUID,
+			SvmName:  "po-svm-01",
+			Gateway:  "10.1.1.1",
+			IPSpace:  "ipspace-1",
+		})
+		require.Error(t, err)
 		client.AssertExpectations(t)
 	})
 

@@ -7,7 +7,7 @@ Proposed
 ## TL;DR
 
 - **Problem.** Extreme and Premium ONTAP-mode pools do not provision the intercluster LIFs required for FlexCache.
-- **Scope.** VCP ensures one intercluster LIF per ONTAP node for each account and host during eligible pool create and update.
+- **Scope.** VCP ensures one intercluster LIF per ONTAP node for each account and host during eligible pool create.
 - **Networking.** VCP asks CVN for an `interclusterLIF` secondary IP range, creates a VX network in the pool datapath microzone, and leaves those resources to CVN reclaim.
 - **Reuse.** Ensure is reuse-first: an existing `interclusterLIF` `ip_ranges` row with capacity is reused across pool creates and after a mid-flight ONTAP failure; CVN is called for a new secondary range only when no usable range exists.
 - **ONTAP.** VCP mirrors CVS naming and creates a dedicated IPspace, broadcast domain, per-node VLAN ports, intercluster LIFs, and a default route.
@@ -19,13 +19,13 @@ Proposed
 
 ## Overview
 
-Performance Offering (PO) pools are ONTAP-mode pools with an `EXTREME` or `PREMIUM` service level. The create path in [`core/orchestrator/workflows/pool_workflows.go`](../../../core/orchestrator/workflows/pool_workflows.go) currently creates the pool datapath, ONTAP IPspace, broadcast domain, VLAN ports, SVM, data LIFs, and route. The update path only updates VCP pool metadata. Neither path ensures the account has intercluster LIFs on the selected host.
+Performance Offering (PO) pools are ONTAP-mode pools with an `EXTREME` or `PREMIUM` service level. The create path in `[core/orchestrator/workflows/pool_workflows.go](../../../core/orchestrator/workflows/pool_workflows.go)` currently creates the pool datapath, ONTAP IPspace, broadcast domain, VLAN ports, SVM, data LIFs, and route. The update path only updates VCP pool metadata. Neither path ensures the account has intercluster LIFs on the selected host.
 
-FlexCache requires intercluster connectivity. Before an eligible pool create or update completes, VCP will ensure one intercluster LIF per current ONTAP node for the pool's account and host. A complete existing set is reused. A missing or incomplete set is rebuilt through CVN, ONTAP, and VCP database activities.
+FlexCache requires intercluster connectivity. Before an eligible pool create completes, VCP will ensure one intercluster LIF per current ONTAP node for the pool's account and host. A complete existing set is reused. A missing or incomplete set is rebuilt through CVN, ONTAP, and VCP database activities.
 
-VCP already constructs a CVN client in [`clients/cvn/client.go`](../../../clients/cvn/client.go). CVN already supports secondary ranges with `lifType=interclusterLIF` and direct VX-network creation. The CVN SDK needs additive plumbing to expose `lifType` through its secondary-range helper; the CVN service needs no new endpoint or orchestration behavior.
+VCP already constructs a CVN client in `[clients/cvn/client.go](../../../clients/cvn/client.go)`. CVN already supports secondary ranges with `lifType=interclusterLIF` and direct VX-network creation. The CVN SDK needs additive plumbing to expose `lifType` through its secondary-range helper; the CVN service needs no new endpoint or orchestration behavior.
 
-The ONTAP sequence mirrors CVS [`storage/orchestrator/intercluster_lifs.go`](../../../../cloud-volumes-service/storage/orchestrator/intercluster_lifs.go): account-and-VLAN-based names, `default-intercluster` service policy, one LIF per node, and a default route in the dedicated IPspace.
+The ONTAP sequence mirrors CVS `[storage/orchestrator/intercluster_lifs.go](../../../../cloud-volumes-service/storage/orchestrator/intercluster_lifs.go)`: account-and-VLAN-based names, `default-intercluster` service policy, one LIF per node, and a default route in the dedicated IPspace.
 
 This document defines:
 
@@ -50,7 +50,7 @@ This document defines:
 ### Non-Goals
 
 - **Pool delete cleanup.** Pool deletion does not remove intercluster LIFs, routes, ports, broadcast domains, IPspaces, VX networks, or secondary ranges.
-- **Automatic backfill.** Existing pools are provisioned only when they pass through pool update; no scanner or migration job is added.
+- **Automatic backfill.** Existing pools are not backfilled on update; no scanner or migration job is added in v1.
 - **Non-PO pools.** FLEX, STANDARD, and non-ONTAP-mode pools do not enter this flow.
 - **CVS integration.** VCP uses CVS as design prior art but does not call CVS at runtime.
 - **CVN service changes.** The REST resources and CVN orchestration already exist; only backward-compatible SDK plumbing is added.
@@ -62,29 +62,31 @@ This document defines:
 
 ## Design Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Eligibility | `common.IsPORequest`/`common.IsPOPool`: ONTAP mode and `EXTREME` or `PREMIUM` | Reuses the existing PO classification; Premium remains subject to `ENABLE_PO_PREMIUM_POOLS`. |
-| Trigger | Ensure during PO pool create and every PO pool update | Existing accounts receive the capability on their next update without a separate backfill job. |
-| Ownership | One complete set per account and host | The same host-level cluster network is shared by all eligible pools for that account. |
-| Cardinality | One LIF per current ONTAP node | Matches the CVS requirement and supports node-local intercluster traffic. |
-| Existing-set behavior | Skip only when every current host node has one active `interclusterLIF` row | A count-only check can accept stale or duplicate rows; node identity is authoritative. |
-| Incomplete set | Roll back the active partial set, then create a full set | Avoids combining unknown legacy state with a new VLAN/IPspace. |
-| Post-failure reuse | Reuse the existing `interclusterLIF` `ip_ranges` row and VX for the same microzone | A prior ONTAP failure leaves CVN range/VX intact; the next attempt must not create a duplicate range. |
-| Secondary subnet | `PO_IC_LIF_SUBNET_MASK_SIZE`, default `28` | Separates IC capacity policy from the data-LIF subnet setting. |
-| VX placement | Reuse the pool datapath `MicrozoneUUID` | Places IC networking on the same service-switch microzone as the pool datapath. |
-| ONTAP naming | CVS naming conventions | Makes operational inspection consistent across VCP and CVS. |
-| Database type | `interclusterLIF` | Matches existing VCP and CVN enum values. |
-| SVM association | `lifs.svm_id = NULL` | Intercluster LIFs are cluster-scoped, not pool-SVM-scoped. |
-| Feature gate | `ENABLE_IC_LIFS_FOR_PO_POOLS`, default `true` | Supports immediate rollout and emergency behavioral rollback. |
-| Normal deletion | Leave all IC resources | The set belongs to account+host, not to an individual pool. |
-| Failure rollback | Delete VCP rows and ONTAP resources; retain CVN range/VX | CVN reclaim owns orphan network and range reclamation. |
+
+| Decision              | Choice                                                                             | Rationale                                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Eligibility           | `common.IsPORequest`/`common.IsPOPool`: ONTAP mode and `EXTREME` or `PREMIUM`      | Reuses the existing PO classification; Premium remains subject to `ENABLE_PO_PREMIUM_POOLS`.          |
+| Trigger               | Ensure during PO pool create                                                       | Keeps create as the sole provisioning trigger; update stays metadata-only.                            |
+| Ownership             | One complete set per account and host                                              | The same host-level cluster network is shared by all eligible pools for that account.                 |
+| Cardinality           | One LIF per current ONTAP node                                                     | Matches the CVS requirement and supports node-local intercluster traffic.                             |
+| Existing-set behavior | Skip only when every current host node has one active `interclusterLIF` row        | A count-only check can accept stale or duplicate rows; node identity is authoritative.                |
+| Incomplete set        | Roll back the active partial set, then create a full set                           | Avoids combining unknown legacy state with a new VLAN/IPspace.                                        |
+| Post-failure reuse    | Reuse the existing `interclusterLIF` `ip_ranges` row and VX for the same microzone | A prior ONTAP failure leaves CVN range/VX intact; the next attempt must not create a duplicate range. |
+| Secondary subnet      | `PO_IC_LIF_SUBNET_MASK_SIZE`, default `28`                                         | Separates IC capacity policy from the data-LIF subnet setting.                                        |
+| VX placement          | Reuse the pool datapath `MicrozoneUUID`                                            | Places IC networking on the same service-switch microzone as the pool datapath.                       |
+| ONTAP naming          | CVS naming conventions                                                             | Makes operational inspection consistent across VCP and CVS.                                           |
+| Database type         | `interclusterLIF`                                                                  | Matches existing VCP and CVN enum values.                                                             |
+| SVM association       | `lifs.svm_id = NULL`                                                               | Intercluster LIFs are cluster-scoped, not pool-SVM-scoped.                                            |
+| Feature gate          | `ENABLE_IC_LIFS_FOR_PO_POOLS`, default `true`                                      | Supports immediate rollout and emergency behavioral rollback.                                         |
+| Normal deletion       | Leave all IC resources                                                             | The set belongs to account+host, not to an individual pool.                                           |
+| Failure rollback      | Delete VCP rows and ONTAP resources; retain CVN range/VX                           | CVN reclaim owns orphan network and range reclamation.                                                |
+
 
 ---
 
 ## Data Model
 
-No GORM model or SQL migration changes are required. The existing models in [`database/datamodel/models.go`](../../../database/datamodel/models.go) are used as follows:
+No GORM model or SQL migration changes are required. The existing models in `[database/datamodel/models.go](../../../database/datamodel/models.go)` are used as follows:
 
 ```go
 type Lif struct {
@@ -123,22 +125,24 @@ type IPRange struct {
 
 An active IC LIF row has:
 
-| Field | Value |
-|---|---|
-| `name` | `ic-lif-<UUID>` |
-| `account_id` | Pool account database ID |
-| `type` | `interclusterLIF` |
-| `ip_address` | Address reserved from the IC `ip_ranges` row |
-| `node_id` | VCP node mapped from the ONTAP node name |
-| `subnet_mask` | Netmask from the IC `ip_ranges` row |
-| `ip_range_id` | IC range database ID |
-| `svm_id` | `NULL` |
-| `lif_details.external_uuid` | ONTAP LIF UUID after ONTAP creation |
+
+| Field                       | Value                                                     |
+| --------------------------- | --------------------------------------------------------- |
+| `name`                      | `ic-lif-<account UUID without dashes>-<6 hex>` |
+| `account_id`                | Pool account database ID                                  |
+| `type`                      | `interclusterLIF`                                         |
+| `ip_address`                | Address reserved from the IC `ip_ranges` row              |
+| `node_id`                   | VCP node mapped from the ONTAP node name                  |
+| `subnet_mask`               | Netmask from the IC `ip_ranges` row                       |
+| `ip_range_id`               | IC range database ID                                      |
+| `svm_id`                    | `NULL`                                                    |
+| `lif_details.external_uuid` | ONTAP LIF UUID after ONTAP creation                       |
 | `lif_details.protocol_type` | Empty; `lifs.type` is the authoritative IC classification |
+
 
 ### Storage interface
 
-Add these methods to `Storage` in [`database/vcp/interface.go`](../../../database/vcp/interface.go) and implement them in a new [`database/vcp/intercluster_lif.go`](../../../database/vcp/intercluster_lif.go):
+Add these methods to `Storage` in `[database/vcp/interface.go](../../../database/vcp/interface.go)` and implement them in a new `[database/vcp/intercluster_lif.go](../../../database/vcp/intercluster_lif.go)`:
 
 ```go
 GetInterclusterLifsForAccountHost(
@@ -172,7 +176,7 @@ DeleteInterclusterLifsForAccountHost(
 ) error
 ```
 
-`GetInterclusterLifsForAccountHost` selects active `lifs` rows with `type = ?` and joins `nodes` through `lifs.node_id`. Host ownership is resolved from `nodes.node_attributes->>'host_id'`, matching [`GetNodesByHostIDAndNames`](../../../database/vcp/node.go).
+`GetInterclusterLifsForAccountHost` selects active `lifs` rows with `type = ?` and joins `nodes` through `lifs.node_id`. Host ownership is resolved from `nodes.node_attributes->>'host_id'`, matching `[GetNodesByHostIDAndNames](../../../database/vcp/node.go)`.
 
 ```sql
 SELECT lifs.*
@@ -185,7 +189,7 @@ WHERE lifs.deleted_at IS NULL
   AND (nodes.node_attributes->>'host_id')::bigint = ?;
 ```
 
-`AllocateInterclusterLifIPs` follows the allocation algorithm in [`database/vcp/data_lif_ip.go`](../../../database/vcp/data_lif_ip.go), but fixes `Lif.Type` to `interclusterLIF` and leaves `SvmID` null. It allocates all requested node reservations in one transaction. The transaction:
+`AllocateInterclusterLifIPs` follows the allocation algorithm in `[database/vcp/data_lif_ip.go](../../../database/vcp/data_lif_ip.go)`, but fixes `Lif.Type` to `interclusterLIF` and leaves `SvmID` null. It allocates all requested node reservations in one transaction. The transaction:
 
 1. Loads the `ip_ranges` row by UUID and validates `lif_type = interclusterLIF`.
 2. Locks the range row for update.
@@ -198,7 +202,7 @@ The existing partial unique index on active `(ip_range_id, ip_address)` reservat
 
 `UpdateInterclusterLifExternalUUID` updates `lif_details.external_uuid` only after ONTAP returns the created LIF. `DeleteInterclusterLifsForAccountHost` soft-deletes only `type = interclusterLIF` rows for the account+host pair.
 
-`GetInterclusterLifIPRanges` returns active `ip_ranges` rows for the account+network with `lif_type = 'interclusterLIF'`. It mirrors `GetDataLIFIPRanges` in [`database/vcp/ip_range.go`](../../../database/vcp/ip_range.go) and is consumed by the ensure activity for reuse detection:
+`GetInterclusterLifIPRanges` returns active `ip_ranges` rows for the account+network with `lif_type = 'interclusterLIF'`. It mirrors `GetDataLIFIPRanges` in `[database/vcp/ip_range.go](../../../database/vcp/ip_range.go)` and is consumed by the ensure activity for reuse detection:
 
 ```go
 GetInterclusterLifIPRanges(
@@ -208,13 +212,13 @@ GetInterclusterLifIPRanges(
 ) ([]*datamodel.IPRange, error)
 ```
 
-Capacity of a candidate range is validated with `ValidateIPAddressesAvailableInIPRange` in [`database/vcp/data_lif_ip.go`](../../../database/vcp/data_lif_ip.go); it already counts active `lifs` rows regardless of LIF type.
+Capacity of a candidate range is validated with `ValidateIPAddressesAvailableInIPRange` in `[database/vcp/data_lif_ip.go](../../../database/vcp/data_lif_ip.go)`; it already counts active `lifs` rows regardless of LIF type.
 
 ---
 
 ## Configuration
 
-Add constants to [`utils/env/env.go`](../../../utils/env/env.go) and consume them through a configuration struct injected into the IC activities:
+Add constants to `[utils/env/env.go](../../../utils/env/env.go)` and consume them through a configuration struct injected into the IC activities:
 
 ```go
 const (
@@ -231,11 +235,13 @@ type POICLifConfig struct {
 func DefaultPOICLifConfig() POICLifConfig
 ```
 
-| Variable | Type | Default | Scope | Validation |
-|---|---|---:|---|---|
-| `ENABLE_IC_LIFS_FOR_PO_POOLS` | boolean | `true` | vcp-worker process | Invalid boolean fails existing env parsing/startup behavior. |
-| `PO_IC_LIF_SUBNET_MASK_SIZE` | integer | `28` | vcp-worker process | Only `27` or `28` is accepted; invalid values fail the IC activity as non-retryable configuration errors. |
-| `PO_LIF_BASE_PORT` | string | Existing default | vcp-worker process | Reused for per-node IC VLAN ports. |
+
+| Variable                      | Type    | Default          | Scope              | Validation                                                                                                |
+| ----------------------------- | ------- | ---------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `ENABLE_IC_LIFS_FOR_PO_POOLS` | boolean | `true`           | vcp-worker process | Invalid boolean fails existing env parsing/startup behavior.                                              |
+| `PO_IC_LIF_SUBNET_MASK_SIZE`  | integer | `28`             | vcp-worker process | Only `27` or `28` is accepted; invalid values fail the IC activity as non-retryable configuration errors. |
+| `PO_LIF_BASE_PORT`            | string  | Existing default | vcp-worker process | Reused for per-node IC VLAN ports.                                                                        |
+
 
 The workflow receives the resolved `Enabled` value through its activity dependency/configuration; tests inject `POICLifConfig` and do not override globals.
 
@@ -260,7 +266,7 @@ The method builds the existing generated `CreateSecondaryIPRangeV1` body and set
 
 ### VCP client contract
 
-`POICVNActivity` uses [`clients/cvn.NewFromContext`](../../../clients/cvn/client.go) and a narrow injected interface:
+`POICVNActivity` uses `[clients/cvn.NewFromContext](../../../clients/cvn/client.go)` and a narrow injected interface:
 
 ```go
 type POICLifCVNClient interface {
@@ -323,18 +329,18 @@ The activity is **reuse-first**. It never creates a new secondary range while a 
 1. Call `ListNetworksV1(&accountUUID, &remoteAccountID)` and require exactly one matching active network. Its UUID is `networkUUID`.
 2. Call `SE.GetInterclusterLifIPRanges(accountUUID, remoteAccountID)` to list existing IC ranges.
 3. Try to reuse an existing range:
-   1. Iterate candidates in a deterministic order (by `created_at`, then by UUID).
-   2. Require `LifType == "interclusterLIF"` and `ValidateIPAddressesAvailableInIPRange(range.UUID, NodeCount)` to succeed.
-   3. On the first hit, set `ipRangeUUID = range.UUID`, `gateway = range.Gateway`, `netmask = range.Netmask`; skip to step 5.
+  1. Iterate candidates in a deterministic order (by `created_at`, then by UUID).
+  2. Require `LifType == "interclusterLIF"` and `ValidateIPAddressesAvailableInIPRange(range.UUID, NodeCount)` to succeed.
+  3. On the first hit, set `ipRangeUUID = range.UUID`, `gateway = range.Gateway`, `netmask = range.Netmask`; skip to step 5.
 4. Create a new IC range only when no candidate was reused:
-   1. Call `CreateSecondaryIPRangeWithLifTypeV1` with `lifType = "interclusterLIF"` and `subnetMaskSize = Config.SubnetMaskSize`.
-   2. Poll its job through `DescribeJobV1` using `GetBorderPollTimeout` and `GetPollInterval`, recording a Temporal heartbeat each interval.
-   3. Call `GetSecondaryIPRangeV1` and read `IprangeUUID` as `ipRangeUUID`.
-   4. Load the CVN-created range through `SE.GetIPRangeByUUID(ctx, ipRangeUUID)` and validate `LifType == "interclusterLIF"` and that it can supply `NodeCount` addresses.
+  1. Call `CreateSecondaryIPRangeWithLifTypeV1` with `lifType = "interclusterLIF"` and `subnetMaskSize = Config.SubnetMaskSize`.
+  2. Poll its job through `DescribeJobV1` using `GetBorderPollTimeout` and `GetPollInterval`, recording a Temporal heartbeat each interval.
+  3. Call `GetSecondaryIPRangeV1` and read `IprangeUUID` as `ipRangeUUID`.
+  4. Load the CVN-created range through `SE.GetIPRangeByUUID(ctx, ipRangeUUID)` and validate `LifType == "interclusterLIF"` and that it can supply `NodeCount` addresses.
 5. Ensure the VX network for `(networkUUID, in.MicrozoneUUID, ipRangeUUID)`:
-   1. Call `CreateVXNetworkV1(networkUUID, in.MicrozoneUUID, ipRangeUUID)`. A CVN response indicating the VX already exists for the same `(microzone, ipRange)` is treated as success and its UUID is used.
-   2. Poll its job through `DescribeJobV1` using `GetServicePollTimeout` and `GetPollInterval`, recording a Temporal heartbeat each interval.
-   3. Call `DescribeVXNetworkV1` and read `L2VlanID` and `IprangeUUID`; require the returned `IprangeUUID` to equal `ipRangeUUID`.
+  1. Call `CreateVXNetworkV1(networkUUID, in.MicrozoneUUID, ipRangeUUID)`. A CVN response indicating the VX already exists for the same `(microzone, ipRange)` is treated as success and its UUID is used.
+  2. Poll its job through `DescribeJobV1` using `GetServicePollTimeout` and `GetPollInterval`, recording a Temporal heartbeat each interval.
+  3. Call `DescribeVXNetworkV1` and read `L2VlanID` and `IprangeUUID`; require the returned `IprangeUUID` to equal `ipRangeUUID`.
 6. Return `NetworkUUID`, `IPRangeUUID`, `VXNetworkUUID`, `VlanID`, `Gateway`, and `Netmask`.
 
 The pool datapath already uses `hostUUID` as `MicrozoneUUID` through `common.BuildPODataPathParams`. The IC call uses that same value, so the VX row is deterministically keyed by `(networkUUID, hostUUID, ipRangeUUID)` across retries.
@@ -349,28 +355,36 @@ Reuse depends on the `ip_ranges` row persisted by CVN. If a previous attempt fai
 
 ### Naming
 
-Add the IC naming helper alongside [`core/orchestrator/common/po_network.go`](../../../core/orchestrator/common/po_network.go):
+Add the IC naming helper alongside `[core/orchestrator/common/po_network.go](../../../core/orchestrator/common/po_network.go)`:
 
 ```go
 const POInterclusterServicePolicy = "default-intercluster"
 
-func POICLifName(id string) string {
-	return "ic-lif-" + id
-}
+// GeneratePOICLifNames returns count unique intercluster LIF names of the form
+// "ic-lif-<accountUUID without dashes>-<6 hex chars>". Dash stripping matches
+// the data-path convention (ipspace_/bdomain_/svm_ all use
+// NormalizePOAccountUUID). The hex tail is drawn from GenerateSVMPostfix(6),
+// the same crypto/rand primitive GeneratePODataLifPostfixes uses, so both
+// LIF-naming paths share one randomness source.
+func GeneratePOICLifNames(accountUUID string, count int) ([]string, error)
 ```
+
+Example: `ic-lif-abcdef1234567890abcdef1234567890-a1b2c3` — 7 + 32 + 1 + 6 = 46 chars, comfortably under the ONTAP LIF name limit.
+
+Randomness is captured at the workflow layer via `workflow.SideEffect` (the `generatePOICLifNames` helper in `[core/orchestrator/workflows/po_ic_lif_ensure_workflow.go](../../../core/orchestrator/workflows/po_ic_lif_ensure_workflow.go)`) so replay is deterministic and every retry reuses the same names.
 
 Existing `POIPSpaceName(accountUUID, vlanID)` and `POBroadcastDomainName(accountUUID, vlanID)` already produce the CVS-compatible patterns:
 
 ```text
 ipspace_<account UUID without dashes>_<VLAN>
 bdomain_<account UUID without dashes>_<VLAN>
-ic-lif-<UUID>
+ic-lif-<account UUID without dashes>-<6 hex>
 <PO_LIF_BASE_PORT>-<VLAN>
 ```
 
 ### Cluster client contract
 
-Extend the injected `POClusterClient` in [`core/orchestrator/activities/po_ontap_activities.go`](../../../core/orchestrator/activities/po_ontap_activities.go):
+Extend the injected `POClusterClient` in `[core/orchestrator/activities/po_ontap_activities.go](../../../core/orchestrator/activities/po_ontap_activities.go)`:
 
 ```go
 type POInterclusterLifSpec struct {
@@ -392,7 +406,8 @@ type POClusterClient interface {
 	GetInterclusterLifs(servicePolicy string) ([]*vsa.InterclusterLif, error)
 	CreateInterclusterLif(in POInterclusterLifSpec) (*POInterclusterLifResult, error)
 	DeleteInterclusterLif(externalUUID string) error
-	EnsureIPSpaceDefaultRoute(ipSpace, gateway string) (created bool, err error)
+	// IPspace-scoped default route reuses CreateDefaultRoute(svmName="", ...);
+	// no separate ensure method is needed.
 	DeleteIPSpaceDefaultRoute(ipSpace, gateway string) error
 	DeleteVlanNetPorts(ipSpace, broadcastDomain, basePort string, vlanTag int, nodeNames []string) error
 	DeleteBroadcastDomain(ipSpace, name string) error
@@ -402,16 +417,18 @@ type POClusterClient interface {
 
 `CreateInterclusterLif` maps to ONTAP REST with:
 
-| ONTAP field | Value |
-|---|---|
-| Scope | `cluster` |
-| Name | `ic-lif-<UUID>` |
-| IP address | Reserved VCP address |
-| Netmask | IC `ip_ranges.netmask` |
-| Home node | Current ONTAP node |
-| Home port | `<PO_LIF_BASE_PORT>-<VLAN>` |
-| Service policy | `default-intercluster` |
-| IPspace | Dedicated account/VLAN IPspace through the home port |
+
+| ONTAP field    | Value                                                |
+| -------------- | ---------------------------------------------------- |
+| Scope          | `cluster`                                            |
+| Name           | `ic-lif-<account UUID without dashes>-<6 hex>` |
+| IP address     | Reserved VCP address                                 |
+| Netmask        | IC `ip_ranges.netmask`                               |
+| Home node      | Current ONTAP node                                   |
+| Home port      | `<PO_LIF_BASE_PORT>-<VLAN>`                          |
+| Service policy | `default-intercluster`                               |
+| IPspace        | Dedicated account/VLAN IPspace through the home port |
+
 
 The route is IPspace-scoped. It does not use `CreatePODefaultRoute`, which is SVM-scoped.
 
@@ -433,7 +450,6 @@ type RollbackPOInterclusterLifsInput struct {
 	Gateway         string
 	NodeNames       []string
 	CreatedLifs     []POInterclusterLifResult
-	RouteCreated    bool
 }
 
 func (a *POOntapActivity) CreatePOInterclusterLif(
@@ -449,7 +465,7 @@ func (a *POOntapActivity) RollbackPOInterclusterLifs(
 
 The workflow invokes `CreatePOInterclusterLif` once per node. It retains each successful result and immediately persists the external UUID to its preallocated VCP row through a database activity that calls `UpdateInterclusterLifExternalUUID`. Rollback therefore has the exact successfully created subset even when a later node fails. Rollback deletes in reverse dependency order:
 
-1. Default route, only when this attempt created it.
+1. Default route (best-effort; `DeleteIPSpaceDefaultRoute` is a no-op today).
 2. Created ONTAP intercluster LIFs.
 3. VCP `interclusterLIF` rows for the account+host.
 4. Per-node VLAN ports.
@@ -524,6 +540,8 @@ flowchart TD
     R --> X["Return pool workflow error; existing CVN range/VX reused on retry"]
 ```
 
+
+
 ### Concurrency
 
 Pool workflows for the same account can run concurrently. `AllocateInterclusterLifIPs` serializes allocation on the IC `ip_ranges` row, but that alone does not prevent two workflows from creating separate ranges.
@@ -543,7 +561,7 @@ The ensure activity therefore uses the existing account-scoped Temporal workflow
 
 ### Create
 
-In `runPOPoolCreate` in [`core/orchestrator/workflows/pool_workflows.go`](../../../core/orchestrator/workflows/pool_workflows.go), run the IC ensure after the primary pool datapath is available and before pool state becomes ready:
+In `runPOPoolCreate` in `[core/orchestrator/workflows/pool_workflows.go](../../../core/orchestrator/workflows/pool_workflows.go)`, run the IC ensure after the primary pool datapath is available and before pool state becomes ready:
 
 1. Create/resolve the primary data path as today.
 2. Call `EnsurePOInterclusterLifs` with the primary datapath `MicrozoneUUID`.
@@ -554,7 +572,7 @@ This placement provides the datapath microzone and fails pool creation before a 
 
 ### Update
 
-In `runPOPoolUpdate`, call `EnsurePOInterclusterLifs` before persisting metadata updates. The call runs for every Extreme/Premium PO update. A complete set makes it a read-only no-op.
+`runPOPoolUpdate` is unchanged. It persists pool metadata and size only; it does not call `EnsurePOInterclusterLifs`.
 
 ### Delete
 
@@ -562,7 +580,7 @@ In `runPOPoolUpdate`, call `EnsurePOInterclusterLifs` before persisting metadata
 
 ### Premium interaction
 
-Premium pool creation remains gated by `ENABLE_PO_PREMIUM_POOLS`. The IC LIF flag does not bypass that gate. Once a Premium pool reaches the PO create/update workflow, it follows the same ensure algorithm as Extreme.
+Premium pool creation remains gated by `ENABLE_PO_PREMIUM_POOLS`. The IC LIF flag does not bypass that gate. Once a Premium pool reaches the PO create workflow, it follows the same ensure algorithm as Extreme.
 
 ---
 
@@ -570,17 +588,19 @@ Premium pool creation remains gated by `ENABLE_PO_PREMIUM_POOLS`. The IC LIF fla
 
 No new public endpoint or error code is introduced. New code reuses existing VCP errors and preserves the original cause:
 
-| Failure | VCP constant | Retry |
-|---|---|---|
-| Empty account/host/microzone, invalid node count, invalid subnet | `ErrInputValidationError` (`1009`) | Non-retryable |
-| VCP LIF insert | `ErrDatabaseDataInsertError` (`2003`) | Existing DB classification |
-| VCP LIF read | `ErrDatabaseDataReadError` (`2004`) | Existing DB classification |
-| VCP LIF update | `ErrDatabaseDataUpdateError` (`2005`) | Existing DB classification |
-| VCP LIF cleanup | `ErrDatabaseDataDeleteError` (`2006`) | Existing DB classification |
-| Host node absent | `ErrDatabaseDataNotFoundError` (`2007`) | Non-retryable |
-| ONTAP known failure | Existing ONTAP classifier (`5000` range) | Classifier result |
-| CVN host missing | `ErrCVNHostNotFound` (`15000`) | Non-retryable |
-| Unclassified CVN/ONTAP failure | `ErrInternalServerError` (`1011`) with wrapped cause | Retryable when the underlying operation is transient |
+
+| Failure                                                          | VCP constant                                         | Retry                                                |
+| ---------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| Empty account/host/microzone, invalid node count, invalid subnet | `ErrInputValidationError` (`1009`)                   | Non-retryable                                        |
+| VCP LIF insert                                                   | `ErrDatabaseDataInsertError` (`2003`)                | Existing DB classification                           |
+| VCP LIF read                                                     | `ErrDatabaseDataReadError` (`2004`)                  | Existing DB classification                           |
+| VCP LIF update                                                   | `ErrDatabaseDataUpdateError` (`2005`)                | Existing DB classification                           |
+| VCP LIF cleanup                                                  | `ErrDatabaseDataDeleteError` (`2006`)                | Existing DB classification                           |
+| Host node absent                                                 | `ErrDatabaseDataNotFoundError` (`2007`)              | Non-retryable                                        |
+| ONTAP known failure                                              | Existing ONTAP classifier (`5000` range)             | Classifier result                                    |
+| CVN host missing                                                 | `ErrCVNHostNotFound` (`15000`)                       | Non-retryable                                        |
+| Unclassified CVN/ONTAP failure                                   | `ErrInternalServerError` (`1011`) with wrapped cause | Retryable when the underlying operation is transient |
+
 
 All Temporal activities propagate the request context. No production path uses `context.TODO()` or `context.Background()`.
 
@@ -588,19 +608,21 @@ All Temporal activities propagate the request context. No production path uses `
 
 ## Failure Modes and Risks
 
-| Risk | Mitigation |
-|---|---|
-| CVN range/VX succeeds and ONTAP fails | Remove ONTAP and VCP artifacts; the next ensure reuses the same range through `GetInterclusterLifIPRanges` and reuses the VX by `(microzone, ipRange)`. |
+
+| Risk                                                      | Mitigation                                                                                                                                                                                    |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CVN range/VX succeeds and ONTAP fails                     | Remove ONTAP and VCP artifacts; the next ensure reuses the same range through `GetInterclusterLifIPRanges` and reuses the VX by `(microzone, ipRange)`.                                       |
 | Duplicate secondary ranges accumulate over failed retries | Reuse-first `EnsurePOICNetwork` and deterministic candidate ordering by `created_at`; only ranges without capacity are skipped, and CVN is only called to create when no candidate is usable. |
-| Existing IC range is full | `EnsurePOICNetwork` continues to the next candidate and, if none has capacity, creates a new secondary range. Old ranges with no active `lifs` rows are left for CVN reclaim. |
-| Rollback partially fails | Attempt every cleanup step, return joined errors, and let the next ensure clean the partial account+host set. |
-| Route existed before this attempt | Delete it only when `EnsureIPSpaceDefaultRoute` reports `created=true`. |
-| Incomplete VCP rows hide ONTAP LIFs | Partial-set cleanup uses persisted external UUIDs, then queries ONTAP `default-intercluster` LIFs to detect deterministic-name/IP leftovers. |
-| Two pool workflows race | Use account-scoped serialization and repeat completeness check before allocation. |
-| Host gains a node after initial provisioning | Next eligible pool update detects the missing node and rebuilds a complete set. |
-| Host loses a node | Next eligible update treats the extra row as incomplete and rebuilds against current nodes. |
-| Feature defaults on at deployment | Emergency rollback sets `ENABLE_IC_LIFS_FOR_PO_POOLS=false`; existing resources remain harmless. |
-| Address-space management behavior differs by environment | VCP passes `interclusterLIF` and delegates range source selection to existing CVN/PSA behavior. |
+| Existing IC range is full                                 | `EnsurePOICNetwork` continues to the next candidate and, if none has capacity, creates a new secondary range. Old ranges with no active `lifs` rows are left for CVN reclaim.                 |
+| Rollback partially fails                                  | Attempt every cleanup step, return joined errors, and let the next ensure clean the partial account+host set.                                                                                 |
+| Route existed before this attempt                         | `CreateDefaultRoute` tolerates the "already exists" error so retries stay idempotent. `DeleteIPSpaceDefaultRoute` is a best-effort no-op today.                                               |
+| Incomplete VCP rows hide ONTAP LIFs                       | Partial-set cleanup uses persisted external UUIDs, then queries ONTAP `default-intercluster` LIFs to detect deterministic-name/IP leftovers.                                                  |
+| Two pool workflows race                                   | Use account-scoped serialization and repeat completeness check before allocation.                                                                                                             |
+| Host gains a node after initial provisioning              | Next eligible pool create on the same account+host detects the missing node and rebuilds a complete set.                                                                                      |
+| Host loses a node                                         | Next eligible update treats the extra row as incomplete and rebuilds against current nodes.                                                                                                   |
+| Feature defaults on at deployment                         | Emergency rollback sets `ENABLE_IC_LIFS_FOR_PO_POOLS=false`; existing resources remain harmless.                                                                                              |
+| Address-space management behavior differs by environment  | VCP passes `interclusterLIF` and delegates range source selection to existing CVN/PSA behavior.                                                                                               |
+
 
 ---
 
@@ -698,7 +720,7 @@ Acceptance:
 - Reuse-first: an existing `interclusterLIF` range with capacity is reused; a new CVN range is only created when none is usable.
 - Failure removes ONTAP/VCP artifacts and leaves CVN range/VX for reuse-on-retry.
 - Pool delete invokes no IC cleanup.
-- Disabling `ENABLE_IC_LIFS_FOR_PO_POOLS` restores prior create/update behavior with no schema changes.
+- Disabling `ENABLE_IC_LIFS_FOR_PO_POOLS` restores prior create behavior with no schema changes.
 
 ---
 
@@ -713,14 +735,15 @@ Acceptance:
 ## References
 
 - [0032 — Thin Provisioning for Extreme ONTAP-Mode Pools](0032-thin-provisioning-extreme-ontap-mode-pools.md)
-- [`core/orchestrator/workflows/pool_workflows.go`](../../../core/orchestrator/workflows/pool_workflows.go)
-- [`core/orchestrator/activities/cvn_activities.go`](../../../core/orchestrator/activities/cvn_activities.go)
-- [`core/orchestrator/activities/po_ontap_activities.go`](../../../core/orchestrator/activities/po_ontap_activities.go)
-- [`core/orchestrator/activities/po_data_lif_activities.go`](../../../core/orchestrator/activities/po_data_lif_activities.go)
-- [`database/vcp/data_lif_ip.go`](../../../database/vcp/data_lif_ip.go)
-- [`cloud-volumes-network/app/pkg/sdk/secondary_ip_range.go`](../../../../cloud-volumes-network/app/pkg/sdk/secondary_ip_range.go)
-- [`cloud-volumes-network/app/pkg/sdk/vxnetwork.go`](../../../../cloud-volumes-network/app/pkg/sdk/vxnetwork.go)
-- [`cloud-volumes-service/storage/orchestrator/intercluster_lifs.go`](../../../../cloud-volumes-service/storage/orchestrator/intercluster_lifs.go)
-- [`.cursor/rules/go-project-rule.mdc`](../../../.cursor/rules/go-project-rule.mdc)
-- [`.cursor/rules/database.mdc`](../../../.cursor/rules/database.mdc)
-- [`.cursor/rules/testing.mdc`](../../../.cursor/rules/testing.mdc)
+- `[core/orchestrator/workflows/pool_workflows.go](../../../core/orchestrator/workflows/pool_workflows.go)`
+- `[core/orchestrator/activities/cvn_activities.go](../../../core/orchestrator/activities/cvn_activities.go)`
+- `[core/orchestrator/activities/po_ontap_activities.go](../../../core/orchestrator/activities/po_ontap_activities.go)`
+- `[core/orchestrator/activities/po_data_lif_activities.go](../../../core/orchestrator/activities/po_data_lif_activities.go)`
+- `[database/vcp/data_lif_ip.go](../../../database/vcp/data_lif_ip.go)`
+- `[cloud-volumes-network/app/pkg/sdk/secondary_ip_range.go](../../../../cloud-volumes-network/app/pkg/sdk/secondary_ip_range.go)`
+- `[cloud-volumes-network/app/pkg/sdk/vxnetwork.go](../../../../cloud-volumes-network/app/pkg/sdk/vxnetwork.go)`
+- `[cloud-volumes-service/storage/orchestrator/intercluster_lifs.go](../../../../cloud-volumes-service/storage/orchestrator/intercluster_lifs.go)`
+- `[.cursor/rules/go-project-rule.mdc](../../../.cursor/rules/go-project-rule.mdc)`
+- `[.cursor/rules/database.mdc](../../../.cursor/rules/database.mdc)`
+- `[.cursor/rules/testing.mdc](../../../.cursor/rules/testing.mdc)`
+
