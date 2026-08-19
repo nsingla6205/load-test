@@ -378,6 +378,36 @@ func TestDeleteVolumeBillingLedger(t *testing.T) {
 	}))
 }
 
+func TestDeleteCrossRegionBackupTransferBillingLedger(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", ctx, "vol-uuid-1",
+		metadata.Backup, metadata.CbsCrossRegionVolumeBackupTransferBytes).Return(nil)
+
+	activity := &BillingActivity{SE: mockSE}
+	assert.NoError(t, activity.DeleteCrossRegionBackupTransferBillingLedger(ctx, &datamodel.Backup{VolumeUUID: "vol-uuid-1"}))
+}
+
+func TestDeleteCrossRegionBackupTransferBillingLedger_NilOrEmpty_NoOp(t *testing.T) {
+	ctx := context.Background()
+	// No expectations: delete must not be attempted without a volume UUID.
+	mockSE := database.NewMockStorage(t)
+	activity := &BillingActivity{SE: mockSE}
+
+	assert.NoError(t, activity.DeleteCrossRegionBackupTransferBillingLedger(ctx, nil))
+	assert.NoError(t, activity.DeleteCrossRegionBackupTransferBillingLedger(ctx, &datamodel.Backup{}))
+}
+
+func TestDeleteCrossRegionBackupTransferBillingLedger_PropagatesError(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", ctx, "vol-uuid-1",
+		metadata.Backup, metadata.CbsCrossRegionVolumeBackupTransferBytes).Return(errLedger)
+
+	activity := &BillingActivity{SE: mockSE}
+	assert.ErrorIs(t, activity.DeleteCrossRegionBackupTransferBillingLedger(ctx, &datamodel.Backup{VolumeUUID: "vol-uuid-1"}), errLedger)
+}
+
 func TestDeletePoolBillingLedgers(t *testing.T) {
 	ctx := context.Background()
 

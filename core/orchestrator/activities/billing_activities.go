@@ -243,6 +243,19 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 	return nil
 }
 
+// DeleteCrossRegionBackupTransferBillingLedger deletes the cross-region backup transfer-bytes
+// billing ledger entry for the backup's volume. The transfer-bytes entry is keyed per volume
+// (holding the latest backup's transfer bytes), so this should only be invoked once the volume no
+// longer has any backups being billed (e.g. the last backup was deleted); otherwise the volume
+// would stop accruing transfer billing while other backups still exist. It is a no-op when backup
+// or its VolumeUUID is empty, and deleting a non-existent entry is itself a no-op.
+func (a *BillingActivity) DeleteCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
+	if backup == nil || backup.VolumeUUID == "" {
+		return nil
+	}
+	return a.DeleteBillingLedgerByMeasuredType(ctx, backup.VolumeUUID, metadata.Backup, metadata.CbsCrossRegionVolumeBackupTransferBytes)
+}
+
 // DeleteVolumeBillingLedger deletes the backup-enabled volume allocated size billing ledger entry.
 func (a *BillingActivity) DeleteVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
 	resourceType := getVolumeResourceType(volume)

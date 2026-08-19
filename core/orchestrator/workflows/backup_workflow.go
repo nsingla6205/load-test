@@ -856,6 +856,24 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 	}
 
+	// Clean up the cross-region backup transfer-bytes billing ledger entry once the volume has no
+	// remaining backups. The entry is keyed per volume (latest transfer bytes), so it is only safe
+	// to remove when the last backup for the volume is deleted; removing it earlier would stop
+	// billing transfer bytes while other backups still exist. Best-effort: a ledger failure must
+	// never fail backup deletion.
+	if dbBackupVault.BackupVaultType == activities.CrossRegionBackupType {
+		var remainingBackupCount int64
+		countErr := workflow.ExecuteActivity(ctx, backupActivity.GetBackupCountByVolumeUUID, dbBackup.VolumeUUID).Get(ctx, &remainingBackupCount)
+		if countErr != nil {
+			workflow.GetLogger(ctx).Error(fmt.Sprintf("Ledger: Failed to get remaining backup count for volume %s: %v", dbBackup.VolumeUUID, countErr))
+		} else if remainingBackupCount == 0 {
+			billingActivity := &activities.BillingActivity{}
+			if ledgerErr := workflow.ExecuteActivity(ctx, billingActivity.DeleteCrossRegionBackupTransferBillingLedger, dbBackup).Get(ctx, nil); ledgerErr != nil {
+				workflow.GetLogger(ctx).Error(fmt.Sprintf("Ledger: Failed to delete cross-region backup transfer billing ledger for volume %s: %v", dbBackup.VolumeUUID, ledgerErr))
+			}
+		}
+	}
+
 	// Detach backup vault from expert mode volume if this is the last backup deletion
 	var currentBackupCount int64
 	if !isVolumeDeleted && volume != nil {
