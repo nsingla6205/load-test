@@ -11,37 +11,50 @@ import (
 )
 
 const defaultAggregatedUsageRetentionDays = 30
+const defaultHydratedMetricsRetentionDays = 30
 
 type MetricsCleanupActivity struct {
 	SE        database.Storage
 	MetricsDB metricsdb.Storage
 }
 
-// CleanupHydratedMetricsTableActivity removes hydrated_metrics records older than 1 day
+// hydratedMetricsRetentionDays returns how many days of hydrated_metrics to keep.
+// Configured via HYDRATED_METRICS_RETENTION_DAYS (default 30). Values < 1 fall back to 1.
+func hydratedMetricsRetentionDays() int {
+	days := env.GetInt("HYDRATED_METRICS_RETENTION_DAYS", defaultHydratedMetricsRetentionDays)
+	if days < 1 {
+		return 1
+	}
+	return days
+}
+
+// CleanupHydratedMetricsTableActivity drops hydrated_metrics day partitions older than
+// the configured retention window (HYDRATED_METRICS_RETENTION_DAYS, default 30).
+// On a partitioned Postgres table this is O(1) DROP PARTITION per day; non-partitioned
+// tables fall back to row DELETE inside the storage layer.
 func (m *MetricsCleanupActivity) CleanupHydratedMetricsTableActivity(ctx context.Context) error {
 	logger := util.GetLogger(ctx)
 
-	// Record start time and timestamp
 	startTime := time.Now()
 	logger.Infof("Starting cleanup of hydrated_metrics table - Start timestamp: %s", startTime.Format("2006-01-02 15:04:05.000 MST"))
 
-	// Calculate cutoff time (1 day ago) and record time range for deletion
-	cutoffTime := time.Now().AddDate(0, 0, -1) // 1 day ago
-	logger.Infof("Cleanup configuration - Deleting records older than: %s", cutoffTime.Format("2006-01-02 15:04:05.000 MST"))
+	retentionDays := hydratedMetricsRetentionDays()
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+	logger.Infof("Cleanup configuration - Retention days: %d, dropping day partitions before: %s",
+		retentionDays, cutoffTime.Format("2006-01-02"))
 
-	// Perform deletion
 	queryStartTime := time.Now()
-	logger.Info("Executing DELETE query for hydrated_metrics table...")
-	rowsAffected, err := m.MetricsDB.DeleteHydratedMetricsOlderThan(ctx, cutoffTime)
+	logger.Info("Executing hydrated_metrics partition maintenance (DROP old day partitions + ensure forward partitions)...")
+	partitionsDropped, err := m.MetricsDB.DeleteHydratedMetricsOlderThan(ctx, cutoffTime)
 	queryDuration := time.Since(queryStartTime)
 	if err != nil {
 		logger.Errorf("Failed to perform cleanup of hydrated_metrics table after %v: %v", queryDuration, err)
 		return err
 	}
 
-	// Log comprehensive cleanup results
 	logger.Infof("Hydrated metrics table cleanup completed successfully:")
-	logger.Infof("Number of Hydrated Metrics Records Deleted %d and Query execution time: %v", rowsAffected, queryDuration)
+	logger.Infof("Partitions dropped (or rows deleted on non-partitioned fallback): %d, Query execution time: %v",
+		partitionsDropped, queryDuration)
 
 	return nil
 }

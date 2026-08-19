@@ -42,6 +42,7 @@ data:
   METRICS_DB_CONN_MAX_LIFETIME: {{$.Values.workerConfig.database.metricsDbMaxConnLifetime | quote }}
   METRICS_DB_CLEANUP_ENABLED: {{$.Values.workerConfig.database.metricsDbCleanupEnabled | quote }}
   AGGREGATED_USAGE_RETENTION_DAYS: {{$.Values.workerConfig.database.aggregatedUsageRetentionDays | quote }}
+  HYDRATED_METRICS_RETENTION_DAYS: {{$.Values.workerConfig.database.hydratedMetricsRetentionDays | default "30" | quote }}
   ENABLE_POLLER_REBALANCING: {{$.Values.workerConfig.database.enablePollerRebalancing | quote }}
   {{- if not $.Values.global.cloudSqlIamAuthEnabled }}
   DB_HOST: {{$.Values.workerConfig.database.host | quote }}

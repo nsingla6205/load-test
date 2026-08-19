@@ -584,6 +584,8 @@ workerConfig:
     metricsDbMaxConnLifetime: "1h"
     metricsDbCleanupEnabled: false
     aggregatedUsageRetentionDays: 30
+    # Days of hydrated_metrics to retain before cleanup (HYDRATED_METRICS_RETENTION_DAYS).
+    hydratedMetricsRetentionDays: 30
     enablePollerRebalancing: false
   adc:
     image: "" # path of ADC image in gcp cloud image registry

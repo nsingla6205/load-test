@@ -103,11 +103,6 @@ func (r *DataStoreRepository) DeleteHydratedMetrics(ctx context.Context, id stri
 	return r.db.GORM().WithContext(ctx).Where("id = ?", id).Delete(&datamodel.HydratedMetrics{}).Error
 }
 
-func (r *DataStoreRepository) DeleteHydratedMetricsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.GORM().WithContext(ctx).Where("metric_timestamp < ?", olderThan).Delete(&datamodel.HydratedMetrics{})
-	return result.RowsAffected, result.Error
-}
-
 // AggregatedUsage CRUD
 func (r *DataStoreRepository) CreateAggregatedUsage(ctx context.Context, a *datamodel.AggregatedUsage) error {
 	return r.db.GORM().WithContext(ctx).Create(a).Error

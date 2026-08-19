@@ -18,16 +18,15 @@ func TestMetricsCleanupActivity_CleanupHydratedMetricsTableActivity_Success(t *t
 	activity := &MetricsCleanupActivity{MetricsDB: mockDB}
 	ctx := context.Background()
 
-	// Expected cutoff time (approximately 1 day ago)
-	expectedRowsDeleted := int64(100)
+	// Expected cutoff time (approximately 30 days ago — default HYDRATED_METRICS_RETENTION_DAYS)
+	expectedPartitionsDropped := int64(2)
 
-	// Mock the delete operation
+	// Mock partition maintenance (DROP day partitions older than retention)
 	mockDB.On("DeleteHydratedMetricsOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
-		// Verify cutoff is approximately 1 day ago (within 1 minute tolerance)
-		dayAgo := time.Now().AddDate(0, 0, -1)
+		dayAgo := time.Now().AddDate(0, 0, -defaultHydratedMetricsRetentionDays)
 		diff := cutoff.Sub(dayAgo).Abs()
 		return diff < time.Minute
-	})).Return(expectedRowsDeleted, nil)
+	})).Return(expectedPartitionsDropped, nil)
 
 	// Execute
 	err := activity.CleanupHydratedMetricsTableActivity(ctx)
@@ -35,6 +34,21 @@ func TestMetricsCleanupActivity_CleanupHydratedMetricsTableActivity_Success(t *t
 	// Assert
 	assert.NoError(t, err)
 	mockDB.AssertExpectations(t)
+}
+
+func TestHydratedMetricsRetentionDays(t *testing.T) {
+	t.Run("default is 30", func(t *testing.T) {
+		t.Setenv("HYDRATED_METRICS_RETENTION_DAYS", "")
+		assert.Equal(t, defaultHydratedMetricsRetentionDays, hydratedMetricsRetentionDays())
+	})
+	t.Run("honors configured value", func(t *testing.T) {
+		t.Setenv("HYDRATED_METRICS_RETENTION_DAYS", "14")
+		assert.Equal(t, 14, hydratedMetricsRetentionDays())
+	})
+	t.Run("clamps values below 1 to 1", func(t *testing.T) {
+		t.Setenv("HYDRATED_METRICS_RETENTION_DAYS", "0")
+		assert.Equal(t, 1, hydratedMetricsRetentionDays())
+	})
 }
 
 func TestMetricsCleanupActivity_CleanupHydratedMetricsTableActivity_Error(t *testing.T) {
