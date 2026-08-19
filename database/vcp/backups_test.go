@@ -5821,6 +5821,101 @@ func TestGetBackupResourceDataForAggregation(t *testing.T) {
 		assert.Len(tt, results, 1)
 		assert.Equal(tt, datamodel.ServiceTypeCrossProject, results[0].BackupVault.ServiceType)
 	})
+
+	t.Run("ReturnsVaultOwnerAccountName", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		vaultOwner := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "vault-owner-uuid"},
+			Name:      "vault-owner",
+		}
+		err = store.db.Create(vaultOwner).Error()
+		assert.NoError(tt, err)
+
+		gcbdrVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "vault-uuid-owner"},
+			Name:        "gcbdr-vault",
+			AccountID:   vaultOwner.ID,
+			ServiceType: datamodel.ServiceTypeCrossProject,
+		}
+		err = store.db.Create(gcbdrVault).Error()
+		assert.NoError(tt, err)
+
+		backup := &datamodel.Backup{
+			BaseModel:     datamodel.BaseModel{UUID: "owner-backup-1"},
+			VolumeUUID:    "owner-vol-1",
+			State:         datamodel.LifeCycleStateAvailable,
+			BackupVaultID: gcbdrVault.ID,
+			Attributes:    &datamodel.BackupAttributes{AccountIdentifier: "volume-owner"},
+		}
+		err = store.db.Create(backup).Error()
+		assert.NoError(tt, err)
+
+		results, err := store.GetBackupResourceDataForAggregation(context.Background(), [][]interface{}{}, nil, nil)
+		assert.NoError(tt, err)
+		assert.Len(tt, results, 1)
+		assert.NotNil(tt, results[0].BackupVault.Account)
+		assert.Equal(tt, "vault-owner", results[0].BackupVault.Account.Name)
+	})
+
+	t.Run("ReturnsOneRowPerVaultForVolumeWithMultipleVaults", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		vault1 := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "switch-vault-1"},
+			Name:      "old-vault",
+			AccountID: 80,
+		}
+		err = store.db.Create(vault1).Error()
+		assert.NoError(tt, err)
+
+		vault2 := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "switch-vault-2"},
+			Name:      "new-vault",
+			AccountID: 80,
+		}
+		err = store.db.Create(vault2).Error()
+		assert.NoError(tt, err)
+
+		for _, spec := range []struct {
+			uuid    string
+			vaultID int64
+		}{
+			{"switch-backup-1", vault1.ID},
+			{"switch-backup-2", vault2.ID},
+		} {
+			b := &datamodel.Backup{
+				BaseModel:     datamodel.BaseModel{UUID: spec.uuid},
+				VolumeUUID:    "switch-vol-1",
+				State:         datamodel.LifeCycleStateAvailable,
+				BackupVaultID: spec.vaultID,
+				Attributes:    &datamodel.BackupAttributes{AccountIdentifier: "acct-switch"},
+			}
+			err = store.db.Create(b).Error()
+			assert.NoError(tt, err)
+		}
+
+		results, err := store.GetBackupResourceDataForAggregation(context.Background(), [][]interface{}{}, nil, nil)
+		assert.NoError(tt, err)
+		assert.Len(tt, results, 2)
+
+		vaultNames := []string{results[0].BackupVault.Name, results[1].BackupVault.Name}
+		assert.ElementsMatch(tt, []string{"old-vault", "new-vault"}, vaultNames)
+	})
 }
 
 // Helper function to find backup by volume UUID in results

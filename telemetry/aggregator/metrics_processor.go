@@ -629,6 +629,41 @@ func addVolumeDataEntry(
 	}
 }
 
+// addBackupDataEntry registers backup resource data under the volume-owner ConsumerID.
+// For GCBDR (cross-project backup vault) backups the collector attributes BackupLogicalSize to
+// the vault owner, so an alias under the vault owner's account is registered as well. Without it
+// the hydrated metric finds no resource data and is dropped before it reaches aggregated usage.
+// Free trial is cleared on the vault alias so GCBDR backup billing stays commercial.
+func addBackupDataEntry(
+	logger log.Logger,
+	resourceCollection *ResourceCollection,
+	volumeUUID, deploymentName, volumeAccountName string,
+	resourceData ResourceData,
+	backupVaultServiceType, backupVaultAccountName string,
+) {
+	ownerKey := ResourceKey{
+		ResourceType:   metadata.Backup,
+		ResourceName:   volumeUUID,
+		DeploymentName: deploymentName,
+		ConsumerID:     volumeAccountName,
+	}
+	resourceCollection.BackupData[ownerKey] = resourceData
+
+	isGCBDR := backupVaultServiceType == datamodel.ServiceTypeCrossProject
+	if isGCBDR && backupVaultAccountName == "" {
+		logger.Warnf("GCBDR backup %s (vault %s) missing vault account name; vault-owner resource alias not registered — metrics billed to the vault project may be dropped",
+			volumeUUID, deploymentName)
+		return
+	}
+	if isGCBDR && backupVaultAccountName != volumeAccountName {
+		vaultKey := ownerKey
+		vaultKey.ConsumerID = backupVaultAccountName
+		vaultResourceData := resourceData
+		vaultResourceData.FreeTrialEndAt = nil
+		resourceCollection.BackupData[vaultKey] = vaultResourceData
+	}
+}
+
 // fetchVolumeData fetches labels from volume table using pagination with optimized query
 func (p *BillingProvider) fetchVolumeData(ctx context.Context, aggregationStartTime time.Time, resourceCollection *ResourceCollection) error {
 	logger := util.GetLogger(ctx)
@@ -885,13 +920,20 @@ func (p *BillingProvider) fetchBackupData(ctx context.Context, aggregationStartT
 				BackupRegionName: backup.BackupVault.BackupRegionName,
 				FreeTrialEndAt:   freeTrialEnd,
 			}
-			id := ResourceKey{
-				ResourceType:   metadata.Backup,
-				ResourceName:   backup.VolumeUUID,
-				DeploymentName: backup.BackupVault.Name,
-				ConsumerID:     backup.Attributes.AccountIdentifier,
+			vaultAccountName := ""
+			if backup.BackupVault.Account != nil {
+				vaultAccountName = backup.BackupVault.Account.Name
 			}
-			resourceCollection.BackupData[id] = backupResourceData
+			addBackupDataEntry(
+				logger,
+				resourceCollection,
+				backup.VolumeUUID,
+				backup.BackupVault.Name,
+				backup.Attributes.AccountIdentifier,
+				backupResourceData,
+				backup.BackupVault.ServiceType,
+				vaultAccountName,
+			)
 		}
 
 		totalProcessed += len(backups)

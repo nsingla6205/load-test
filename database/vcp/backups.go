@@ -49,6 +49,7 @@ type BackupMetricsData struct {
 	BackupVaultID int64                       `gorm:"column:backup_vault_id"`
 	// BackupVault fields (from JOIN)
 	VaultAccountID        int64   `gorm:"column:vault_account_id"`
+	VaultAccountName      string  `gorm:"column:vault_account_name"`
 	VaultName             string  `gorm:"column:vault_name"`
 	VaultBackupRegionName *string `gorm:"column:vault_backup_region_name"`
 	VaultServiceType      string  `gorm:"column:vault_service_type"`
@@ -1282,11 +1283,13 @@ func (d *DataStoreRepository) GetBackupResourceDataForAggregation(ctx context.Co
 
 	var metricsData []*BackupMetricsData
 
+	// One row per (volume, vault): a volume may hold backups in several vaults after a GCBDR
+	// vault switch or detach/re-attach, and the collector emits a billing sample per vault.
 	subquery := db.Table("backups").
 		Select("MAX(id)").
-		Group("volume_uuid")
+		Group("volume_uuid, backup_vault_id")
 
-	// Query backups table with JOIN to backup_vaults and volumes
+	// Query backups table with JOIN to backup_vaults, the vault's owning account, and volumes
 	query := db.Table("backups").
 		Select(`
 			backups.uuid,
@@ -1294,12 +1297,14 @@ func (d *DataStoreRepository) GetBackupResourceDataForAggregation(ctx context.Co
 			backups.attributes,
 			backups.backup_vault_id,
 			backup_vaults.account_id AS vault_account_id,
+			COALESCE(vault_accounts.name, '') AS vault_account_name,
 			backup_vaults.name AS vault_name,
 			backup_vaults.backup_region_name AS vault_backup_region_name,
 			backup_vaults.service_type AS vault_service_type,
 			volumes.account_id AS volume_account_id
 		`).
 		Joins("LEFT JOIN backup_vaults ON backups.backup_vault_id = backup_vaults.id").
+		Joins("LEFT JOIN accounts vault_accounts ON vault_accounts.id = backup_vaults.account_id").
 		Joins("LEFT JOIN volumes ON backups.volume_uuid = volumes.uuid").
 		Where("backups.id IN (?)", subquery)
 
@@ -1322,11 +1327,14 @@ func (d *DataStoreRepository) GetBackupResourceDataForAggregation(ctx context.Co
 	results := make([]*datamodel.Backup, len(metricsData))
 	for i, data := range metricsData {
 		var vaultAccount *datamodel.Account
-		if data.VolumeAccountID != 0 {
+		if data.VaultAccountID != 0 || data.VolumeAccountID != 0 {
 			vaultAccount = &datamodel.Account{
-				BaseModel:       datamodel.BaseModel{ID: data.VolumeAccountID},
+				BaseModel:       datamodel.BaseModel{ID: data.VaultAccountID},
+				Name:            data.VaultAccountName,
 				AccountMetadata: &datamodel.AccountMetadata{},
 			}
+			// Free trial belongs to the volume owner. Callers only apply it to
+			// non cross-project vaults, where vault owner and volume owner are the same account.
 			if end, ok := freeTrialAccounts[data.VolumeAccountID]; ok {
 				vaultAccount.AccountMetadata.TrialMode = &datamodel.AccountTrialMode{EndTime: end}
 			}

@@ -903,6 +903,78 @@ func TestFetchBackupData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 	mockVCPDB.AssertExpectations(t)
 }
 
+func TestFetchBackupData_RegistersVaultOwnerAliasForGCBDRVault(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	mockMetricsDB := database.NewMockStorage(t)
+	mockSink := &MockUsageSink{}
+
+	trialEnd := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	config := &common.TelemetryConfig{
+		EnableFreeTrialBilling:     true,
+		EnableBackupBillingMetrics: true,
+		PageSize:                   1000,
+		PoolVolumeLabelPageSize:    100,
+	}
+	provider := NewBillingProvider(mockMetricsDB, mockVCPDB, config, mockSink)
+
+	resourceCollection := &ResourceCollection{
+		BackupData: make(map[ResourceKey]ResourceData),
+	}
+
+	mockVCPDB.On("GetBackupMetadata", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.BackupMetadata{}, nil).Maybe()
+	mockVCPDB.On("GetBackupResourceDataForAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.Backup{
+		{
+			BaseModel:  datamodel.BaseModel{UUID: "gcbdr-backup-uuid"},
+			VolumeUUID: "gcbdr-vol-uuid",
+			Attributes: &datamodel.BackupAttributes{
+				AccountIdentifier:  "volume-owner",
+				OntapVolumeStyle:   "flexvol",
+				IsExpertModeBackup: true,
+			},
+			BackupVault: &datamodel.BackupVault{
+				BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+				AccountID:   7,
+				Name:        "gcbdr-vault",
+				ServiceType: datamodel.ServiceTypeCrossProject,
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{ID: 7},
+					Name:      "vault-owner",
+					AccountMetadata: &datamodel.AccountMetadata{
+						TrialMode: &datamodel.AccountTrialMode{EndTime: &trialEnd},
+					},
+				},
+			},
+		},
+	}, nil).Once()
+	mockVCPDB.On("GetBackupResourceDataForAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.Backup{}, nil).Once()
+
+	err := provider.fetchBackupData(ctx, time.Now().Add(-time.Hour), resourceCollection)
+	assert.NoError(t, err)
+	assert.Len(t, resourceCollection.BackupData, 2)
+
+	// The collector bills cross-project backups to the vault owner, so aggregation must find
+	// resource data under that consumer id.
+	vaultKey := ResourceKey{
+		ResourceType:   metadata.Backup,
+		ResourceName:   "gcbdr-vol-uuid",
+		DeploymentName: "gcbdr-vault",
+		ConsumerID:     "vault-owner",
+	}
+	vaultData, found := resourceCollection.BackupData[vaultKey]
+	assert.True(t, found)
+	assert.Equal(t, "gcbdr-vol-uuid", vaultData.UUID)
+	assert.Equal(t, int64(7), vaultData.AccountID)
+	assert.Nil(t, vaultData.FreeTrialEndAt)
+
+	ownerKey := vaultKey
+	ownerKey.ConsumerID = "volume-owner"
+	_, found = resourceCollection.BackupData[ownerKey]
+	assert.True(t, found)
+
+	mockVCPDB.AssertExpectations(t)
+}
+
 func TestFetchVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 	ctx := context.Background()
 	mockVCPDB := database2.NewMockStorage(t)
