@@ -151,19 +151,26 @@ func getVolumeDeploymentName(volume *datamodel.Volume) string {
 	return ""
 }
 
+// shouldSkipVolumeBackupBilling reports whether the backup-enabled volume allocated-size
+// ledger should be skipped for this volume. Cross-region backups are billed separately via
+// transfer bytes, so their vaults are skipped here to avoid double-counting.
 func (a *BillingActivity) shouldSkipVolumeBackupBilling(ctx context.Context, volume *datamodel.Volume) (bool, error) {
 	if volume.DataProtection.BackupVaultID == "" {
 		return false, nil
 	}
-	_, err := a.SE.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
+	backupVault, err := a.SE.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
 	if err != nil {
 		return false, err
+	}
+	if backupVault != nil && backupVault.BackupVaultType == CrossRegionBackupType {
+		return true, nil
 	}
 	return false, nil
 }
 
 // CreateVolumeBillingLedger creates or updates a billing ledger entry for backup-enabled volume allocated size.
-// Deletes existing ledger entries when backup is not enabled or the backup vault cannot be resolved.
+// Deletes existing ledger entries when backup is not enabled or the volume uses a cross-region backup
+// vault (which is billed separately via transfer bytes).
 // Uses VOLUME_REGIONAL_HA resource type for Regional HA volumes, VOLUME otherwise.
 func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
 	resourceType := getVolumeResourceType(volume)
