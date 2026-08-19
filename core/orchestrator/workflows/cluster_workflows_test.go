@@ -1057,6 +1057,36 @@ func TestClusterUpgradeWorkflowSetup(t *testing.T) {
 		// Assert workflow execution
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Nil(t, env.GetWorkflowError())
+		assert.Equal(t, "test-job-id", params.CorrelationID)
+	})
+
+	t.Run("TestClusterUpgradeWorkflowSetup_PreservesExplicitCorrelationID", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		env.SetHeader(mockHeader)
+		env.SetTestTimeout(time.Minute * 5)
+
+		params := &ClusterUpgradeWorkflowParams{
+			JobID:         "test-job-id",
+			ClusterID:     "test-cluster-id",
+			CorrelationID: "explicit-corr",
+		}
+
+		env.ExecuteWorkflow(func(ctx workflow.Context) error {
+			wf := &clusterUpgradeWorkflow{}
+			return wf.Setup(ctx, params)
+		})
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.Nil(t, env.GetWorkflowError())
+		assert.Equal(t, "explicit-corr", params.CorrelationID)
 	})
 
 	t.Run("TestClusterUpgradeWorkflowSetup_InvalidInput", func(t *testing.T) {

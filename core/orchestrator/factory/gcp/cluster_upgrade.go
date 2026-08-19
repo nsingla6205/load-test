@@ -230,6 +230,9 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 		currentVersion = env.CurrentOntapVersionDetails
 	}
 
+	correlationID := common.ResolveUpgradeCorrelationID(ctx, jobUUID)
+	workflowCtx := common.WithUpgradeCorrelationContext(ctx, correlationID)
+
 	workflowParams := &workflows.ClusterUpgradeWorkflowParams{
 		JobID:             jobUUID,
 		ClusterID:         params.ClusterID,
@@ -241,9 +244,10 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 		MediatorImageName: targetBuildImages.MediatorName, // Mediator uses image name
 		ForceUpgrade:      params.ForceUpgrade,
 		Metadata:          params.Metadata,
+		CorrelationID:     correlationID,
 	}
 
-	_, err = temporal.ExecuteWorkflow(ctx, workflowOptions, workflows.ClusterUpgradeWorkflow, workflowParams)
+	_, err = temporal.ExecuteWorkflow(workflowCtx, workflowOptions, workflows.ClusterUpgradeWorkflow, workflowParams)
 	if err != nil {
 		logger.Error("Failed to start upgrade workflow", "clusterId", params.ClusterID, "error", err)
 		// Update job status to failed

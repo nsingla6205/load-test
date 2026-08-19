@@ -67,6 +67,7 @@ func TestBatchClusterUpgradeWorkflow_AllChildrenSucceed(t *testing.T) {
 	env.OnWorkflow(ClusterUpgradeWorkflow, mock.Anything, mock.Anything).Return(func(ctx workflow.Context, params *ClusterUpgradeWorkflowParams) error {
 		assert.NotNil(t, params.Pool)
 		assert.Equal(t, generateChildUpgradeJobID("batch-1", params.ClusterID), params.JobID)
+		assert.Equal(t, BatchChildUpgradeWorkflowID("batch-1", params.ClusterID), params.CorrelationID)
 		return nil
 	})
 	env.OnActivity(batchActivity.CompleteBatchJobActivity, mock.Anything, "batch-1", string(models.UpgradeStatusCompleted), "", 2, 0, 0).Return(nil)

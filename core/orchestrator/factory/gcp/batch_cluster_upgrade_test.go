@@ -14,6 +14,7 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	workflowEngineMock "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
 	"gorm.io/gorm"
 )
@@ -54,7 +55,11 @@ func TestBatchUpgradeClusters(t *testing.T) {
 			TargetVersion: testOntapVersion,
 		}, nil)
 
-		mockTemporal.On("ExecuteWorkflow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.MatchedBy(func(params *workflows.BatchClusterUpgradeWorkflowParams) bool {
+			return params.CorrelationID != "" &&
+				len(params.SelectedClusters) == 1 &&
+				params.SelectedClusters[0].PoolID == "pool-1"
+		})).Return(nil, nil)
 
 		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
 		params := &commonparams.BatchUpgradeClusterParams{
@@ -70,6 +75,49 @@ func TestBatchUpgradeClusters(t *testing.T) {
 		assert.Equal(t, 1, response.TotalClusters)
 		assert.Equal(t, models.UpgradeStatusPending, response.Status)
 		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("UsesRequestCorrelationIDWhenPresent", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(t)
+		ctx := context.WithValue(context.Background(), middleware.CorrelationContextKey, "request-corr-id")
+
+		origDetermineTargetBuildImages := determineTargetBuildImages
+		defer func() { determineTargetBuildImages = origDetermineTargetBuildImages }()
+		determineTargetBuildImages = func(_ context.Context, _ database.Storage, _ *commonparams.UpgradeClusterParams) (*TargetBuildImages, error) {
+			return &TargetBuildImages{
+				OntapVersion: testOntapVersion,
+				VSAImagePath: testVSAImagePath,
+				VSAName:      testVSAName,
+				MediatorName: testMediatorName,
+			}, nil
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-1"},
+			State:     datamodel.LifeCycleStateREADY,
+			BuildInfo: &datamodel.PoolBuildInfo{OntapVersion: "9.14.1"},
+		}
+		mockStorage.On("GetPoolsByUUIDs", ctx, []string{"pool-1"}).Return([]*datamodel.Pool{pool}, nil)
+		mockStorage.On("GetClusterUpgradeJobsByClusterID", ctx, "pool-1").Return([]*datamodel.ClusterUpgradeJob{}, nil)
+		mockStorage.On("CreateBatchClusterUpgradeJob", ctx, mock.Anything).Return(&datamodel.BatchClusterUpgradeJob{
+			BaseModel: datamodel.BaseModel{UUID: "batch-uuid-1", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			Status:    string(models.UpgradeStatusPending),
+		}, nil)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.MatchedBy(func(params *workflows.BatchClusterUpgradeWorkflowParams) bool {
+			return params.CorrelationID == "request-corr-id"
+		})).Return(nil, nil)
+
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+		params := &commonparams.BatchUpgradeClusterParams{
+			SelectionType:  string(models.SelectionTypePoolList),
+			PoolIDs:        []string{"pool-1"},
+			MaxConcurrency: 5,
+		}
+
+		_, _, err := orchestrator.BatchUpgradeClusters(ctx, params)
+		assert.NoError(t, err)
+		mockTemporal.AssertExpectations(t)
 	})
 
 	t.Run("DefaultsConcurrencyWhenZero", func(t *testing.T) {
@@ -100,7 +148,7 @@ func TestBatchUpgradeClusters(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "batch-uuid", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			Status:    string(models.UpgradeStatusPending),
 		}, nil)
-		mockTemporal.On("ExecuteWorkflow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
 		params := &commonparams.BatchUpgradeClusterParams{
@@ -307,7 +355,7 @@ func TestBatchUpgradeClusters(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "batch-percentage", CreatedAt: now, UpdatedAt: now},
 			Status:    string(models.UpgradeStatusPending),
 		}, nil)
-		mockTemporal.On("ExecuteWorkflow", ctx, mock.Anything, mock.Anything, mock.MatchedBy(func(params *workflows.BatchClusterUpgradeWorkflowParams) bool {
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.MatchedBy(func(params *workflows.BatchClusterUpgradeWorkflowParams) bool {
 			return len(params.SelectedClusters) == 1 && params.SelectedClusters[0].PoolID == "pool-eligible"
 		})).Return(nil, nil)
 
@@ -353,7 +401,7 @@ func TestBatchUpgradeClusters(t *testing.T) {
 		mockStorage.On("GetPoolsByUUIDs", ctx, []string{"pool-1"}).Return([]*datamodel.Pool{pool}, nil)
 		mockStorage.On("GetClusterUpgradeJobsByClusterID", ctx, "pool-1").Return([]*datamodel.ClusterUpgradeJob{}, nil)
 		mockStorage.On("CreateBatchClusterUpgradeJob", ctx, mock.Anything).Return(batchJob, nil)
-		mockTemporal.On("ExecuteWorkflow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
 		mockStorage.On("UpdateBatchClusterUpgradeJob", ctx, mock.MatchedBy(func(job *datamodel.BatchClusterUpgradeJob) bool {
 			return job.UUID == "batch-workflow-failure" &&
 				job.Status == string(models.UpgradeStatusFailed) &&

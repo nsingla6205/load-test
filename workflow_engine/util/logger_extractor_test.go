@@ -82,6 +82,43 @@ func (s *LoggerExtractorTestSuite) TestAddExtraLoggerFields() {
 	s.NoError(env.GetWorkflowError())
 }
 
+func (s *LoggerExtractorTestSuite) TestAddExtraLoggerFieldsDoesNotMutateParentMap() {
+	env := s.NewTestWorkflowEnvironment()
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		parentFields := log.Fields{
+			"batchJobID": "batch-1",
+			string(middleware.RequestCorrelationID): "parent-corr",
+		}
+		ctx = workflow.WithValue(ctx, middleware.TemporalSLoggerKey, parentFields)
+
+		childCtx := AddExtraLoggerFields(ctx, map[string]interface{}{
+			"childJobID":                            "child-1",
+			"clusterID":                             "cluster-1",
+			string(middleware.RequestCorrelationID): "child-corr",
+		})
+
+		childFields, ok := childCtx.Value(middleware.TemporalSLoggerKey).(log.Fields)
+		s.True(ok)
+		s.Equal("child-1", childFields["childJobID"])
+		s.Equal("cluster-1", childFields["clusterID"])
+		s.Equal("child-corr", childFields[string(middleware.RequestCorrelationID)])
+		s.Equal("batch-1", childFields["batchJobID"])
+
+		// Parent map must remain unchanged (no in-place mutation / bleed-back).
+		s.Equal("parent-corr", parentFields[string(middleware.RequestCorrelationID)])
+		s.NotContains(parentFields, "childJobID")
+		s.NotContains(parentFields, "clusterID")
+
+		parentFromCtx, ok := ctx.Value(middleware.TemporalSLoggerKey).(log.Fields)
+		s.True(ok)
+		s.Equal("parent-corr", parentFromCtx[string(middleware.RequestCorrelationID)])
+		s.NotContains(parentFromCtx, "childJobID")
+		return nil
+	})
+	s.True(env.IsWorkflowCompleted())
+	s.NoError(env.GetWorkflowError())
+}
+
 func (s *LoggerExtractorTestSuite) TestWorkflowContextExtractLoggerFromContextSLoggerKey() {
 	env := s.NewTestWorkflowEnvironment()
 	mockL := log.NewLogger()

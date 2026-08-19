@@ -77,19 +77,20 @@ func GetLogger(ctx interface{}) log.Logger {
 	return logger
 }
 
+// AddExtraLoggerFields returns a workflow context with additional logger fields.
+// Existing TemporalSLoggerKey fields are copied before mutation so child/sibling
+// contexts cannot overwrite each other or bleed back into the parent map.
 func AddExtraLoggerFields(ctx workflow.Context, keyValMap map[string]interface{}) workflow.Context {
-	for key, val := range keyValMap {
-		if loggerFields, ok := ctx.Value(middleware.TemporalSLoggerKey).(log.Fields); ok {
-			loggerFields[key] = val
-			ctx = workflow.WithValue(ctx, middleware.TemporalSLoggerKey, loggerFields)
-		} else {
-			// If the logger fields do not exist, create a new one with the provided key and value.
-			// This will be useful for background workflows where the logger fields might not be initialized.
-			newLoggerFields := log.Fields{key: val}
-			ctx = workflow.WithValue(ctx, middleware.TemporalSLoggerKey, newLoggerFields)
+	cloned := log.Fields{}
+	if existing, ok := ctx.Value(middleware.TemporalSLoggerKey).(log.Fields); ok {
+		for k, v := range existing {
+			cloned[k] = v
 		}
 	}
-	return ctx
+	for key, val := range keyValMap {
+		cloned[key] = val
+	}
+	return workflow.WithValue(ctx, middleware.TemporalSLoggerKey, cloned)
 }
 
 // requestFieldsForStructuredLog limits JSON requestFields for OCI: when opc-request-id is present

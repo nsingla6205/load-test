@@ -18,6 +18,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -124,6 +125,10 @@ type ClusterUpgradeWorkflowParams struct {
 	MediatorImageName string            `json:"mediatorImageName"`
 	ForceUpgrade      bool              `json:"forceUpgrade"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
+	// CorrelationID is used for log/trace correlation. For top-level single
+	// upgrades this is the request correlation ID (or job UUID). For batch
+	// children this matches the child Temporal WorkflowID (batchJobID-child-clusterID).
+	CorrelationID     string            `json:"correlationId,omitempty"`
 }
 
 // UpgradeContext holds the context and state for the upgrade process
@@ -215,12 +220,18 @@ func (wf *clusterUpgradeWorkflow) Setup(ctx workflow.Context, input interface{})
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = "system" // Cluster upgrade is a system operation
 	wf.Status = WorkflowStatusCreated
+
+	correlationID := resolveUpgradeWorkflowCorrelationID(ctx, params.CorrelationID, params.JobID)
+	params.CorrelationID = correlationID
+
 	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{
-		"workflowID": wf.ID,
-		"customerID": wf.CustomerID,
-		"jobID":      params.JobID,
-		"clusterID":  params.ClusterID,
+		"workflowID":                            wf.ID,
+		"customerID":                            wf.CustomerID,
+		"jobID":                                 params.JobID,
+		"clusterID":                             params.ClusterID,
+		string(middleware.RequestCorrelationID): correlationID,
 	})
+	ctx = workflow.WithValue(ctx, "x-correlation-id", correlationID)
 	logger := util.GetLogger(ctx)
 	wf.Logger = logger
 

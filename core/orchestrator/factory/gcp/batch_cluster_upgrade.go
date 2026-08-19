@@ -112,6 +112,9 @@ func _batchUpgradeClusters(ctx context.Context, se database.Storage, temporal cl
 		TaskQueue: workflowengine.BackgroundTaskQueue,
 	}
 
+	correlationID := common.ResolveUpgradeCorrelationID(ctx, batchJobUUID)
+	workflowCtx := common.WithUpgradeCorrelationContext(ctx, correlationID)
+
 	workflowParams := &workflows.BatchClusterUpgradeWorkflowParams{
 		BatchJobID:       batchJobUUID,
 		SelectedClusters: selectedClusters,
@@ -123,9 +126,10 @@ func _batchUpgradeClusters(ctx context.Context, se database.Storage, temporal cl
 		MaxConcurrency:   params.MaxConcurrency,
 		FailureThreshold: params.FailureThreshold,
 		Metadata:         params.Metadata,
+		CorrelationID:    correlationID,
 	}
 
-	_, err = temporal.ExecuteWorkflow(ctx, workflowOptions, workflows.BatchClusterUpgradeWorkflow, workflowParams)
+	_, err = temporal.ExecuteWorkflow(workflowCtx, workflowOptions, workflows.BatchClusterUpgradeWorkflow, workflowParams)
 	if err != nil {
 		logger.Error("Failed to start batch upgrade workflow", "batchJobId", batchJobUUID, "error", err)
 		createdBatchJob.Status = string(models.UpgradeStatusFailed)

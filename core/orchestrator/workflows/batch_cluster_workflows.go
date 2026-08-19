@@ -8,6 +8,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
@@ -26,6 +27,8 @@ type BatchClusterUpgradeWorkflowParams struct {
 	MaxConcurrency   int                      `json:"maxConcurrency"`
 	FailureThreshold int                      `json:"failureThreshold"`
 	Metadata         map[string]string        `json:"metadata,omitempty"`
+	// CorrelationID is the parent batch correlation ID (request corr ID or batch job UUID).
+	CorrelationID    string                   `json:"correlationId,omitempty"`
 }
 
 // ChildUpgradeResult holds the result of a single child cluster upgrade
@@ -68,10 +71,16 @@ func (wf *batchClusterUpgradeWorkflow) Setup(ctx workflow.Context, input interfa
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = "system"
 	wf.Status = WorkflowStatusCreated
+
+	correlationID := resolveUpgradeWorkflowCorrelationID(ctx, params.CorrelationID, params.BatchJobID)
+	params.CorrelationID = correlationID
+
 	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{
-		"workflowID": wf.ID,
-		"batchJobID": params.BatchJobID,
+		"workflowID":                            wf.ID,
+		"batchJobID":                            params.BatchJobID,
+		string(middleware.RequestCorrelationID): correlationID,
 	})
+	ctx = workflow.WithValue(ctx, "x-correlation-id", correlationID)
 	logger := util.GetLogger(ctx)
 	wf.Logger = logger
 
@@ -199,10 +208,21 @@ func (wf *batchClusterUpgradeWorkflow) Run(ctx workflow.Context, args ...interfa
 					continue
 				}
 
+				// Correlation ID matches Temporal child WorkflowID so operators can
+				// copy one ID from Temporal into log explorers.
+				childWorkflowID := BatchChildUpgradeWorkflowID(params.BatchJobID, cluster.ClusterID)
 				childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-					WorkflowID:        BatchChildUpgradeWorkflowID(params.BatchJobID, cluster.ClusterID),
+					WorkflowID:        childWorkflowID,
 					ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
 				})
+				childCtx = util.AddExtraLoggerFields(childCtx, map[string]interface{}{
+					"batchJobID":                            params.BatchJobID,
+					"childJobID":                            prepared.JobID,
+					"clusterID":                             cluster.ClusterID,
+					"poolID":                                cluster.PoolID,
+					string(middleware.RequestCorrelationID): childWorkflowID,
+				})
+				childCtx = workflow.WithValue(childCtx, "x-correlation-id", childWorkflowID)
 				childParams := &ClusterUpgradeWorkflowParams{
 					JobID:             prepared.JobID,
 					ClusterID:         cluster.ClusterID,
@@ -213,6 +233,7 @@ func (wf *batchClusterUpgradeWorkflow) Run(ctx workflow.Context, args ...interfa
 					ForceUpgrade:      params.ForceUpgrade,
 					Metadata:          params.Metadata,
 					Pool:              prepared.Pool,
+					CorrelationID:     childWorkflowID,
 				}
 				futures[i] = workflow.ExecuteChildWorkflow(childCtx, ClusterUpgradeWorkflow, childParams)
 			}
@@ -312,9 +333,10 @@ func generateChildUpgradeJobID(batchJobID, clusterID string) string {
 }
 
 // BatchChildUpgradeWorkflowID returns the Temporal workflow ID of the child
-// upgrade started for a cluster in a batch. Child job rows store the batch and
-// cluster IDs rather than this ID, so supervisors outside the workflow must
-// rebuild it here to describe the execution.
+// upgrade started for a cluster in a batch, which doubles as that child's
+// correlation ID so log filtering and the Temporal UI share one ID. Child job
+// rows store the batch and cluster IDs rather than this ID, so supervisors
+// outside the workflow must rebuild it here to describe the execution.
 func BatchChildUpgradeWorkflowID(batchJobID, clusterID string) string {
 	return fmt.Sprintf("%s-child-%s", batchJobID, clusterID)
 }
