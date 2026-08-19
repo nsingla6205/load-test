@@ -41,6 +41,11 @@ var (
 	ReverseHybridReplicationPollWorkflowTimeoutMinutes = env.GetString("REVERSE_HYBRID_REPLICATION_POLL_WORKFLOW_TIMEOUT_MINUTES", "150")
 )
 
+// ScheduledBackupWorkflowExecutionTimeout bounds a single scheduled-backup workflow execution.
+// The backup policy schedule creation path and the schedule task-queue update path must apply the
+// same value, otherwise updating an existing schedule silently changes its execution timeout.
+const ScheduledBackupWorkflowExecutionTimeout = 20 * time.Hour
+
 // Struct for RetryPolicy configuration
 type RetryPolicyConfig struct {
 	InitialInterval    time.Duration

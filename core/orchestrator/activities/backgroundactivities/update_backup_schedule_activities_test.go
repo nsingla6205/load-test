@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -189,13 +191,13 @@ func TestUpdateBackupScheduleTaskQueue_Success(t *testing.T) {
 		update, err := opts.DoUpdate(scheduleInput)
 		assert.NoError(t, err)
 		assert.NotNil(t, update)
-		if update != nil && update.Schedule != nil && update.Schedule.Action != nil {
-			if workflowAction, ok := update.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
-				assert.Equal(t, workflowEngine.BackgroundTaskQueue, workflowAction.TaskQueue)
-				assert.Equal(t, "workflow-id", workflowAction.ID)
-				assert.Equal(t, "backup-workflow", workflowAction.Workflow)
-			}
-		}
+		require.NotNil(t, update.Schedule)
+		workflowAction, ok := update.Schedule.Action.(*client.ScheduleWorkflowAction)
+		require.True(t, ok, "updated action must be a ScheduleWorkflowAction")
+		assert.Equal(t, workflowEngine.BackgroundTaskQueue, workflowAction.TaskQueue)
+		assert.Equal(t, "workflow-id", workflowAction.ID)
+		assert.Equal(t, "backup-workflow", workflowAction.Workflow)
+		assert.Equal(t, workflowEngine.ScheduledBackupWorkflowExecutionTimeout, workflowAction.WorkflowExecutionTimeout)
 	}).Return(nil)
 
 	err := activity.UpdateBackupScheduleTaskQueue(ctx, backupPolicyUUID)
@@ -297,16 +299,16 @@ func TestUpdateBackupScheduleTaskQueue_Success_PreservesOtherFields(t *testing.T
 		update, err := opts.DoUpdate(scheduleInput)
 		assert.NoError(t, err)
 		assert.NotNil(t, update)
-		if update != nil && update.Schedule != nil && update.Schedule.Action != nil {
-			if workflowAction, ok := update.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
-				// TaskQueue should be updated
-				assert.Equal(t, workflowEngine.BackgroundTaskQueue, workflowAction.TaskQueue)
-				// Other fields should be preserved
-				assert.Equal(t, originalWorkflowID, workflowAction.ID)
-				assert.Equal(t, originalWorkflow, workflowAction.Workflow)
-				assert.Equal(t, originalArgs, workflowAction.Args)
-			}
-		}
+		require.NotNil(t, update.Schedule)
+		workflowAction, ok := update.Schedule.Action.(*client.ScheduleWorkflowAction)
+		require.True(t, ok, "updated action must be a ScheduleWorkflowAction")
+		// TaskQueue and execution timeout should be updated
+		assert.Equal(t, workflowEngine.BackgroundTaskQueue, workflowAction.TaskQueue)
+		assert.Equal(t, workflowEngine.ScheduledBackupWorkflowExecutionTimeout, workflowAction.WorkflowExecutionTimeout)
+		// Other fields should be preserved
+		assert.Equal(t, originalWorkflowID, workflowAction.ID)
+		assert.Equal(t, originalWorkflow, workflowAction.Workflow)
+		assert.Equal(t, originalArgs, workflowAction.Args)
 	}).Return(nil)
 
 	err := activity.UpdateBackupScheduleTaskQueue(ctx, backupPolicyUUID)
@@ -314,6 +316,64 @@ func TestUpdateBackupScheduleTaskQueue_Success_PreservesOtherFields(t *testing.T
 	assert.NoError(t, err)
 	mockScheduleClient.AssertExpectations(t)
 	mockScheduleHandle.AssertExpectations(t)
+}
+
+// Existing schedules were created with divergent (or unset) execution timeouts, so the update path
+// must always rewrite the action to the standardized value shared with the schedule creation path.
+func TestUpdateBackupScheduleTaskQueue_StandardizesWorkflowExecutionTimeout(t *testing.T) {
+	tests := []struct {
+		name            string
+		existingTimeout time.Duration
+	}{
+		{"unset timeout", 0},
+		{"shorter timeout", 1 * time.Hour},
+		{"longer timeout", 48 * time.Hour},
+		{"already standardized", workflowEngine.ScheduledBackupWorkflowExecutionTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := setupContext()
+			mockScheduleClient := &mocks.ScheduleClient{}
+			mockScheduleHandle := &mocks.ScheduleHandle{}
+			activity := &UpdateBackupScheduleActivity{
+				ScheduleClient: mockScheduleClient,
+			}
+
+			backupPolicyUUID := "policy-uuid-1"
+
+			scheduleDescription := &client.ScheduleDescription{
+				Schedule: client.Schedule{
+					Action: &client.ScheduleWorkflowAction{
+						ID:                       "workflow-id",
+						TaskQueue:                "old-task-queue",
+						Workflow:                 "CreateScheduledBackupInitWorkflow",
+						Args:                     []interface{}{"arg1"},
+						WorkflowExecutionTimeout: tt.existingTimeout,
+					},
+				},
+			}
+
+			mockScheduleClient.On("GetHandle", ctx, backupPolicyUUID).Return(mockScheduleHandle)
+			mockScheduleHandle.On("Update", ctx, mock.Anything).Run(func(args mock.Arguments) {
+				opts := args.Get(1).(client.ScheduleUpdateOptions)
+				update, err := opts.DoUpdate(client.ScheduleUpdateInput{Description: *scheduleDescription})
+				require.NoError(t, err)
+				require.NotNil(t, update)
+				require.NotNil(t, update.Schedule)
+
+				workflowAction, ok := update.Schedule.Action.(*client.ScheduleWorkflowAction)
+				require.True(t, ok, "updated action must be a ScheduleWorkflowAction")
+				assert.Equal(t, workflowEngine.ScheduledBackupWorkflowExecutionTimeout, workflowAction.WorkflowExecutionTimeout)
+			}).Return(nil)
+
+			err := activity.UpdateBackupScheduleTaskQueue(ctx, backupPolicyUUID)
+
+			assert.NoError(t, err)
+			mockScheduleClient.AssertExpectations(t)
+			mockScheduleHandle.AssertExpectations(t)
+		})
+	}
 }
 
 func TestGetBackupPolicies_Error_WrappedAsTemporalError(t *testing.T) {

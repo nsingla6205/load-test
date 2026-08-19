@@ -68,10 +68,11 @@ func (a *UpdateBackupScheduleActivity) UpdateBackupScheduleTaskQueue(ctx context
 				if workflowAction, ok := schedule.Description.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
 					// Create a new Action with updated TaskQueue while preserving other fields
 					updatedAction := &client.ScheduleWorkflowAction{
-						ID:        workflowAction.ID,
-						TaskQueue: workflowEngine.BackgroundTaskQueue,
-						Workflow:  workflowAction.Workflow,
-						Args:      workflowAction.Args,
+						ID:                       workflowAction.ID,
+						TaskQueue:                workflowEngine.BackgroundTaskQueue,
+						Workflow:                 workflowAction.Workflow,
+						Args:                     workflowAction.Args,
+						WorkflowExecutionTimeout: workflowEngine.ScheduledBackupWorkflowExecutionTimeout,
 					}
 					schedule.Description.Schedule.Action = updatedAction
 				}
