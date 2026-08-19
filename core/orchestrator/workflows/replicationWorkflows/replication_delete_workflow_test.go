@@ -55,6 +55,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -91,6 +92,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -135,6 +137,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.SetHeader(mockHeader)
 		env.RegisterActivity(deleteReplicationActivity.GetSrcBasePathDelete)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -159,6 +162,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(assert.AnError)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 
 		env.ExecuteWorkflow(ReplicationDeleteWorkflow, params, event)
 
@@ -203,6 +207,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.DeleteRoleInOntap)
 
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -262,6 +267,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -306,6 +312,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.SetHeader(mockHeader)
 		env.RegisterActivity(deleteReplicationActivity.SetHybridReplicationVariablesDelete)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -342,6 +349,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 		mockError := errors.New(500, "Internal Server Error")
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, mockError)
 		env.ExecuteWorkflow(ReplicationDeleteWorkflow, params, event)
 
@@ -365,6 +373,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.SetHeader(mockHeader)
 		env.RegisterActivity(deleteReplicationActivity.SetHybridReplicationVariablesDelete)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(deleteReplicationActivity.GetSrcBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetDstBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetSignedSrcTokenDelete)
@@ -418,6 +427,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -454,6 +464,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.SetHeader(mockHeader)
 		env.RegisterActivity(deleteReplicationActivity.SetHybridReplicationVariablesDelete)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(deleteReplicationActivity.GetSrcBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetDstBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetSignedSrcTokenDelete)
@@ -507,6 +518,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -558,6 +570,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.DeleteRoleInOntap)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationInDBToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -618,6 +631,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -657,6 +671,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.SetHeader(mockHeader)
 		env.RegisterActivity(deleteReplicationActivity.SetHybridReplicationVariablesDelete)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(deleteReplicationActivity.GetSrcBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetDstBasePathDelete)
 		env.RegisterActivity(deleteReplicationActivity.GetSignedSrcTokenDelete)
@@ -718,6 +733,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -767,6 +783,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.DeHydrateDestinationVolume)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -810,6 +827,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -853,6 +871,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnSourceToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -889,6 +908,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -930,6 +950,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnSourceToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -966,6 +987,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -1009,6 +1031,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnSourceToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -1045,6 +1068,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -1089,6 +1113,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
 		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnSourceToErrorState)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
 
 		params := &commonparams.DeleteReplicationParams{
 			AccountName:           "test-account",
@@ -1125,6 +1150,7 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 		}
 
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
 		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
@@ -1142,5 +1168,203 @@ func TestReplicationDeleteWorkflow(t *testing.T) {
 
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
+	})
+
+	t.Run("TestReplicationDeleteWorkflow_EnsureJobStateError", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		mockStorage := database.NewMockStorage(tt)
+		commonActivity := activities.CommonActivities{SE: mockStorage}
+		env.SetHeader(mockHeader)
+		env.RegisterActivity(commonActivity.GetJob)
+		env.RegisterActivity(commonActivity.UpdateJobStatus)
+
+		params := &commonparams.DeleteReplicationParams{
+			AccountName:           "test-account",
+			Region:                "us-central1",
+			CorrelationId:         "test-correlation-id",
+			VolumeResourceId:      "test-volume-id",
+			ReplicationResourceId: "test-replication-id",
+			Zone:                  "us-central1-a",
+		}
+
+		event := &replication.DeleteReplicationEvent{
+			CommonReplicationEventParams: replication.CommonReplicationEventParams{
+				ReplicationModel:      &datamodel.VolumeReplication{},
+				ReplicationResourceID: "test-replication-id",
+				AccountName:           "test-account",
+			},
+		}
+
+		// Job is in PROCESSING (not NEW), so EnsureJobState must fail before any work begins.
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+			State:     "PROCESSING",
+		}, nil)
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		env.ExecuteWorkflow(ReplicationDeleteWorkflow, params, event)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.Error(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+	})
+
+	t.Run("TestReplicationDeleteWorkflow_EnsureJobState_GetJobError", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		mockStorage := database.NewMockStorage(tt)
+		commonActivity := activities.CommonActivities{SE: mockStorage}
+		env.SetHeader(mockHeader)
+		env.RegisterActivity(commonActivity.GetJob)
+		env.RegisterActivity(commonActivity.UpdateJobStatus)
+
+		params := &commonparams.DeleteReplicationParams{
+			AccountName:           "test-account",
+			Region:                "us-central1",
+			CorrelationId:         "test-correlation-id",
+			VolumeResourceId:      "test-volume-id",
+			ReplicationResourceId: "test-replication-id",
+			Zone:                  "us-central1-a",
+		}
+
+		event := &replication.DeleteReplicationEvent{
+			CommonReplicationEventParams: replication.CommonReplicationEventParams{
+				ReplicationModel:      &datamodel.VolumeReplication{},
+				ReplicationResourceID: "test-replication-id",
+				AccountName:           "test-account",
+			},
+		}
+
+		// GetJob fails (this is also how a missing job surfaces: CommonActivities.GetJob returns an
+		// error, never (nil, nil)), so EnsureJobState must abort the delete before any work begins.
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return((*datamodel.Job)(nil), assert.AnError)
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		env.ExecuteWorkflow(ReplicationDeleteWorkflow, params, event)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.Error(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+	})
+
+	t.Run("TestReplicationDeleteWorkflow_DeleteWhileCreatingCancelsCreateAndProceeds", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		mockStorage := database.NewMockStorage(tt)
+		commonActivity := activities.CommonActivities{SE: mockStorage}
+		poolActivity := activities.PoolActivity{SE: mockStorage}
+		deleteReplicationActivity := replicationActivities.DeleteVolumeReplicationActivity{SE: mockStorage}
+		env.SetHeader(mockHeader)
+		env.RegisterActivity(deleteReplicationActivity.SetHybridReplicationVariablesDelete)
+		env.RegisterActivity(deleteReplicationActivity.GetSrcBasePathDelete)
+		env.RegisterActivity(deleteReplicationActivity.GetDstBasePathDelete)
+		env.RegisterActivity(deleteReplicationActivity.GetSignedSrcTokenDelete)
+		env.RegisterActivity(deleteReplicationActivity.GetSignedDstTokenDelete)
+		env.RegisterActivity(deleteReplicationActivity.GetReplicationOnDestinationForDelete)
+		env.RegisterActivity(deleteReplicationActivity.DeleteReplicationOnDestination)
+		env.RegisterActivity(deleteReplicationActivity.DescribeRemoteJobForDelete)
+		env.RegisterActivity(deleteReplicationActivity.DescribeSourceJobForDelete)
+		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationRecordOnSource)
+		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationRecordOnDestination)
+		env.RegisterActivity(deleteReplicationActivity.DeleteSnapmirrorSnapshotsOnDestination)
+		env.RegisterActivity(deleteReplicationActivity.DeleteSnapmirrorSnapshotsOnSource)
+		env.RegisterActivity(deleteReplicationActivity.DeHydrateDestinationVolumeReplication)
+		env.RegisterActivity(deleteReplicationActivity.DeleteVolumeOnDestination)
+		env.RegisterActivity(deleteReplicationActivity.DeHydrateDestinationVolume)
+		env.RegisterActivity(deleteReplicationActivity.UpdateReplicationOnDestinationToErrorState)
+		env.RegisterActivity(poolActivity.GetCreateJobByResourceUUID)
+		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
+
+		params := &commonparams.DeleteReplicationParams{
+			AccountName:           "test-account",
+			Region:                "us-central1",
+			CorrelationId:         "test-correlation-id",
+			VolumeResourceId:      "test-volume-id",
+			ReplicationResourceId: "test-replication-id",
+			Zone:                  "us-central1-a",
+		}
+
+		// Replication is still CREATING, so the delete workflow must run the cancellation handler.
+		event := &replication.DeleteReplicationEvent{
+			CommonReplicationEventParams: replication.CommonReplicationEventParams{
+				ReplicationModel: &datamodel.VolumeReplication{
+					BaseModel: datamodel.BaseModel{UUID: "test-replication-uuid"},
+					State:     datamodel.LifeCycleStateCreating,
+				},
+				SourceProjectNumber:      "123456789",
+				DestinationProjectNumber: "987654321",
+				VolumeResourceID:         "test-volume-id",
+				ReplicationResourceID:    "test-replication-id",
+				Location:                 "us-central1",
+				Zone:                     "us-central1-a",
+				AccountName:              "test-account",
+			},
+		}
+
+		replicationResult := &replication.DeleteReplicationResult{
+			SrcProjectNumber: &event.SourceProjectNumber,
+			DstProjectNumber: &event.DestinationProjectNumber,
+			Event:            event,
+			DstReplication: &googleproxyclient.VolumeReplicationInternalV1beta{
+				Name:             googleproxyclient.NewOptString("repl-123"),
+				LastTransferSize: googleproxyclient.NewOptInt64(100),
+				MirrorState:      googleproxyclient.NewOptVolumeReplicationInternalV1betaMirrorState(googleproxyclient.VolumeReplicationInternalV1betaMirrorStateUNINITIALIZED),
+			},
+			IsHybridReplicationVolume: false,
+		}
+
+		getCreateJobCalled := false
+		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: "NEW"}, nil)
+		// No in-flight create job found: cancellation handler logs and proceeds with the normal delete.
+		env.OnActivity("GetCreateJobByResourceUUID", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(mock.Arguments) {
+			getCreateJobCalled = true
+		}).Return((*commonparams.CreateJobResult)(nil), nil)
+		env.OnActivity("SetHybridReplicationVariablesDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("GetSrcBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("GetDstBasePathDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("GetSignedSrcTokenDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("GetSignedDstTokenDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("GetReplicationOnDestinationForDelete", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DeleteReplicationOnDestination", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DescribeRemoteJobForDelete", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("DeleteSnapmirrorSnapshotsOnDestination", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DeleteSnapmirrorSnapshotsOnSource", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DescribeSourceJobForDelete", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("DeHydrateDestinationVolumeReplication", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("UpdateReplicationRecordOnSource", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("UpdateReplicationRecordOnDestination", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DeleteVolumeOnDestination", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("DeHydrateDestinationVolume", mock.Anything, mock.Anything).Return(replicationResult, nil)
+
+		env.ExecuteWorkflow(ReplicationDeleteWorkflow, params, event)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		// Prove the cancellation path ran while the replication was CREATING.
+		assert.True(tt, getCreateJobCalled, "expected cancellation handler to look up the in-flight create job")
 	})
 }

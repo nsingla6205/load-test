@@ -32,6 +32,10 @@ func ReplicationDeleteWorkflow(ctx workflow.Context, params *commonparams.Delete
 		return nil, err
 	}
 
+	if err = repWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
+		return nil, workflows.ConvertToVSAError(err)
+	}
+
 	repWf.Status = workflows.WorkflowStatusRunning
 	err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
@@ -100,6 +104,34 @@ func (wf *replicationDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 		DstProjectNumber: &event.DestinationProjectNumber,
 		Event:            event,
 		CorrelationID:    event.CommonReplicationEventParams.XCorrelationID,
+	}
+
+	// Get UUID and state for cancellation handler
+	replicationUUID := event.CommonReplicationEventParams.ReplicationResourceID
+	replicationState := ""
+	if event.CommonReplicationEventParams.ReplicationModel != nil {
+		replicationUUID = event.CommonReplicationEventParams.ReplicationModel.UUID
+		replicationState = event.CommonReplicationEventParams.ReplicationModel.State
+	}
+
+	cancellationActivity := &activities.CancellationActivity{}
+	commonActivity := &activities.CommonActivities{}
+	poolActivity := &activities.PoolActivity{}
+	ackTimeout, forceTimeout := commonparams.GetCancellationTimeouts("REPLICATION")
+	if cancelErr := commonparams.HandleCancellationForCreatingResource(ctx, log,
+		commonparams.HandleCancellationForCreatingResourceParams{
+			ResourceUUID:               replicationUUID,
+			ResourceState:              replicationState,
+			CreateJobType:              datamodel.JobTypeCreateVolumeReplication,
+			SignalName:                 CancelReplicationSignalName,
+			CancellationAckTimeout:     ackTimeout,
+			ForceTerminationAckTimeout: forceTimeout,
+		},
+		poolActivity.GetCreateJobByResourceUUID,
+		cancellationActivity,
+		commonActivity,
+	); cancelErr != nil {
+		log.Warnf("Error handling cancellation: %v, proceeding with normal delete", cancelErr)
 	}
 
 	defer func() {

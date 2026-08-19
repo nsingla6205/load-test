@@ -2166,7 +2166,9 @@ func _deleteReplication(ctx context.Context, se database.Storage, temporal clien
 		},
 	}
 
-	if !isCleanUp {
+	// Skip the mirror-state gate for a replication still in CREATING state: the delete workflow will
+	// cancel the in-flight create and clean up, matching how the cleanup path handles CREATING resources.
+	if !isCleanUp && event.ReplicationModel.State != datamodel.LifeCycleStateCreating {
 		dstReplication, err = VerifyReplicationDelete(ctx, &event)
 		if err != nil {
 			return nil, "", err

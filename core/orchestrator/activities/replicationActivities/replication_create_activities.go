@@ -48,6 +48,7 @@ type VolumeReplicationCreateActivity struct {
 func (a *VolumeReplicationCreateActivity) GetSourceInterclusterLifs(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("GetSourcePoolDetails for pool: %s", result.Event.SourcePool.Name)
+	safeRecordHeartbeat(ctx, "GetSourceInterclusterLifs started")
 	provider, err := vsa.GetProviderByNode(ctx, result.SrcNode)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -68,6 +69,7 @@ func (a *VolumeReplicationCreateActivity) GetSourceInterclusterLifs(ctx context.
 func (a *VolumeReplicationCreateActivity) GetDestinationPoolDetails(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("GetDestinationPoolDetails for pool: %s", result.Event.DestinationPoolName)
+	safeRecordHeartbeat(ctx, "GetDestinationPoolDetails started")
 
 	googleProxyClient := googleproxyclient.GetGProxyClient(*result.DstBasePath, *result.DstJwtToken, logger)
 
@@ -112,6 +114,7 @@ func (a *VolumeReplicationCreateActivity) GetDestinationPoolDetails(ctx context.
 func (j *VolumeReplicationCreateActivity) CreateClusterPeering(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("CreateClusterPeering")
+	safeRecordHeartbeat(ctx, "CreateClusterPeering started")
 
 	node := result.SrcNode
 	expiryTime := time.Now().Add(time.Minute * 10) // Default expiry time of 10 mins
@@ -135,6 +138,7 @@ func (a *VolumeReplicationCreateActivity) AcceptClusterPeering(ctx context.Conte
 	}
 	logger := util.GetLogger(ctx)
 	logger.Debugf("AcceptClusterPeering")
+	safeRecordHeartbeat(ctx, "AcceptClusterPeering started")
 	googleProxyClient := googleproxyclient.GetGProxyClient(*result.DstBasePath, *result.DstJwtToken, logger)
 
 	accpetClusterPeerParams := &googleproxyclient.V1betaInternalAcceptClusterPeerParams{
@@ -179,6 +183,7 @@ func (a *VolumeReplicationCreateActivity) AcceptClusterPeering(ctx context.Conte
 func (a *VolumeReplicationCreateActivity) CreateDestinationVolume(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("CreateDestinationVolume")
+	safeRecordHeartbeat(ctx, "CreateDestinationVolume started")
 
 	googleProxyClient := googleproxyclient.GetGProxyClient(*result.DstBasePath, *result.DstJwtToken, logger)
 
@@ -259,6 +264,7 @@ func (a *VolumeReplicationCreateActivity) HydrateDestinationVolume(ctx context.C
 	if hydrationEnabled {
 		logger := util.GetLogger(ctx)
 		logger.Debugf("HydrateDestinationVolume")
+		safeRecordHeartbeat(ctx, "HydrateDestinationVolume started")
 		err := hydrateVolume(ctx, convertVolumeV1BetaToVolumeModel(*result.DstVolume, result.Event.DestinationLocationID), *result.DstProjectNumber, result.DstPool.ResourceId)
 		if err != nil {
 			logger.Errorf("Failed to hydrate destination volume: %v", err)
@@ -292,6 +298,7 @@ func convertVolumeV1BetaToVolumeModel(vol gcpserver.VolumeV1beta, dstLocation st
 func (a *VolumeReplicationCreateActivity) CreateReplicationOnDestination(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("CreateReplicationOnDestination")
+	safeRecordHeartbeat(ctx, "CreateReplicationOnDestination started")
 
 	googleProxyClient := googleproxyclient.GetGProxyClient(*result.DstBasePath, *result.DstJwtToken, logger)
 
@@ -405,6 +412,7 @@ func (a *VolumeReplicationCreateActivity) UpdateReplicationDetails(ctx context.C
 func (a *VolumeReplicationCreateActivity) AcceptSvmPeer(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("AcceptSvmPeer")
+	safeRecordHeartbeat(ctx, "AcceptSvmPeer started")
 
 	provider, err := vsa.GetProviderByNode(ctx, result.SrcNode)
 	if err != nil {
@@ -498,6 +506,7 @@ func (a *VolumeReplicationCreateActivity) GetSignedDstToken(ctx context.Context,
 func (a *VolumeReplicationCreateActivity) MountReplication(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("MountReplication")
+	safeRecordHeartbeat(ctx, "MountReplication started")
 
 	googleProxyClient := googleproxyclient.GetGProxyClient(*result.DstBasePath, *result.DstJwtToken, logger)
 
@@ -535,6 +544,7 @@ func (a *VolumeReplicationCreateActivity) MountReplication(ctx context.Context, 
 
 // DescribeRemoteJob gives the status of a remote job
 func (a *VolumeReplicationCreateActivity) DescribeRemoteJob(ctx context.Context, result *replication.CreateReplicationResult) error {
+	safeRecordHeartbeat(ctx, "DescribeRemoteJob started")
 	err := activities.DescribeJob(ctx, result.JobId, result.DstBasePath, result.DstJwtToken, result.DstProjectNumber, &result.Event.DestinationLocationID, result.Event.XCorrelationID)
 	if err != nil {
 		return err
@@ -728,6 +738,7 @@ func convertBlockDeviceOsType(in string) googleproxyclient.BlockDeviceV1betaOsTy
 
 func (a *VolumeReplicationCreateActivity) CreateSnapmirrorFirewall(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
+	safeRecordHeartbeat(ctx, "CreateSnapmirrorFirewall started")
 
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
@@ -781,6 +792,7 @@ func (a *VolumeReplicationCreateActivity) PollSnapmirrorFirewallOperation(ctx co
 	if result.Operation == nil || result.Operation.IsDone == true {
 		return result, nil
 	}
+	safeRecordHeartbeat(ctx, "PollSnapmirrorFirewallOperation polling")
 
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
@@ -826,6 +838,7 @@ func (a *VolumeReplicationCreateActivity) ListQuotaRulesLocal(ctx context.Contex
 func (a *VolumeReplicationCreateActivity) CreateQuotaRulesOnDestination(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("CreateQuotaRulesOnDestination")
+	safeRecordHeartbeat(ctx, "CreateQuotaRulesOnDestination started")
 
 	// If source quota rules is empty, skip creating quota rules on destination
 	if len(result.SourceQuotaRules) == 0 {

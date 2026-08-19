@@ -9507,6 +9507,69 @@ func TestDeleteReplication(t *testing.T) {
 		assert.NotNil(tt, err) // Should fail because ValidateOperationUri fails
 		assert.Contains(tt, err.Error(), "OperationURIs should match")
 	})
+	t.Run("WhenReplicationIsCreatingSkipsVerifyAndStartsWorkflow", func(tt *testing.T) {
+		ctx := context.Background()
+		mockLogger := log.NewLogger()
+		ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(t)
+		defer func() {
+			getAccountWithName = _getAccountWithName
+			validateReplicationParams = replication.ValidateReplicationParams
+			VerifyReplicationDelete = replication.VerifyReplication
+		}()
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID: 1,
+			},
+			Name: "account-name",
+		}
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+
+		// Replication is still CREATING, so the mirror-state gate must be skipped for a regular (non-cleanup) delete.
+		validateReplicationParams = func(ctx context.Context, event *replication.CommonReplicationEventParams, accountID int64, se database.Storage, isCleanup bool, jobType string) (*models.VolumeReplication, *string, error) {
+			event.ReplicationModel = &datamodel.VolumeReplication{
+				Uri: "projects/1234567890/locations/us-central1/volumes/gosrcvolume1/replications/replication-id-1",
+				BaseModel: datamodel.BaseModel{
+					UUID: "1234567890",
+				},
+				State: datamodel.LifeCycleStateCreating,
+				Volume: &datamodel.Volume{
+					Pool: &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "123"}},
+				},
+				ReplicationAttributes: &datamodel.ReplicationDetails{
+					EndpointType: "src",
+				},
+			}
+			return nil, nil, nil
+		}
+
+		verifyCalled := false
+		VerifyReplicationDelete = func(ctx context.Context, event *replication.DeleteReplicationEvent) (*models.VolumeReplication, error) {
+			verifyCalled = true
+			return nil, errors.New("mirror-state gate should not run for a CREATING replication")
+		}
+
+		jobResponse := &datamodel.Job{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "job-uuid",
+			},
+		}
+		mockStorage.On("CreateJob", ctx, mock.Anything).Return(jobResponse, nil)
+		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+		params := &commonparams.DeleteReplicationParams{
+			AccountName: "account-name",
+		}
+
+		_, jobuuid, err := _deleteReplication(ctx, mockStorage, mockTemporal, params, "", false)
+		assert.Nil(tt, err)
+		assert.Equal(tt, jobResponse.UUID, jobuuid)
+		assert.False(tt, verifyCalled, "VerifyReplicationDelete must be skipped when the replication is CREATING")
+	})
 }
 
 func TestSyncReplication(t *testing.T) {

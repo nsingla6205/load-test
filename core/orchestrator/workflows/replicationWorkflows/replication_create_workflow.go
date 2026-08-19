@@ -94,6 +94,7 @@ func (wf *createVolumeReplicationWorkflow) Run(ctx workflow.Context, args ...int
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: time.Duration(workflows.StartToCloseTimeoutForReplicationActivities) * time.Second,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     workflows.BackoffCoefficientForReplicationActivities,
