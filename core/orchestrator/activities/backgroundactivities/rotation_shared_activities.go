@@ -285,6 +285,18 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 
 	if !needsRotation {
 		logger.Infof("Certificate for pool %s does not need rotation yet", poolUUID)
+
+		// Expert mode certificates have lifetimes independent of the pool certificate, so a
+		// current pool certificate must not block their rotation.
+		if pool.APIAccessMode == common.ONTAPMode {
+			safeRecordHeartbeat(ctx, "Pool certificate current, checking expert mode certificate")
+			if errExpert := a.rotateExpertModeCertificate(ctx, poolUUID); errExpert != nil {
+				logger.Errorf("Expert mode certificate rotation failed for pool %s: %v", poolUUID, errExpert)
+				return vsaerrors.NewVCPError(vsaerrors.ErrCertificateRotationFailed, errExpert)
+			}
+			logger.Infof("Expert mode certificate rotation check completed for pool %s", poolUUID)
+		}
+
 		safeRecordHeartbeat(ctx, "Certificate rotation not needed, completing activity")
 		return nil
 	}
@@ -483,6 +495,41 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	}
 
 	return nil
+}
+
+// expertModeCertificateNeedsRotation reports whether any certificate-auth expert mode credential
+// of an ONTAP mode pool is due for rotation. Expert mode certificates are issued separately from
+// the pool certificate and therefore expire on their own schedule.
+// Kept unexported: Temporal registers every exported method of this struct as an activity and
+// requires an error as the second return value.
+func (a *RotateVcpToVsaCertificateActivity) expertModeCertificateNeedsRotation(ctx context.Context, pool *datamodel.Pool) bool {
+	logger := util.GetLogger(ctx)
+
+	if pool == nil || pool.APIAccessMode != common.ONTAPMode || pool.PoolCredentials == nil {
+		return false
+	}
+	if pool.ExpertModeCredentials == nil || len(pool.ExpertModeCredentials.ExpertModeCredential) == 0 {
+		return false
+	}
+
+	for _, cred := range pool.ExpertModeCredentials.ExpertModeCredential {
+		if cred == nil || cred.AuthType != env.USER_CERTIFICATE || cred.CertificateID == "" {
+			continue
+		}
+		needsRotation, err := a.certificateNeedsRotation(ctx, pool, cred.CertificateID)
+		if err != nil {
+			// Mirrors rotateExpertModeCertificate: a certificate that cannot be fetched (revoked,
+			// deleted, or expired and evicted from cache) still has to be replaced.
+			logger.Warnf("Expert mode cert needs-rotation check failed for pool %s cert %s (treating as needs rotation): %v", pool.UUID, cred.CertificateID, err)
+			return true
+		}
+		if needsRotation {
+			logger.Infof("Expert mode certificate %s for pool %s needs rotation", cred.CertificateID, pool.UUID)
+			return true
+		}
+	}
+
+	return false
 }
 
 // rotateExpertModeCertificate rotates the certificate used for expert mode (ONTAP mode pools) when it needs rotation.

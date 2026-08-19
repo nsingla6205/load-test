@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -186,6 +188,137 @@ func TestRotateVcpToVsaCertificateActivity_CertificateNeedsRotation(t *testing.T
 			// Success path - line 48 is covered when needsRotation is false
 			assert.IsType(tt, false, result)
 		}
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("CertificateNeedsRotation_PoolCertCurrent_ExpertCertExpired_True", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+
+		freshCertPEM := generateTestCertificate(time.Now().Add(-1*time.Hour), time.Now().Add(365*24*time.Hour))
+		expiredCertPEM := generateTestCertificate(time.Now().Add(-365*24*time.Hour), time.Now().Add(-24*time.Hour))
+
+		poolView := createTestPoolView()
+		poolView.Pool.APIAccessMode = common.ONTAPMode
+		poolView.Pool.ExpertModeCredentials = &datamodel.ExpertModeCredentials{
+			ExpertModeCredential: []*datamodel.ExpertModeCredential{
+				{CertificateID: "expert-cert", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
+			},
+		}
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
+
+		origGetCert := getCertificateFromCacheOrSecretManager
+		defer func() { getCertificateFromCacheOrSecretManager = origGetCert }()
+		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
+			if creds != nil && creds.CertificateID == "expert-cert" {
+				return &models.Certificate{SignedCertificate: expiredCertPEM}, nil
+			}
+			cert := &models.Certificate{SignedCertificate: freshCertPEM}
+			if creds != nil {
+				common.AddToCertAuthCache(creds.CertificateID, cert)
+			}
+			return cert, nil
+		}
+		defer common.RemoveFromCertAuthCache("test-cert-id")
+
+		result, err := activity.CertificateNeedsRotation(ctx, "test-pool-uuid")
+		assert.NoError(tt, err)
+		assert.True(tt, result, "expert mode expiry must gate the workflow even when pool cert is current")
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("CertificateNeedsRotation_PoolCertCurrent_ExpertCertCurrent_False", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+
+		freshCertPEM := generateTestCertificate(time.Now().Add(-1*time.Hour), time.Now().Add(365*24*time.Hour))
+
+		poolView := createTestPoolView()
+		poolView.Pool.APIAccessMode = common.ONTAPMode
+		poolView.Pool.ExpertModeCredentials = &datamodel.ExpertModeCredentials{
+			ExpertModeCredential: []*datamodel.ExpertModeCredential{
+				{CertificateID: "expert-cert", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
+			},
+		}
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
+
+		origGetCert := getCertificateFromCacheOrSecretManager
+		defer func() { getCertificateFromCacheOrSecretManager = origGetCert }()
+		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
+			cert := &models.Certificate{SignedCertificate: freshCertPEM}
+			if creds != nil {
+				common.AddToCertAuthCache(creds.CertificateID, cert)
+			}
+			return cert, nil
+		}
+		defer common.RemoveFromCertAuthCache("test-cert-id")
+		defer common.RemoveFromCertAuthCache("expert-cert")
+
+		result, err := activity.CertificateNeedsRotation(ctx, "test-pool-uuid")
+		assert.NoError(tt, err)
+		assert.False(tt, result)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("CertificateNeedsRotation_PoolCertCurrent_NonONTAP_False", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+
+		freshCertPEM := generateTestCertificate(time.Now().Add(-1*time.Hour), time.Now().Add(365*24*time.Hour))
+
+		poolView := createTestPoolView()
+		poolView.Pool.APIAccessMode = "GCP"
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
+
+		origGetCert := getCertificateFromCacheOrSecretManager
+		defer func() { getCertificateFromCacheOrSecretManager = origGetCert }()
+		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
+			cert := &models.Certificate{SignedCertificate: freshCertPEM}
+			if creds != nil {
+				common.AddToCertAuthCache(creds.CertificateID, cert)
+			}
+			return cert, nil
+		}
+		defer common.RemoveFromCertAuthCache("test-cert-id")
+
+		result, err := activity.CertificateNeedsRotation(ctx, "test-pool-uuid")
+		assert.NoError(tt, err)
+		assert.False(tt, result)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("CertificateNeedsRotation_PoolCertCurrent_ExpertFetchError_True", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+
+		freshCertPEM := generateTestCertificate(time.Now().Add(-1*time.Hour), time.Now().Add(365*24*time.Hour))
+
+		poolView := createTestPoolView()
+		poolView.Pool.APIAccessMode = common.ONTAPMode
+		poolView.Pool.ExpertModeCredentials = &datamodel.ExpertModeCredentials{
+			ExpertModeCredential: []*datamodel.ExpertModeCredential{
+				{CertificateID: "expert-cert", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
+			},
+		}
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
+
+		origGetCert := getCertificateFromCacheOrSecretManager
+		defer func() { getCertificateFromCacheOrSecretManager = origGetCert }()
+		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
+			if creds != nil && creds.CertificateID == "expert-cert" {
+				return nil, errors.New("certificate not found in secret manager")
+			}
+			cert := &models.Certificate{SignedCertificate: freshCertPEM}
+			if creds != nil {
+				common.AddToCertAuthCache(creds.CertificateID, cert)
+			}
+			return cert, nil
+		}
+		defer common.RemoveFromCertAuthCache("test-cert-id")
+
+		result, err := activity.CertificateNeedsRotation(ctx, "test-pool-uuid")
+		assert.NoError(tt, err)
+		assert.True(tt, result, "unreachable expert cert must still trigger rotation")
 		mockSE.AssertExpectations(tt)
 	})
 }

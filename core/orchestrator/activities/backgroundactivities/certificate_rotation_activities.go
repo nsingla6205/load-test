@@ -50,8 +50,19 @@ func (a *RotateVcpToVsaCertificateActivity) CertificateNeedsRotation(ctx context
 		logger.Errorf("Failed to check if certificate needs rotation for pool %s: %v", poolUUID, err)
 		return false, vsaerrors.NewVCPError(vsaerrors.ErrCertificateNeedsRotationCheckFailed, err)
 	}
+	if needsRotation {
+		return true, nil
+	}
 
-	return needsRotation, nil
+	// This result gates the whole rotation workflow, including the expert mode leg. ONTAP mode
+	// pools carry expert mode certificates that expire independently, so they must be evaluated
+	// here or a current pool certificate would keep them from ever being rotated.
+	if a.expertModeCertificateNeedsRotation(ctx, pool) {
+		logger.Infof("Pool %s certificate is current but an expert mode certificate needs rotation", poolUUID)
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // ListPoolsWithCertificateAuth returns one batch of pools that use certificate authentication (auth type USER_CERTIFICATE).
