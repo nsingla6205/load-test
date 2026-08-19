@@ -177,51 +177,6 @@ func (_c *monkeyMock_accountHostEnsureExpertModeAccount_Call) RunAndReturn(run f
 	return _c
 }
 
-// createSAWithCertAuth provides a mock function with given fields: ctx, provider, params
-func (_m *monkeyMock) createSAWithCertAuth(ctx context.Context, provider vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams) error {
-	ret := _m.Called(ctx, provider, params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for createSAWithCertAuth")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, vsa.ExpertModeAccountProvider, vsa.CreateExpertModeAccountParams) error); ok {
-		r0 = rf(ctx, provider, params)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// monkeyMock_createSAWithCertAuth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'createSAWithCertAuth'
-type monkeyMock_createSAWithCertAuth_Call struct {
-	*mock.Call
-}
-
-// createSAWithCertAuth is a helper method to define mock.On call
-func (_e *monkeyMock_Expecter) createSAWithCertAuth(ctx interface{}, provider interface{}, params interface{}) *monkeyMock_createSAWithCertAuth_Call {
-	return &monkeyMock_createSAWithCertAuth_Call{Call: _e.mock.On("createSAWithCertAuth", ctx, provider, params)}
-}
-
-func (_c *monkeyMock_createSAWithCertAuth_Call) Run(run func(ctx context.Context, provider vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams)) *monkeyMock_createSAWithCertAuth_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(vsa.ExpertModeAccountProvider), args[2].(vsa.CreateExpertModeAccountParams))
-	})
-	return _c
-}
-
-func (_c *monkeyMock_createSAWithCertAuth_Call) Return(_a0 error) *monkeyMock_createSAWithCertAuth_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *monkeyMock_createSAWithCertAuth_Call) RunAndReturn(run func(context.Context, vsa.ExpertModeAccountProvider, vsa.CreateExpertModeAccountParams) error) *monkeyMock_createSAWithCertAuth_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // accountHostEnsureExpertModeRole provides a mock function with given fields: ctx, provider, roleName, privileges
 func (_m *monkeyMock) accountHostEnsureExpertModeRole(ctx context.Context, provider vsa.Provider, roleName string, privileges []*vsa.RolePrivilege) error {
 	ret := _m.Called(ctx, provider, roleName, privileges)
@@ -556,17 +511,17 @@ func (_c *monkeyMock_accountHostVerifyHostServiceCredentials_Call) RunAndReturn(
 	return _c
 }
 
-// verifySAWithCertAuth provides a mock function with given fields: ctx, host, svmPattern, username, poolCredentials
-func (_m *monkeyMock) verifySAWithCertAuth(ctx context.Context, host *datamodel.Host, svmPattern string, username string, poolCredentials *datamodel.PoolCredentials) error {
-	ret := _m.Called(ctx, host, svmPattern, username, poolCredentials)
+// createSAWithCertAuth provides a mock function with given fields: ctx, provider, params
+func (_m *monkeyMock) createSAWithCertAuth(ctx context.Context, provider vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams) error {
+	ret := _m.Called(ctx, provider, params)
 
 	if len(ret) == 0 {
-		panic("no return value specified for verifySAWithCertAuth")
+		panic("no return value specified for createSAWithCertAuth")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host, string, string, *datamodel.PoolCredentials) error); ok {
-		r0 = rf(ctx, host, svmPattern, username, poolCredentials)
+	if rf, ok := ret.Get(0).(func(context.Context, vsa.ExpertModeAccountProvider, vsa.CreateExpertModeAccountParams) error); ok {
+		r0 = rf(ctx, provider, params)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -574,28 +529,32 @@ func (_m *monkeyMock) verifySAWithCertAuth(ctx context.Context, host *datamodel.
 	return r0
 }
 
-// monkeyMock_verifySAWithCertAuth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'verifySAWithCertAuth'
-type monkeyMock_verifySAWithCertAuth_Call struct {
+// monkeyMock_createSAWithCertAuth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'createSAWithCertAuth'
+type monkeyMock_createSAWithCertAuth_Call struct {
 	*mock.Call
 }
 
-func (_e *monkeyMock_Expecter) verifySAWithCertAuth(ctx interface{}, host interface{}, svmPattern interface{}, username interface{}, poolCredentials interface{}) *monkeyMock_verifySAWithCertAuth_Call {
-	return &monkeyMock_verifySAWithCertAuth_Call{Call: _e.mock.On("verifySAWithCertAuth", ctx, host, svmPattern, username, poolCredentials)}
+// createSAWithCertAuth is a helper method to define mock.On call
+//   - ctx context.Context
+//   - provider vsa.ExpertModeAccountProvider
+//   - params vsa.CreateExpertModeAccountParams
+func (_e *monkeyMock_Expecter) createSAWithCertAuth(ctx interface{}, provider interface{}, params interface{}) *monkeyMock_createSAWithCertAuth_Call {
+	return &monkeyMock_createSAWithCertAuth_Call{Call: _e.mock.On("createSAWithCertAuth", ctx, provider, params)}
 }
 
-func (_c *monkeyMock_verifySAWithCertAuth_Call) Run(run func(ctx context.Context, host *datamodel.Host, svmPattern string, username string, poolCredentials *datamodel.PoolCredentials)) *monkeyMock_verifySAWithCertAuth_Call {
+func (_c *monkeyMock_createSAWithCertAuth_Call) Run(run func(ctx context.Context, provider vsa.ExpertModeAccountProvider, params vsa.CreateExpertModeAccountParams)) *monkeyMock_createSAWithCertAuth_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*datamodel.Host), args[2].(string), args[3].(string), args[4].(*datamodel.PoolCredentials))
+		run(args[0].(context.Context), args[1].(vsa.ExpertModeAccountProvider), args[2].(vsa.CreateExpertModeAccountParams))
 	})
 	return _c
 }
 
-func (_c *monkeyMock_verifySAWithCertAuth_Call) Return(_a0 error) *monkeyMock_verifySAWithCertAuth_Call {
+func (_c *monkeyMock_createSAWithCertAuth_Call) Return(_a0 error) *monkeyMock_createSAWithCertAuth_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *monkeyMock_verifySAWithCertAuth_Call) RunAndReturn(run func(context.Context, *datamodel.Host, string, string, *datamodel.PoolCredentials) error) *monkeyMock_verifySAWithCertAuth_Call {
+func (_c *monkeyMock_createSAWithCertAuth_Call) RunAndReturn(run func(context.Context, vsa.ExpertModeAccountProvider, vsa.CreateExpertModeAccountParams) error) *monkeyMock_createSAWithCertAuth_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -692,6 +651,12 @@ type monkeyMock_generateClientCertificate_Call struct {
 	*mock.Call
 }
 
+// generateClientCertificate is a helper method to define mock.On call
+//   - service hyperscaler.Services
+//   - clusterName string
+//   - username string
+//   - poolCredentials *datamodel.PoolCredentials
+//   - isServerAuthEnabled bool
 func (_e *monkeyMock_Expecter) generateClientCertificate(service interface{}, clusterName interface{}, username interface{}, poolCredentials interface{}, isServerAuthEnabled interface{}) *monkeyMock_generateClientCertificate_Call {
 	return &monkeyMock_generateClientCertificate_Call{Call: _e.mock.On("generateClientCertificate", service, clusterName, username, poolCredentials, isServerAuthEnabled)}
 }
@@ -709,50 +674,6 @@ func (_c *monkeyMock_generateClientCertificate_Call) Return(_a0 *models.CustomCe
 }
 
 func (_c *monkeyMock_generateClientCertificate_Call) RunAndReturn(run func(hyperscaler.Services, string, string, *datamodel.PoolCredentials, bool) (*models.CustomCertificateResponse, error)) *monkeyMock_generateClientCertificate_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// revokeAccountHostClientCertificate provides a mock function with given fields: service, poolCredentials
-func (_m *monkeyMock) revokeAccountHostClientCertificate(service hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) error {
-	ret := _m.Called(service, poolCredentials)
-
-	if len(ret) == 0 {
-		panic("no return value specified for revokeAccountHostClientCertificate")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(hyperscaler.Services, *datamodel.PoolCredentials) error); ok {
-		r0 = rf(service, poolCredentials)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// monkeyMock_revokeAccountHostClientCertificate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'revokeAccountHostClientCertificate'
-type monkeyMock_revokeAccountHostClientCertificate_Call struct {
-	*mock.Call
-}
-
-func (_e *monkeyMock_Expecter) revokeAccountHostClientCertificate(service interface{}, poolCredentials interface{}) *monkeyMock_revokeAccountHostClientCertificate_Call {
-	return &monkeyMock_revokeAccountHostClientCertificate_Call{Call: _e.mock.On("revokeAccountHostClientCertificate", service, poolCredentials)}
-}
-
-func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) Run(run func(service hyperscaler.Services, poolCredentials *datamodel.PoolCredentials)) *monkeyMock_revokeAccountHostClientCertificate_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(hyperscaler.Services), args[1].(*datamodel.PoolCredentials))
-	})
-	return _c
-}
-
-func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) Return(_a0 error) *monkeyMock_revokeAccountHostClientCertificate_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) RunAndReturn(run func(hyperscaler.Services, *datamodel.PoolCredentials) error) *monkeyMock_revokeAccountHostClientCertificate_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -812,6 +733,103 @@ func (_c *monkeyMock_loadAccountHostRBACPrivileges_Call) Return(_a0 []common.Exp
 }
 
 func (_c *monkeyMock_loadAccountHostRBACPrivileges_Call) RunAndReturn(run func(context.Context, string) ([]common.ExpertModeRBACPrivilege, error)) *monkeyMock_loadAccountHostRBACPrivileges_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// revokeAccountHostClientCertificate provides a mock function with given fields: service, poolCredentials
+func (_m *monkeyMock) revokeAccountHostClientCertificate(service hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) error {
+	ret := _m.Called(service, poolCredentials)
+
+	if len(ret) == 0 {
+		panic("no return value specified for revokeAccountHostClientCertificate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(hyperscaler.Services, *datamodel.PoolCredentials) error); ok {
+		r0 = rf(service, poolCredentials)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// monkeyMock_revokeAccountHostClientCertificate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'revokeAccountHostClientCertificate'
+type monkeyMock_revokeAccountHostClientCertificate_Call struct {
+	*mock.Call
+}
+
+// revokeAccountHostClientCertificate is a helper method to define mock.On call
+//   - service hyperscaler.Services
+//   - poolCredentials *datamodel.PoolCredentials
+func (_e *monkeyMock_Expecter) revokeAccountHostClientCertificate(service interface{}, poolCredentials interface{}) *monkeyMock_revokeAccountHostClientCertificate_Call {
+	return &monkeyMock_revokeAccountHostClientCertificate_Call{Call: _e.mock.On("revokeAccountHostClientCertificate", service, poolCredentials)}
+}
+
+func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) Run(run func(service hyperscaler.Services, poolCredentials *datamodel.PoolCredentials)) *monkeyMock_revokeAccountHostClientCertificate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(hyperscaler.Services), args[1].(*datamodel.PoolCredentials))
+	})
+	return _c
+}
+
+func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) Return(_a0 error) *monkeyMock_revokeAccountHostClientCertificate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *monkeyMock_revokeAccountHostClientCertificate_Call) RunAndReturn(run func(hyperscaler.Services, *datamodel.PoolCredentials) error) *monkeyMock_revokeAccountHostClientCertificate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// verifySAWithCertAuth provides a mock function with given fields: ctx, host, svmPattern, username, poolCredentials
+func (_m *monkeyMock) verifySAWithCertAuth(ctx context.Context, host *datamodel.Host, svmPattern string, username string, poolCredentials *datamodel.PoolCredentials) error {
+	ret := _m.Called(ctx, host, svmPattern, username, poolCredentials)
+
+	if len(ret) == 0 {
+		panic("no return value specified for verifySAWithCertAuth")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host, string, string, *datamodel.PoolCredentials) error); ok {
+		r0 = rf(ctx, host, svmPattern, username, poolCredentials)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// monkeyMock_verifySAWithCertAuth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'verifySAWithCertAuth'
+type monkeyMock_verifySAWithCertAuth_Call struct {
+	*mock.Call
+}
+
+// verifySAWithCertAuth is a helper method to define mock.On call
+//   - ctx context.Context
+//   - host *datamodel.Host
+//   - svmPattern string
+//   - username string
+//   - poolCredentials *datamodel.PoolCredentials
+func (_e *monkeyMock_Expecter) verifySAWithCertAuth(ctx interface{}, host interface{}, svmPattern interface{}, username interface{}, poolCredentials interface{}) *monkeyMock_verifySAWithCertAuth_Call {
+	return &monkeyMock_verifySAWithCertAuth_Call{Call: _e.mock.On("verifySAWithCertAuth", ctx, host, svmPattern, username, poolCredentials)}
+}
+
+func (_c *monkeyMock_verifySAWithCertAuth_Call) Run(run func(ctx context.Context, host *datamodel.Host, svmPattern string, username string, poolCredentials *datamodel.PoolCredentials)) *monkeyMock_verifySAWithCertAuth_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Host), args[2].(string), args[3].(string), args[4].(*datamodel.PoolCredentials))
+	})
+	return _c
+}
+
+func (_c *monkeyMock_verifySAWithCertAuth_Call) Return(_a0 error) *monkeyMock_verifySAWithCertAuth_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *monkeyMock_verifySAWithCertAuth_Call) RunAndReturn(run func(context.Context, *datamodel.Host, string, string, *datamodel.PoolCredentials) error) *monkeyMock_verifySAWithCertAuth_Call {
 	_c.Call.Return(run)
 	return _c
 }

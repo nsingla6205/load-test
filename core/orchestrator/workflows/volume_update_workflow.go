@@ -898,7 +898,6 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 
 	// Create billing ledger entry for backup-enabled volumes (capture updated size)
 	var volumeForBilling *datamodel.Volume
-	volumeCreateActivity := &activities.VolumeCreateActivity{}
 	err = workflow.ExecuteActivity(ctx, volumeCreateActivity.GetVolumeByVolumeID, volume.UUID).Get(ctx, &volumeForBilling)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
