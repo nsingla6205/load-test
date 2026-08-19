@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+// JobTypePoolCreate is the durable job type for a VCM pool-create operation.
+const JobTypePoolCreate = "POOL_CREATE"
 
 // JobState is the durable execution state of a VCM job.
 type JobState string
@@ -18,9 +22,6 @@ const (
 	JobStateDone       JobState = "DONE"
 	JobStateError      JobState = "ERROR"
 )
-
-// ErrJobNotFound is returned when a VCM job does not exist.
-var ErrJobNotFound = errors.New("vcm job not found")
 
 // Job stores workflow progress for status reporting and restart recovery.
 type Job struct {
@@ -56,9 +57,29 @@ func (s *gormStore) CreateJob(ctx context.Context, job *Job) error {
 		return err
 	}
 	if err := db.WithContext(ctx).Create(job).Error; err != nil {
+		if isUniqueViolation(err) {
+			return fmt.Errorf("%w: %s", ErrJobAlreadyExists, job.ID)
+		}
 		return fmt.Errorf("vcm: create job %q: %w", job.ID, err)
 	}
 	return nil
+}
+
+// isUniqueViolation reports whether err is a duplicate/unique-constraint
+// violation. The typed gorm.ErrDuplicatedKey sentinel is only surfaced when the
+// driver has error translation enabled, so the raw-message fallback covers the
+// Postgres/SQLite and Spanner variants too. Spanner reports a duplicate primary
+// key as an AlreadyExists status (e.g. `spanner: code = "AlreadyExists", desc =
+// "Row [...] in table jobs already exists"`).
+func isUniqueViolation(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "alreadyexists") ||
+		strings.Contains(msg, "already exists")
 }
 
 // GetJob reads a job by operation ID.

@@ -1,0 +1,262 @@
+package vcm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	cbackend "github.com/cschleiden/go-workflows/backend"
+	gowf "github.com/cschleiden/go-workflows/workflow"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
+	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+)
+
+// fakeStarter is a hand-written GoWorkflowStarter stub. It records what it was
+// called with and returns canned values. An ErrInstanceAlreadyExists error
+// models an idempotent reattach to an in-flight run.
+type fakeStarter struct {
+	called      bool
+	gotInstance string
+	err         error
+}
+
+func (f *fakeStarter) Start(_ context.Context, instanceID string, _ interface{}, _ ...any) (*gowf.Instance, error) {
+	f.called = true
+	f.gotInstance = instanceID
+	return nil, f.err
+}
+
+// fakeStore records the durable-job calls so job creation and the
+// failed-to-start ERROR cleanup can be asserted without a real Spanner backend.
+type fakeStore struct {
+	created   *vcmdb.Job
+	createErr error
+	updated   []vcmdb.UpdateJobProgressParams
+	updateErr error
+	// existing is returned by GetJob (used on the duplicate-request path).
+	existing *vcmdb.Job
+	getErr   error
+}
+
+func (f *fakeStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
+	return vsa.NodeProviderInput{}, nil
+}
+
+func (f *fakeStore) CreateJob(_ context.Context, job *vcmdb.Job) error {
+	f.created = job
+	return f.createErr
+}
+
+func (f *fakeStore) GetJob(_ context.Context, _ string) (*vcmdb.Job, error) {
+	return f.existing, f.getErr
+}
+
+func (f *fakeStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
+	f.updated = append(f.updated, params)
+	return f.updateErr
+}
+
+func newTestOrchestrator(store Store, starter GoWorkflowStarter) *VCMOrchestrator {
+	return NewVCMOrchestrator(store, starter, log.NewLogger())
+}
+
+func validParams() *commonparams.CreatePoolParams {
+	return &commonparams.CreatePoolParams{
+		VCM: &commonparams.VCMCreatePoolParams{
+			DeploymentID: "gcnv-123",
+			RequestID:    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+			Deadline:     time.Now().UTC().Add(time.Hour),
+		},
+	}
+}
+
+func TestCreatePool_Success_ReturnsRequestIDAsOperationID(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	params := validParams()
+	pool, operationID, err := o.CreatePool(context.Background(), params)
+
+	require.NoError(t, err)
+	assert.Nil(t, pool, "VCM is async; no pool model is returned")
+	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", operationID,
+		"operation ID must be the caller-supplied request ID (AIP-155)")
+	assert.True(t, starter.called)
+	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", starter.gotInstance,
+		"request/operation ID must be used as the idempotent workflow instance ID so the workflow drives its own job")
+
+	// The durable job is created in NEW before dispatch, and no error cleanup runs.
+	require.NotNil(t, store.created, "job must be persisted before dispatch")
+	assert.Equal(t, operationID, store.created.ID)
+	assert.Equal(t, "gcnv-123", store.created.ResourceID)
+	assert.Equal(t, vcmdb.JobTypePoolCreate, store.created.Type)
+	assert.Equal(t, vcmdb.JobStateNew, store.created.State)
+	assert.True(t, store.created.DeadlineAt.Equal(params.VCM.Deadline.UTC()))
+	assert.Empty(t, store.updated, "no ERROR cleanup expected on the success path")
+}
+
+func TestCreatePool_JobCreateError_IsWrappedAndSkipsDispatch(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{createErr: errors.New("spanner down")}
+	o := newTestOrchestrator(store, starter)
+
+	_, _, err := o.CreatePool(context.Background(), validParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to persist pool creation job")
+	assert.Contains(t, err.Error(), "spanner down")
+	assert.False(t, starter.called, "dispatch must not run when job creation fails")
+	assert.Empty(t, store.updated, "no ERROR cleanup when the job was never created")
+}
+
+func TestCreatePool_DuplicateJob_ReturnsConflictAndSkipsDispatch(t *testing.T) {
+	// A duplicate request (an operation already exists for this idempotency key)
+	// must be rejected with a conflict instead of starting a second workflow
+	// that would fail its NEW-state precondition and strand the caller.
+	starter := &fakeStarter{}
+	store := &fakeStore{
+		createErr: fmt.Errorf("wrap: %w", vcmdb.ErrJobAlreadyExists),
+		existing: &vcmdb.Job{
+			ID:    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+			State: vcmdb.JobStateProcessing,
+		},
+	}
+	o := newTestOrchestrator(store, starter)
+
+	_, operationID, err := o.CreatePool(context.Background(), validParams())
+
+	require.Error(t, err)
+	assert.Empty(t, operationID, "a rejected duplicate returns no operation id")
+	assert.False(t, starter.called, "a duplicate request must not dispatch a workflow")
+	assert.Empty(t, store.updated, "no job update expected on the duplicate path")
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr), "duplicate must surface a CustomError")
+	assert.True(t, customErr.IsError(vsaerrors.ErrResourceStateConflictError),
+		"duplicate must map to a resource-state conflict")
+	require.NotNil(t, customErr.OriginalErr, "conflict must wrap the detailed cause")
+	assert.Contains(t, customErr.OriginalErr.Error(), string(vcmdb.JobStateProcessing),
+		"the conflict must carry the existing job's state")
+}
+
+func TestCreatePool_DuplicateJob_GetJobError_IsWrapped(t *testing.T) {
+	// If the existing job cannot be read, surface a clear error rather than
+	// silently dispatching a doomed workflow.
+	starter := &fakeStarter{}
+	store := &fakeStore{
+		createErr: fmt.Errorf("wrap: %w", vcmdb.ErrJobAlreadyExists),
+		getErr:    errors.New("spanner read failed"),
+	}
+	o := newTestOrchestrator(store, starter)
+
+	_, _, err := o.CreatePool(context.Background(), validParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists but could not be read")
+	assert.Contains(t, err.Error(), "spanner read failed")
+	assert.False(t, starter.called, "dispatch must not run when the duplicate job cannot be read")
+}
+
+func TestCreatePool_InvalidParams_ReturnsError(t *testing.T) {
+	tests := []struct {
+		name    string
+		params  *commonparams.CreatePoolParams
+		wantMsg string
+	}{
+		{
+			name:    "nil params",
+			params:  nil,
+			wantMsg: "deployment id missing",
+		},
+		{
+			name:    "nil VCM",
+			params:  &commonparams.CreatePoolParams{},
+			wantMsg: "deployment id missing",
+		},
+		{
+			name:    "empty deployment id",
+			params:  &commonparams.CreatePoolParams{VCM: &commonparams.VCMCreatePoolParams{RequestID: "r"}},
+			wantMsg: "deployment id missing",
+		},
+		{
+			name:    "empty request id",
+			params:  &commonparams.CreatePoolParams{VCM: &commonparams.VCMCreatePoolParams{DeploymentID: "d"}},
+			wantMsg: "request id missing",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			starter := &fakeStarter{}
+			store := &fakeStore{}
+			o := newTestOrchestrator(store, starter)
+
+			_, _, err := o.CreatePool(context.Background(), tc.params)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantMsg)
+			assert.False(t, starter.called, "starter must not be invoked on validation failure")
+			assert.Nil(t, store.created, "job must not be created on validation failure")
+		})
+	}
+}
+
+func TestCreatePool_DispatcherError_IsWrappedAndMarksJobError(t *testing.T) {
+	starter := &fakeStarter{err: errors.New("boom")}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	_, _, err := o.CreatePool(context.Background(), validParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to start pool workflow")
+	assert.Contains(t, err.Error(), "boom")
+
+	// A dispatch failure must not strand the job in NEW: it is marked ERROR.
+	require.NotNil(t, store.created)
+	require.Len(t, store.updated, 1, "the failed-to-start guard must mark the job ERROR once")
+	assert.Equal(t, store.created.ID, store.updated[0].JobID)
+	assert.Equal(t, vcmdb.JobStateError, store.updated[0].State)
+	assert.Contains(t, store.updated[0].ErrorMessage, "boom")
+}
+
+func TestCreatePool_DispatcherError_UpdateFailure_StillReturnsDispatchError(t *testing.T) {
+	// When dispatch fails AND the follow-up "mark job ERROR" write also fails,
+	// the update error is only logged (best-effort); the caller still gets the
+	// original dispatch failure so the job is not silently swallowed.
+	starter := &fakeStarter{err: errors.New("dispatch boom")}
+	store := &fakeStore{updateErr: errors.New("spanner write failed")}
+	o := newTestOrchestrator(store, starter)
+
+	_, operationID, err := o.CreatePool(context.Background(), validParams())
+
+	require.Error(t, err)
+	assert.Empty(t, operationID)
+	assert.Contains(t, err.Error(), "failed to start pool workflow")
+	assert.Contains(t, err.Error(), "dispatch boom")
+	// The ERROR-marking write was attempted even though it failed.
+	require.Len(t, store.updated, 1)
+	assert.Equal(t, vcmdb.JobStateError, store.updated[0].State)
+}
+
+func TestCreatePool_AttachedToExistingRun_StillSucceeds(t *testing.T) {
+	// ErrInstanceAlreadyExists means an instance for this operation was already
+	// running; that is an idempotent retry, not an error.
+	starter := &fakeStarter{err: cbackend.ErrInstanceAlreadyExists}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	_, operationID, err := o.CreatePool(context.Background(), validParams())
+
+	require.NoError(t, err)
+	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", operationID)
+	assert.Empty(t, store.updated, "attach is a success; no ERROR cleanup expected")
+}

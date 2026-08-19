@@ -166,7 +166,12 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 				CommonName:               commonName,
 				PrivateKey:               privateKey,
 			},
-			InsecureSkipVerify: false,
+			// TODO(vcm-dns): honor node.InsecureSkipVerify as a temporary workaround.
+			// GCP/OCI callers never set it, so this stays false (full mTLS, unchanged).
+			// The VCM create-pool flow sets it true because VCM has no Cloud DNS
+			// records to dial a per-node FQDN whose SNI matches the cert wildcard SAN.
+			// Revert to a hard false once DNS handling / SNI-override for VCM lands.
+			InsecureSkipVerify: node.InsecureSkipVerify,
 			AuthType:           node.AuthType, // Set authentication type
 			ServerName:         serverName,
 		}), nil
@@ -1669,6 +1674,7 @@ func _createNodeForProvider(inp NodeProviderInput) *models.Node {
 			SecretID:                       inp.OntapCredentials.SecretID,
 			AuthType:                       inp.OntapCredentials.AuthType,
 			CaURI:                          caURI,
+			InsecureSkipVerify:             inp.InsecureSkipVerify, // TODO(vcm-dns): temporary VCM workaround
 		}
 	}
 
@@ -1693,6 +1699,10 @@ type NodeProviderInput struct {
 	DeploymentName string
 	// Required: OntapCredentials from database (contains Password, SecretID, CertificateID, AuthType, and CA fields with env var fallback)
 	OntapCredentials *datamodel.PoolCredentials
+	// InsecureSkipVerify propagates onto the built node so the cert-auth REST
+	// client skips TLS server verification. TODO(vcm-dns): temporary — only the
+	// VCM create-pool flow sets this while VCM has no Cloud DNS records.
+	InsecureSkipVerify bool
 }
 
 // GetOntapNode resolves an ONTAP provider node from pool DB nodes, matching workflow usage:

@@ -4,6 +4,8 @@ FROM $BASE
 COPY app/vcm-proxy /app
 COPY lib/errors/errors.json /app/errors.json
 COPY common/vsa_config /common/vsa_config
+COPY config/vmrs_gcp.yaml  /config/vmrs_gcp.yaml
+COPY config/vmrs_gcp_v2.yaml  /config/vmrs_gcp_v2.yaml
 
 # Copy Air config for live reload
 COPY vcm-proxy/air.toml /app/air.toml

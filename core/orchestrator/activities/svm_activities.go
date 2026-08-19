@@ -9,8 +9,8 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -367,7 +367,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 
 	logger.Info("Creating QoS policy and applying to SVM", "svmName", svm.Name, "poolName", pool.Name, "qosType", pool.QosType, "apiAccessMode", pool.APIAccessMode)
 
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting CreateQoSPolicyAndApplyToSVM activity - pool: %s, SVM: %s, node: %s", pool.Name, svm.Name, node.Name))
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Starting CreateQoSPolicyAndApplyToSVM activity - pool: %s, SVM: %s, node: %s", pool.Name, svm.Name, node.Name))
 	// Get the provider for the node - CA fields are already in the node struct from CreateNodeForProvider()
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -389,7 +389,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 		SvmName: svm.Name,
 	}
 
-	activity.RecordHeartbeat(ctx, "Checking for existing QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Checking for existing QoS policy group")
 	existingQosPolicy, err := provider.FindQoSGroupPolicy(findQosPolicyParams)
 	if err == nil {
 		// QoS policy already exists, check if it matches our requirements
@@ -399,7 +399,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 				"throughput", existingQosPolicy.MaxThroughput,
 				"iops", existingQosPolicy.MaxIOPS)
 
-			activity.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
+			orchestrator.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
 			// Apply the existing QoS policy to the SVM using the utility function
 			return applyQoSPolicyToSVM(ctx, svm, node, existingQosPolicy.Name)
 		} else {
@@ -418,7 +418,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 				MaxIOPS:       maxIOPS,
 			}
 
-			activity.RecordHeartbeat(ctx, "Updating existing QoS policy group")
+			orchestrator.RecordHeartbeat(ctx, "Updating existing QoS policy group")
 			err = provider.UpdateQoSGroupPolicy(updateQosPolicyParams)
 			if err != nil {
 				logger.Error("Failed to update existing QoS policy group", "error", err, "policyName", qosPolicyName)
@@ -427,7 +427,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 
 			logger.Info("QoS policy group updated successfully", "policyName", existingQosPolicy.Name, "policyUUID", existingQosPolicy.UUID)
 
-			activity.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
+			orchestrator.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
 			// Apply the updated QoS policy to the SVM using the utility function
 			return applyQoSPolicyToSVM(ctx, svm, node, existingQosPolicy.Name)
 		}
@@ -447,7 +447,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 		IsShared:      &isShared,
 	}
 
-	activity.RecordHeartbeat(ctx, "Creating QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Creating QoS policy group")
 	qosPolicyResponse, err := provider.CreateQoSGroupPolicy(qosPolicyParams)
 	if err != nil {
 		logger.Error("Failed to create QoS policy group", "error", err, "policyName", qosPolicyName)
@@ -456,7 +456,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 
 	logger.Info("QoS policy group created successfully", "policyName", qosPolicyResponse.Name, "policyUUID", qosPolicyResponse.UUID)
 
-	activity.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
+	orchestrator.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
 	// Apply the QoS policy to the SVM using the utility function
 	return applyQoSPolicyToSVM(ctx, svm, node, qosPolicyResponse.Name)
 }

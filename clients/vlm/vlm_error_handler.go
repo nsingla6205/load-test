@@ -176,6 +176,11 @@ func (h *VLMErrorHandler) handleNonTemporalError(err error) error {
 	errMsg := strings.ToLower(err.Error())
 
 	// Check for common error patterns
+	if h.isConflictError(errMsg) {
+		h.logger.Info("Classified as resource-already-exists conflict", "error", err.Error())
+		return errors.NewVCPError(errors.ErrGCPResourceAlreadyExistsError, err)
+	}
+
 	if h.isRetryableError(errMsg) {
 		h.logger.Info("Classified as retryable error", "error", err.Error())
 		return errors.NewVCPError(errors.ErrVLMWorkflowError, err)
@@ -763,6 +768,25 @@ func (h *VLMErrorHandler) appendCauseToOriginalError(originalErr error, vlmErr V
 }
 
 // Helper methods for error classification
+
+// isConflictError checks if an error message indicates a resource-already-exists
+// conflict (for example an SVM that already exists). Mirrors the "already exists"
+// classification used on the temporal path so non-temporal errors (such as those
+// surfaced across the go-workflows child-workflow boundary, where the concrete
+// error type is flattened to a message string) map to the same tracking ID.
+func (h *VLMErrorHandler) isConflictError(errorMsg string) bool {
+	conflictPatterns := []string{
+		vlmErrPatternResourceAlreadyExists,
+		vlmErrPatternAlreadyExists,
+	}
+
+	for _, pattern := range conflictPatterns {
+		if strings.Contains(errorMsg, pattern) {
+			return true
+		}
+	}
+	return false
+}
 
 // isRetryableError checks if an error message indicates a retryable error
 func (h *VLMErrorHandler) isRetryableError(errorMsg string) bool {

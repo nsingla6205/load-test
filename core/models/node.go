@@ -20,6 +20,13 @@ type Node struct {
 	State                          string
 	DeploymentName                 string
 	AuthType                       int
+	// InsecureSkipVerify, when true, disables TLS server-certificate
+	// verification for the ONTAP REST client on the cert-auth path (client
+	// mTLS is unaffected). Defaults false so GCP/OCI keep full verification.
+	// TODO(vcm-dns): temporary — set only by the VCM create-pool flow while VCM
+	// has no Cloud DNS records. Remove once DNS handling / SNI-override for VCM
+	// is finalized.
+	InsecureSkipVerify bool
 	// Certificate-related configuration (from database with env var fallback)
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
 	CaURI string `json:"ca_uri,omitempty"`

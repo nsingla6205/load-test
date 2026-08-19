@@ -37,6 +37,7 @@ import (
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/activity"
 	"gorm.io/gorm"
 )
@@ -2310,6 +2311,7 @@ type IdentifyVMsRequest struct {
 	VMRSConfigPath      string
 	CustomerRequest     vmrs.CustomerRequestedPerformance
 	DeploymentName      string
+	RegionIdentifier    string
 	LocationInfo        *commonparams.LocationInfo
 	TenancyInfo         *commonparams.TenancyInfo
 	ServiceAccountEmail string
@@ -2334,7 +2336,7 @@ func (req IdentifyVMsRequest) validate() error {
 // IdentifyVMs takes the VMRS configuration, the customer-requested performance parameters, and
 // the current VLM configuration to identify the optimal VMs to use for the VSA cluster.
 func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) (*vlm.VLMConfig, error) {
-	activity.RecordHeartbeat(ctx, "Starting IdentifyVMs activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting IdentifyVMs activity")
 	logger := util.GetLogger(ctx)
 	logger.Debug("Identifying VMs to use for VSA cluster")
 
@@ -2344,7 +2346,7 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
 	}
 
-	activity.RecordHeartbeat(ctx, "Loading VMRS Config")
+	orchestrator.RecordHeartbeat(ctx, "Loading VMRS Config")
 	// Parse VMRS config.
 	vmrsConfig, err := LoadVMRSConfig(req.VMRSConfigPath)
 	if err != nil {
@@ -2392,7 +2394,7 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finding optimal VMs")
+	orchestrator.RecordHeartbeat(ctx, "Finding optimal VMs")
 	vlmConfig := &vlm.VLMConfig{}
 	if req.AccountID != "" {
 		if vlmConfig.Deployment.Labels == nil {
@@ -2411,7 +2413,7 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 		subnet = req.TenancyInfo.SubnetworkNames[len(req.TenancyInfo.SubnetworkNames)-1]
 	}
 
-	activity.RecordHeartbeat(ctx, "Preparing VLM config")
+	orchestrator.RecordHeartbeat(ctx, "Preparing VLM config")
 	// Convert the decision to a VLMConfig.
 	err = PrepareVlmConfig(vlmConfig, PrepareVlmConfigParams{
 		DeploymentID:            req.DeploymentName,
@@ -2434,15 +2436,19 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	if req.IsLargeCapacityPool {
 		vlmConfig.Deployment.NumHAPair = decision.ClusterMetadata.NumHAPairs
 	}
-	// Derive region identifier from REGION_NUMBER_MAP (worker configmap, same as proxy regionNumberMap) and append to cluster name
-	regionIdentifier := getRegionNumber()
+	// Prefer the caller-supplied region identifier; fall back to the worker's
+	// REGION_NUMBER_MAP[LOCAL_REGION] lookup when the request did not carry one.
+	regionIdentifier := req.RegionIdentifier
+	if regionIdentifier == "" {
+		regionIdentifier = getRegionNumber()
+	}
 	if regionIdentifier != "" {
 		vlmConfig.VsaCluster.ClusterName = req.DeploymentName + "-r" + regionIdentifier
 	} else {
 		vlmConfig.VsaCluster.ClusterName = req.DeploymentName
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished IdentifyVMs activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished IdentifyVMs activity")
 	return vlmConfig, nil
 }
 

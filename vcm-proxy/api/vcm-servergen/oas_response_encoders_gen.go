@@ -180,7 +180,7 @@ func encodeOperationGetV1Response(response OperationGetV1Res, w http.ResponseWri
 
 func encodePoolCreateV1Response(response PoolCreateV1Res, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *OperationResponseV1:
+	case *OperationV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err

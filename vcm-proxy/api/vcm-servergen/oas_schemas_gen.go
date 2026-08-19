@@ -788,36 +788,6 @@ func (s *OperationMetadataV1) SetEndTime(val OptDateTime) {
 	s.EndTime = val
 }
 
-// Ref: #/components/schemas/OperationResponse_v1
-type OperationResponseV1 struct {
-	// Operation identifier for async cluster workflow tracking.
-	OperationID string `json:"operationID"`
-	// True when the long-running operation has completed.
-	Done bool `json:"done"`
-}
-
-// GetOperationID returns the value of OperationID.
-func (s *OperationResponseV1) GetOperationID() string {
-	return s.OperationID
-}
-
-// GetDone returns the value of Done.
-func (s *OperationResponseV1) GetDone() bool {
-	return s.Done
-}
-
-// SetOperationID sets the value of OperationID.
-func (s *OperationResponseV1) SetOperationID(val string) {
-	s.OperationID = val
-}
-
-// SetDone sets the value of Done.
-func (s *OperationResponseV1) SetDone(val bool) {
-	s.Done = val
-}
-
-func (*OperationResponseV1) poolCreateV1Res() {}
-
 // Ref: #/components/schemas/Operation_v1
 type OperationV1 struct {
 	// Operation polling path in the format /v1/operations/{requestId}.
@@ -883,6 +853,7 @@ func (s *OperationV1) SetResponse(val OptOperationV1Response) {
 }
 
 func (*OperationV1) operationGetV1Res() {}
+func (*OperationV1) poolCreateV1Res()   {}
 
 // Success result set when the operation completes; empty when there is no result body.
 type OperationV1Response map[string]jx.Raw

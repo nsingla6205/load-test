@@ -2,17 +2,26 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	cbackend "github.com/cschleiden/go-workflows/backend"
+	"github.com/cschleiden/go-workflows/backend/sqlite"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
+	vcmjob "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
+	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
@@ -23,7 +32,13 @@ import (
 	vcmmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 	"golang.org/x/sync/errgroup"
+	vlmclient "netapp.com/vsa/lifecycle-manager/pkg/vlmclient"
+	vlmgowf "netapp.com/vsa/vsa-orchestrator/gowfbackend"
 )
+
+// vcmCloudProvider is the cloud VCM provisions VSA clusters on. VCM is GCP-only,
+// so the VLM workflows and provider factory are wired for GCP.
+const vcmCloudProvider = "gcp"
 
 const workflowUIPath = "/workflow-ui"
 
@@ -34,6 +49,26 @@ func main() {
 
 	logger := log.NewLogger()
 	logger.Info("Starting VCM proxy API")
+
+	// Register the VLM provider factory so the VLM config wrapper types can be
+	// built/JSON-decoded while identifying VMs and building the deployment. VCM
+	// provisions GCP VSA clusters, so the active provider is GCP.
+	vlm.SetActiveProvider(vlm.GCPCloud)
+	logger.Info("VLM active provider set", "provider", vlm.GCPCloud)
+
+	// lifecycle-manager's pkg/vlmconfig resolves the cloud provider from the
+	// PROVIDER env var (vlmconfig.GetProviderFromEnv) when decoding VLM child-
+	// workflow inputs. In the standalone vlm-worker this is injected by its
+	// configMap; VCM runs the VLM workflows in-process, so nothing sets it
+	// unless we do. Set it from the same GCP-only source of truth so in-process
+	// child-workflow input conversion succeeds in every environment (local and
+	// deployed) without relying on external env injection.
+	if err := os.Setenv("PROVIDER", vcmCloudProvider); err != nil {
+		logger.Error("Failed to set PROVIDER env for in-process VLM workflows", "error", err.Error())
+		os.Exit(1)
+	}
+	logger.Info("PROVIDER env set for in-process VLM workflows", "provider", vcmCloudProvider)
+
 	cfg := vcmconfig.LoadServerConfig()
 
 	shutdown, err := log.SetupOpenTelemetry(ctx)
@@ -47,10 +82,21 @@ func main() {
 		}
 	}()
 
-	orch := factory.GetOrchestratorForProvider(nil, nil)
+	// Created before the workflow engine so the job-progress activity can be
+	// registered with it.
+	configStore := vcmconfig.NewStore(logger, cfg.DBValidateTimeout)
+
+	workflowRunner, err := setupWorkflowEngine(ctx, logger, configStore)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to create workflow engine", "error", err)
+		os.Exit(1)
+	}
+
+	// The config store doubles as the durable job store for the orchestrator, and
+	// the runner's workflow starter dispatches the VCM pool workflow.
+	orch := factory.GetVCMOrchestrator(configStore, workflowRunner.WorkflowStarter(), logger)
 
 	serverState := vcmapi.NewServerState()
-	configStore := vcmconfig.NewStore(logger, cfg.DBValidateTimeout)
 	handler := &vcmapi.Handler{
 		Orchestrator: orch,
 		ServerState:  serverState,
@@ -63,7 +109,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := runServer(ctx, cfg, vcmServer, serverState, configStore, logger); err != nil {
+	if err := runServer(ctx, cfg, vcmServer, serverState, configStore, workflowRunner, logger); err != nil {
 		logger.Error("Server error", "error", err.Error())
 		os.Exit(1)
 	}
@@ -71,12 +117,7 @@ func main() {
 
 // runServer wires the go-workflows runner, HTTP server, and graceful shutdown.
 // It blocks until ctx is cancelled or a goroutine returns an error.
-func runServer(ctx context.Context, cfg *vcmconfig.ServerConfig, vcmServer http.Handler, serverState *vcmapi.ServerState, configStore *vcmconfig.Store, logger log.Logger) error {
-	workflowRunner, err := gowfbackend.NewRunner(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to create go-workflows runner")
-	}
-
+func runServer(ctx context.Context, cfg *vcmconfig.ServerConfig, vcmServer http.Handler, serverState *vcmapi.ServerState, configStore *vcmconfig.Store, workflowRunner *gowfbackend.Runner, logger log.Logger) error {
 	workflowUI := workflowUIHandler(workflowRunner, logger, cfg.WorkflowUIEnabled)
 	httpServer := setupHTTPServer(cfg, vcmServer, workflowUI, configStore)
 
@@ -104,6 +145,71 @@ func runServer(ctx context.Context, cfg *vcmconfig.ServerConfig, vcmServer http.
 	}
 	logger.Info("VCM server stopped gracefully")
 	return nil
+}
+
+// filteredBackendHandler wraps a slog.Handler to drop cschleiden's noisy
+// startup "Applying migrations" line while surfacing everything else, including
+// workflow/activity failures and retries.
+type filteredBackendHandler struct {
+	slog.Handler
+}
+
+func (h filteredBackendHandler) Handle(ctx context.Context, r slog.Record) error {
+	if strings.Contains(strings.ToLower(r.Message), "applying migrations") {
+		return nil
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+// setupWorkflowEngine creates the in-memory go-workflows engine and returns the
+// runner. The caller is responsible for Start/Stop and derives the workflow
+// starter from the runner. The jobStore is injected into the pool workflow's
+// job-progress activity so it can persist durable job state transitions.
+func setupWorkflowEngine(ctx context.Context, logger log.Logger, jobStore vcmdb.VCMDatastore) (*gowfbackend.Runner, error) {
+	// Build the in-memory backend with both context propagators installed: the
+	// VCP orchestrator's (PoolWorkflow/activities read deadline+correlation under
+	// its key) and the VLM/vsa-orchestrator's (VLM workflows/activities read them
+	// under a different key). Both must be present so context survives the
+	// PoolWorkflow -> VLM child-workflow boundary; the propagators are additive.
+	backendOpts := append(gowfbackend.DefaultBackendOptions(), vlmgowf.DefaultBackendOptions()...)
+	// Surface the go-workflows engine's own logs (workflow/activity failures and
+	// retries) so problems at the VLM child-workflow boundary are visible;
+	// cschleiden otherwise logs to slog.Default() which the JSON logger drops.
+	// Drop the noisy "Applying migrations" startup line.
+	backendLogger := slog.New(filteredBackendHandler{
+		Handler: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}),
+	})
+	backendOpts = append(backendOpts, cbackend.WithLogger(backendLogger))
+	backend := sqlite.NewInMemoryBackend(sqlite.WithBackendOptions(backendOpts...))
+
+	runner, err := gowfbackend.NewRunner(ctx, gowfbackend.WithBackend(backend))
+	if err != nil {
+		return nil, err
+	}
+
+	registerWorkflows(runner, jobStore)
+	logger.InfoContext(ctx, "in-memory go-workflows engine created")
+
+	return runner, nil
+}
+
+// registerWorkflows registers VCM's PoolWorkflow and its activities plus the
+// in-process VLM workflows/activities on the same worker, so PoolWorkflow's
+// child-workflow dispatch resolves locally.
+func registerWorkflows(runner *gowfbackend.Runner, jobStore vcmdb.VCMDatastore) {
+	reg := runner.Registrar()
+	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
+	reg.RegisterActivity((&activities.PoolActivity{}).IdentifyVMs)
+	reg.RegisterActivity((&activities.VCMCredentialActivity{}).ResolveOntapAdminPassword)
+	reg.RegisterActivity((&activities.VCMCredentialActivity{}).ResolveOntapCertificate)
+	reg.RegisterActivity((&activities.SvmActivity{}).CreateQoSPolicyAndApplyToSVM)
+	// Durable job state activity.
+	jobActivity := &vcmjob.JobActivity{Store: jobStore}
+	reg.RegisterActivity(jobActivity.GetJob)
+	reg.RegisterActivity(jobActivity.UpdateJobProgress)
+
+	vlmReg := vlmgowf.NewRegistrar(runner.Worker())
+	vlmclient.RegisterWorkflows(vlmReg, vcmCloudProvider)
 }
 
 func setupHTTPServer(cfg *vcmconfig.ServerConfig, handler, workflowUI http.Handler, configStore *vcmconfig.Store) *http.Server {

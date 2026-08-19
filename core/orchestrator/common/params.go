@@ -1,12 +1,14 @@
 package common
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
@@ -92,6 +94,184 @@ type CreatePoolParams struct {
 	MediatorFaultDomain  string
 	// WorkflowID, when set, is used as the Temporal workflow ID (OCI: opc-request-id).
 	WorkflowID string
+
+	// VCM holds VCM-specific pool-create inputs (stateless go-workflows path).
+	// Populated only when the request originates from vcm-proxy; nil for GCP/OCI.
+	VCM *VCMCreatePoolParams
+}
+
+// VCMCreatePoolParams carries the VCM pool-create inputs that do not map onto the
+// shared CreatePoolParams fields. It uses plain types so core does not depend on
+// the vcm-proxy generated API package.
+type VCMCreatePoolParams struct {
+	DeploymentID string
+	// RequestID is the caller-supplied UUID v4 (AIP-155) used for idempotent
+	// deduplication and returned to the caller as the operation ID.
+	RequestID string
+	// Deadline is the absolute UTC time by which the create-pool request must
+	// complete; the workflow stops with a deadline-exceeded error once it passes.
+	Deadline time.Time
+	// RegionIdentifier is the caller-supplied region code used to build the
+	// cluster-name region suffix. When empty the worker falls back to its local
+	// REGION_NUMBER_MAP[LOCAL_REGION] lookup.
+	RegionIdentifier     string
+	PrimaryZone          string
+	SecondaryZone        string
+	MediatorZone         string
+	ServiceTenantProject string
+	SNHostProject        string
+	ServiceAccountEmail  string
+	AutoTierBucketName   string
+	ProjectID            string
+	Mode                 string
+	QosType              string
+	ThroughputMibps      int64
+	Iops                 int64
+	SizeInBytes          int64
+	CaURI                string
+	NodeMgmt             VCMNetConfig
+	Data                 *VCMNetConfig
+	OntapCredentials     []VCMOntapCredential
+
+	// Derived carries the values computed from the request fields above,
+	// populated in the orchestrator before dispatch (nil until then).
+	Derived *VCMDerivedPoolInputs
+}
+
+// VCMNetConfig is a VCM VPC/subnet pair.
+type VCMNetConfig struct {
+	VPC    string
+	Subnet string
+}
+
+// vcmPoolModeOntap is the request Mode value that selects ONTAP mode.
+const vcmPoolModeOntap = "ONTAP"
+
+// vcmBytesPerGiB converts a byte-denominated pool size to GiB for VMRS.
+const vcmBytesPerGiB = 1024 * 1024 * 1024
+
+// VCMDerivedPoolInputs holds the values the pool workflow needs, computed from
+// the request by DeriveInputs (a pure transform).
+type VCMDerivedPoolInputs struct {
+	// Region is the primary zone with its zone suffix stripped.
+	Region string
+	// LocationInfo bundles the region and the primary/secondary/mediator zones.
+	LocationInfo *LocationInfo
+	// TenancyInfo bundles the intercluster network selection and tenant/host projects.
+	TenancyInfo *TenancyInfo
+	// IsOntapMode reports whether the request selected ONTAP mode.
+	IsOntapMode bool
+	// IsLargeCapacityPool reports whether this is a large-capacity pool.
+	IsLargeCapacityPool bool
+	// DesiredCapacityInGiB is the requested pool size in GiB.
+	DesiredCapacityInGiB int64
+	// OntapCredentials carries request-derived ONTAP credential identifiers only
+	// (no secret material), so it is safe to serialize into the workflow input.
+	OntapCredentials *datamodel.PoolCredentials
+}
+
+// DeriveInputs computes the workflow inputs from the request. It is pure, so it
+// is safe to call in the orchestrator or as a workflow fallback.
+func (p *VCMCreatePoolParams) DeriveInputs() *VCMDerivedPoolInputs {
+	region := p.PrimaryZone
+	if i := strings.LastIndex(p.PrimaryZone, "-"); i > 0 {
+		region = p.PrimaryZone[:i]
+	}
+
+	// The intercluster network prefers the dedicated data net config when
+	// present, otherwise falls back to the node-management net config.
+	icNet := p.NodeMgmt
+	if p.Data != nil {
+		icNet = *p.Data
+	}
+
+	return &VCMDerivedPoolInputs{
+		Region: region,
+		LocationInfo: &LocationInfo{
+			Region:        region,
+			PrimaryZone:   p.PrimaryZone,
+			SecondaryZone: p.SecondaryZone,
+			MediatorZone:  p.MediatorZone,
+		},
+		TenancyInfo: &TenancyInfo{
+			RegionalTenantProject: p.ServiceTenantProject,
+			Network:               icNet.VPC,
+			SubnetworkNames:       []string{icNet.Subnet},
+			SnHostProject:         p.SNHostProject,
+		},
+		IsOntapMode:          strings.EqualFold(p.Mode, vcmPoolModeOntap),
+		IsLargeCapacityPool:  false,
+		DesiredCapacityInGiB: p.SizeInBytes / vcmBytesPerGiB,
+		OntapCredentials:     deriveOntapCredentials(p),
+	}
+}
+
+// ONTAP credential type labels used to select which credential entry to use.
+const (
+	vcmOntapCredentialTypeAdmin   = "admin"
+	vcmOntapCredentialTypeDefault = "default"
+)
+
+// SelectOntapCredential picks a credential set, preferring admin, then default,
+// then the first entry.
+func SelectOntapCredential(creds []VCMOntapCredential) VCMOntapCredential {
+	var first, admin, def *VCMOntapCredential
+	for i := range creds {
+		if first == nil {
+			first = &creds[i]
+		}
+		switch strings.ToLower(creds[i].Type) {
+		case vcmOntapCredentialTypeAdmin:
+			admin = &creds[i]
+		case vcmOntapCredentialTypeDefault:
+			def = &creds[i]
+		}
+	}
+	switch {
+	case admin != nil:
+		return *admin
+	case def != nil:
+		return *def
+	case first != nil:
+		return *first
+	default:
+		return VCMOntapCredential{}
+	}
+}
+
+// deriveOntapCredentials maps the request's ONTAP credentials into
+// datamodel.PoolCredentials (identifiers only), selecting the auth type from the
+// material present.
+func deriveOntapCredentials(p *VCMCreatePoolParams) *datamodel.PoolCredentials {
+	cred := SelectOntapCredential(p.OntapCredentials)
+	creds := &datamodel.PoolCredentials{
+		SecretID:      cred.SecretID,
+		CertificateID: cred.CertificateID,
+		CaURI:         p.CaURI,
+	}
+	switch {
+	case creds.CertificateID != "":
+		creds.AuthType = env.USER_CERTIFICATE
+	case creds.SecretID != "":
+		creds.AuthType = env.USERNAME_PWD_SEC_MGR
+	default:
+		creds.AuthType = env.USERNAME_PWD
+	}
+	return creds
+}
+
+// VCMOntapCredential is a VCM ONTAP credential entry (type is admin/default).
+type VCMOntapCredential struct {
+	Type          string
+	SecretID      string
+	CertificateID string
+}
+
+// VCMPoolWorkflowResult is the terminal result of the VCM pool-create workflow.
+type VCMPoolWorkflowResult struct {
+	DeploymentID string `json:"deploymentId"`
+	Status       string `json:"status"`
+	Message      string `json:"message"`
 }
 
 type FabricPoolConfig struct {

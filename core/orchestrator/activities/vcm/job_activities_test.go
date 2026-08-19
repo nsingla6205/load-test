@@ -15,11 +15,21 @@ type stubJobStore struct {
 	params    vcmdb.UpdateJobProgressParams
 	updateErr error
 	called    bool
+
+	// getJob* configure the GetJob response and record the requested id.
+	getJob      *vcmdb.Job
+	getJobErr   error
+	gotJobID    string
+	getJobCalls int
 }
 
 func (s *stubJobStore) CreateJob(context.Context, *vcmdb.Job) error { return nil }
 
-func (s *stubJobStore) GetJob(context.Context, string) (*vcmdb.Job, error) { return nil, nil }
+func (s *stubJobStore) GetJob(_ context.Context, jobID string) (*vcmdb.Job, error) {
+	s.getJobCalls++
+	s.gotJobID = jobID
+	return s.getJob, s.getJobErr
+}
 
 func (s *stubJobStore) ListOngoingJobs(context.Context) ([]vcmdb.Job, error) { return nil, nil }
 
@@ -131,6 +141,40 @@ func TestJobActivity_UpdateJobProgress_NilStore(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "job store is not configured")
+}
+
+func TestJobActivity_GetJob_Success(t *testing.T) {
+	want := &vcmdb.Job{ID: "job-1", State: vcmdb.JobStateNew}
+	store := &stubJobStore{getJob: want}
+	activity := JobActivity{Store: store}
+
+	got, err := activity.GetJob(context.Background(), "job-1")
+
+	require.NoError(t, err)
+	assert.Same(t, want, got)
+	assert.Equal(t, "job-1", store.gotJobID)
+	assert.Equal(t, 1, store.getJobCalls)
+}
+
+func TestJobActivity_GetJob_NilStore(t *testing.T) {
+	activity := JobActivity{}
+
+	_, err := activity.GetJob(context.Background(), "job-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "job store is not configured")
+}
+
+func TestJobActivity_GetJob_StoreError(t *testing.T) {
+	store := &stubJobStore{getJobErr: errors.New("record not found")}
+	activity := JobActivity{Store: store}
+
+	_, err := activity.GetJob(context.Background(), "missing-job")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get vcm job")
+	assert.Contains(t, err.Error(), "missing-job")
+	assert.Contains(t, err.Error(), "record not found")
 }
 
 func TestJobActivity_UpdateJobProgress_StoreError(t *testing.T) {

@@ -269,6 +269,15 @@ func TestVLMErrorHandler_HandleNonTemporalError(t *testing.T) {
 			err:      fmt.Errorf("some unknown error"),
 			expected: errors.ErrVLMWorkflowError,
 		},
+		{
+			// A non-temporal error whose message signals an existing resource
+			// (e.g. an SVM the create flow re-ran on) must map to the
+			// resource-already-exists tracking id so callers can treat it as
+			// idempotent, mirroring the temporal path.
+			name:     "Resource-already-exists conflict",
+			err:      fmt.Errorf("SVM %q already exists", "svm-1"),
+			expected: errors.ErrGCPResourceAlreadyExistsError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1169,4 +1178,14 @@ func TestVLMErrorHandler_NewVLMErrorHandlerWithLogger(t *testing.T) {
 
 	assert.NotNil(t, handler)
 	assert.Equal(t, mockLog, handler.logger)
+}
+
+// TestVLMErrorHandler_IsConflictError verifies the standalone conflict
+// classifier used by handleNonTemporalError.
+func TestVLMErrorHandler_IsConflictError(t *testing.T) {
+	handler := NewVLMErrorHandler()
+
+	assert.True(t, handler.isConflictError("resource already exists"))
+	assert.True(t, handler.isConflictError("the svm already exists in the cluster"))
+	assert.False(t, handler.isConflictError("connection refused"))
 }

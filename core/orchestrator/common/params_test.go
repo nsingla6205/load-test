@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 func TestUpdateExternalClusterParams_HasUpdates(t *testing.T) {
@@ -70,6 +71,98 @@ func TestVolumeFetchOptionsFromFields(t *testing.T) {
 		assert.True(tt, opts.NeedIPAddresses)
 		assert.True(tt, opts.NeedInReplication)
 	})
+}
+
+func TestVCMCreatePoolParams_DeriveInputs(t *testing.T) {
+	t.Run("derives region, location, tenancy (data net), mode, capacity", func(tt *testing.T) {
+		p := &VCMCreatePoolParams{
+			PrimaryZone:          "us-central1-a",
+			SecondaryZone:        "us-central1-c",
+			MediatorZone:         "us-central1-b",
+			ServiceTenantProject: "tenant-proj",
+			SNHostProject:        "host-proj",
+			Mode:                 "ONTAP",
+			SizeInBytes:          2 * vcmBytesPerGiB,
+			NodeMgmt:             VCMNetConfig{VPC: "mgmt-vpc", Subnet: "mgmt-subnet"},
+			Data:                 &VCMNetConfig{VPC: "data-vpc", Subnet: "data-subnet"},
+		}
+
+		d := p.DeriveInputs()
+
+		assert.Equal(tt, "us-central1", d.Region, "region must strip the zone suffix")
+		assert.True(tt, d.IsOntapMode)
+		assert.False(tt, d.IsLargeCapacityPool)
+		assert.Equal(tt, int64(2), d.DesiredCapacityInGiB, "capacity must convert bytes to GiB")
+
+		assert.Equal(tt, "us-central1", d.LocationInfo.Region)
+		assert.Equal(tt, "us-central1-a", d.LocationInfo.PrimaryZone)
+		assert.Equal(tt, "us-central1-c", d.LocationInfo.SecondaryZone)
+		assert.Equal(tt, "us-central1-b", d.LocationInfo.MediatorZone)
+
+		assert.Equal(tt, "tenant-proj", d.TenancyInfo.RegionalTenantProject)
+		assert.Equal(tt, "host-proj", d.TenancyInfo.SnHostProject)
+		assert.Equal(tt, "data-vpc", d.TenancyInfo.Network, "must prefer the data net config when present")
+		assert.Equal(tt, []string{"data-subnet"}, d.TenancyInfo.SubnetworkNames)
+	})
+
+	t.Run("falls back to node-mgmt net and non-ontap mode", func(tt *testing.T) {
+		p := &VCMCreatePoolParams{
+			PrimaryZone: "us-east4-a",
+			Mode:        "DEFAULT",
+			NodeMgmt:    VCMNetConfig{VPC: "mgmt-vpc", Subnet: "mgmt-subnet"},
+		}
+
+		d := p.DeriveInputs()
+
+		assert.Equal(tt, "us-east4", d.Region)
+		assert.False(tt, d.IsOntapMode)
+		assert.Equal(tt, "mgmt-vpc", d.TenancyInfo.Network)
+		assert.Equal(tt, []string{"mgmt-subnet"}, d.TenancyInfo.SubnetworkNames)
+	})
+
+	t.Run("derives ontap credentials auth type from material present", func(tt *testing.T) {
+		cert := &VCMCreatePoolParams{
+			OntapCredentials: []VCMOntapCredential{
+				{Type: "admin", CertificateID: "cert-1", SecretID: "secret-1"},
+			},
+		}
+		d := cert.DeriveInputs()
+		assert.Equal(tt, "cert-1", d.OntapCredentials.CertificateID)
+		assert.Equal(tt, env.USER_CERTIFICATE, d.OntapCredentials.AuthType, "certificate present -> user certificate")
+
+		secret := &VCMCreatePoolParams{
+			CaURI: "ca-uri",
+			OntapCredentials: []VCMOntapCredential{
+				{Type: "admin", SecretID: "secret-1"},
+			},
+		}
+		d = secret.DeriveInputs()
+		assert.Equal(tt, "secret-1", d.OntapCredentials.SecretID)
+		assert.Equal(tt, "ca-uri", d.OntapCredentials.CaURI)
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, d.OntapCredentials.AuthType, "secret only -> secret manager auth")
+	})
+}
+
+func TestSelectOntapCredential(t *testing.T) {
+	admin := VCMOntapCredential{Type: "admin", SecretID: "admin-secret"}
+	def := VCMOntapCredential{Type: "default", SecretID: "default-secret"}
+	other := VCMOntapCredential{Type: "ontap-mode", SecretID: "mode-secret"}
+
+	tests := []struct {
+		name  string
+		creds []VCMOntapCredential
+		want  VCMOntapCredential
+	}{
+		{name: "prefers admin", creds: []VCMOntapCredential{other, def, admin}, want: admin},
+		{name: "falls back to default", creds: []VCMOntapCredential{other, def}, want: def},
+		{name: "falls back to first", creds: []VCMOntapCredential{other}, want: other},
+		{name: "empty returns zero value", creds: nil, want: VCMOntapCredential{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, SelectOntapCredential(tc.creds))
+		})
+	}
 }
 
 func TestNormalizeExpertModeVolumeTenancyLimits(t *testing.T) {

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +34,42 @@ func firstStaticAssetPath(html string) (string, bool) {
 		return "", false
 	}
 	return match, true
+}
+
+func TestFilteredBackendHandler_DropsMigrationLine(t *testing.T) {
+	var buf bytes.Buffer
+	h := filteredBackendHandler{
+		Handler: slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}),
+	}
+
+	// The noisy cschleiden startup line (any case) must be swallowed.
+	require.NoError(t, h.Handle(context.Background(),
+		slog.NewRecord(time.Now(), slog.LevelInfo, "Applying migrations...", 0)))
+	assert.Empty(t, buf.String(), "migration line must be dropped")
+
+	// Everything else (e.g. workflow/activity failures) must pass through.
+	require.NoError(t, h.Handle(context.Background(),
+		slog.NewRecord(time.Now(), slog.LevelError, "workflow execution failed", 0)))
+	assert.Contains(t, buf.String(), "workflow execution failed")
+}
+
+func TestSetupWorkflowEngine_RegistersWorkflows(t *testing.T) {
+	// registerWorkflows wires the in-process VLM workflows, whose config decoder
+	// resolves the provider from the PROVIDER env (main() sets this).
+	t.Setenv("PROVIDER", vcmCloudProvider)
+
+	runner, err := setupWorkflowEngine(context.Background(), log.NewLogger(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, runner)
+	t.Cleanup(func() {
+		_ = runner.Stop()
+	})
+
+	// The diagnostics handler is available on the in-memory backend, confirming
+	// the runner was built with a real (SQLite) backend.
+	uiHandler, err := runner.DiagnosticsHandler()
+	require.NoError(t, err)
+	require.NotNil(t, uiHandler)
 }
 
 func TestSetupHTTPServer_VCMAuthMiddleware(t *testing.T) {
@@ -356,7 +394,12 @@ func TestRunServer(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
+		runner, err := gowfbackend.NewRunner(ctx)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, runner, log.NewLogger())
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
@@ -399,7 +442,12 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
+		runner, err := gowfbackend.NewRunner(ctx)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, runner, log.NewLogger())
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
