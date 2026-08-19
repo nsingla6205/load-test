@@ -2866,6 +2866,39 @@ func TestLUNRules_BlockThickProvisioning(t *testing.T) {
 	})
 }
 
+func TestSystemNodeRunRule_Blocked(t *testing.T) {
+	denied := []string{
+		"system node run -node local -command version",
+		"run -node local -command version",
+	}
+	for _, input := range denied {
+		cmd, err := ParseCLICommand(input)
+		if err != nil {
+			t.Fatalf("ParseCLICommand(%q): %v", input, err)
+		}
+		rule, found := MatchCLIRule(cmd)
+		if !found || rule == nil {
+			t.Fatalf("Expected a matching deny rule for %q", input)
+		}
+		allowed, reason := EvaluateRule(rule, cmd)
+		if allowed {
+			t.Errorf("Expected %q to be denied", input)
+		}
+		if !containsSubstring(reason, "nodeshell access") {
+			t.Errorf("Expected reason to mention nodeshell access for %q, got %q", input, reason)
+		}
+	}
+
+	// A different "system node" subcommand must not be caught by these deny rules.
+	cmd, err := ParseCLICommand("system node show")
+	if err != nil {
+		t.Fatalf("ParseCLICommand: %v", err)
+	}
+	if _, found := MatchCLIRule(cmd); found {
+		t.Error("Expected no matching rule for 'system node show' (allowed by default)")
+	}
+}
+
 // Helper functions for tests
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))

@@ -2111,3 +2111,27 @@ func TestStorageVolumesResponseFiltering_AllowsTieringFootprint(t *testing.T) {
 		assert.NotContains(t, got, `"effective_total_footprint"`)
 	})
 }
+
+func TestSystemNodeRunRule_Blocked(t *testing.T) {
+	paths := []string{
+		"/api/private/cli/system/node/run",
+		"/api/private/cli/run",
+	}
+	methods := []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete}
+
+	for _, path := range paths {
+		rules := GetProxyRules()
+		rule, ok := rules[path]
+		assert.Truef(t, ok, "Should have a rule for %s", path)
+
+		for _, method := range methods {
+			req := httptest.NewRequest(method, path, nil)
+			action := rule.GetAction(req)
+			assert.NotNilf(t, action, "%s %s should have an action", method, path)
+
+			allowed, reason := action.ShouldAllow(req)
+			assert.Falsef(t, allowed, "%s %s should be denied", method, path)
+			assert.NotEmptyf(t, reason, "%s %s deny should carry a reason", method, path)
+		}
+	}
+}

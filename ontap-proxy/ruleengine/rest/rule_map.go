@@ -597,5 +597,22 @@ func GetProxyRules() map[string]Rule {
 			PATCH:  Deny{Name: "Nested SVM volume QoS settings cannot be modified"},
 			DELETE: DenyAll{},
 		},
+
+		// System node run (nodeshell/systemshell passthrough) — REST equivalent of the CLI
+		// "system node run" command. It can bypass proxy access controls, so the private-CLI
+		// route and its "run" alias are denied for all methods. Explicit deny is required
+		// because unmatched REST paths pass through by default.
+		"/api/private/cli/system/node/run": {
+			GET:    Deny{Name: "system node run (nodeshell access) is not allowed"},
+			POST:   Deny{Name: "system node run (nodeshell access) is not allowed"},
+			PATCH:  Deny{Name: "system node run (nodeshell access) is not allowed"},
+			DELETE: Deny{Name: "system node run (nodeshell access) is not allowed"},
+		},
+		"/api/private/cli/run": {
+			GET:    Deny{Name: "system node run (nodeshell access) is not allowed"},
+			POST:   Deny{Name: "system node run (nodeshell access) is not allowed"},
+			PATCH:  Deny{Name: "system node run (nodeshell access) is not allowed"},
+			DELETE: Deny{Name: "system node run (nodeshell access) is not allowed"},
+		},
 	}
 }

@@ -648,6 +648,19 @@ var cliRules = []CLIRule{
 		Allow:   false,
 		Reason:  "Aggregate operations not allowed",
 	},
+	// System node run — nodeshell/systemshell passthrough that can bypass the proxy's
+	// CLI access controls entirely. Block "system node run" and its "run" alias outright.
+	{
+		Pattern: "system node run",
+		Allow:   false,
+		Reason:  "system node run (nodeshell access) is not allowed",
+	},
+	{
+		Pattern: "run",
+		Allow:   false,
+		Reason:  "system node run (nodeshell access) is not allowed",
+	},
+
 	{
 		Pattern: "set *",
 		Allow:   false,
