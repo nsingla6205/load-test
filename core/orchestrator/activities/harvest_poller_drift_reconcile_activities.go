@@ -1375,7 +1375,7 @@ func listHarvestPollerFiles(ctx context.Context) ([]HarvestPollerFileEntry, []st
 	if err != nil {
 		return nil, nil, err
 	}
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := doHarvestHTTP(ctx, req, nil)
 	if err != nil {
 		return nil, nil, err
 	}

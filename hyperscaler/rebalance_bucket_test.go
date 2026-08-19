@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,16 @@ func testRebalanceStorageClient(t *testing.T) *storage.Client {
 	)
 	require.NoError(t, err)
 	return client
+}
+
+func TestHarvestPollerIOTimeout_DefaultAndEnv(t *testing.T) {
+	assert.Equal(t, 30*time.Second, HarvestPollerIOTimeout(), "default timeout should be 30s when env unset")
+
+	t.Setenv("HARVEST_POLLER_IO_TIMEOUT_SECONDS", "5")
+	assert.Equal(t, 5*time.Second, HarvestPollerIOTimeout())
+
+	t.Setenv("HARVEST_POLLER_IO_TIMEOUT_SECONDS", "0")
+	assert.Equal(t, 30*time.Second, HarvestPollerIOTimeout(), "non-positive env value should fall back to default")
 }
 
 func TestGetRebalanceBucketClient_GCPServiceError(t *testing.T) {

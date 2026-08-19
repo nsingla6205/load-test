@@ -392,8 +392,7 @@ func uploadYAMLFile(ctx context.Context, input UploadYAMLFileInput) (*http.Respo
 		return nil, errors.New("failed to create HTTP request: " + err.Error())
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := doHarvestHTTP(ctx, req, nil)
 	if err != nil {
 		return nil, errors.New("failed to execute HTTP request: " + err.Error())
 	}

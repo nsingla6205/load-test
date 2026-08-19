@@ -278,6 +278,7 @@ workerConfig:
   harvestRestProtocol: "http"
   harvestPortStart: 13001
   harvestPortEnd: 13500
+  harvestPollerIoTimeoutSeconds: 30
   cvpHost: ""
   # CVN SDK client for Temporal activities that call Cloud Volumes Network.
   cvn:

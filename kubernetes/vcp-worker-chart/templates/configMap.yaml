@@ -153,6 +153,7 @@ data:
   HARVEST_SECRET_MANAGER_AUTH_ENABLED: {{ $.Values.workerConfig.harvestSecretManagerAuthEnabled | quote }}
   ENABLE_MULTI_HA_PAIR_REGISTRATION: {{ $.Values.workerConfig.enableMultiHaPairRegistration | quote }}
   HARVEST_REST_PROTOCOL: {{ $.Values.workerConfig.harvestRestProtocol | quote }}
+  HARVEST_POLLER_IO_TIMEOUT_SECONDS: {{ $.Values.workerConfig.harvestPollerIoTimeoutSeconds | default "30" | quote }}
   CVP_HOST: {{$.Values.workerConfig.cvpHost | quote }}
   {{ if $.Values.workerConfig.cvn.enabled }}
   CVN_HOST: {{ $.Values.workerConfig.cvn.host | quote }}

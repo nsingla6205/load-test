@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -1596,6 +1597,38 @@ func TestUploadHarvestNodeMapping_RenderAndUploadErrors(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "render fail")
 	})
+}
+
+// testUploadYAMLFileActivity wraps uploadYAMLFile for Temporal test env (RecordHeartbeat needs activity ctx).
+func testUploadYAMLFileActivity(ctx context.Context, input UploadYAMLFileInput) error {
+	_, err := uploadYAMLFile(ctx, input)
+	return err
+}
+
+// TestUploadYAMLFile_TimesOutOnSlowServer verifies uploadYAMLFile (VSCP-6750) fails fast instead of
+// hanging when the Harvest farm is slow to respond.
+func TestUploadYAMLFile_TimesOutOnSlowServer(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	t.Setenv("HARVEST_POLLER_IO_TIMEOUT_SECONDS", "1")
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(testUploadYAMLFileActivity)
+
+	start := time.Now()
+	_, err := env.ExecuteActivity(testUploadYAMLFileActivity, UploadYAMLFileInput{
+		URL: ts.URL, YAML: "fake-yaml", LeaseName: "lease-1", NodeID: 1,
+	})
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "deadline exceeded", "expected upload timeout error")
+	assert.Less(t, elapsed, 2*time.Second, "upload should time out before the server responds")
 }
 
 func TestUploadHarvestNodeMapping_GCSBucket(t *testing.T) {

@@ -5,11 +5,29 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"google.golang.org/api/iterator"
 )
+
+const defaultHarvestPollerIOTimeoutSeconds = 30
+
+// HarvestPollerIOTimeout returns the timeout for Harvest poller I/O (Farm REST and rebalance-bucket GCS).
+// Read at call time so tests can override via t.Setenv("HARVEST_POLLER_IO_TIMEOUT_SECONDS", ...).
+func HarvestPollerIOTimeout() time.Duration {
+	seconds := env.GetInt("HARVEST_POLLER_IO_TIMEOUT_SECONDS", defaultHarvestPollerIOTimeoutSeconds)
+	if seconds <= 0 {
+		seconds = defaultHarvestPollerIOTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func rebalanceBucketOpContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, HarvestPollerIOTimeout())
+}
 
 // RebalanceBucketClient abstracts bucket operations used by poller rebalance flows.
 type RebalanceBucketClient interface {
@@ -54,6 +72,9 @@ func (c *gcpRebalanceBucketClient) storageClient(ctx context.Context) (*storage.
 }
 
 func (c *gcpRebalanceBucketClient) UploadObject(ctx context.Context, bucketName, objectName string, payload []byte, contentType string) error {
+	ctx, cancel := rebalanceBucketOpContext(ctx)
+	defer cancel()
+
 	storageClient, err := rebalanceBucketStorageClientFn(c, ctx)
 	if err != nil {
 		return err
@@ -68,6 +89,9 @@ func (c *gcpRebalanceBucketClient) UploadObject(ctx context.Context, bucketName,
 }
 
 func (c *gcpRebalanceBucketClient) DeleteObject(ctx context.Context, bucketName, objectName string) error {
+	ctx, cancel := rebalanceBucketOpContext(ctx)
+	defer cancel()
+
 	storageClient, err := rebalanceBucketStorageClientFn(c, ctx)
 	if err != nil {
 		return err
@@ -80,6 +104,9 @@ func (c *gcpRebalanceBucketClient) DeleteObject(ctx context.Context, bucketName,
 }
 
 func (c *gcpRebalanceBucketClient) DeleteObjectsWithPrefix(ctx context.Context, bucketName, objectPrefix string) error {
+	ctx, cancel := rebalanceBucketOpContext(ctx)
+	defer cancel()
+
 	storageClient, err := rebalanceBucketStorageClientFn(c, ctx)
 	if err != nil {
 		return err

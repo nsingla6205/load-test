@@ -49,9 +49,9 @@ var deleteKubernetesLeaseForEmptyHarvestPollers = utils.DeleteKubernetesLease
 // deleteRebalanceLeasePrefixInBucket removes all objects under one lease prefix in the configured rebalance bucket.
 // Overridable in tests.
 var (
-	getRebalanceBucketClient              = hyperscaler.GetRebalanceBucketClient
-	deleteRebalanceLeasePrefixInBucket    = deleteRebalanceLeasePrefixInBucketClient
-	rebalanceHarvestDeleteHTTPTransport   http.RoundTripper // nil => http.Client default transport
+	getRebalanceBucketClient            = hyperscaler.GetRebalanceBucketClient
+	deleteRebalanceLeasePrefixInBucket  = deleteRebalanceLeasePrefixInBucketClient
+	rebalanceHarvestDeleteHTTPTransport http.RoundTripper // nil => http.Client default transport
 )
 
 // deleteHarvestLeaseConfigFolder removes the Harvest PVC lease directory for an empty lease via the farm REST API.
@@ -76,8 +76,7 @@ func deleteHarvestLeaseConfigFolder(ctx context.Context, leaseName string) error
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := doHarvestHTTP(ctx, req, nil)
 	if err != nil {
 		return err
 	}
@@ -120,13 +119,12 @@ func deleteRebalanceTargetHarvestPoller(ctx context.Context, leaseName string, n
 		retryInterval = 0
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second, Transport: rebalanceHarvestDeleteHTTPTransport}
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
 		if err != nil {
 			return err
 		}
-		resp, err := client.Do(req)
+		resp, err := doHarvestHTTP(ctx, req, rebalanceHarvestDeleteHTTPTransport)
 		if err != nil {
 			if !isRetryableHarvestDeleteError(err) || attempt >= maxAttempts || ctx.Err() != nil {
 				return err
