@@ -172,6 +172,7 @@ data:
   {{ end }}
   IMMUTABLE_BACKUP_ENABLED: {{$.Values.workerConfig.immutableBackupEnabled | quote }}
   CROSS_REGION_BACKUP_ENABLED: {{$.Values.workerConfig.crossRegionBackupEnabled | quote }}
+  ENABLE_BILLING_LEDGER: {{$.Values.workerConfig.enableBillingLedger | quote }}
   ENABLE_BACKUP_VAULT_SWITCHING: {{$.Values.workerConfig.enableBackupVaultSwitching | quote }}
   ENABLE_GCNV_VAULT_SWITCHING: {{$.Values.workerConfig.enableGCNVVaultSwitching | quote }}
   GCBDR_VAULT_ENABLED: {{$.Values.workerConfig.gcbdrVaultEnabled | quote }}

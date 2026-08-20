@@ -8,12 +8,28 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
+
+// billingLedgerEnabled gates all billing-ledger reads/writes behind a feature flag so the
+// ledger can be rolled out (and killed) per environment. Defaults to false: when disabled every
+// ledger activity is a safe no-op. Read once at process start, consistent with other VCP flags.
+var billingLedgerEnabled = env.GetBool("ENABLE_BILLING_LEDGER", false)
 
 // BillingActivity handles billing-related operations
 type BillingActivity struct {
 	SE database.Storage
+}
+
+// ledgerDisabled reports whether billing-ledger operations are turned off via the feature flag.
+// When disabled, the calling activity should return nil (no-op) before touching the datastore.
+func ledgerDisabled(ctx context.Context, operation string) bool {
+	if billingLedgerEnabled {
+		return false
+	}
+	util.GetLogger(ctx).Debugf("Ledger: ENABLE_BILLING_LEDGER is disabled; skipping %s", operation)
+	return true
 }
 
 // BillingLedgerInput contains the input parameters for creating a billing ledger entry
@@ -75,6 +91,9 @@ func getPoolResourceType(pool *datamodel.Pool) metadata.ResourceType {
 // Creates entries for both ALLOCATED_SIZE and POOL_HOT_TIER_PROVISIONED_SIZE (if AT is enabled).
 // Uses VOLUME_POOL_REGIONAL_HA resource type for Regional HA pools, VOLUME_POOL otherwise.
 func (a *BillingActivity) CreatePoolBillingLedger(ctx context.Context, pool *datamodel.Pool) error {
+	if ledgerDisabled(ctx, "CreatePoolBillingLedger") {
+		return nil
+	}
 	resourceType := getPoolResourceType(pool)
 
 	// Create main pool billing ledger entry (ALLOCATED_SIZE)
@@ -173,6 +192,9 @@ func (a *BillingActivity) shouldSkipVolumeBackupBilling(ctx context.Context, vol
 // vault (which is billed separately via transfer bytes).
 // Uses VOLUME_REGIONAL_HA resource type for Regional HA volumes, VOLUME otherwise.
 func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
+	if ledgerDisabled(ctx, "CreateVolumeBillingLedger") {
+		return nil
+	}
 	resourceType := getVolumeResourceType(volume)
 
 	if !isBackupEnabledVolume(volume) {
@@ -205,6 +227,9 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 // billing only applies to cross-region backups). Uses VOLUME_UUID as the resource so the entry
 // is keyed per volume.
 func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
+	if ledgerDisabled(ctx, "CreateCrossRegionBackupTransferBillingLedger") {
+		return nil
+	}
 	logger := util.GetLogger(ctx)
 
 	if backup == nil || backup.Attributes == nil {
@@ -250,6 +275,9 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 // would stop accruing transfer billing while other backups still exist. It is a no-op when backup
 // or its VolumeUUID is empty, and deleting a non-existent entry is itself a no-op.
 func (a *BillingActivity) DeleteCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
+	if ledgerDisabled(ctx, "DeleteCrossRegionBackupTransferBillingLedger") {
+		return nil
+	}
 	if backup == nil || backup.VolumeUUID == "" {
 		return nil
 	}
@@ -258,12 +286,18 @@ func (a *BillingActivity) DeleteCrossRegionBackupTransferBillingLedger(ctx conte
 
 // DeleteVolumeBillingLedger deletes the backup-enabled volume allocated size billing ledger entry.
 func (a *BillingActivity) DeleteVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
+	if ledgerDisabled(ctx, "DeleteVolumeBillingLedger") {
+		return nil
+	}
 	resourceType := getVolumeResourceType(volume)
 	return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 }
 
 // DeletePoolBillingLedgers deletes pool billing ledger entries (allocated size and hot tier when present).
 func (a *BillingActivity) DeletePoolBillingLedgers(ctx context.Context, pool *datamodel.Pool) error {
+	if ledgerDisabled(ctx, "DeletePoolBillingLedgers") {
+		return nil
+	}
 	resourceType := getPoolResourceType(pool)
 	if err := a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolAllocatedSize); err != nil {
 		return err

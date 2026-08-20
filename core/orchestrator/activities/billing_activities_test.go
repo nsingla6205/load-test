@@ -15,9 +15,40 @@ import (
 
 var errLedger = errors.New("ledger failure")
 
+// init force-enables the billing-ledger feature flag for the activities test binary.
+// The flag defaults to false in production (opt-in rollout), but the existing unit tests
+// exercise the real ledger read/write paths and assert datastore interactions, so they must
+// run with the ledger turned on. Tests that verify the disabled path flip it locally and restore.
+func init() {
+	billingLedgerEnabled = true
+}
+
 // backupChainBytes returns a pointer to the given size for DataProtection wiring.
 func backupChainBytes(size int64) *int64 {
 	return &size
+}
+
+// TestBillingLedgerDisabled_NoOp verifies that when ENABLE_BILLING_LEDGER is off every ledger
+// entrypoint returns nil without touching the datastore (mockSE has no expectations set).
+func TestBillingLedgerDisabled_NoOp(t *testing.T) {
+	ctx := context.Background()
+	prev := billingLedgerEnabled
+	billingLedgerEnabled = false
+	t.Cleanup(func() { billingLedgerEnabled = prev })
+
+	mockSE := database.NewMockStorage(t)
+	activity := &BillingActivity{SE: mockSE}
+
+	assert.NoError(t, activity.CreatePoolBillingLedger(ctx, &datamodel.Pool{Name: "pool-1", SizeInBytes: 100}))
+	assert.NoError(t, activity.CreateVolumeBillingLedger(ctx, &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "vol-1"}}))
+	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, &datamodel.Backup{
+		VolumeUUID:    "vol-1",
+		BackupVaultID: 10,
+		Attributes:    &datamodel.BackupAttributes{TotalTransferBytes: 5000},
+	}))
+	assert.NoError(t, activity.DeletePoolBillingLedgers(ctx, &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-1"}}))
+	assert.NoError(t, activity.DeleteVolumeBillingLedger(ctx, &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "vol-1"}}))
+	assert.NoError(t, activity.DeleteCrossRegionBackupTransferBillingLedger(ctx, &datamodel.Backup{VolumeUUID: "vol-1"}))
 }
 
 func TestCreateCrossRegionBackupTransferBillingLedger(t *testing.T) {
