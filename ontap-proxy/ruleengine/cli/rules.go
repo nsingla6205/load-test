@@ -556,19 +556,24 @@ var cliRules = []CLIRule{
 		Pattern: "qos policy-group modify",
 		Allow:   true,
 		Condition: CLIAnd(
-			CLIHasArgs("-policy-group", "-vserver"),
+			CLIHasArgs("-policy-group"),
 			CLIRejectReservedQPG("-policy-group"),
 			CLIRejectReservedQPG("-new-name"),
 			CLIRejectArgs("-min-throughput"),
 		),
+		// -vserver is optional here; when omitted, the reserved (vserver-wide) policy is enforced
+		// against the pool's SVM resolved from the deployment name in auth context.
+		ExternalValidator: validateQoSPolicyGroupReserved,
 	},
 	{
 		Pattern: "qos policy-group delete",
 		Allow:   true,
 		Condition: CLIAnd(
-			CLIHasArgs("-policy-group", "-vserver"),
+			CLIHasArgs("-policy-group"),
 			CLIRejectReservedQPG("-policy-group"),
 		),
+		// -vserver is optional here; see modify above.
+		ExternalValidator: validateQoSPolicyGroupReserved,
 	},
 	{
 		Pattern: "qos policy-group rename",
@@ -985,7 +990,16 @@ func CLIRejectReservedQPG(argName string) CLICondition {
 		if name == "" {
 			return true, ""
 		}
-		if proxyutils.IsReservedQoSPolicyName(name, cmd.GetArgument("-vserver")) {
+		vserver := cmd.GetArgument("-vserver")
+		if vserver == "" {
+			// SVM is unknown at local-eval time (create/rename always supply -vserver; modify/delete
+			// may omit it). Defer reserved-name enforcement to the external validator
+			// (_validateQoSPolicyGroupReserved), which resolves the SVM from the deployment name in
+			// auth context. Without deferring here, the external validator could never allow legit
+			// "*-qos-policy" customer names.
+			return true, ""
+		}
+		if proxyutils.IsReservedQoSPolicyName(name, vserver) {
 			return false, fmt.Sprintf("QoS policy %q is reserved (vserver-wide) and cannot be created, modified, deleted, or used as a rename target", name)
 		}
 		return true, ""

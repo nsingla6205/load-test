@@ -1544,6 +1544,11 @@ func (s *OntapCredentialsV1) SetFake() {
 			s.AccountUUID.SetFake()
 		}
 	}
+	{
+		{
+			s.DeploymentName.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

@@ -23,6 +23,7 @@ var (
 	validateFlexCacheCreate         = _validateFlexCacheCreate
 	validateFlexCacheDelete         = _validateFlexCacheDelete
 	validateAggregateShow           = _validateAggregateShow
+	validateQoSPolicyGroupReserved  = _validateQoSPolicyGroupReserved
 	submitExpertModeVolumeOperation = core.SubmitExpertModeVolumeOperation
 	submitExpertModeVolumeRename    = core.SubmitExpertModeVolumeRename
 	submitExpertModeFlexCloneSplit  = core.SubmitExpertModeFlexCloneSplit
@@ -44,6 +45,37 @@ func _validateAggregateShow(ctx context.Context, _ *CLICommand) (bool, string) {
 		return false, "Aggregate listing not allowed"
 	}
 
+	return true, ""
+}
+
+// _validateQoSPolicyGroupReserved denies "qos policy-group modify/delete" that targets the pool's
+// reserved vserver-wide QoS policy ({svm}-qos-policy) when the command omits -vserver.
+//
+// The local rule condition (CLIRejectReservedQPG) can only enforce the reserved name when -vserver
+// is present. When it is omitted, ONTAP resolves the policy in the caller's default vserver context,
+// so this validator resolves the pool's data SVM from the deployment name in auth context
+// ({deploymentName}-svm-01) and rejects the exact reserved name. When the deployment name is
+// unknown, IsReservedQoSPolicyName falls back to a fail-closed check on the reserved suffix.
+func _validateQoSPolicyGroupReserved(ctx context.Context, cmd *CLICommand) (bool, string) {
+	// When -vserver is present, the local condition already enforced the exact reserved check.
+	if cmd.GetArgument("-vserver") != "" {
+		return true, ""
+	}
+
+	deploymentName := ""
+	if cacheKey := cache.GetAuthDataKeyFromContext(ctx); cacheKey != "" {
+		if authData, ok := cache.GetFromAuthDataCache(cacheKey); ok && authData != nil {
+			deploymentName = authData.DeploymentName
+		}
+	}
+	svmName := proxyutils.SVMNameForFlexDeployment(deploymentName)
+
+	for _, argName := range []string{"-policy-group", "-new-name"} {
+		name := cmd.GetArgument(argName)
+		if proxyutils.IsReservedQoSPolicyName(name, svmName) {
+			return false, fmt.Sprintf("QoS policy %q is reserved (vserver-wide) and cannot be modified, deleted, or used as a rename target", name)
+		}
+	}
 	return true, ""
 }
 

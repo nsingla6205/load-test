@@ -45,6 +45,10 @@ type AuthData struct {
 	// associated with a dedicated-hardware credential. Empty otherwise.
 	ClusterName string
 	AccountUUID string
+	// DeploymentName is the pool's deployment name. Used to derive the pool's data SVM
+	// ({deploymentName}-svm-01) and thus the reserved vserver-wide QoS policy
+	// ({svmName}-qos-policy), so it can be denied even when a CLI command omits -vserver.
+	DeploymentName string
 }
 
 type OntapEndpoint struct {

@@ -7655,9 +7655,15 @@ func (s *OntapCredentialsV1) encodeFields(e *jx.Encoder) {
 			s.AccountUUID.Encode(e)
 		}
 	}
+	{
+		if s.DeploymentName.Set {
+			e.FieldStart("deployment_name")
+			s.DeploymentName.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfOntapCredentialsV1 = [9]string{
+var jsonFieldsNameOfOntapCredentialsV1 = [10]string{
 	0: "secret_id",
 	1: "certificate_id",
 	2: "password",
@@ -7667,6 +7673,7 @@ var jsonFieldsNameOfOntapCredentialsV1 = [9]string{
 	6: "username",
 	7: "service_level",
 	8: "account_uuid",
+	9: "deployment_name",
 }
 
 // Decode decodes OntapCredentialsV1 from json.
@@ -7773,6 +7780,16 @@ func (s *OntapCredentialsV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"account_uuid\"")
+			}
+		case "deployment_name":
+			if err := func() error {
+				s.DeploymentName.Reset()
+				if err := s.DeploymentName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deployment_name\"")
 			}
 		default:
 			return d.Skip()

@@ -109,6 +109,9 @@ type UserCredentials struct {
 	// than FLEX indicates a dedicated-hardware pool.
 	ServiceLevel string `json:"service_level,omitempty"`
 	AccountUUID  string `json:"account_uuid,omitempty"`
+	// DeploymentName is the pool's deployment name. The ontap-proxy uses it to derive the
+	// pool's data SVM ({deploymentName}-svm-01) and thus the reserved vserver-wide QoS policy.
+	DeploymentName string `json:"deployment_name,omitempty"`
 }
 
 // GetCaURIWithFallback gets ca_uri from UserCredentials, falling back to environment variables if not set.

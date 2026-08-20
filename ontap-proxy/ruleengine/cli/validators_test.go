@@ -1150,3 +1150,78 @@ func Test_validateVolumeCloneSplitStart(t *testing.T) {
 		}
 	})
 }
+
+func Test_validateQoSPolicyGroupReserved(t *testing.T) {
+	// deployment "dep-a" => data SVM "dep-a-svm-01" => reserved policy "dep-a-svm-01-qos-policy".
+	tests := []struct {
+		name           string
+		input          string
+		deploymentName string // "" => no auth data seeded
+		wantAllowed    bool
+	}{
+		{
+			name:        "vserver present is a no-op (local condition already enforced)",
+			input:       "qos policy-group modify -policy-group dep-a-svm-01-qos-policy -vserver dep-a-svm-01",
+			wantAllowed: true,
+		},
+		{
+			name:           "modify reserved without vserver denied via deployment name",
+			input:          "qos policy-group modify -policy-group dep-a-svm-01-qos-policy -throughput 800MB/s",
+			deploymentName: "dep-a",
+			wantAllowed:    false,
+		},
+		{
+			name:           "delete reserved without vserver denied via deployment name",
+			input:          "qos policy-group delete -policy-group dep-a-svm-01-qos-policy",
+			deploymentName: "dep-a",
+			wantAllowed:    false,
+		},
+		{
+			name:           "modify legit -qos-policy name without vserver allowed when deployment known",
+			input:          "qos policy-group modify -policy-group foo-qos-policy -throughput 800MB/s",
+			deploymentName: "dep-a",
+			wantAllowed:    true,
+		},
+		{
+			name:           "modify reserved new-name without vserver denied via deployment name",
+			input:          "qos policy-group modify -policy-group cust1 -new-name dep-a-svm-01-qos-policy",
+			deploymentName: "dep-a",
+			wantAllowed:    false,
+		},
+		{
+			name:        "unknown deployment fails closed on reserved suffix",
+			input:       "qos policy-group delete -policy-group something-qos-policy",
+			wantAllowed: false,
+		},
+		{
+			name:        "unknown deployment allows non-suffix name",
+			input:       "qos policy-group delete -policy-group cust1",
+			wantAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, err := ParseCLICommand(tt.input)
+			if err != nil {
+				t.Fatalf("failed to parse %q: %v", tt.input, err)
+			}
+
+			ctx := context.Background()
+			if tt.deploymentName != "" {
+				cacheKey := "qos-reserved-" + tt.name
+				ctx = context.WithValue(ctx, models.AuthDataKey, cacheKey)
+				cache.AddToAuthDataCache(cacheKey, &models.AuthData{DeploymentName: tt.deploymentName})
+				t.Cleanup(func() { cache.RemoveFromAuthDataCache(cacheKey) })
+			}
+
+			allowed, reason := _validateQoSPolicyGroupReserved(ctx, cmd)
+			if allowed != tt.wantAllowed {
+				t.Fatalf("allowed = %v (reason=%q), want %v", allowed, reason, tt.wantAllowed)
+			}
+			if !allowed && reason == "" {
+				t.Error("expected a non-empty denial reason")
+			}
+		})
+	}
+}

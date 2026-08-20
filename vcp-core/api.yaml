@@ -3993,6 +3993,11 @@ components:
           type: string
           description: The UUID of the account that owns the pool. Used by the ontap-proxy to scope dedicated-hardware (non-FLEX) SVM listings to the owning account (svm_<accountUUID-without-hyphens>_ naming convention).
           example: "8ecd3d96-7a33-5b40-0b02-bef53efd2f03"
+        deployment_name:
+          title: deployment_name
+          type: string
+          description: The pool's deployment name. Used by the ontap-proxy to derive the pool's data SVM ({deploymentName}-svm-01).
+          example: "gcnv-f2262587535ab51"
     ontapEndpoint:
       title: ontapEndpoint
       type: object

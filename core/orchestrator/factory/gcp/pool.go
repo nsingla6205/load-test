@@ -978,6 +978,7 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 			Username:       pool.PoolCredentials.Username,
 			ServiceLevel:   pool.ServiceLevel,
 			AccountUUID:    account.UUID,
+			DeploymentName: pool.DeploymentName,
 		}, nil
 	}
 
@@ -1000,6 +1001,7 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 				Username:       expertModeCredential.Username,
 				ServiceLevel:   pool.ServiceLevel,
 				AccountUUID:    account.UUID,
+				DeploymentName: pool.DeploymentName,
 			}, nil
 		}
 	}
@@ -1067,11 +1069,12 @@ func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, pool
 			return nil, nil
 		}
 		return &models.UserCredentials{
-			Username:     hostCred.Host.Username,
-			Password:     hostCred.Host.Password,
-			AuthType:     env.USERNAME_PWD,
-			ServiceLevel: pool.ServiceLevel,
-			AccountUUID:  account.UUID,
+			Username:       hostCred.Host.Username,
+			Password:       hostCred.Host.Password,
+			AuthType:       env.USERNAME_PWD,
+			ServiceLevel:   pool.ServiceLevel,
+			AccountUUID:    account.UUID,
+			DeploymentName: pool.DeploymentName,
 			OntapEndpoints: []models.OntapEndpoint{
 				{IP: endpoint, DNS: endpoint},
 			},
@@ -1085,14 +1088,15 @@ func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, pool
 	}
 
 	return &models.UserCredentials{
-		Username:      hostCred.Username,
-		SecretID:      hostCred.SecretId,
-		CertificateID: hostCred.CertificateID,
-		Password:      hostCred.Password,
-		AccountUUID:   account.UUID,
-		AuthType:      authType,
-		CaURI:         hostCred.CaURI,
-		ServiceLevel:  pool.ServiceLevel,
+		Username:       hostCred.Username,
+		SecretID:       hostCred.SecretId,
+		CertificateID:  hostCred.CertificateID,
+		Password:       hostCred.Password,
+		AccountUUID:    account.UUID,
+		AuthType:       authType,
+		CaURI:          hostCred.CaURI,
+		ServiceLevel:   pool.ServiceLevel,
+		DeploymentName: pool.DeploymentName,
 		OntapEndpoints: []models.OntapEndpoint{
 			{IP: endpoint, DNS: dnsEndpoint},
 		},

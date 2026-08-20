@@ -4188,6 +4188,9 @@ type OntapCredentialsV1 struct {
 	// (non-FLEX) SVM listings to the owning account (svm_<accountUUID-without-hyphens>_ naming
 	// convention).
 	AccountUUID OptString `json:"account_uuid"`
+	// The pool's deployment name. Used by the ontap-proxy to derive the pool's data SVM
+	// ({deploymentName}-svm-01).
+	DeploymentName OptString `json:"deployment_name"`
 }
 
 // GetSecretID returns the value of SecretID.
@@ -4235,6 +4238,11 @@ func (s *OntapCredentialsV1) GetAccountUUID() OptString {
 	return s.AccountUUID
 }
 
+// GetDeploymentName returns the value of DeploymentName.
+func (s *OntapCredentialsV1) GetDeploymentName() OptString {
+	return s.DeploymentName
+}
+
 // SetSecretID sets the value of SecretID.
 func (s *OntapCredentialsV1) SetSecretID(val OptString) {
 	s.SecretID = val
@@ -4278,6 +4286,11 @@ func (s *OntapCredentialsV1) SetServiceLevel(val OptString) {
 // SetAccountUUID sets the value of AccountUUID.
 func (s *OntapCredentialsV1) SetAccountUUID(val OptString) {
 	s.AccountUUID = val
+}
+
+// SetDeploymentName sets the value of DeploymentName.
+func (s *OntapCredentialsV1) SetDeploymentName(val OptString) {
+	s.DeploymentName = val
 }
 
 func (*OntapCredentialsV1) v1GetOntapCredentialsRes() {}

@@ -21,7 +21,7 @@ func TestRejectReservedQoSPolicyCreate(t *testing.T) {
 		{"reserved vserver-wide name denied", `{"name":"svm1-qos-policy","svm":{"name":"svm1"}}`, false},
 		{"other-prefix -qos-policy allowed", `{"name":"foo-qos-policy","svm":{"name":"svm1"}}`, true},
 		{"different svm -qos-policy allowed", `{"name":"svm2-qos-policy","svm":{"name":"svm1"}}`, true},
-		{"reserved suffix without svm allowed", `{"name":"foo-qos-policy"}`, true},
+		{"reserved suffix without svm denied (fail closed)", `{"name":"foo-qos-policy"}`, false},
 		{"invalid JSON denied", `{not-json`, false},
 		{"empty body denied", ``, false},
 	}

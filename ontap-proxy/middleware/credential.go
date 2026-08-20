@@ -140,6 +140,7 @@ func authDataFromFetchedCredentials(poolDetails *models.PoolDetails, credentials
 		ServiceLevel:   getStringValue(credentials.ServiceLevel),
 		ClusterName:    poolDetails.ClusterName,
 		AccountUUID:    getStringValue(credentials.AccountUUID),
+		DeploymentName: getStringValue(credentials.DeploymentName),
 	}
 }
 

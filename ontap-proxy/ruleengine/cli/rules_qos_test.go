@@ -34,12 +34,18 @@ func TestQoSPolicyGroupCLIRules(t *testing.T) {
 		{"create non-matching -qos-policy suffix allowed", "qos policy-group create -policy-group foo-qos-policy -vserver svm1", true, true},
 		{"create with min-throughput denied", "qos policy-group create -policy-group cust1 -vserver svm1 -min-throughput 100", true, false},
 		{"modify customer allowed", "qos policy-group modify -policy-group cust1 -vserver svm1 -throughput 800MB/s", true, true},
-		{"modify missing vserver denied", "qos policy-group modify -policy-group cust1 -throughput 800MB/s", true, false},
+		{"modify missing vserver allowed", "qos policy-group modify -policy-group cust1 -throughput 800MB/s", true, true},
 		{"modify reserved denied (N3)", "qos policy-group modify -policy-group svm1-qos-policy -vserver svm1", true, false},
+		// Without -vserver the local condition defers to the external validator (see
+		// TestValidateQoSPolicyGroupReserved); local eval allows it.
+		{"modify reserved without vserver deferred to external validator", "qos policy-group modify -policy-group svm1-qos-policy -throughput 800MB/s", true, true},
 		{"modify with min-throughput denied", "qos policy-group modify -policy-group cust1 -vserver svm1 -min-throughput 50", true, false},
 		{"delete customer allowed", "qos policy-group delete -policy-group cust1 -vserver svm1", true, true},
-		{"delete missing vserver denied", "qos policy-group delete -policy-group cust1", true, false},
+		{"delete missing vserver allowed", "qos policy-group delete -policy-group cust1", true, true},
 		{"delete reserved denied (N3)", "qos policy-group delete -policy-group svm1-qos-policy -vserver svm1", true, false},
+		// Without -vserver the local condition defers to the external validator (see
+		// TestValidateQoSPolicyGroupReserved); local eval allows it.
+		{"delete reserved without vserver deferred to external validator", "qos policy-group delete -policy-group svm1-qos-policy", true, true},
 		{"rename customer allowed", "qos policy-group rename -policy-group cust1 -new-name cust2 -vserver svm1", true, true},
 		{"rename missing vserver denied", "qos policy-group rename -policy-group cust1 -new-name cust2", true, false},
 		{"rename to reserved denied (N2)", "qos policy-group rename -policy-group cust1 -new-name svm1-qos-policy -vserver svm1", true, false},
