@@ -1181,18 +1181,19 @@ func TestGetWorkflowTimeoutForJobType(t *testing.T) {
 	tests := []struct {
 		name    string
 		jobType string
+		want    time.Duration
 	}{
-		{name: "DeletePool returns global timeout", jobType: string(datamodel.JobTypeDeletePool)},
-		{name: "DeleteLargePool returns global timeout", jobType: string(datamodel.JobTypeDeleteLargePool)},
-		{name: "DeleteVolume returns global timeout", jobType: string(datamodel.JobTypeDeleteVolume)},
-		{name: "DeleteLargeVolume returns global timeout", jobType: string(datamodel.JobTypeDeleteLargeVolume)},
-		{name: "Unknown job type returns global timeout", jobType: "UNKNOWN_JOB_TYPE"},
+		{name: "DeletePool returns global timeout", jobType: string(datamodel.JobTypeDeletePool), want: globalTimeout},
+		{name: "DeleteLargePool returns global timeout", jobType: string(datamodel.JobTypeDeleteLargePool), want: globalTimeout},
+		{name: "DeleteVolume returns global timeout", jobType: string(datamodel.JobTypeDeleteVolume), want: globalTimeout},
+		{name: "DeleteLargeVolume returns global timeout", jobType: string(datamodel.JobTypeDeleteLargeVolume), want: globalTimeout},
+		{name: "Unknown job type returns global timeout", jobType: "UNKNOWN_JOB_TYPE", want: globalTimeout},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			timeout := getWorkflowTimeoutForJobType(tt.jobType)
-			assert.Equal(t, globalTimeout, timeout)
+			assert.Equal(t, tt.want, timeout)
 		})
 	}
 }
@@ -1256,6 +1257,8 @@ func TestFilterEligibleProcessingJobTypes(t *testing.T) {
 				string(datamodel.JobTypeCreateKmsConfig),
 				string(datamodel.JobTypeDeleteVolume),
 				string(datamodel.JobTypeCreateBackup),
+				string(datamodel.JobTypeCreateSvm),
+				string(datamodel.JobTypeDeleteSvm),
 			},
 			expected: []string{
 				string(datamodel.JobTypeDeletePool),
