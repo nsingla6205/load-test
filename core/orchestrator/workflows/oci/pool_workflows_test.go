@@ -121,6 +121,21 @@ func withOCIVMRSEnabled(t *testing.T, enabled bool) {
 	t.Cleanup(func() { ociVMRSEnabled = orig })
 }
 
+func withOCIEnableITCRecovery(t *testing.T, enabled bool) {
+	t.Helper()
+	orig := ociEnableITCRecovery
+	ociEnableITCRecovery = enabled
+	t.Cleanup(func() { ociEnableITCRecovery = orig })
+}
+
+// withOCIParallelNodesForITC overrides OCI_PARALLEL_NUMBER_OF_NODES_FOR_ITC for batch-plan tests.
+func withOCIParallelNodesForITC(t *testing.T, parallel int) {
+	t.Helper()
+	orig := parallelNumberOfNodesForITCOCI
+	parallelNumberOfNodesForITCOCI = parallel
+	t.Cleanup(func() { parallelNumberOfNodesForITCOCI = orig })
+}
+
 // registerOCICreatePoolVLMRollbackWorkflows registers the VLM delete child workflow used when OCICreatePoolWorkflow
 // rolls back after CreateVSAClusterDeployment (or later steps) fail.
 func registerOCICreatePoolVLMRollbackWorkflows(env *testsuite.TestWorkflowEnvironment) {
@@ -2650,6 +2665,444 @@ func storedVLMConfigEmptyCloud() *vlm.VLMConfig {
 		Deployment: vlm.DeploymentConfig{NumHAPair: 1},
 		Cloud:      vlm.CloudConfig{HAPairs: nil},
 	}
+}
+
+func vlmITCRecoveryStatusError() error {
+	return temporal.NewApplicationError(
+		"ITC batch failed",
+		vlm.ErrorTypeVLMClientError,
+		vlm.VLMClientError{
+			HttpCode: 500,
+			Code:     "INTERNAL_ERROR",
+			Message:  "An internal system error occurred",
+			Cause:    []string{ociVlmITCRecoveryCapacityErrorMessage},
+		},
+	)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoveryRerunsBatches(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc"},
+		Name:                   "p-itc",
+		DeploymentName:         "dep-itc",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itc",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	storedCfg := storedVLMConfigWithHAPairs(2)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedCfg, nil)
+
+	var normalCalls int32
+	var recoveryCalls int32
+	var recoveryReq *vlm.UpdateVSAClusterDeploymentRequest
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				if req.ITCRecovery {
+					recoveryCalls++
+					cp := *req
+					recoveryReq = &cp
+					return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: req.VLMConfig}
+				}
+				normalCalls++
+				return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{
+					Deployment: vlm.DeploymentConfig{DeploymentID: "after-normal", ProviderConfig: testOCIProviderConfig()},
+				}}
+			},
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				if req.ITCRecovery {
+					return nil
+				}
+				if normalCalls == 2 {
+					return vlmITCRecoveryStatusError()
+				}
+				return nil
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("RestorePoolPreUpdatePoolLevelFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	vlmUpdateFailureBefore := stageCounter(stageVLMUpdate, resultFailure)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, int32(2), normalCalls, "batch 1 succeeds then batch 2 fails in mixed-state scenario")
+	assert.Equal(t, int32(2), recoveryCalls, "recovery re-runs all attempted batches through the failing batch")
+	assert.InDelta(t, 1.0, stageCounter(stageVLMUpdate, resultFailure)-vlmUpdateFailureBefore, 0,
+		"recoverable batch failure must not emit stage failure before ITC recovery; only the post-recovery abort should emit once")
+	require.NotNil(t, recoveryReq)
+	assert.True(t, recoveryReq.ITCRecovery)
+	assert.Equal(t, storedCfg.Deployment.VSAInstanceType, recoveryReq.VLMConfig.Deployment.VSAInstanceType)
+	assert.Empty(t, recoveryReq.NewInstanceType)
+	assert.Nil(t, recoveryReq.DataDiskVpus)
+	assert.Nil(t, recoveryReq.VSAFlexOcpus)
+	assert.Nil(t, recoveryReq.VSAFlexMemoryInGBs)
+	env.AssertCalled(t, "UpdatedPool", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "ErroredPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "RestorePoolPreUpdatePoolLevelFields", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoveryBatch1FailureRerunsOneBatch(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc-batch1"},
+		Name:                   "p-itc-batch1",
+		DeploymentName:         "dep-itc-batch1",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itcbatch1",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(2), nil)
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(pool, nil)
+
+	var normalCalls int32
+	var recoveryCalls int32
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				if req.ITCRecovery {
+					recoveryCalls++
+					return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: req.VLMConfig}
+				}
+				normalCalls++
+				return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{
+					Deployment: vlm.DeploymentConfig{ProviderConfig: testOCIProviderConfig()},
+				}}
+			},
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				if req.ITCRecovery {
+					return nil
+				}
+				return vlmITCRecoveryStatusError()
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, int32(1), normalCalls, "only batch 1 runs before capacity failure")
+	assert.Equal(t, int32(1), recoveryCalls, "recovery re-runs only the attempted batch when later batches were never started")
+	env.AssertCalled(t, "UpdatedPool", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoverySuccessCompletesWithoutWorkflowError(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc-success-contract"},
+		Name:                   "p-itc-success-contract",
+		DeploymentName:         "dep-itc-success-contract",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itcsuccess",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: req.VLMConfig}
+			},
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				if req.ITCRecovery {
+					return nil
+				}
+				return vlmITCRecoveryStatusError()
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(pool, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError(),
+		"ITC recovery success currently completes the workflow without error after aborting the update")
+	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertCalled(t, "UpdatedPool", mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoveryPartialFailureRerunsAllBatches(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc-partial"},
+		Name:                   "p-itc-partial",
+		DeploymentName:         "dep-itc-partial",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itcpartial",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	storedCfg := storedVLMConfigWithHAPairs(2)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedCfg, nil)
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(pool, nil)
+
+	var normalCalls int32
+	var recoveryCalls int32
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				if req.ITCRecovery {
+					recoveryCalls++
+					return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: req.VLMConfig}
+				}
+				normalCalls++
+				if normalCalls == 1 {
+					return &vlm.UpdateVSAClusterDeploymentResponse{
+						VLMConfig: vlm.VLMConfig{
+							Deployment: vlm.DeploymentConfig{DeploymentID: "after-batch-1", ProviderConfig: testOCIProviderConfig()},
+						},
+					}
+				}
+				return &vlm.UpdateVSAClusterDeploymentResponse{
+					VLMConfig: vlm.VLMConfig{
+						Deployment: vlm.DeploymentConfig{NumHAPair: 2, ProviderConfig: testOCIProviderConfig()},
+					},
+					UpdateStatus: vlm.DeploymentUpdateStatus{SPUpdateFail: true},
+				}
+			},
+			func(_ workflow.Context, _ *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				return nil
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, int32(2), normalCalls, "normal path runs until partial failure on batch 2")
+	assert.Equal(t, int32(2), recoveryCalls, "ITC recovery must re-run all batches from the start")
+	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertCalled(t, "UpdatedPool", mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoveryDisabledSkipsRecovery(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, false)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc-disabled"},
+		Name:                   "p-itc-disabled",
+		DeploymentName:         "dep-itc-disabled",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itcdisabled",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	var recoveryCalls int32
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				if req.ITCRecovery {
+					recoveryCalls++
+				}
+				return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{
+					Deployment: vlm.DeploymentConfig{ProviderConfig: testOCIProviderConfig()},
+				}}
+			},
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				if req.ITCRecovery {
+					return nil
+				}
+				return vlmITCRecoveryStatusError()
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("RestorePoolPreUpdatePoolLevelFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Equal(t, int32(0), recoveryCalls)
+	env.AssertCalled(t, "ErroredPool", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_ITCRecoveryFailureMarksPoolError(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIEnableITCRecovery(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-itc-fail"},
+		Name:                   "p-itc-fail",
+		DeploymentName:         "dep-itc-fail",
+		PoolExternalIdentifier: "ocid1.pool.oc1..itcfail",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) *vlm.UpdateVSAClusterDeploymentResponse {
+				if req.ITCRecovery {
+					return nil
+				}
+				return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{
+					Deployment: vlm.DeploymentConfig{ProviderConfig: testOCIProviderConfig()},
+				}}
+			},
+			func(_ workflow.Context, req *vlm.UpdateVSAClusterDeploymentRequest, _ string) error {
+				if req.ITCRecovery {
+					return errors.New("ITC recovery failed")
+				}
+				return vlmITCRecoveryStatusError()
+			},
+		)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("RestorePoolPreUpdatePoolLevelFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
 }
 
 func TestOCIUpdatePoolWorkflow_RejectsEmptyStoredCloudHAPairs(t *testing.T) {

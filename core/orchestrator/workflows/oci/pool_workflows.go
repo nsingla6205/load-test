@@ -58,6 +58,7 @@ var (
 	ociExpertModeRbacHash          = env.GetString("OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM", "")
 	ociExpertModeUsername          = env.GetString("OCI_EXPERT_MODE_USERNAME", "ociadmin")
 	ociExpertModePassword          = env.GetString("OCI_EXPERT_MODE_PASSWORD", "")
+	ociEnableITCRecovery           = env.GetBool("OCI_ENABLE_ITC_RECOVERY", false)
 	parallelNumberOfNodesForITCOCI = env.GetIntNotNegative("OCI_PARALLEL_NUMBER_OF_NODES_FOR_ITC", 4)
 	ociCellNumber                  = env.GetString("LOCAL_CELL", "00")
 	ociVSASerialAllocationEnabled  = env.GetBool("OCI_VSA_SERIAL_NUMBER_ALLOCATION_ENABLED", true)
@@ -1246,16 +1247,6 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	dbHbCtx := workflow.WithActivityOptions(ctx, ao)
 	dbHbCtx = workflow.WithHeartbeatTimeout(dbHbCtx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
 
-	preUpdateSnapshot, err := utils.DeepCopyPool(pool)
-	if err != nil {
-		logger.Error("Failed to snapshot pool for rollback compensation", "error", err)
-		return nil, workflows.ConvertToVSAError(err)
-	}
-	logger.Info("Snapshotted pre-update pool state for rollback compensation",
-		"pool", pool.Name,
-		"poolUUID", pool.UUID,
-	)
-
 	currentVlmConfig, err := parseStoredVLMConfig(dbHbCtx, poolActivity, pool)
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
@@ -1326,8 +1317,8 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
 	}
-	rollbackManager.AddActivity(poolActivity.RestorePoolPreUpdatePoolLevelFields, pool.UUID, preUpdateSnapshot)
-	logger.Info("Registered DB compensation for pre-update pool snapshot (pool-level fields and vlm_config)",
+	rollbackManager.AddActivity(poolActivity.RestorePoolPreUpdatePoolLevelFields, pool.UUID, pool)
+	logger.Info("Registered DB compensation for pre-update pool fields and vlm_config",
 		"pool", pool.Name,
 		"poolUUID", pool.UUID,
 	)
@@ -1339,7 +1330,7 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		"ontapVersion", ontapVersion,
 		"numWorkflowCalls", batchPlan.NumWorkflowCalls,
 	)
-	updateResp, err := executeOCIUpdatePoolVLMInBatches(
+	updateResult, err := executeOCIUpdatePoolVLMInBatches(
 		ctx, pool, batchPlan,
 		currentVlmConfig, targetSPConfig, targetNumHAPairs,
 		*credConfig, ontapVersion, vsaClientWorkflowManager,
@@ -1350,6 +1341,24 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		logger.Error("Batched OCI pool update failed", "error", err, "pool", pool.Name)
 		return nil, workflows.ConvertToVSAError(err)
 	}
+	if updateResult.ITCRecoverySucceeded {
+		logger.Info("ITC recovery completed: VLM rolled the cluster back to its pre-update shape; the requested pool update was NOT applied",
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+			"deploymentName", pool.DeploymentName,
+		)
+		emitStage(ctx, wfUpdatePool, queueCustomer, stageVLMUpdate, resultFailure)
+		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, pool).Get(dbHbCtx, nil); err != nil {
+			logger.Error("Failed to transition pool back to READY after ITC recovery", "error", err, "pool", pool.Name)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		logger.Info("Pool transitioned back to READY after ITC recovery; original update aborted",
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+		)
+		return nil, nil
+	}
+	updateResp := updateResult.Response
 	emitStage(ctx, wfUpdatePool, queueCustomer, stageVLMUpdate, resultSuccess)
 	logger.Info("Batched VLM update completed for OCI pool",
 		"pool", pool.Name,
@@ -1816,6 +1825,32 @@ func prepareOCIUpdateVSAClusterDeploymentRequest(
 	return nil
 }
 
+func prepareOCIITCRecoveryRequest(
+	req *vlm.UpdateVSAClusterDeploymentRequest,
+	preUpdateVlmConfig vlm.VLMConfig,
+	credentials vlm.OntapCredentials,
+	params *common.UpdatePoolParams,
+) error {
+	req.VLMConfig = preUpdateVlmConfig
+	req.NumHAPair = len(preUpdateVlmConfig.Cloud.HAPairs)
+	req.OntapCredentials = credentials
+	req.BucketName = ""
+	req.AutoTierThreshold = -1
+	ociCfg, err := preUpdateVlmConfig.Deployment.ProviderConfig.AsOCI()
+	if err != nil {
+		return fmt.Errorf("failed to extract OCI provider config from pre-update VLMConfig: %w", err)
+	}
+	if params.NsgIds != nil {
+		ociCfg.CustomerNSGs = params.NsgIds
+	}
+	if params.SecurityAttributes != nil {
+		ociCfg.CustomerSecurityAttributes = params.SecurityAttributes
+	}
+	req.ProviderConfig = vlm.ProviderConfigWrapper{ProviderConfig: ociCfg}
+	req.CmekOcid = params.KmsKeyId
+	return nil
+}
+
 func executeOCIUpdatePoolVLMInBatches(
 	ctx workflow.Context,
 	pool *datamodel.Pool,
@@ -1828,7 +1863,67 @@ func executeOCIUpdatePoolVLMInBatches(
 	vsaClientWorkflowManager vlm.VlmWorkflowClient,
 	decision *vmrs_oci.Decision,
 	params *common.UpdatePoolParams,
-) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+) (ociPoolUpdateVLMResult, error) {
+	normalResult, err := runOCIUpdatePoolVLMBatchLoop(
+		ctx, pool, batchPlan, initialVlmConfig, targetSPConfig, targetNumHAPair,
+		credConfig, ontapVersion, vsaClientWorkflowManager, decision, params, false, batchPlan.NumWorkflowCalls,
+	)
+	if err == nil {
+		return ociPoolUpdateVLMResult{Response: normalResult.Response}, nil
+	}
+	if !batchFailureIndicatesITCRecovery(err) {
+		return ociPoolUpdateVLMResult{}, err
+	}
+
+	logger := util.GetLogger(ctx)
+	if !ociEnableITCRecovery {
+		logger.Info("VLM failure indicates ITC recovery but OCI_ENABLE_ITC_RECOVERY is disabled; returning original error",
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+			"vlmRecoveryStatus", extractVLMRecoveryStatus(err),
+		)
+		return ociPoolUpdateVLMResult{}, err
+	}
+
+	recoveryBatches := normalResult.FailedBatchNum + 1
+	logger.Info("VLM failure indicates ITC recovery; re-running attempted batches with ITCRecovery=true",
+		"pool", pool.Name,
+		"poolUUID", pool.UUID,
+		"failedBatch", recoveryBatches,
+		"recoveryBatches", recoveryBatches,
+		"vlmRecoveryStatus", extractVLMRecoveryStatus(err),
+	)
+	recoveryResult, recoveryErr := runOCIUpdatePoolVLMBatchLoop(
+		ctx, pool, batchPlan, initialVlmConfig, targetSPConfig, targetNumHAPair,
+		credConfig, ontapVersion, vsaClientWorkflowManager, decision, params, true, recoveryBatches,
+	)
+	if recoveryErr != nil {
+		return ociPoolUpdateVLMResult{}, fmt.Errorf("ITC recovery batch loop failed: %w (original: %w)", recoveryErr, err)
+	}
+
+	logger.Info("ITC recovery batch loop completed successfully",
+		"pool", pool.Name,
+		"poolUUID", pool.UUID,
+		"recoveryBatchesRun", recoveryBatches,
+	)
+	return ociPoolUpdateVLMResult{Response: recoveryResult.Response, ITCRecoverySucceeded: true}, nil
+}
+
+func runOCIUpdatePoolVLMBatchLoop(
+	ctx workflow.Context,
+	pool *datamodel.Pool,
+	batchPlan *activities.CalculateBatchPlanActivityOutput,
+	startVlmConfig vlm.VLMConfig,
+	targetSPConfig vlm.SPConfig,
+	targetNumHAPair int,
+	credConfig vlm.OntapCredentials,
+	ontapVersion string,
+	vsaClientWorkflowManager vlm.VlmWorkflowClient,
+	decision *vmrs_oci.Decision,
+	params *common.UpdatePoolParams,
+	itcRecovery bool,
+	batchesToRun int,
+) (ociBatchLoopResult, error) {
 	logger := util.GetLogger(ctx)
 	hyperscalerCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: utils.GetStartToCloseTimeoutHyperscaler(),
@@ -1836,79 +1931,59 @@ func executeOCIUpdatePoolVLMInBatches(
 		RetryPolicy:         utils.GetHyperscalerLRORetryPolicy(),
 	})
 
-	current := initialVlmConfig
+	current := startVlmConfig
 	var lastResp *vlm.UpdateVSAClusterDeploymentResponse
 	completedBatches := make([]int, 0, batchPlan.NumWorkflowCalls)
 
-	logger.Info("executeOCIUpdatePoolVLMInBatches starting batch loop",
+	logger.Info("runOCIUpdatePoolVLMBatchLoop starting",
 		"pool", pool.Name,
 		"poolUUID", pool.UUID,
 		"totalBatches", batchPlan.NumWorkflowCalls,
-		"totalHAPairs", batchPlan.NumHAPairs,
-		"batchSize", batchPlan.BatchSize,
-		"ontapVersion", ontapVersion,
+		"batchesToRun", batchesToRun,
+		"itcRecovery", itcRecovery,
 	)
 
-	for batchNum := 0; batchNum < batchPlan.NumWorkflowCalls; batchNum++ {
+	for batchNum := 0; batchNum < batchesToRun; batchNum++ {
 		batchIndices := batchPlan.BatchIndices[batchNum]
+
 		updateReq := &vlm.UpdateVSAClusterDeploymentRequest{}
-		if err := prepareOCIUpdateVSAClusterDeploymentRequest(updateReq, current, targetSPConfig, targetNumHAPair, credConfig, decision, params); err != nil {
-			return nil, fmt.Errorf("batch %d: %w", batchNum+1, err)
+		if itcRecovery {
+			if err := prepareOCIITCRecoveryRequest(updateReq, startVlmConfig, credConfig, params); err != nil {
+				return ociBatchLoopResult{FailedBatchNum: batchNum}, fmt.Errorf("batch %d: %w", batchNum+1, err)
+			}
+		} else {
+			if err := prepareOCIUpdateVSAClusterDeploymentRequest(updateReq, current, targetSPConfig, targetNumHAPair, credConfig, decision, params); err != nil {
+				return ociBatchLoopResult{FailedBatchNum: batchNum}, fmt.Errorf("batch %d: %w", batchNum+1, err)
+			}
 		}
 		updateReq.HAPairIndices = batchIndices
+		updateReq.ITCRecovery = itcRecovery
 
 		logger.Info("OCI update pool VLM batch",
 			"batchNumber", batchNum+1,
 			"totalBatches", batchPlan.NumWorkflowCalls,
 			"haPairIndices", batchIndices,
-			"totalHAPairs", batchPlan.NumHAPairs,
-			"batchSize", batchPlan.BatchSize,
+			"itcRecovery", itcRecovery,
 		)
 
 		resp, err := vsaClientWorkflowManager.UpdateVSAClusterDeployment(hyperscalerCtx, updateReq, ontapVersion)
 		if err != nil {
-			remainingBatches := make([]int, 0, batchPlan.NumWorkflowCalls-batchNum-1)
-			for i := batchNum + 1; i < batchPlan.NumWorkflowCalls; i++ {
-				remainingBatches = append(remainingBatches, i+1)
-			}
-			logger.Error("OCI pool update VLM batch failed; cluster is in mixed-version state",
-				"pool", pool.Name,
-				"poolUUID", pool.UUID,
-				"batchNumber", batchNum+1,
-				"totalBatches", batchPlan.NumWorkflowCalls,
-				"failingBatchHAPairIndices", batchIndices,
-				"completedBatches", completedBatches,
-				"remainingBatches", remainingBatches,
-				"error", err,
-			)
-			emitStage(ctx, wfUpdatePool, queueCustomer, stageVLMUpdate, resultFailure)
-			return nil, err
+			logOCIBatchFailure(ctx, logger, pool, batchPlan, batchNum, batchIndices, completedBatches, itcRecovery, err, nil, vlm.DeploymentUpdateStatus{})
+			return ociBatchLoopResult{FailedBatchNum: batchNum}, err
 		}
 		if failedOps := updateStatusFailureFlags(resp.UpdateStatus); len(failedOps) > 0 {
-			remainingBatches := make([]int, 0, batchPlan.NumWorkflowCalls-batchNum-1)
-			for i := batchNum + 1; i < batchPlan.NumWorkflowCalls; i++ {
-				remainingBatches = append(remainingBatches, i+1)
-			}
-			logger.Error("OCI pool update VLM batch returned partial-failure UpdateStatus; cluster is in mixed-version state",
-				"pool", pool.Name,
-				"poolUUID", pool.UUID,
-				"batchNumber", batchNum+1,
-				"totalBatches", batchPlan.NumWorkflowCalls,
-				"failingBatchHAPairIndices", batchIndices,
-				"completedBatches", completedBatches,
-				"remainingBatches", remainingBatches,
-				"failedSubOperations", failedOps,
-				"updateStatus", resp.UpdateStatus,
-			)
-			emitStage(ctx, wfUpdatePool, queueCustomer, stageVLMUpdate, resultFailure)
-			return nil, vsaerrors.NewVCPError(
+			partialErr := vsaerrors.NewVCPError(
 				vsaerrors.ErrIncorrectVSAClusterState,
-				fmt.Errorf("VLM reported partial update failure for batch %d (haPairIndices=%v) on pool %q: failed sub-operations %v",
-					batchNum+1, batchIndices, pool.Name, failedOps),
+				fmt.Errorf("%w: VLM reported partial update failure for batch %d (haPairIndices=%v) on pool %q: failed sub-operations %v",
+					errOCIPartialVLMUpdateBatchFailure, batchNum+1, batchIndices, pool.Name, failedOps),
 			)
+			logOCIBatchFailure(ctx, logger, pool, batchPlan, batchNum, batchIndices, completedBatches, itcRecovery, partialErr, failedOps, resp.UpdateStatus)
+			return ociBatchLoopResult{FailedBatchNum: batchNum}, partialErr
 		}
 
-		current = resp.VLMConfig
+		if !itcRecovery {
+			current = resp.VLMConfig
+		}
 		lastResp = resp
 		completedBatches = append(completedBatches, batchNum+1)
 		logger.Info("OCI update pool VLM batch completed",
@@ -1916,16 +1991,61 @@ func executeOCIUpdatePoolVLMInBatches(
 			"batchNumber", batchNum+1,
 			"totalBatches", batchPlan.NumWorkflowCalls,
 			"haPairIndices", batchIndices,
+			"itcRecovery", itcRecovery,
 		)
 	}
 
-	logger.Info("executeOCIUpdatePoolVLMInBatches completed all batches",
-		"pool", pool.Name,
-		"poolUUID", pool.UUID,
-		"completedBatches", completedBatches,
-		"totalBatches", batchPlan.NumWorkflowCalls,
-	)
-	return lastResp, nil
+	return ociBatchLoopResult{Response: lastResp, FailedBatchNum: -1}, nil
+}
+
+func logOCIBatchFailure(
+	ctx workflow.Context,
+	logger log.Logger,
+	pool *datamodel.Pool,
+	batchPlan *activities.CalculateBatchPlanActivityOutput,
+	batchNum int,
+	batchIndices []int,
+	completedBatches []int,
+	itcRecovery bool,
+	err error,
+	failedOps []string,
+	updateStatus vlm.DeploymentUpdateStatus,
+) {
+	remainingBatches := make([]int, 0, batchPlan.NumWorkflowCalls-batchNum-1)
+	for i := batchNum + 1; i < batchPlan.NumWorkflowCalls; i++ {
+		remainingBatches = append(remainingBatches, i+1)
+	}
+	if len(failedOps) > 0 {
+		logger.Error("OCI pool update VLM batch returned partial-failure UpdateStatus; cluster is in mixed-version state",
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+			"batchNumber", batchNum+1,
+			"totalBatches", batchPlan.NumWorkflowCalls,
+			"failingBatchHAPairIndices", batchIndices,
+			"completedBatches", completedBatches,
+			"remainingBatches", remainingBatches,
+			"itcRecovery", itcRecovery,
+			"failedSubOperations", failedOps,
+			"updateStatus", updateStatus,
+			"error", err,
+		)
+	} else {
+		logger.Error("OCI pool update VLM batch failed; cluster is in mixed-version state",
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+			"batchNumber", batchNum+1,
+			"totalBatches", batchPlan.NumWorkflowCalls,
+			"failingBatchHAPairIndices", batchIndices,
+			"completedBatches", completedBatches,
+			"remainingBatches", remainingBatches,
+			"itcRecovery", itcRecovery,
+			"error", err,
+		)
+	}
+	if !itcRecovery && ociEnableITCRecovery && batchFailureIndicatesITCRecovery(err) {
+		return
+	}
+	emitStage(ctx, wfUpdatePool, queueCustomer, stageVLMUpdate, resultFailure)
 }
 
 // updateStatusFailureFlags returns the names of any sub-operation failure flags set on a

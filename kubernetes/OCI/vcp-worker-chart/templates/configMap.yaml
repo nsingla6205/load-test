@@ -144,6 +144,8 @@ data:
   OCI_VSA_MIN_PER_DISK_SIZE_GI: {{ $.Values.workerConfig.ociVsaMinPerDiskSizeGi | default 50 | quote }}
   OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA: {{ $.Values.workerConfig.ociVsaAllowNonDenseShapeForVsa | default true | quote }}
   OCI_DEFINED_TAG_NAMESPACE: {{ $.Values.workerConfig.ociDefinedTagNamespace | default "netapp_tags" | quote }}
+  OCI_ENABLE_ITC_RECOVERY: {{ $.Values.workerConfig.ociEnableItcRecovery | default "false" | quote }}
+  OCI_VLM_ITC_RECOVERY_CAPACITY_ERROR_MESSAGE: {{ $.Values.workerConfig.ociVlmItcRecoveryCapacityErrorMessage | quote }}
   OCI_CERTIFICATE_VALIDITY_DAYS: {{ $.Values.workerConfig.ociCertificateValidityDays | default "1000" | quote }}
   OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE: {{ $.Values.workerConfig.ociCertificateRotationThresholdPercentage | default "75" | quote }}
   OCI_CERTIFICATE_ROTATION_POOL_STATES: {{ $.Values.workerConfig.ociCertificateRotationPoolStates | default "READY,DEGRADED" | quote }}

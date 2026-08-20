@@ -175,6 +175,9 @@ workerConfig:
   ociVsaMinPerDiskSizeGi: 50
   ociVsaAllowNonDenseShapeForVsa: true
   ociDefinedTagNamespace: "netapp_tags"
+  # When true, UpdatePool retries VLM batches with ITCRecovery=true after an out-of-capacity failure.
+  ociEnableItcRecovery: false
+  ociVlmItcRecoveryCapacityErrorMessage: "out of capacity"
   # Validity window (in days) for internally-managed OCI certificates issued for
   # VSA clusters.
   ociCertificateValidityDays: "90"
@@ -205,8 +208,8 @@ workerConfig:
   workflowGlobalTimeoutMinutes: "60" # Global timeout for workflows in minutes
   createPoolWorkflowTimeoutMinutes: "150" # Create pool workflow run timeout (standard pools) in minutes
   createPoolWorkflowTimeoutMinutesLV: "150" # Create pool workflow run timeout (LV pools) in minutes
-  updatePoolWorkflowTimeoutMinutes: "150" # Update pool workflow run timeout (standard pools) in minutes
-  updatePoolWorkflowTimeoutMinutesLV: "150" # Update pool workflow run timeout (LV pools) in minutes
+  updatePoolWorkflowTimeoutMinutes: "300" # Update pool workflow run timeout (standard pools) in minutes
+  updatePoolWorkflowTimeoutMinutesLV: "300" # Update pool workflow run timeout (LV pools) in minutes
   poolMaintenanceWorkflowTimeoutMinutes: "240" # Pool maintenance workflow run timeout in minutes
   # Default cancellation timeouts
   workflowCancellationTimeout: 5 # Default timeout (in minutes) for cancellation acknowledgment

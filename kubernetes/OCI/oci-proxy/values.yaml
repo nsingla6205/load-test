@@ -17,7 +17,7 @@ objectStoreProvider: "oci"
 
 createPoolWorkflowTimeoutMinutes: "150"
 createPoolWorkflowTimeoutMinutesLV: "150"
-updatePoolWorkflowTimeoutMinutes: "150"
+updatePoolWorkflowTimeoutMinutes: "300"
 waitForTemporalEnabled: false
 hyperScaler: "oci"
 vsaAuthType: 2  # 0 : username/password, 1: password-based auth, 2: certificate authentication
