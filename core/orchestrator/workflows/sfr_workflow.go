@@ -488,7 +488,7 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 			"LOG_LEVEL":      "2",
 			"ENABLE_COPY":    "1",
 			"LOG_TO_CONSOLE": "1",
-			"CA_FILE":        "adc-cert.crt",
+			"CA_FILE":        adcCertFileName,
 			"CERT_PATH":      "/home/ADC/cert/",
 		},
 		VolumeMounts: []hyperscalermodels.VolumeMount{
@@ -505,7 +505,7 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 					SecretName: adcCertSecret,
 					Items: []hyperscalermodels.SecretItem{
 						{
-							Path:    "adc-cert.crt",
+							Path:    adcCertFileName,
 							Version: "latest",
 						},
 					},

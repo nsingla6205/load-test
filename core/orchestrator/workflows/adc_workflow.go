@@ -33,6 +33,9 @@ var (
 const (
 	defaultADCRestPort = 80
 	maxTCPPort         = 65535
+
+	// Matches the SDE ADC CA_FILE value.
+	adcCertFileName = "google-com-chain.pem"
 )
 
 func normalizeADCRestPort(port int) int {
@@ -257,7 +260,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 			"LOG_LEVEL":      "2",
 			"ENABLE_COPY":    "1",
 			"LOG_TO_CONSOLE": "1",
-			"CA_FILE":        "adc-cert.crt",
+			"CA_FILE":        adcCertFileName,
 			"CERT_PATH":      "/home/ADC/cert/",
 		},
 		VolumeMounts: []hyperscalermodels.VolumeMount{
@@ -274,7 +277,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 					SecretName: adcCertSecret,
 					Items: []hyperscalermodels.SecretItem{
 						{
-							Path:    "adc-cert.crt",
+							Path:    adcCertFileName,
 							Version: "latest",
 						},
 					},
