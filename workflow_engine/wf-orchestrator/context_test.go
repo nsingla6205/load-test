@@ -147,3 +147,30 @@ func TestContext_SettersAndGetters(t *testing.T) {
 	ctx.SetValues(values)
 	assert.Equal(t, values, ctx.Values())
 }
+
+func TestContext_OperationBudgetCheck(t *testing.T) {
+	ctx, _ := newFakeContext()
+	assert.False(t, ctx.OperationBudgetExceeded())
+
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+	assert.True(t, ctx.OperationBudgetExceeded())
+
+	cleared := ctx.ClearOperationBudgetCheck()
+	assert.False(t, cleared.OperationBudgetExceeded())
+	assert.True(t, ctx.OperationBudgetExceeded())
+}
+
+func TestContext_WorkflowStartTime(t *testing.T) {
+	ctx, b := newFakeContext()
+	start := time.Unix(1700, 0)
+	b.info = WorkflowInfo{WorkflowStartTime: start}
+	assert.Equal(t, start, ctx.WorkflowStartTime())
+}
+
+func TestNewDisconnectedContext_DelegatesToBackend(t *testing.T) {
+	ctx, _ := newFakeContext()
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+	disconnected := NewDisconnectedContext(ctx)
+	require.NotSame(t, ctx, disconnected)
+	assert.True(t, disconnected.OperationBudgetExceeded())
+}

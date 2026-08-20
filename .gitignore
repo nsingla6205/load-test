@@ -28,6 +28,7 @@ cicd/bin
 
 # VS Code settings
 .vscode/
+**/__debug_bin**
 # Ignore .cursor except tracked triagebot config
 .cursor/*
 !.cursor/rules/

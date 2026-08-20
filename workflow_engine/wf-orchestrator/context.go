@@ -5,12 +5,13 @@ import "time"
 // Context wraps an engine-specific execution context (Temporal workflow.Context,
 // go-workflows workflow context, etc.) behind orchestrator.Backend.
 type Context struct {
-	backend    Backend
-	backendCtx any
-	info       *WorkflowInfo
-	actOpts    *ActivityOptions
-	childOpts  *ChildWorkflowOptions
-	values     map[any]any
+	backend              Backend
+	backendCtx           any
+	info                 *WorkflowInfo
+	actOpts              *ActivityOptions
+	childOpts            *ChildWorkflowOptions
+	values               map[any]any
+	operationBudgetCheck func() bool
 }
 
 // NewContextWithBackend creates a Context backed by a custom backend.
@@ -123,4 +124,35 @@ func (ctx *Context) SetValues(m map[any]any) {
 // Info returns the workflow info, or nil if not set.
 func (ctx *Context) Info() *WorkflowInfo {
 	return ctx.info
+}
+
+// WithOperationBudgetCheck returns a shallow copy of ctx with the operation-budget predicate set.
+// RunActivity checks this predicate after every successful activity dispatch.
+func (ctx *Context) WithOperationBudgetCheck(fn func() bool) *Context {
+	newCtx := ctx.ShallowCopy()
+	newCtx.operationBudgetCheck = fn
+	return newCtx
+}
+
+// ClearOperationBudgetCheck returns a shallow copy of ctx with no operation-budget gate.
+func (ctx *Context) ClearOperationBudgetCheck() *Context {
+	newCtx := ctx.ShallowCopy()
+	newCtx.operationBudgetCheck = nil
+	return newCtx
+}
+
+// OperationBudgetExceeded returns true if an operation-budget check is set on ctx and it fires.
+func (ctx *Context) OperationBudgetExceeded() bool {
+	return ctx.operationBudgetCheck != nil && ctx.operationBudgetCheck()
+}
+
+// NewDisconnectedContext returns a copy of ctx whose cancellation is detached
+// from the parent workflow context.
+func NewDisconnectedContext(ctx *Context) *Context {
+	return ctx.backend.NewDisconnectedContext(ctx)
+}
+
+// WorkflowStartTime returns the time at which this workflow execution started.
+func (ctx *Context) WorkflowStartTime() time.Time {
+	return GetInfo(ctx).WorkflowStartTime
 }

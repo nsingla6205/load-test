@@ -29,6 +29,23 @@ func TestNewBackend_ReturnsGowfBackend(t *testing.T) {
 	}
 }
 
+func TestGowfBackend_NewDisconnectedContext(t *testing.T) {
+	b := NewBackend()
+	ctx := orchestrator.NewContextWithBackend(b, context.Background())
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	disconnected := b.NewDisconnectedContext(ctx)
+	if disconnected == nil {
+		t.Fatal("expected non-nil disconnected context")
+	}
+	if disconnected == ctx {
+		t.Fatal("expected a shallow copy, not the same pointer")
+	}
+	if !disconnected.OperationBudgetExceeded() {
+		t.Fatal("disconnected context should preserve operation budget state")
+	}
+}
+
 type notGowfBackend struct{ orchestrator.Backend }
 
 func TestIsGoWorkflowsBackend_FalseForOther(t *testing.T) {

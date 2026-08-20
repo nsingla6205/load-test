@@ -3,7 +3,7 @@ package temporalbackend
 import (
 	"time"
 
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -103,4 +103,11 @@ func (b *temporalBackend) Done(ctx *orchestrator.Context) <-chan struct{} {
 
 func (b *temporalBackend) Err(ctx *orchestrator.Context) error {
 	return wfCtx(ctx).Err()
+}
+
+func (b *temporalBackend) NewDisconnectedContext(orchCtx *orchestrator.Context) *orchestrator.Context {
+	disconnectedWfCtx, _ := workflow.NewDisconnectedContext(wfCtx(orchCtx))
+	newCtx := orchCtx.ShallowCopy()
+	newCtx.SetBackendCtx(disconnectedWfCtx)
+	return newCtx
 }

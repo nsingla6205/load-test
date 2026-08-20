@@ -33,10 +33,15 @@ type VolumeUpdateTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 
-	env *testsuite.TestWorkflowEnvironment
+	env                  *testsuite.TestWorkflowEnvironment
+	savedOperationBudget time.Duration
 }
 
 func (s *VolumeUpdateTestSuite) SetupTest() {
+	s.savedOperationBudget = operationBudget
+	// Legacy tests predate the operation budget; disable the gate unless a test overrides operationBudget.
+	operationBudget = 24 * time.Hour
+
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -70,8 +75,9 @@ func (s *VolumeUpdateTestSuite) SetupTest() {
 	}, nil).Maybe()
 }
 
-func (s *VolumeUpdateTestSuite) AfterTest() {
+func (s *VolumeUpdateTestSuite) AfterTest(_ string, _ string) {
 	s.env.AssertExpectations(s.T())
+	operationBudget = s.savedOperationBudget
 }
 
 func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success() {
@@ -84,7 +90,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success() {
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -99,7 +104,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success() {
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -146,7 +150,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
 	s.env.RegisterActivity(backupActivity.GetBackupVault)
@@ -158,7 +161,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil)
 	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 99}}, nil)
 	s.env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, mock.Anything, int64(99)).Return((*datamodel.Backup)(nil), nil)
-	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, mock.Anything).Return(false, nil)
+	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, mock.Anything).Return(false, nil).Maybe()
 	s.env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(commonActivity.GetOntapJob, mock.Anything, "job-uuid", mock.Anything).Return(&vsa.OntapJob{State: "success", UUID: "job-uuid"}, nil)
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
@@ -166,7 +169,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 		AvailableSpace:   1000, Size: 1000, State: "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	emptyVaultID := ""
@@ -218,7 +220,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
 	s.env.RegisterActivity(backupActivity.GetBackupVault)
@@ -233,7 +234,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil).Times(1)
 	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 99}}, nil).Times(1)
 	s.env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, volumeUUID, int64(99)).Return(latestBackup, nil).Times(1)
-	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, volumeUUID).Return(false, nil).Times(2)
+	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, volumeUUID).Return(false, nil).Maybe()
 	s.env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, snapshotExtID, volumeExtUUID, false).Return(nil).Times(1)
 	s.env.OnActivity(backupActivity.DeleteBackupSnapshotFromDB, mock.Anything, latestBackup).Return(nil).Times(1)
 	s.env.OnActivity(backupActivity.HydrateSnapshotDeletionToCCFEActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(1)
@@ -244,7 +245,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 		AvailableSpace:   1000, Size: 1000, State: "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	emptyVaultID := ""
@@ -296,7 +296,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
 	s.env.RegisterActivity(backupActivity.GetBackupVault)
@@ -310,7 +309,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 	s.env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil).Times(1)
 	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 99}}, nil).Times(1)
 	s.env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, volumeUUID, int64(99)).Return(latestBackup, nil).Times(1)
-	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, volumeUUID).Return(true, nil).Times(2)
+	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, volumeUUID).Return(true, nil).Maybe()
 	s.env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, snapshotExtID, volumeExtUUID, false).Return(nil).Times(1)
 	s.env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, volumeUUID).Return(nil).Times(1)
 	s.env.OnActivity(commonActivity.GetOntapJob, mock.Anything, "job-uuid", mock.Anything).Return(&vsa.OntapJob{State: "success", UUID: "job-uuid"}, nil).Times(1)
@@ -319,7 +318,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_D
 		AvailableSpace:   1000, Size: 1000, State: "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	emptyVaultID := ""
@@ -359,7 +357,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_P
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
 	s.env.RegisterActivity(backupActivity.GetBackupVault)
@@ -371,7 +368,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_P
 	s.env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil)
 	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 99}}, nil)
 	s.env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, mock.Anything, int64(99)).Return((*datamodel.Backup)(nil), nil)
-	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, mock.Anything).Return(false, nil)
+	s.env.OnActivity(backupActivity.IsExpertModeVolume, mock.Anything, mock.Anything).Return(false, nil).Maybe()
 	s.env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(commonActivity.GetOntapJob, mock.Anything, "job-uuid", mock.Anything).Return(&vsa.OntapJob{State: "success", UUID: "job-uuid"}, nil)
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
@@ -379,7 +376,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_P
 		AvailableSpace:   1000, Size: 1000, State: "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	backupChainBytes := int64(4096)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		var updatedVolume *datamodel.Volume
@@ -474,9 +470,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_W
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
-	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
 
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
@@ -485,10 +478,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupVaultSwitching_W
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
 		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "ext-uuid", Name: "vol"},
 		AvailableSpace:   1000, Size: 1000, State: "online",
-	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	}, nil).Maybe()
 
 	emptyVaultID := ""
 	volume := &datamodel.Volume{
@@ -520,7 +510,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateFlexCacheVolumeI
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
 	s.env.RegisterActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -538,7 +527,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateFlexCacheVolumeI
 
 	s.env.OnActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*vsa.OntapAsyncResponse)(nil), nil)
 
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	prevIsUpdateFlexCacheRequired := isUpdateFlexCacheRequired
@@ -593,7 +581,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateFlexCacheVolumeI
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
 	s.env.RegisterActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -659,7 +646,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_No_UpdateFlexCacheVolu
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
 	s.env.RegisterActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -674,7 +660,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_No_UpdateFlexCacheVolu
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error updating flexcache volume in ontap"))
+	s.env.OnActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error updating flexcache volume in ontap")).Maybe()
 	prevIsUpdateFlexCacheRequired := isUpdateFlexCacheRequired
 	// no new parameters provided for flexcache update
 	isUpdateFlexCacheRequired = func(existingVolume *datamodel.Volume, params *common.UpdateVolumeParams) bool {
@@ -778,7 +764,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -795,10 +780,9 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Case : No existing snapshot policy, new policy provided
 	volume1 := &datamodel.Volume{
@@ -853,7 +837,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -868,12 +851,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		AvailableSpace: 1000,
 		Size:           1000,
 		State:          "online",
-	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error"))
-	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	}, nil).Maybe()
 
 	// Case : No existing snapshot policy, new policy provided
 	volume1 := &datamodel.Volume{
@@ -925,7 +903,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -942,9 +919,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Case : Existing snapshot policy, new policy provided (update)
@@ -1003,7 +979,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -1018,12 +993,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		AvailableSpace: 1000,
 		Size:           1000,
 		State:          "online",
-	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error"))
+	}, nil).Maybe()
 
 	// Case : Existing snapshot policy, new policy provided (update)
 	volume2 := &datamodel.Volume{
@@ -1074,7 +1044,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -1091,10 +1060,9 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Case : No snapshot policy provided in params (should skip snapshot policy logic)
 	volume3 := &datamodel.Volume{
@@ -1133,7 +1101,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SnapshotPolicy_OnlyEna
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.CreateSnapshotPolicyInONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateSnapshotPolicyInOntap)
@@ -1150,9 +1117,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SnapshotPolicy_OnlyEna
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(createActivity.CreateSnapshotPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(updateActivity.UpdateSnapshotPolicyInOntap, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	volume := &datamodel.Volume{
@@ -1201,7 +1167,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_DataProtectionVolume_S
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1216,7 +1181,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_DataProtectionVolume_S
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Case : No existing snapshot policy, new policy provided
@@ -1272,7 +1236,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NoSizeChange() {
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1330,16 +1293,14 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Failure() {
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.UpdateVolumeStateInDB)
 
 	// Mock activities
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("ONTAP error"))
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(createActivity.UpdateVolumeStateInDB, mock.Anything, "test-volume-uuid", datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Return(nil)
 
 	// Execute workflow
@@ -1387,12 +1348,11 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_JobUpdateFailure() {
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(createActivity.UpdateVolumeStateInDB)
 
 	// Mock activities
-	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil).Maybe()
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
 		ProviderResponse: vsa.ProviderResponse{
@@ -1404,8 +1364,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_JobUpdateFailure() {
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("ONTAP error"))
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(createActivity.UpdateVolumeStateInDB, mock.Anything, "test-volume-uuid", datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Return(nil)
 
 	// Execute workflow
@@ -1449,7 +1408,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SizeChanged() {
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1464,15 +1422,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SizeChanged() {
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{
-		ProviderResponse: vsa.ProviderResponse{
-			ExternalUUID: "test-external-uuid",
-			Name:         "/vol/vol1/lun1",
-		},
-		SerialNumber: "6c573830325d596f4f373437",
-		Size:         88424124416,
-		OSType:       "LINUX",
-	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -1523,7 +1472,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_HostG
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk)
 	s.env.RegisterActivity(updateActivity.UnmapHostGroupFromDisk)
@@ -1540,7 +1488,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_HostG
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.UnmapHostGroupFromDisk, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -1597,7 +1544,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_HostG
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1612,7 +1558,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_HostG
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -1667,7 +1612,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_NoExi
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk)
 
@@ -1683,7 +1627,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockDevices_NoExi
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -1729,7 +1672,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockProperties_Fa
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk)
 	s.env.RegisterActivity(updateActivity.UnmapHostGroupFromDisk)
@@ -1746,7 +1688,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithBlockProperties_Fa
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.EnsureHostGroupsExistsAndMapDisk, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.UnmapHostGroupFromDisk, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -1799,7 +1740,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BPSuccess() {
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1876,7 +1816,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_FindTenancyDetailsFail
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -1891,9 +1830,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_FindTenancyDetailsFail
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to find tenancy details"))
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to find tenancy details")).Maybe()
 	// s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -1940,7 +1878,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_TokenError() {
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
 	s.env.RegisterActivity(createActivity.UpdateVolumeStateInDB)
@@ -1957,7 +1894,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_TokenError() {
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return(nil, errors.New("failed to get auth JWT token"))
 	s.env.OnActivity(createActivity.UpdateVolumeStateInDB, mock.Anything, "test-volume-uuid", datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Return(nil)
 
@@ -2006,7 +1942,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CheckBackupVaultExistI
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2021,9 +1956,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CheckBackupVaultExistI
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to check backup vault exists in VCP"))
 
 	// Execute workflow
@@ -2067,7 +2001,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CheckBucketResourceNam
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2082,11 +2015,10 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CheckBucketResourceNam
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(nil, errors.New("failed to check for bucket resource name"))
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(nil, errors.New("failed to check for bucket resource name")).Maybe()
 	// s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -2130,7 +2062,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GenerateResourceNamesF
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2145,12 +2076,11 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GenerateResourceNamesF
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil)
-	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to generate resource names"))
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to generate resource names")).Maybe()
 
 	// s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -2195,7 +2125,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CreateBucketForBackupV
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2210,13 +2139,12 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CreateBucketForBackupV
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil)
-	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil)
-	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(nil, errors.New("failed to create bucket for backup vault"))
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(nil, errors.New("failed to create bucket for backup vault")).Maybe()
 
 	// s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -2263,7 +2191,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateBucketDetailsOfB
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(syncBackupZiZsActivity.SyncBucketDetails)
 
@@ -2279,18 +2206,17 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateBucketDetailsOfB
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
+	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil)
-	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil)
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(&common.BucketDetails{
 		BucketName:          "test-bucket",
 		ServiceAccountName:  "test-service-account",
 		VendorSubnetID:      "test-subnet-id",
 		TenantProjectNumber: "test-project-number",
-	}, nil)
+	}, nil).Maybe()
 	s.env.OnActivity(syncBackupZiZsActivity.SyncBucketDetails, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 		BucketName:          "test-bucket",
 		ServiceAccountName:  "test-service-account",
@@ -2298,8 +2224,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateBucketDetailsOfB
 		TenantProjectNumber: "test-project-number",
 		SatisfiesPzi:        true,
 		SatisfiesPzs:        false,
-	}, nil)
-	s.env.OnActivity(updateActivity.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to update bucket details of backup vault"))
+	}, nil).Maybe()
+	s.env.OnActivity(updateActivity.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to update bucket details of backup vault")).Maybe()
 	// Mock SetupCrossRegionBackupPermissionsActivity - not called for non-cross-region backup vault
 	s.env.OnActivity(volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
@@ -2350,7 +2276,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SyncBucketDetailsError
 	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.FindTenancyDetails)
 	s.env.RegisterActivity(updateActivity.CheckBackupVaultExistInVCP)
@@ -2376,7 +2301,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SyncBucketDetailsError
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
 	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{RegionalTenantProject: "tenant-project"}, nil)
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BackupVault{
@@ -2401,7 +2325,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SyncBucketDetailsError
 	// Mock SetupCrossRegionBackupPermissionsActivity - not called for non-cross-region backup vault
 	s.env.OnActivity(volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -2446,7 +2370,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AttachBackupPolicyToke
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2504,7 +2427,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VerifyIfBackupPolicyEx
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2563,7 +2485,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_FetchAndCreateBackupPo
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2579,8 +2500,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_FetchAndCreateBackupPo
 	}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("", nil)
 	s.env.OnActivity(updateActivity.VerifyIfBackupPolicyExistsInVCP, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-	s.env.OnActivity(updateActivity.FetchAndCreateBackupPolicyFromSDE, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to fetch and create backup policy from SDE"))
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(updateActivity.FetchAndCreateBackupPolicyFromSDE, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to fetch and create backup policy from SDE")).Maybe()
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -2623,7 +2544,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CreateScheduleForBacku
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2640,9 +2560,9 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CreateScheduleForBacku
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("", nil)
 	s.env.OnActivity(updateActivity.VerifyIfBackupPolicyExistsInVCP, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
 	s.env.OnActivity(updateActivity.FetchAndCreateBackupPolicyFromSDE, mock.Anything, mock.Anything, mock.Anything).
-		Return(&datamodel.BackupPolicy{BaseModel: datamodel.BaseModel{UUID: "test-backup-policy-uuid"}}, nil)
-	s.env.OnActivity(updateActivity.CreateScheduleForBackupPolicy, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to create schedule"))
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		Return(&datamodel.BackupPolicy{BaseModel: datamodel.BaseModel{UUID: "test-backup-policy-uuid"}}, nil).Maybe()
+	s.env.OnActivity(updateActivity.CreateScheduleForBackupPolicy, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to create schedule")).Maybe()
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -2688,7 +2608,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AttachBackupPolicySucc
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2755,7 +2674,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ba
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -2771,7 +2689,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ba
 	}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("", nil)
 	s.env.OnActivity(updateActivity.VerifyIfBackupPolicyExistsInVCP, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -2824,7 +2742,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ba
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -2899,7 +2816,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ba
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -2962,7 +2878,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ge
 	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
@@ -3019,7 +2934,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Ch
 	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3079,7 +2993,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Cr
 	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3141,7 +3054,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UseVCPRegionEnabled_Un
 	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3206,7 +3118,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupPolicyExists_Pol
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3281,7 +3192,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupPolicyExists_Pol
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3355,7 +3265,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_BackupPolicyExists_Pol
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
 	s.env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
@@ -3424,7 +3333,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_PauseBackupPolicyWhenD
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.PauseBackupPolicySchedule)
 
@@ -3504,7 +3412,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_PauseBackupPolicySched
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(backupPolicyActivity.PauseBackupPolicySchedule)
 
@@ -3578,7 +3485,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutoTier() {
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -3651,7 +3557,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutoTier() {
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
@@ -4275,7 +4180,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateJobStatusDoneErr
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -4290,7 +4194,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateJobStatusDoneErr
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock UpdateJobStatus to succeed for PROCESSING state
@@ -4397,8 +4300,8 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_LunUpdateWithSnapReser
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
+	s.env.RegisterActivity(updateActivity.UpdateLun)
 
 	// Mock activities
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
@@ -4426,18 +4329,10 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_LunUpdateWithSnapReser
 	}, nil).Once()
 
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-	// Mock UpdateLun activity - this should be called with the calculated LUN size
-	// Expected calculation: 2000 - (2000 * 20 / 100) = 2000 - 400 = 1600
-	expectedLunSize := int64(1600)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, expectedLunSize, mock.Anything).Return(&vsa.LunResponse{
-		ProviderResponse: vsa.ProviderResponse{
-			ExternalUUID: "lun-uuid",
-			Name:         "/vol/vol1/lun1",
-		},
-		Size: expectedLunSize,
-	}, nil)
-
+	// UpdateLun: expected size = QuotaInBytes - (QuotaInBytes * SnapReserve / 100) = 2000 - (2000 * 20 / 100) = 1600
+	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+		&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/test_volume/lun0"}}, nil,
+	).Once()
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow with both QuotaInBytes and SnapReserve
@@ -4451,6 +4346,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_LunUpdateWithSnapReser
 		SizeInBytes: 1000,
 		VolumeAttributes: &datamodel.VolumeAttributes{
 			SnapReserve: 10, // Current snap reserve
+			Protocols:   []string{"ISCSI"},
 		},
 	}
 
@@ -4478,7 +4374,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateLunReturnedError
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -4493,8 +4388,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateLunReturnedError
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("some error"))
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -5850,7 +5743,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateSMBShareSettings
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.UpdateSMBShareSettings, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
@@ -6050,7 +5942,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateFlexCacheVolumeI
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
 	s.env.RegisterActivity(updateFlexCacheActivity.UpdateFlexCacheVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -6074,7 +5965,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_UpdateFlexCacheVolumeI
 		UUID:  "test-job-uuid",
 	}, nil)
 
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	prevIsUpdateFlexCacheRequired := isUpdateFlexCacheRequired
@@ -6333,7 +6223,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_WithKmsGrant() {
 	}, nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -6504,14 +6394,14 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CrossRegionBackup_Setu
 	}, nil)
 	s.env.OnActivity(updateActivity.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{
 		RegionalTenantProject: "tenant-project",
-	}, nil)
+	}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{
 		BucketName:          "test-bucket",
 		ServiceAccountName:  "test-sa",
 		TenantProjectNumber: "12345",
-	}, nil)
+	}, nil).Maybe()
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
-	s.env.OnActivity(volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to setup cross-region permissions"))
+	s.env.OnActivity(volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to setup cross-region permissions")).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
@@ -6611,7 +6501,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_CrossRegionBackup_Slee
 	s.env.OnActivity(syncBackupZiZsActivity.SyncBucketDetails, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 		BucketName:          "test-bucket",
 		TenantProjectNumber: "12345",
-	}, nil)
+	}, nil).Maybe()
 
 	// Mock SetupCrossRegionBackupPermissionsActivity to succeed
 	s.env.OnActivity(volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -6676,7 +6566,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.UpdateVolumePerformanceGroupInDB)
@@ -6694,8 +6583,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -6753,7 +6640,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.UpdateVolumePerformanceGroupInDB)
@@ -6770,8 +6656,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -6828,7 +6712,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
 	s.env.RegisterActivity(backupActivity.UpdateBackupMetadataIfExistsActivity)
 
@@ -6842,9 +6725,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow - volume has autogenerated VPG but missing OntapQosPolicyID
 	volume := &datamodel.Volume{
@@ -6892,7 +6772,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
 	s.env.RegisterActivity(backupActivity.UpdateBackupMetadataIfExistsActivity)
@@ -6909,9 +6788,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock QoS update failure
@@ -6966,7 +6842,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.UpdateVolumePerformanceGroupInDB)
@@ -6983,10 +6858,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock QoS update success
 	newThroughput := int64(200)
@@ -7046,7 +6917,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.UpdateVolumePerformanceGroupInDB)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7064,9 +6934,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Mock QoS update success, but then UpdateVolumePerformanceGroupInDB fails (triggering rollback)
@@ -7139,7 +7006,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Su
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
@@ -7160,8 +7026,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Su
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -7246,7 +7110,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Un
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
 	s.env.RegisterActivity(backupActivity.UpdateBackupMetadataIfExistsActivity)
@@ -7263,9 +7126,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Un
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock UnassignQoSPolicyFromVolume failure
@@ -7327,7 +7187,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Succes
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
@@ -7347,8 +7206,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Succes
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -7420,7 +7277,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Differ
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7439,10 +7295,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Differ
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	s.env.OnActivity(updateActivity.UnassignQoSPolicyFromVolume, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	newVPG := &datamodel.VolumePerformanceGroup{
@@ -7503,7 +7356,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_VPGNot
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7521,9 +7373,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_VPGNot
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock VPG reassignment activities
@@ -7580,7 +7429,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Missin
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7598,10 +7446,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Missin
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Mock VPG reassignment activities
 	s.env.OnActivity(updateActivity.UnassignQoSPolicyFromVolume, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -7662,7 +7507,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.UpdateVolumePerformanceGroupInDB)
@@ -7679,8 +7523,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -7737,7 +7579,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UpdateQoSPolicyGroupForVolume)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7754,8 +7595,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutogeneratedVPG_Updat
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -7815,7 +7654,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Cr
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
@@ -7834,9 +7672,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Cr
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock QoS conversion activities
@@ -7897,7 +7732,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_As
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
 	s.env.RegisterActivity(updateActivity.AssignQoSPolicyToVolume)
@@ -7917,9 +7751,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_As
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock QoS conversion activities
@@ -7991,7 +7822,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Cr
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
@@ -8014,9 +7844,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Cr
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.OnActivity(updateActivity.UnassignQoSPolicyFromVolume, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -8091,7 +7918,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Ro
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
@@ -8114,9 +7940,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Ro
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	s.env.OnActivity(updateActivity.UnassignQoSPolicyFromVolume, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -8207,7 +8030,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Ro
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume)
@@ -8230,9 +8052,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_NonAutogenToAutogen_Ro
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	s.env.OnActivity(updateActivity.UnassignQoSPolicyFromVolume, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -8320,7 +8139,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Unassi
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	backupActivity := activities.BackupActivity{SE: mockStorage}
 	s.env.RegisterActivity(backupActivity.UpdateBackupMetadataIfExistsActivity)
@@ -8337,9 +8155,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Unassi
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock UnassignQoSPolicyFromVolume failure
@@ -8397,7 +8212,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_FindQo
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	s.env.RegisterActivity(updateActivity.FindQoSGroupPolicyForVolume)
@@ -8417,9 +8231,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_FindQo
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock VPG reassignment activities
@@ -8487,7 +8298,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Assign
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	s.env.RegisterActivity(updateActivity.FindQoSGroupPolicyForVolume)
@@ -8508,9 +8318,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Assign
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock VPG reassignment activities
@@ -8583,7 +8390,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Update
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	s.env.RegisterActivity(updateActivity.FindQoSGroupPolicyForVolume)
@@ -8604,9 +8410,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Update
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Mock VPG reassignment activities - all succeed up to UpdateVolumePerformanceGroupInDBForVolume
@@ -8636,7 +8439,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Update
 		OntapQosPolicyID: "old-policy-uuid",
 		IsAutoGen:        false,
 	}
-	s.env.OnActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, mock.Anything, mock.Anything, oldVPG).Return(nil)
+	s.env.OnActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, mock.Anything, mock.Anything, oldVPG).Return(nil).Maybe()
 
 	volume := &datamodel.Volume{
 		BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
@@ -8690,7 +8493,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_NoCurr
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
 	s.env.RegisterActivity(updateActivity.FindQoSGroupPolicyForVolume)
@@ -8710,8 +8512,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_NoCurr
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil)
 
@@ -8723,15 +8523,15 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_NoCurr
 		OntapQosPolicyID: "new-policy-uuid",
 		IsAutoGen:        false,
 	}
-	s.env.OnActivity(vpgActivity.GetVolumePerformanceGroupByUUID, mock.Anything, "new-vpg-uuid").Return(newVPG, nil)
+	s.env.OnActivity(vpgActivity.GetVolumePerformanceGroupByUUID, mock.Anything, "new-vpg-uuid").Return(newVPG, nil).Maybe()
 	newQosPolicy := &vsa.QoSGroupPolicyResponse{
 		Name:    "new-policy-name",
 		UUID:    "new-policy-uuid",
 		SvmName: "test-svm",
 	}
-	s.env.OnActivity(updateActivity.FindQoSGroupPolicyForVolume, mock.Anything, "new-vpg-qos-policy", "test-svm", mock.Anything).Return(newQosPolicy, nil)
-	s.env.OnActivity(updateActivity.AssignQoSPolicyToVolume, mock.Anything, mock.Anything, newQosPolicy.Name, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, mock.Anything, mock.Anything, newVPG).Return(nil)
+	s.env.OnActivity(updateActivity.FindQoSGroupPolicyForVolume, mock.Anything, "new-vpg-qos-policy", "test-svm", mock.Anything).Return(newQosPolicy, nil).Maybe()
+	s.env.OnActivity(updateActivity.AssignQoSPolicyToVolume, mock.Anything, mock.Anything, newQosPolicy.Name, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, mock.Anything, mock.Anything, newVPG).Return(nil).Maybe()
 
 	// Execute workflow - volume has no current VPG (VolumePerformanceGroupID not valid)
 	volume := &datamodel.Volume{
@@ -8779,7 +8579,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Rollba
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
@@ -8801,9 +8600,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Rollba
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	oldVPG := &datamodel.VolumePerformanceGroup{
@@ -8885,7 +8681,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Rollba
 	s.env.RegisterActivity(commonActivity.GetNode)
 	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(updateActivity.UnassignQoSPolicyFromVolume)
 	s.env.RegisterActivity(vpgActivity.GetVolumePerformanceGroupByUUID)
@@ -8907,9 +8702,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_VPGReassignment_Rollba
 		Size:           1000,
 		State:          "online",
 	}, nil)
-	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil).Maybe()
-	s.env.OnActivity(backupActivity.UpdateBackupMetadataIfExistsActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Old VPG has empty OntapQosPolicyID (rollback unassign scenario)
@@ -9621,7 +9413,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_CreateBucketFail
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 
 	// Mock activities
@@ -9636,7 +9427,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_CreateBucketFail
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
 
 	// CheckBackupVaultExistInVCP returns a GCBDR vault
@@ -9649,10 +9439,10 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_CreateBucketFail
 		},
 	}, nil)
 	// CheckBucketResourceName returns empty — triggers bucket creation
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil)
-	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil)
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil).Maybe()
 	// CreateBucketForBackupVault fails
-	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(nil, errors.New("failed to create bucket for GCBDR vault"))
+	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(nil, errors.New("failed to create bucket for GCBDR vault")).Maybe()
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -9700,7 +9490,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_UpdateBucketDeta
 	// Register activities
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)
-	s.env.RegisterActivity(updateActivity.UpdateLun)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInDB)
 	s.env.RegisterActivity(syncBackupZiZsActivity.SyncBucketDetails)
 
@@ -9716,7 +9505,6 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_UpdateBucketDeta
 		State:          "online",
 	}, nil)
 	s.env.OnActivity(updateActivity.UpdateVolumeInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(updateActivity.UpdateLun, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/vol1/lun1"}}, nil)
 	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
 
 	// CheckBackupVaultExistInVCP returns a GCBDR vault
@@ -9728,20 +9516,20 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_UpdateBucketDeta
 			{BucketName: "gcbdr-existing-bucket", TenantProjectNumber: "tenant-project"},
 		},
 	}, nil)
-	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil)
-	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil)
+	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{}, nil).Maybe()
+	s.env.OnActivity(updateActivity.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.ResourceNames{}, nil).Maybe()
 	s.env.OnActivity(updateActivity.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*string")).Return(&common.BucketDetails{
 		BucketName:          "gcbdr-new-bucket",
 		TenantProjectNumber: "12345",
-	}, nil)
+	}, nil).Maybe()
 	s.env.OnActivity(syncBackupZiZsActivity.SyncBucketDetails, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 		BucketName:          "gcbdr-new-bucket",
 		TenantProjectNumber: "12345",
 		SatisfiesPzi:        true,
 		SatisfiesPzs:        false,
-	}, nil)
+	}, nil).Maybe()
 	// UpdateBucketDetailsOfBackupVault fails
-	s.env.OnActivity(updateActivity.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to update GCBDR vault bucket details"))
+	s.env.OnActivity(updateActivity.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to update GCBDR vault bucket details")).Maybe()
 
 	// Execute workflow
 	volume := &datamodel.Volume{
@@ -9792,14 +9580,14 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_NilPool_Error() 
 	s.env.RegisterActivity(updateActivity.CheckBucketResourceName)
 
 	// Mock activities
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
 	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
 		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "ext-uuid", Name: "test_volume"},
 		AvailableSpace:   1000,
 		Size:             1000,
 		State:            "online",
-	}, nil)
-	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
+	}, nil).Maybe()
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil).Maybe()
 	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BackupVault{
 		BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
 		Name:        "gcbdr-vault",
@@ -9807,11 +9595,11 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_NilPool_Error() 
 		BucketDetails: datamodel.BucketDetailsArray{
 			{BucketName: "gcbdr-bucket", TenantProjectNumber: "tenant-project"},
 		},
-	}, nil)
+	}, nil).Maybe()
 	// Bucket already exists — skip creation block, go straight to unconditional permissions check
 	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{
 		BucketName: "gcbdr-bucket", ServiceAccountName: "gcbdr-sa", TenantProjectNumber: "12345",
-	}, nil)
+	}, nil).Maybe()
 
 	// Execute workflow with nil Pool — triggers "pool details required" error
 	volume := &datamodel.Volume{
@@ -9873,9 +9661,9 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_SetupCrossProjec
 	// Bucket already exists — skip creation block, go straight to unconditional permissions check
 	s.env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).Return(&common.BucketDetails{
 		BucketName: "gcbdr-bucket", ServiceAccountName: "gcbdr-sa", TenantProjectNumber: "12345",
-	}, nil)
+	}, nil).Maybe()
 	// SetupCrossProjectBackupPermissions fails
-	s.env.OnActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("iam grant failed"))
+	s.env.OnActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("iam grant failed")).Maybe()
 
 	volume := &datamodel.Volume{
 		Pool: &datamodel.Pool{

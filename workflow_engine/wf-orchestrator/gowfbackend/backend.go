@@ -6,7 +6,7 @@ import (
 	"time"
 
 	gowf "github.com/cschleiden/go-workflows/workflow"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // gowfBackend implements orchestrator.Backend by delegating to the
@@ -181,6 +181,10 @@ func (b *gowfBackend) Done(ctx *orchestrator.Context) <-chan struct{} {
 
 func (b *gowfBackend) Err(ctx *orchestrator.Context) error {
 	return wfCtx(ctx).Err()
+}
+
+func (b *gowfBackend) NewDisconnectedContext(orchCtx *orchestrator.Context) *orchestrator.Context {
+	return orchCtx.ShallowCopy()
 }
 
 // dispatchName resolves the lookup key used by ExecuteChildWorkflow and

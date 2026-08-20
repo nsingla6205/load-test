@@ -29,6 +29,21 @@ func TestGetWorkflowGlobalTimeout_DefaultEnv(t *testing.T) {
 	}
 }
 
+func TestGetUpdateVolumeWorkflowRunTimeout_ReturnsTwiceBudget(t *testing.T) {
+	original := WorkflowGlobalTimeoutMinutes
+	defer func() { WorkflowGlobalTimeoutMinutes = original }()
+
+	WorkflowGlobalTimeoutMinutes = "60"
+	got := GetUpdateVolumeWorkflowRunTimeout()
+	if got == nil {
+		t.Fatal("expected non-nil timeout")
+	}
+	want := 120 * time.Minute
+	if *got != want {
+		t.Errorf("expected %v, got %v", want, *got)
+	}
+}
+
 func TestGetCMEKWorkFlowGlobalTimeout_Default(t *testing.T) {
 	t.Setenv("CMEK_WORKFLOW_GLOBAL_TIMEOUT_MINUTES", "")
 	got := GetCMEKWorkFlowGlobalTimeout()

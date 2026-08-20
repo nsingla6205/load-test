@@ -109,3 +109,7 @@ func (b *fakeBackend) ContinueAsNew(_ *Context, wf interface{}, args ...interfac
 	b.continueAsNewArgs = args
 	return b.continueAsNewErr
 }
+
+func (b *fakeBackend) NewDisconnectedContext(ctx *Context) *Context {
+	return ctx.ShallowCopy()
+}

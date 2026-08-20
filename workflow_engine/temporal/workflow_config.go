@@ -110,6 +110,15 @@ func GetWorkflowGlobalTimeout() time.Duration {
 	return timeout
 }
 
+// GetUpdateVolumeWorkflowRunTimeout returns a safety-net WorkflowRunTimeout of 2× the global
+// workflow timeout. The in-workflow operation budget fires at 1× to trigger rollback;
+// Temporal hard-kills at 2× if rollback itself gets stuck.
+func GetUpdateVolumeWorkflowRunTimeout() *time.Duration {
+	budget := GetWorkflowGlobalTimeout()
+	safety := budget * 2
+	return &safety
+}
+
 func GetCMEKWorkFlowGlobalTimeout() time.Duration {
 	timeout, err := time.ParseDuration(CMEKWorkflowGlobalTimeoutMinutes + "m")
 	if err != nil {

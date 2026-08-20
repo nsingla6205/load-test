@@ -19,7 +19,10 @@ import (
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -35,6 +38,14 @@ var (
 	convertCacheParameters               = _convertCacheParameters
 	isUpdateFlexCacheRequired            = _isUpdateFlexCacheRequired
 	isUpdateFlexCachePrepopulateRequired = _isUpdateFlexCachePrepopulateRequired
+
+	// operationBudget is the in-workflow time limit for UpdateVolumeWorkflow. When
+	// OperationBudgetExceeded fires, the workflow fails and defer runs rollback + READY reset.
+	// triggering a clean rollback well before Temporal's safety-net WorkflowRunTimeout
+	// (2× this budget) fires. Defaults to the global workflow timeout so it aligns
+	// with the historical per-operation time expectation.
+	// Override in tests via: operationBudget = N * time.Minute.
+	operationBudget = workflowengine.GetWorkflowGlobalTimeout()
 )
 
 // UpdateVolumeWorkflow Update Volume Workflow process volume related requests from a customer.
@@ -62,7 +73,7 @@ func UpdateVolumeWorkflow(ctx workflow.Context, params *common.UpdateVolumeParam
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with err for UpdateVolumeWorkflow: %v", err)
+			log.Errorf("Failed to update job status to Done with err for UpdateVolumeWorkflow: %v", err2)
 			return err2
 		}
 		return customErr
@@ -103,14 +114,18 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	updateActivity := &activities.VolumeUpdateActivity{}
 	deleteActivity := &activities.VolumeDeleteActivity{}
 	flexCacheUpdateActivity := &flexcache_activities.FlexCacheVolumeUpdateActivity{}
+	commonActivities := activities.CommonActivities{}
+	volumeCreateActivity := activities.VolumeCreateActivity{}
 
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
-	// Use LV-specific timeout for large capacity volumes
+	// Use LV-specific timeout for large capacity volumes. Activity timeout/retry policy stays on
+	// workflow.Context (Temporal SDK) — not orchestrator.ActivityOptions — so we do not imply
+	// go-workflows parity for StartToCloseTimeout, HeartbeatTimeout, or NonRetryableErrorTypes.
 	startToCloseTimeout := getVolumeStartToCloseTimeout(volume)
-	options := workflow.ActivityOptions{
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Duration(startToCloseTimeout) * time.Second,
 		HeartbeatTimeout:    time.Duration(volumeHeartbeatTimeoutSec) * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -120,24 +135,42 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
+	})
+	orchCtx := temporalbackend.NewTemporalContext(ctx)
+	budgetStart := orchCtx.WorkflowStartTime()
+	if budgetStart.IsZero() {
+		// Temporal test env may leave WorkflowStartTime unset; anchor the budget to now.
+		budgetStart = orchestrator.Now(orchCtx)
 	}
-	ctx = workflow.WithActivityOptions(ctx, options)
-
+	operationBudgetEnd := budgetStart.Add(operationBudget)
 	rollbackManager := common.NewRollbackManager()
+	orchCtx = orchCtx.WithOperationBudgetCheck(func() bool { return orchestrator.Now(orchCtx).After(operationBudgetEnd) })
+
+	// Forward steps use orchCtx + RunActivity for the operation budget; re-bridge ctx so
+	// legacy helpers (WaitForONTAPJob, workflowSleep, rollback) keep the same Temporal context.
+	ctx = temporalbackend.WorkflowCtx(orchCtx)
 	defer func() {
 		if err != nil {
-			err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Get(ctx, nil)
-			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to READY: %v", err2)
+			disconnectedOrchCtx := orchestrator.NewDisconnectedContext(orchCtx).ClearOperationBudgetCheck()
+			if runErr := orchestrator.RunActivity(disconnectedOrchCtx, volumeCreateActivity.UpdateVolumeStateInDB, nil,
+				volume.UUID, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails); runErr != nil {
+				log.Errorf("Failed to update volume state in DB to READY: %v", runErr)
 			}
-			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
-			rollbackManager.ExecuteRollback(disconnectedCtx, err)
+			// rollbackManager.ExecuteRollback still takes workflow.Context
+			rollbackManager.ExecuteRollback(temporalbackend.WorkflowCtx(disconnectedOrchCtx), err)
 		}
 	}()
 
+	// Bail out immediately if the workflow spent its entire budget waiting in the
+	// queue — no activities have run yet so there is nothing to roll back, but
+	// the deferred state-reset (READY) still needs to fire via err != nil.
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded: workflow was queued too long")
+		return nil, ConvertToVSAError(err)
+	}
+
 	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, volume.Pool.ID).Get(ctx, &dbNodes)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, commonActivities.GetNode, &dbNodes, volume.Pool.ID); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -157,41 +190,40 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		oldBackupVaultID := volume.DataProtection.BackupVaultID
 		newBackupVaultID := *params.DataProtection.BackupVaultID
 		var ontapAsyncResponse *vsa.OntapAsyncResponse
-		err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapmirrorInONTAP, volume, &node).Get(ctx, &ontapAsyncResponse)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, deleteActivity.DeleteSnapmirrorInONTAP, &ontapAsyncResponse, volume, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-		err = WaitForONTAPJob(ctx, ontapAsyncResponse, node, time.Minute*10)
-		if err != nil {
+		if err = WaitForONTAPJob(ctx, ontapAsyncResponse, node, time.Minute*10); err != nil {
 			return nil, ConvertToVSAError(fmt.Errorf("failed to delete snapmirror: %w", err))
+		}
+		// Load-bearing operation-budget check: WaitForONTAPJob uses wall-clock polling and is not
+		// interrupted mid-wait by the operation budget (see also FlexCache wait below).
+		if orchCtx.OperationBudgetExceeded() {
+			err = fmt.Errorf("operation budget exceeded after snapmirror deletion wait")
+			return nil, ConvertToVSAError(err)
 		}
 
 		// Remove the latest backup snapshot for the vault being left (same pattern as delete backup workflow).
 		backupActivity := &activities.BackupActivity{}
 		var oldBackupVault *datamodel.BackupVault
-		err = workflow.ExecuteActivity(ctx, backupActivity.GetBackupVault, volume.DataProtection.BackupVaultID).Get(ctx, &oldBackupVault)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, backupActivity.GetBackupVault, &oldBackupVault, volume.DataProtection.BackupVaultID); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 		var latestBackup *datamodel.Backup
-		err = workflow.ExecuteActivity(ctx, backupActivity.GetLatestBackupByVolumeAndVault, volume.UUID, oldBackupVault.ID).Get(ctx, &latestBackup)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, backupActivity.GetLatestBackupByVolumeAndVault, &latestBackup, volume.UUID, oldBackupVault.ID); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 		if latestBackup != nil && latestBackup.Attributes != nil && volume.VolumeAttributes != nil {
 			var isExpertModeVolume bool
-			err = workflow.ExecuteActivity(ctx, backupActivity.IsExpertModeVolume, volume.UUID).Get(ctx, &isExpertModeVolume)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, backupActivity.IsExpertModeVolume, &isExpertModeVolume, volume.UUID); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			err = workflow.ExecuteActivity(ctx, backupActivity.DeleteSnapshotForBackup, node, latestBackup.Attributes.SnapshotID, volume.VolumeAttributes.ExternalUUID, latestBackup.Attributes.UseExistingSnapshot).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, backupActivity.DeleteSnapshotForBackup, nil, node, latestBackup.Attributes.SnapshotID, volume.VolumeAttributes.ExternalUUID, latestBackup.Attributes.UseExistingSnapshot); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 			if !isExpertModeVolume {
-				snapshotErr := workflow.ExecuteActivity(ctx, backupActivity.DeleteBackupSnapshotFromDB, latestBackup).Get(ctx, nil)
-				if snapshotErr != nil {
-					workflow.GetLogger(ctx).Error("Failed to delete snapshot from database", "error", snapshotErr)
+				if snapshotErr := orchestrator.RunActivity(orchCtx.ClearOperationBudgetCheck(), backupActivity.DeleteBackupSnapshotFromDB, nil, latestBackup); snapshotErr != nil {
+					log.Errorf("Failed to delete snapshot from database: %v", snapshotErr)
 				}
 			}
 
@@ -214,13 +246,12 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				}
 
 				location := utils.GetLocation(*snapshot)
-				hydrateSnapshotErr := workflow.ExecuteActivity(ctx, backupActivity.HydrateSnapshotDeletionToCCFEActivity,
+				if hydrateSnapshotErr := orchestrator.RunActivity(orchCtx.ClearOperationBudgetCheck(), backupActivity.HydrateSnapshotDeletionToCCFEActivity, nil,
 					snapshot,
 					volume.Name,
 					location,
-					volume.Account.Name).Get(ctx, nil)
-				if hydrateSnapshotErr != nil {
-					workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to hydrate snapshot deletion to CCFE for backup %s: %v", latestBackup.Name, hydrateSnapshotErr))
+					volume.Account.Name); hydrateSnapshotErr != nil {
+					log.Errorf("Failed to hydrate snapshot deletion to CCFE for backup %s: %v", latestBackup.Name, hydrateSnapshotErr)
 				}
 			}
 		}
@@ -229,6 +260,10 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		backupVaultSwitched = true
 		log.Infof("Backup vault switched for volume %s (old_vault=%s new_vault=%s); backup_chain_bytes unchanged until DB recalc",
 			volume.UUID, oldBackupVaultID, newBackupVaultID)
+	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after backup vault switch")
+		return nil, ConvertToVSAError(err)
 	}
 
 	// Update the snapshot policy if it is provided in the params
@@ -240,8 +275,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			createActivity := &activities.VolumeCreateActivity{}
 			volume.SnapshotPolicy = updatingPolicy
 
-			err = workflow.ExecuteActivity(ctx, createActivity.CreateSnapshotPolicyInONTAP, &volume, &node).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, createActivity.CreateSnapshotPolicyInONTAP, nil, volume, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 			rollbackManager.AddActivity(deleteActivity.DeleteSnapshotPolicyInONTAP, volume.SnapshotPolicy.Name, node)
@@ -253,19 +287,22 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				// This will happen when the user is trying to enable/disable the snapshot policy, without any change to schedules
 				updatingPolicy.Schedules = volume.SnapshotPolicy.Schedules
 			}
-			// Passing the current & new snapshot policy to the activity to find the delta & update the snapshot policy in ONTAP
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateSnapshotPolicyInOntap, &node, &volume.SnapshotPolicy, updatingPolicy).Get(ctx, nil)
-			if err != nil {
+			// Register rollback before forward (consistent with UpdateVolumeInONTAP and other
+			// ONTAP mutations). On immediate failure the rollback step is a no-op.
+			rollbackManager.AddActivity(updateActivity.UpdateSnapshotPolicyInOntap, node, updatingPolicy, volume.SnapshotPolicy)
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateSnapshotPolicyInOntap, nil, node, volume.SnapshotPolicy, updatingPolicy); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			rollbackManager.AddActivity(updateActivity.UpdateSnapshotPolicyInOntap, node, updatingPolicy, volume.SnapshotPolicy)
 			volume.SnapshotPolicy = updatingPolicy
 		}
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after snapshot policy update")
+		return nil, ConvertToVSAError(err)
+	}
 
 	volResponse := &vsa.VolumeResponse{}
-	err = workflow.ExecuteActivity(ctx, updateActivity.GetVolumeFromONTAP, volume, &node).Get(ctx, &volResponse)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, updateActivity.GetVolumeFromONTAP, &volResponse, volume, node); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -286,83 +323,82 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 
 	if isUpdateRequired(volResponse, params, volume) {
 		rollbackManager.AddActivity(updateActivity.UpdateVolumeInONTAP, volume, getUpdateParamsForRollback(volResponse, volume), node)
-		err = workflow.ExecuteActivity(ctx, updateActivity.UpdateVolumeInONTAP, volume, params, node).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumeInONTAP, nil, volume, params, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after volume update in ONTAP")
+		return nil, ConvertToVSAError(err)
+	}
 
 	if isUpdateFlexCacheRequired(volume, params) {
+		var ontapAsyncResponse *vsa.OntapAsyncResponse
 		rollbackManager.AddActivity(flexCacheUpdateActivity.UpdateFlexCacheVolumeInONTAP, volume,
 			getUpdateParamsForRollback(volResponse, volume), node)
-
-		var ontapAsyncResponse *vsa.OntapAsyncResponse
-		err = workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.UpdateFlexCacheVolumeInONTAP, volume,
-			params, node).Get(ctx, &ontapAsyncResponse)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdateFlexCacheVolumeInONTAP, &ontapAsyncResponse, volume, params, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		if err = WaitForONTAPJob(ctx, ontapAsyncResponse, node, 30*time.Minute); err != nil {
 			return nil, ConvertToVSAError(fmt.Errorf("failed to update FlexCache volume: %w", err))
 		}
+		// Load-bearing operation-budget check after ONTAP async wait (not checked during the wait).
+		if orchCtx.OperationBudgetExceeded() {
+			err = fmt.Errorf("operation budget exceeded after FlexCache volume update")
+			return nil, ConvertToVSAError(err)
+		}
 	}
 
 	// Handle prepopulate separately if requested
 	if isUpdateFlexCachePrepopulateRequired(volume, params) {
-		err := workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.UpdatePrepopulateState,
-			volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCACHEPREPOPULATESTATEUNSPECIFIED).Get(ctx, nil)
-		if err != nil {
-			log.Errorf("Failed to update prepopulate state to UNSPECIFIED: %v", err)
+		if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
+			volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCACHEPREPOPULATESTATEUNSPECIFIED); prepopErr != nil {
+			log.Errorf("Failed to update prepopulate state to UNSPECIFIED: %v", prepopErr)
 		}
 
 		// Start the ONTAP prepopulate job
 		var ontapJobUUID string
-		err = workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.StartFlexCachePrepopulate,
-			volume, params, node).Get(ctx, &ontapJobUUID)
-		if err != nil {
-			log.Errorf("Failed to start prepopulate in ONTAP: %v", err)
-			stateErr := workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.UpdatePrepopulateState,
-				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR).Get(ctx, nil)
-			if stateErr != nil {
+		if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.StartFlexCachePrepopulate, &ontapJobUUID,
+			volume, params, node); prepopErr != nil {
+			log.Errorf("Failed to start prepopulate in ONTAP: %v", prepopErr)
+			if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
+				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR); stateErr != nil {
 				log.Errorf("Failed to update prepopulate state to ERROR after ONTAP failure: %v", stateErr)
 			}
-
 			log.Warnf("Prepopulate failed to start but continuing with volume update - prepopulate is best-effort")
 		} else if ontapJobUUID == "" {
-			err = workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.UpdatePrepopulateState,
-				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCOMPLETE).Get(ctx, nil)
-			if err != nil {
-				log.Errorf("Failed to update prepopulate state to COMPLETE: %v", err)
+			if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
+				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCOMPLETE); stateErr != nil {
+				log.Errorf("Failed to update prepopulate state to COMPLETE: %v", stateErr)
 			}
 		} else {
 			// Create a Job record for tracking with ONTAP UUID in job attributes
 			var createdJobUUID string
-			err = workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.CreatePrepopulateJob,
-				volume, ontapJobUUID).Get(ctx, &createdJobUUID)
-			if err != nil {
-				log.Errorf("Failed to create job record: %v", err)
-				stateErr := workflow.ExecuteActivity(ctx, flexCacheUpdateActivity.UpdatePrepopulateState,
-					volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR).Get(ctx, nil)
-				if stateErr != nil {
+			if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.CreatePrepopulateJob, &createdJobUUID,
+				volume, ontapJobUUID); prepopErr != nil {
+				log.Errorf("Failed to create job record: %v", prepopErr)
+				if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
+					volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR); stateErr != nil {
 					log.Errorf("Failed to update prepopulate state to ERROR after job creation failure: %v", stateErr)
 				}
-
 				log.Warnf("ONTAP prepopulate job %s started but cannot be tracked - job will run to completion in ONTAP for volume %s",
 					ontapJobUUID, volume.UUID)
 			}
 		}
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after FlexCache prepopulate")
+		return nil, ConvertToVSAError(err)
+	}
 
 	// Avoid updating the lun if the size is not changed
 	if volume.VolumeAttributes != nil && len(volume.VolumeAttributes.Protocols) > 0 && utils.IsSANProtocol(volume.VolumeAttributes.Protocols[0]) && (params.QuotaInBytes > volume.SizeInBytes || (params.SnapReserve != nil && volume.VolumeAttributes != nil && *params.SnapReserve != volume.VolumeAttributes.SnapReserve)) && !volume.VolumeAttributes.IsDataProtection {
 		updatedLun := &vsa.LunResponse{}
-		err = workflow.ExecuteActivity(ctx, updateActivity.GetVolumeFromONTAP, volume, &node).Get(ctx, &volResponse)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.GetVolumeFromONTAP, &volResponse, volume, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-		err = workflow.ExecuteActivity(ctx, updateActivity.UpdateLun, volume, volResponse, node, params).Get(ctx, &updatedLun)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateLun, &updatedLun, volume, volResponse, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 		splitLunName := strings.Split(updatedLun.Name, "/")
@@ -389,6 +425,10 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 		// No rollback for LUN because we cannot decrease the size of a LUN in ONTAP.
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after LUN update")
+		return nil, ConvertToVSAError(err)
+	}
 
 	// Check BlockDevices first, then fallback to BlockProperties for host group updates
 	if len(params.BlockDevices) > 0 {
@@ -409,15 +449,13 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 
 			// Ensure the lun iGroup maps to delete created
 			if len(toDelete) > 0 {
-				err = workflow.ExecuteActivity(ctx, updateActivity.UnmapHostGroupFromDisk, &volume, toDelete, &node).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, updateActivity.UnmapHostGroupFromDisk, nil, volume, toDelete, node); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
 
 			if len(toCreate) > 0 {
-				err = workflow.ExecuteActivity(ctx, updateActivity.EnsureHostGroupsExistsAndMapDisk, &volume, toCreate, &node).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, updateActivity.EnsureHostGroupsExistsAndMapDisk, nil, volume, toCreate, node); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
@@ -429,28 +467,29 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			toCreate, toDelete := activities.HostGroupsUpdateDiffForVolume(volumeAttachedHG, params.BlockProperties.HostGroupUUIDs)
 
 			if len(toCreate) > 0 {
-				err = workflow.ExecuteActivity(ctx, updateActivity.EnsureHostGroupsExistsAndMapDisk, &volume, toCreate, &node).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, updateActivity.EnsureHostGroupsExistsAndMapDisk, nil, volume, toCreate, node); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
 
 			// Ensure the lun iGroup maps to delete created
 			if len(toDelete) > 0 {
-				err = workflow.ExecuteActivity(ctx, updateActivity.UnmapHostGroupFromDisk, &volume, toDelete, &node).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, updateActivity.UnmapHostGroupFromDisk, nil, volume, toDelete, node); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
 		}
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after host group update")
+		return nil, ConvertToVSAError(err)
+	}
 
 	if volume.VolumeAttributes != nil && volume.VolumeAttributes.FileProperties != nil {
 		// Update junction path only if it is provided in the params
 		if params.FileProperties != nil && params.FileProperties.JunctionPath != "" && params.FileProperties.JunctionPath != volume.VolumeAttributes.FileProperties.JunctionPath {
-			rollbackManager.AddActivity(updateActivity.UpdateJunctionPathInONTAP, &volume, volume.VolumeAttributes.FileProperties.JunctionPath, &node)
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateJunctionPathInONTAP, &volume, params.FileProperties.JunctionPath, &node).Get(ctx, nil)
-			if err != nil {
+			rollbackManager.AddActivity(updateActivity.UpdateJunctionPathInONTAP, volume, volume.VolumeAttributes.FileProperties.JunctionPath, node)
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateJunctionPathInONTAP, nil, volume, params.FileProperties.JunctionPath, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 			volume.VolumeAttributes.FileProperties.JunctionPath = params.FileProperties.JunctionPath
@@ -461,42 +500,42 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				params.FileProperties.ExportPolicy = &models.ExportPolicy{}
 			}
 			params.FileProperties.ExportPolicy.ExportPolicyName = volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName
-			rollbackManager.AddActivity(updateActivity.UpdateExportPolicyRulesInONTAP, &volume, volume.VolumeAttributes.FileProperties.ExportPolicy, &node)
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateExportPolicyRulesInONTAP, &volume, params.FileProperties.ExportPolicy, &node).Get(ctx, nil)
-			if err != nil {
+			rollbackManager.AddActivity(updateActivity.UpdateExportPolicyRulesInONTAP, volume, volume.VolumeAttributes.FileProperties.ExportPolicy, node)
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateExportPolicyRulesInONTAP, nil, volume, params.FileProperties.ExportPolicy, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 			volume.VolumeAttributes.FileProperties.ExportPolicy = getUpdatedExportPolicy(params.FileProperties.ExportPolicy)
 		}
 		if enableSmb && volume.VolumeAttributes != nil && utils.IsSMBProtocols(volume.VolumeAttributes.Protocols) && len(params.SMBShareSettings) != 0 {
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateSMBShareSettings, &volume, &params, &node).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateSMBShareSettings, nil, volume, params, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 		}
+	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after file properties update")
+		return nil, ConvertToVSAError(err)
 	}
 
 	if volume.DataProtection != nil && volume.DataProtection.BackupVaultID != "" {
 		if !env.IsLocalEnv() {
 			var token string
-			err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, params.AccountName).Get(ctx, &token)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, commonActivities.GetAuthJWTToken, &token, params.AccountName); err != nil {
 				log.Errorf("Failed to get token for account %s: %v", params.AccountName, err)
 				return nil, ConvertToVSAError(err)
 			}
-			ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
+			orchCtx = orchestrator.WithValue(orchCtx, middleware.AuthorizationToken, token)
+			ctx = temporalbackend.WorkflowCtx(orchCtx)
 		}
 
 		var backupVault *datamodel.BackupVault
-		err = workflow.ExecuteActivity(ctx, updateActivity.CheckBackupVaultExistInVCP, &volume, &params.Region).Get(ctx, &backupVault)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.CheckBackupVaultExistInVCP, &backupVault, volume, params.Region); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		volumeActivity := &activities.VolumeCreateActivity{}
 		var remoteBV *datamodel.BackupVault
-		err = workflow.ExecuteActivity(ctx, volumeActivity.CheckOrCreateRemoteBackupVaultInVCP, &volume, backupVault, nil).Get(ctx, &remoteBV)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, volumeActivity.CheckOrCreateRemoteBackupVaultInVCP, &remoteBV, volume, backupVault, nil); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -505,15 +544,16 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			backupRegion = *backupVault.BackupRegionName
 		}
 
-		tenancyDetails := &common.TenancyInfo{}
+		var tenancyDetails *common.TenancyInfo
 		if backupVault.ServiceType != activities.GCBDRServiceType {
-			err = workflow.ExecuteActivity(ctx, updateActivity.FindTenancyDetails, volume.VolumeAttributes.VendorSubnetID, volume.Account.Name, backupRegion).Get(ctx, &tenancyDetails)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.FindTenancyDetails, &tenancyDetails, volume.VolumeAttributes.VendorSubnetID, volume.Account.Name, &backupRegion); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 		} else {
 			if backupVault.BucketDetails != nil && len(backupVault.BucketDetails) > 0 {
-				tenancyDetails.RegionalTenantProject = backupVault.BucketDetails[0].TenantProjectNumber
+				tenancyDetails = &common.TenancyInfo{
+					RegionalTenantProject: backupVault.BucketDetails[0].TenantProjectNumber,
+				}
 			} else {
 				log.Errorf("GCBDR vault %s has no bucket details with tenant project", backupVault.UUID)
 				err = fmt.Errorf("GCBDR vault has no tenant project information")
@@ -522,15 +562,13 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 
 		bucketDetails := &common.BucketDetails{}
-		err = workflow.ExecuteActivity(ctx, updateActivity.CheckBucketResourceName, &volume).Get(ctx, &bucketDetails)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.CheckBucketResourceName, &bucketDetails, volume); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		if bucketDetails.BucketName == "" && bucketDetails.ServiceAccountName == "" && bucketDetails.TenantProjectNumber == "" {
 			resourceName := &common.ResourceNames{}
-			err = workflow.ExecuteActivity(ctx, updateActivity.GenerateResourceNamesForBackupVault, &volume, &tenancyDetails, params.Region).Get(ctx, &resourceName)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.GenerateResourceNamesForBackupVault, &resourceName, volume, tenancyDetails, params.Region); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -539,8 +577,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				kmsGrant = params.DataProtection.KmsGrant
 			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.CreateBucketForBackupVault, &resourceName, &tenancyDetails, backupRegion, kmsGrant).Get(ctx, &bucketDetails)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.CreateBucketForBackupVault, &bucketDetails, resourceName, tenancyDetails, backupRegion, kmsGrant); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -553,15 +590,17 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if err != nil {
 				return nil, ConvertToVSAError(err)
 			}
+			if orchCtx.OperationBudgetExceeded() {
+				err = fmt.Errorf("operation budget exceeded after sync bucket details with GCP")
+				return nil, ConvertToVSAError(err)
+			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateBucketDetailsOfBackupVault, &volume, &bucketDetails).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateBucketDetailsOfBackupVault, nil, volume, bucketDetails); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 		}
 
-		err = workflow.ExecuteActivity(ctx, volumeActivity.UpdateRemoteBackupVaultWithBucketDetails, &volume, backupVault, remoteBV, &bucketDetails).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, volumeActivity.UpdateRemoteBackupVaultWithBucketDetails, nil, volume, backupVault, remoteBV, bucketDetails); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -574,8 +613,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				return nil, ConvertToVSAError(err)
 			}
 			volumeCreateActivity := &activities.VolumeCreateActivity{}
-			err = workflow.ExecuteActivity(ctx, volumeCreateActivity.SetupCrossProjectBackupPermissions, volume.Pool, &bucketDetails).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, volumeCreateActivity.SetupCrossProjectBackupPermissions, nil, volume.Pool, bucketDetails); err != nil {
 				log.Errorf("Failed to setup cross-project backup permissions: %v", err)
 				return nil, ConvertToVSAError(err)
 			}
@@ -587,8 +625,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// Consider optimizing to run once per pool or caching the results.
 		if backupVault.BackupVaultType == activities.CrossRegionBackupType && backupVault.BackupRegionName != nil && *backupVault.BackupRegionName != "" {
 			volumeCreateActivity := &activities.VolumeCreateActivity{}
-			err = workflow.ExecuteActivity(ctx, volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, backupVault, &volume.Pool, &bucketDetails).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, volumeCreateActivity.SetupCrossRegionBackupPermissionsActivity, nil, backupVault, volume.Pool, bucketDetails); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -597,24 +634,31 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if err != nil {
 				log.Errorf("Failed to sleep after cross-region backup permissions are created: %v", err)
 			}
+			if orchCtx.OperationBudgetExceeded() {
+				err = fmt.Errorf("operation budget exceeded after cross-region permission sleep")
+				return nil, ConvertToVSAError(err)
+			}
 		}
+	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after backup vault provisioning")
+		return nil, ConvertToVSAError(err)
 	}
 
 	if volume.DataProtection != nil && params.DataProtection != nil && !nillable.IsNilOrEmpty(params.DataProtection.BackupPolicyId) {
 		// Assigning backup policy to the volume
 		if !env.IsLocalEnv() {
 			var token string
-			err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, params.AccountName).Get(ctx, &token)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, commonActivities.GetAuthJWTToken, &token, params.AccountName); err != nil {
 				log.Errorf("Failed to get token for account %s: %v", params.AccountName, err)
 				return nil, ConvertToVSAError(err)
 			}
-			ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
+			orchCtx = orchestrator.WithValue(orchCtx, middleware.AuthorizationToken, token)
+			ctx = temporalbackend.WorkflowCtx(orchCtx)
 		}
 
 		var backupPolicyExists bool
-		err = workflow.ExecuteActivity(ctx, updateActivity.VerifyIfBackupPolicyExistsInVCP, *params.DataProtection.BackupPolicyId, volume.AccountID).Get(ctx, &backupPolicyExists)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.VerifyIfBackupPolicyExistsInVCP, &backupPolicyExists, *params.DataProtection.BackupPolicyId, volume.AccountID); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -629,18 +673,15 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			}
 			backupPolicyActivity := &activities.BackupPolicyActivity{}
 			var vcpBackupPolicy *datamodel.BackupPolicy
-			err = workflow.ExecuteActivity(ctx, updateActivity.FetchAndCreateBackupPolicyFromSDE, volume, params.Region).Get(ctx, &vcpBackupPolicy)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.FetchAndCreateBackupPolicyFromSDE, &vcpBackupPolicy, volume, params.Region); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			err = workflow.ExecuteActivity(ctx, updateActivity.CreateScheduleForBackupPolicy, vcpBackupPolicy, params.BackupSchedule).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.CreateScheduleForBackupPolicy, nil, vcpBackupPolicy, params.BackupSchedule); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
 			if !vcpBackupPolicy.PolicyEnabled {
-				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.PauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, backupPolicyActivity.PauseBackupPolicySchedule, nil, vcpBackupPolicy); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
@@ -649,40 +690,39 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			backupPolicyActivity := &activities.BackupPolicyActivity{}
 			// Get the backup policy from VCP
 			var vcpBackupPolicy *datamodel.BackupPolicy
-			err = workflow.ExecuteActivity(ctx, backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID, *params.DataProtection.BackupPolicyId, volume.AccountID).Get(ctx, &vcpBackupPolicy)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID, &vcpBackupPolicy, *params.DataProtection.BackupPolicyId, volume.AccountID); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
 			// Check if schedule already exists
 			var scheduleExists bool
-			err = workflow.ExecuteActivity(ctx, backupPolicyActivity.CheckIfBackupPolicyScheduleExists, vcpBackupPolicy.UUID).Get(ctx, &scheduleExists)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, backupPolicyActivity.CheckIfBackupPolicyScheduleExists, &scheduleExists, vcpBackupPolicy.UUID); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
 			// Create schedule only if it doesn't exist
 			if !scheduleExists {
-				err = workflow.ExecuteActivity(ctx, updateActivity.CreateScheduleForBackupPolicy, vcpBackupPolicy, params.BackupSchedule).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, updateActivity.CreateScheduleForBackupPolicy, nil, vcpBackupPolicy, params.BackupSchedule); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
 
 			// Handle policy enabled/disabled state
 			if !vcpBackupPolicy.PolicyEnabled {
-				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.PauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, backupPolicyActivity.PauseBackupPolicySchedule, nil, vcpBackupPolicy); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			} else {
 				// If policy is enabled, ensure schedule is unpaused
-				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.UnpauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
-				if err != nil {
+				if err = orchestrator.RunActivity(orchCtx, backupPolicyActivity.UnpauseBackupPolicySchedule, nil, vcpBackupPolicy); err != nil {
 					return nil, ConvertToVSAError(err)
 				}
 			}
 		}
+	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after backup policy assignment")
+		return nil, ConvertToVSAError(err)
 	}
 
 	// If the request is to update individual qos for a volume
@@ -707,25 +747,21 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				return nil, ConvertToVSAError(fmt.Errorf("volume %s has autogenerated VPG but missing OntapQosPolicyID", volume.UUID))
 			}
 
-			// Add rollback activity
+			// Capture rollback args before mutation then run via orchestrator for uniform pattern.
 			currentThroughput := volume.VolumePerformanceGroup.ThroughputMibps
 			currentIops := volume.VolumePerformanceGroup.Iops
-			rollbackManager.AddActivity(updateActivity.UpdateQoSPolicyGroupForVolume,
-				volume, &currentThroughput, &currentIops, &node)
 
-			// Update the QoS policy group in ONTAP
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateQoSPolicyGroupForVolume,
-				volume, newThroughput, newIops, &node).Get(ctx, nil)
-			if err != nil {
+			rollbackManager.AddActivity(updateActivity.UpdateQoSPolicyGroupForVolume,
+				volume, &currentThroughput, &currentIops, node)
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateQoSPolicyGroupForVolume, nil,
+				volume, newThroughput, newIops, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
 			// Update the VPG in the database with new values
 			volume.VolumePerformanceGroup.ThroughputMibps = newThroughput
 			volume.VolumePerformanceGroup.Iops = newIops
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateVolumePerformanceGroupInDB,
-				volume.VolumePerformanceGroup).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumePerformanceGroupInDB, nil, volume.VolumePerformanceGroup); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 		} else {
@@ -743,22 +779,16 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				OntapQosPolicyID: volume.VolumePerformanceGroup.OntapQosPolicyID,
 			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.UnassignQoSPolicyFromVolume,
-				volume, &node).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UnassignQoSPolicyFromVolume, nil, volume, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
 			var newQosPolicy *vsa.QoSGroupPolicyResponse
-			err = workflow.ExecuteActivity(ctx, updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume,
-				volume, newThroughput, newIops, &node).Get(ctx, &newQosPolicy)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.CreateAutoGeneratedQoSPolicyGroupForVolume, &newQosPolicy, volume, newThroughput, newIops, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.AssignQoSPolicyToVolume,
-				volume, newQosPolicy.Name, &node).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.AssignQoSPolicyToVolume, nil, volume, newQosPolicy.Name, node); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -773,9 +803,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				OntapQosPolicyID: newQosPolicy.UUID,
 			}
 			var createdVPG *datamodel.VolumePerformanceGroup
-			err = workflow.ExecuteActivity(ctx, vpgActivity.CreateVPGInDB,
-				newAutoGenVPG).Get(ctx, &createdVPG)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, vpgActivity.CreateVPGInDB, &createdVPG, newAutoGenVPG); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -783,12 +811,10 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			rollbackManager.AddActivity(vpgActivity.HardDeleteVPGInDB, createdVPG)
 			rollbackManager.AddActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, volume.UUID, oldVPG)
 			if oldVPG.OntapQosPolicyID != "" {
-				rollbackManager.AddActivity(updateActivity.AssignQoSPolicyToVolume, volume, oldVPG.Name, &node)
+				rollbackManager.AddActivity(updateActivity.AssignQoSPolicyToVolume, volume, oldVPG.Name, node)
 			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume,
-				volume.UUID, createdVPG).Get(ctx, nil)
-			if err != nil {
+			if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, nil, volume.UUID, createdVPG); err != nil {
 				return nil, ConvertToVSAError(err)
 			}
 
@@ -796,6 +822,10 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			volume.VolumePerformanceGroup = createdVPG
 			volume.VolumePerformanceGroupID = sql.NullInt64{Int64: createdVPG.ID, Valid: true}
 		}
+	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after QoS update")
+		return nil, ConvertToVSAError(err)
 	}
 
 	// If current VPG doesnt match the provided VPGId, clean up the old VPG
@@ -807,17 +837,13 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		oldQosPolicyID := oldVPG.OntapQosPolicyID
 
 		// Remove the volume from the old qosPolicyGroup
-		err = workflow.ExecuteActivity(ctx, updateActivity.UnassignQoSPolicyFromVolume,
-			volume, &node).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.UnassignQoSPolicyFromVolume, nil, volume, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		// Find the VPG by the provided VPGId
 		var newVPG *datamodel.VolumePerformanceGroup
-		err = workflow.ExecuteActivity(ctx, (&activities.VolumePerformanceGroupActivity{}).GetVolumePerformanceGroupByUUID,
-			*params.VolumePerformanceGroupId).Get(ctx, &newVPG)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, (&activities.VolumePerformanceGroupActivity{}).GetVolumePerformanceGroupByUUID, &newVPG, *params.VolumePerformanceGroupId); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -832,23 +858,17 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 
 		var newQosPolicy *vsa.QoSGroupPolicyResponse
-		err = workflow.ExecuteActivity(ctx, updateActivity.FindQoSGroupPolicyForVolume,
-			newVPG.Name, volume.Svm.Name, &node).Get(ctx, &newQosPolicy)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.FindQoSGroupPolicyForVolume, &newQosPolicy, newVPG.Name, volume.Svm.Name, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		// Assign the volume to the VPG's qosPolicyGroup
-		err = workflow.ExecuteActivity(ctx, updateActivity.AssignQoSPolicyToVolume,
-			volume, newQosPolicy.Name, &node).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.AssignQoSPolicyToVolume, nil, volume, newQosPolicy.Name, node); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
 		// Update the volume in the db to point at the new VPG
-		err = workflow.ExecuteActivity(ctx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume,
-			volume.UUID, newVPG).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, nil, volume.UUID, newVPG); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -859,11 +879,18 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// Add rollback activities to restore old state
 		rollbackManager.AddActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, volume.UUID, oldVPG)
 		if oldQosPolicyID != "" {
-			rollbackManager.AddActivity(updateActivity.AssignQoSPolicyToVolume, volume, oldVPG.Name, &node)
+			rollbackManager.AddActivity(updateActivity.AssignQoSPolicyToVolume, volume, oldVPG.Name, node)
 		}
 	}
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded after VPG reassignment")
+		return nil, ConvertToVSAError(err)
+	}
 
-	err = workflow.ExecuteActivity(ctx, updateActivity.UpdateVolumeInDB, volume, params).Get(ctx, nil)
+	// Final DB persist: operation-budget check cleared by design — all forward mutations are
+	// done and we must complete the job regardless of elapsed time.
+	orchCtx = orchCtx.ClearOperationBudgetCheck()
+	err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumeInDB, nil, volume, params)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -871,14 +898,14 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	if backupVaultSwitched {
 		backupActivity := &activities.BackupActivity{}
 
-		if recalcErr := workflow.ExecuteActivity(ctx, backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, volume.UUID).Get(ctx, nil); recalcErr != nil {
+		if recalcErr := orchestrator.RunActivity(orchCtx, backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, nil, volume.UUID); recalcErr != nil {
 			return nil, ConvertToVSAError(recalcErr)
 		}
 	}
 
 	// Update BackupMetadata labels if an entry exists for this volume
 	backupActivity := &activities.BackupActivity{}
-	metadataErr := workflow.ExecuteActivity(ctx, backupActivity.UpdateBackupMetadataIfExistsActivity, volume).Get(ctx, nil)
+	metadataErr := orchestrator.RunActivity(orchCtx, backupActivity.UpdateBackupMetadataIfExistsActivity, nil, volume)
 	if metadataErr != nil {
 		// Log the error but don't fail the entire volume update workflow
 		log.Errorf("Failed to update BackupMetadata for volume %s: %v", volume.UUID, metadataErr)

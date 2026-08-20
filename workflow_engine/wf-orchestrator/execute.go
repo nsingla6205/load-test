@@ -26,6 +26,20 @@ func ExecuteChildWorkflow(ctx *Context, workflowFn interface{}, args ...interfac
 	return ctx.backend.ExecuteChildWorkflow(ctx, workflowFn, args...)
 }
 
+// RunActivity executes an activity, waits for the result, and enforces the
+// operation budget on ctx when set. Pass nil for result on void activities.
+// The budget is checked only after a successful Get (activity errors and Get
+// failures return immediately without evaluating OperationBudgetExceeded).
+func RunActivity(ctx *Context, activityFn interface{}, result interface{}, args ...interface{}) error {
+	if err := ExecuteActivity(ctx, activityFn, args...).Get(ctx, result); err != nil {
+		return err
+	}
+	if ctx.OperationBudgetExceeded() {
+		return fmt.Errorf("operation budget exceeded after %s", runtimeFuncName(activityFn))
+	}
+	return nil
+}
+
 func validateActivityInvocation(activityFn interface{}, args ...interface{}) error {
 	if activityFn == nil {
 		return fmt.Errorf("invalid activity invocation: nil activity")
@@ -94,5 +108,15 @@ func isNilAssignableType(t reflect.Type) bool {
 }
 
 func runtimeFuncName(fn interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	if fn == nil {
+		return "<nil>"
+	}
+	if name, ok := fn.(string); ok {
+		return name
+	}
+	v := reflect.ValueOf(fn)
+	if v.Kind() != reflect.Func {
+		return fmt.Sprintf("%T", fn)
+	}
+	return runtime.FuncForPC(v.Pointer()).Name()
 }

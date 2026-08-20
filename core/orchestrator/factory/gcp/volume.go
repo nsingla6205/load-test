@@ -3066,12 +3066,19 @@ func _updateVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		}
 	}()
 
+	// UpdateVolumeWorkflow uses a safety-net WorkflowRunTimeout (2× operation budget) so
+	// the in-workflow operation budget drives rollback before Temporal's hard kill.
+	// Replication workflows keep the nil fallback (global timeout).
+	runTimeout := workflowengine.GetUpdateVolumeWorkflowRunTimeout()
+	if isReplication {
+		runTimeout = nil
+	}
 	err = workflowExecutor.ExecuteWorkflow(
 		ctx,
 		createdJob.WorkflowID,
 		workflowengine.CustomerTaskQueue,
 		wf,
-		nil,
+		runTimeout,
 		params,
 		dbVolume,
 	)

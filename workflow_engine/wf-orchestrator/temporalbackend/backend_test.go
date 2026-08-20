@@ -172,3 +172,23 @@ func TestContinueAsNew_NilContext(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "orchCtx is nil")
 }
+
+func disconnectedContextWorkflow(ctx *orchestrator.Context) (bool, error) {
+	disconnected := orchestrator.NewDisconnectedContext(ctx)
+	return disconnected != nil && disconnected != ctx, nil
+}
+
+func TestTemporalBackend_NewDisconnectedContext(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	registerOrchWorkflow(env, disconnectedContextWorkflow)
+
+	env.ExecuteWorkflow(OrchWorkflowName(disconnectedContextWorkflow))
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+
+	var copied bool
+	require.NoError(t, env.GetWorkflowResult(&copied))
+	assert.True(t, copied)
+}

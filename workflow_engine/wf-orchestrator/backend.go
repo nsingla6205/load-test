@@ -18,4 +18,5 @@ type Backend interface {
 	Done(ctx *Context) <-chan struct{}
 	Err(ctx *Context) error
 	ContinueAsNew(ctx *Context, wf interface{}, args ...interface{}) error
+	NewDisconnectedContext(ctx *Context) *Context
 }

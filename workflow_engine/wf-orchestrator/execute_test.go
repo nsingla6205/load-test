@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -231,7 +232,147 @@ func TestActivityParamType_FixedAndVariadic(t *testing.T) {
 	assert.Equal(t, reflect.TypeOf(0), activityParamType(variadic, 5))
 }
 
+type runtimeNameHelper struct{}
+
+func (runtimeNameHelper) NamedActivity(_ context.Context) error { return nil }
+
 func TestRuntimeFuncName(t *testing.T) {
-	name := runtimeFuncName(validActivity)
-	assert.True(t, strings.HasSuffix(name, "validActivity"), "got %q", name)
+	methodValue := runtimeNameHelper{}.NamedActivity
+
+	tests := []struct {
+		name       string
+		fn         interface{}
+		wantExact  string
+		wantSuffix string
+		useExact   bool
+	}{
+		{
+			name:      "nil",
+			fn:        nil,
+			wantExact: "<nil>",
+			useExact:  true,
+		},
+		{
+			name:      "string activity name",
+			fn:        "named.activity",
+			wantExact: "named.activity",
+			useExact:  true,
+		},
+		{
+			name:      "empty string activity name",
+			fn:        "",
+			wantExact: "",
+			useExact:  true,
+		},
+		{
+			name:       "plain function",
+			fn:         validActivity,
+			wantSuffix: "validActivity",
+		},
+		{
+			name:       "method value",
+			fn:         methodValue,
+			wantSuffix: "NamedActivity-fm",
+		},
+		{
+			name:      "non-func int",
+			fn:        42,
+			wantExact: "int",
+			useExact:  true,
+		},
+		{
+			name:      "non-func struct",
+			fn:        struct{ x int }{x: 1},
+			wantExact: "struct { x int }",
+			useExact:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := runtimeFuncName(tt.fn)
+			if tt.useExact {
+				assert.Equal(t, tt.wantExact, got)
+				return
+			}
+			assert.True(t, strings.HasSuffix(got, tt.wantSuffix), "got %q, want suffix %q", got, tt.wantSuffix)
+		})
+	}
+}
+
+func TestRunActivity_OperationBudgetAfterSuccess_NamedActivity(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	err := RunActivity(ctx, "named.activity", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation budget exceeded")
+	assert.Contains(t, err.Error(), "named.activity")
+	assert.Equal(t, "named.activity", b.execActivityFn)
+}
+
+func TestRunActivity_OperationBudgetAfterSuccess_MethodValue(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	err := RunActivity(ctx, runtimeNameHelper{}.NamedActivity, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation budget exceeded")
+	assert.Contains(t, err.Error(), "NamedActivity")
+}
+
+func TestRunActivity_SuccessNoOperationBudget(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{result: futureResult{value: 42}}
+
+	var out int
+	require.NoError(t, RunActivity(ctx, validActivity, &out, 7))
+	assert.Equal(t, 7, b.execActivityArg[0])
+}
+
+func TestRunActivity_ActivityErrorSkipsOperationBudget(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{result: futureResult{err: errors.New("activity failed")}}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	err := RunActivity(ctx, validActivity, nil, 1)
+	require.EqualError(t, err, "activity failed")
+}
+
+func TestRunActivity_GetFailureSkipsOperationBudget(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{result: futureResult{err: errors.New("result decode failed")}}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	err := RunActivity(ctx, validActivity, nil, 1)
+	require.EqualError(t, err, "result decode failed")
+}
+
+func TestRunActivity_OperationBudgetAfterSuccess(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	err := RunActivity(ctx, validActivity, nil, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation budget exceeded")
+	assert.Contains(t, err.Error(), "validActivity")
+}
+
+func TestRunActivity_ClearOperationBudgetCheckSkipsGate(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true }).ClearOperationBudgetCheck()
+
+	require.NoError(t, RunActivity(ctx, validActivity, nil, 1))
+}
+
+func TestExecuteActivity_GetAloneDoesNotEnforceOperationBudget(t *testing.T) {
+	ctx, b := newFakeContext()
+	b.activityFuture = &readyFuture{}
+	ctx = ctx.WithOperationBudgetCheck(func() bool { return true })
+
+	require.NoError(t, ExecuteActivity(ctx, validActivity, 1).Get(ctx, nil))
 }
