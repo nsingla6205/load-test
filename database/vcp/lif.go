@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -34,7 +33,7 @@ func (d *DataStoreRepository) GetLifsForNodesWithProtocol(ctx context.Context, n
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, customerrors.NewUserInputValidationErr("nodeIDs cannot be empty"))
 	}
 
-	db := d.db.GORM().Unscoped().WithContext(ctx)
+	db := d.db.GORM().WithContext(ctx)
 
 	// Query by node IDs and account ID
 	dbQuery := db.Where("node_id IN ? AND account_id = ?", nodeIDs, accountID)
@@ -112,7 +111,7 @@ func _getLifsWithProtocolDetails(dbQuery *gorm.DB, protocol string) ([]*datamode
 	lifs := []*datamodel.Lif{}
 
 	if protocol != "" {
-		dbQuery = dbQuery.Where("lif_details @> ?", fmt.Sprintf(`{"protocol_type": "%s"}`, protocol))
+		dbQuery = dbQuery.Where("lif_details->>'protocol_type' = ?", protocol)
 	}
 
 	err := dbQuery.Find(&lifs).Error

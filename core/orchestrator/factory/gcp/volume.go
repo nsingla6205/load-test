@@ -933,19 +933,19 @@ func (o *GCPOrchestrator) ListVolumes(ctx context.Context, accountName string) (
 }
 
 func convertDatastoreVolumesToModel(ctx context.Context, se database.Storage, volumes []*datamodel.Volume) []*models.Volume {
-	var volumesList []*models.Volume
+	ipAddressByVolumeID, err := batchGetIPAddressesForVolumes(ctx, se, volumes)
+	if err != nil {
+		// IP addresses are best-effort: keep listing the volumes without them.
+		util.GetLogger(ctx).Warnf("Failed to get IP addresses for %d volumes: %v", len(volumes), err)
+	}
+
+	volumesList := make([]*models.Volume, 0, len(volumes))
 	for _, volume := range volumes {
-		ipAddresses, err := getIPAddressForVolume(ctx, se, volume)
-		if err != nil {
-			// If we can't get IP addresses, continue with nil (for backward compatibility)
-			// Log the error but don't fail the entire list operation
-			util.GetLogger(ctx).Warnf("Failed to get IP addresses for volume %s: %v", volume.UUID, err)
-			p := convertDatastoreVolumeToModel(volume, nil)
-			volumesList = append(volumesList, p)
-		} else {
-			p := convertDatastoreVolumeToModel(volume, &ipAddresses)
-			volumesList = append(volumesList, p)
+		var ipAddresses *[]string
+		if ips, ok := ipAddressByVolumeID[volume.ID]; ok {
+			ipAddresses = &ips
 		}
+		volumesList = append(volumesList, convertDatastoreVolumeToModel(volume, ipAddresses))
 	}
 	return volumesList
 }
@@ -967,7 +967,7 @@ func volumePoolProtocolKeyFromVolume(volume *datamodel.Volume) volumePoolProtoco
 		poolID:    volume.PoolID,
 		accountID: volume.AccountID,
 	}
-	if volume.VolumeAttributes != nil && volume.VolumeAttributes.FileProperties != nil && len(volume.VolumeAttributes.Protocols) > 0 {
+	if volume.VolumeAttributes != nil && volume.VolumeAttributes.Protocols != nil && len(volume.VolumeAttributes.Protocols) > 0 {
 		key.protocol = string(utils.GetProtocolType(volume.VolumeAttributes.Protocols[0]))
 	}
 	return key

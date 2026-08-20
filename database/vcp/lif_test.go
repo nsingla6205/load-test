@@ -466,10 +466,59 @@ func TestGetLifsForNodesWithProtocol(t *testing.T) {
 		assert.NoError(tt, err, "Expected no error, got %v", err)
 		assert.Equal(tt, 0, len(result), "Expected 0 lifs, got %d", len(result))
 	})
+
+	t.Run("ExcludesSoftDeletedLifs", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		node := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-node-uuid"},
+			Name:      "test_node",
+			AccountID: int64(1234),
+			PoolID:    1234,
+		}
+		err = store.db.Create(node).Error()
+		assert.NoError(tt, err)
+
+		activeLif := &datamodel.Lif{
+			BaseModel:  datamodel.BaseModel{ID: 1, UUID: "active-lif-uuid"},
+			Name:       "active_lif",
+			NodeID:     node.ID,
+			AccountID:  node.AccountID,
+			LifDetails: &datamodel.LifDetails{ProtocolType: "nas"},
+			IPAddress:  "10.0.0.1",
+		}
+		err = store.db.Create(activeLif).Error()
+		assert.NoError(tt, err)
+
+		deletedLif := &datamodel.Lif{
+			BaseModel:  datamodel.BaseModel{ID: 2, UUID: "deleted-lif-uuid"},
+			Name:       "deleted_lif",
+			NodeID:     node.ID,
+			AccountID:  node.AccountID,
+			LifDetails: &datamodel.LifDetails{ProtocolType: "nas"},
+			IPAddress:  "10.0.0.2",
+		}
+		err = store.db.Create(deletedLif).Error()
+		assert.NoError(tt, err)
+		err = store.DeleteLif(context.Background(), deletedLif)
+		assert.NoError(tt, err)
+
+		// Empty protocol keeps the query off the JSONB operator, which SQLite lacks.
+		result, err := store.GetLifsForNodesWithProtocol(context.Background(), []int64{node.ID}, node.AccountID, "")
+		assert.NoError(tt, err)
+		assert.Len(tt, result, 1)
+		assert.Equal(tt, activeLif.UUID, result[0].UUID)
+	})
 }
 
 func Test_getLifsWithProtocolDetails_WithProtocol_PostgresMock(t *testing.T) {
-	t.Run("Uses JSONBContainmentForProtocol", func(tt *testing.T) {
+	t.Run("Uses JSONBProtocolTypeExtract", func(tt *testing.T) {
 		// Setup sqlmock
 		dbSQL, mock, err := sqlmock.New()
 		assert.NoError(tt, err)
@@ -486,11 +535,9 @@ func Test_getLifsWithProtocolDetails_WithProtocol_PostgresMock(t *testing.T) {
 			tt.Fatalf("failed to open gorm db: %v", err)
 		}
 
-		// Expect a query containing the JSONB containment operator anywhere in the SQL
 		rows := sqlmock.NewRows([]string{"id", "name", "lif_details", "account_id", "node_id"}).
 			AddRow(1, "lif1", []byte(`{"protocol_type":"nfs"}`), 100, 1)
-		// Use a regex to match any SQL that contains the lif_details @> operator
-		mock.ExpectQuery("lif_details @>").WillReturnRows(rows)
+		mock.ExpectQuery(`lif_details->>'protocol_type' =`).WillReturnRows(rows)
 
 		// Build dbQuery without pre-adding the protocol Where clause; _getLifsWithProtocolDetails adds it
 		dbQuery := gormDB.Model(&datamodel.Lif{})

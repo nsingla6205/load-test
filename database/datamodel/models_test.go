@@ -1883,3 +1883,47 @@ func TestHarvestRetryState_ScanAndValue(t *testing.T) {
 		assert.Equal(t, 1, decoded.Delete.Retries)
 	})
 }
+
+func TestLifDetails_Scan(t *testing.T) {
+	t.Run("populated", func(t *testing.T) {
+		var details LifDetails
+		err := details.Scan([]byte(`{"external_uuid":"lif-uuid-123","protocol_type":"nas"}`))
+		assert.NoError(t, err)
+		assert.Equal(t, "lif-uuid-123", details.ExternalUUID)
+		assert.Equal(t, "nas", details.ProtocolType)
+	})
+
+	t.Run("string value", func(t *testing.T) {
+		var details LifDetails
+		err := details.Scan(`{"external_uuid":"lif-uuid-456"}`)
+		assert.NoError(t, err)
+		assert.Equal(t, "lif-uuid-456", details.ExternalUUID)
+	})
+
+	t.Run("nil column leaves zero value", func(t *testing.T) {
+		var details LifDetails
+		details.ExternalUUID = "stale"
+		err := details.Scan(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, LifDetails{}, details)
+	})
+
+	t.Run("wrong type errors", func(t *testing.T) {
+		var details LifDetails
+		err := details.Scan(123)
+		assert.Error(t, err)
+	})
+}
+
+func TestLifDetails_RoundTrip(t *testing.T) {
+	original := LifDetails{ExternalUUID: "lif-uuid-789", ProtocolType: "san"}
+
+	val, err := original.Value()
+	assert.NoError(t, err)
+	assert.Contains(t, string(val.([]byte)), `"protocol_type":"san"`)
+
+	var scanned LifDetails
+	err = scanned.Scan(val.([]byte))
+	assert.NoError(t, err)
+	assert.Equal(t, original, scanned)
+}

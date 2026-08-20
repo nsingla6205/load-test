@@ -17187,7 +17187,7 @@ func Test_getVolumeByName(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
-	t.Run("WhenAccountExistsAndHasVolumes", func(tt *testing.T) {
+	t.Run("WhenAccountExistsAndHasISCSIVolumes", func(tt *testing.T) {
 		ctx := context.Background()
 		mockStorage := new(database.MockStorage)
 		mockOrchestrator := &GCPOrchestrator{storage: mockStorage}
@@ -17213,7 +17213,7 @@ func TestListVolumes(t *testing.T) {
 			Pool:        &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"}, PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-west1-a", IsRegionalHA: false}},
 			VolumeAttributes: &datamodel.VolumeAttributes{
 				CreationToken:    "token1",
-				Protocols:        []string{"iscsi"},
+				Protocols:        []string{"ISCSI"},
 				VendorSubnetID:   "network",
 				IsDataProtection: false,
 			},
@@ -17233,8 +17233,65 @@ func TestListVolumes(t *testing.T) {
 		}
 
 		mockStorage.On("ListVolumes", ctx, conditions).Return([]*datamodel.Volume{volumeObj}, nil)
-		mockStorage.On("GetNodesByPoolID", ctx, volumeObj.PoolID).Return([]*datamodel.Node{node}, nil)
-		mockStorage.On("GetLifForNode", ctx, node.ID, account.ID).Return(lif, nil)
+		mockStorage.On("GetNodesByPoolIDs", ctx, []int64{volumeObj.PoolID}).Return([]*datamodel.Node{node}, nil)
+		mockStorage.On("GetLifsForNodesWithProtocol", ctx, []int64{node.ID}, account.ID, "san").Return([]*datamodel.Lif{lif}, nil)
+		mockStorage.On("GetVolumeReplicationCountByVolumeID", mock.Anything, mock.Anything).Return(int64(0), nil)
+
+		volumes, err := mockOrchestrator.ListVolumes(ctx, projectNumber)
+		assert.NoError(tt, err)
+		assert.Len(tt, volumes, 1)
+		assert.Equal(tt, "vol1", volumes[0].DisplayName)
+		getAccountWithName = _getAccountWithName
+	})
+
+	t.Run("WhenAccountExistsAndHasNFSV3Volumes", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		mockOrchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		projectNumber := "test-project"
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+		}
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		conditions := [][]interface{}{{"account_id = ?", int64(1)}}
+
+		volumeObj := &datamodel.Volume{
+			Name:        "vol1",
+			Account:     account,
+			AccountID:   account.ID,
+			SizeInBytes: int64(1024),
+			Description: "test",
+			PoolID:      1,
+			SvmID:       1,
+			Pool:        &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"}, PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-west1-a", IsRegionalHA: false}},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				CreationToken:    "token1",
+				Protocols:        []string{"NFSV3"},
+				VendorSubnetID:   "network",
+				IsDataProtection: false,
+			},
+		}
+
+		// Mock nodes for the pool
+		node := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			AccountID: account.ID,
+			PoolID:    volumeObj.PoolID,
+		}
+
+		// Mock LIF with IP address
+		lif := &datamodel.Lif{
+			NodeID:    node.ID,
+			IPAddress: "10.0.0.1",
+		}
+
+		mockStorage.On("ListVolumes", ctx, conditions).Return([]*datamodel.Volume{volumeObj}, nil)
+		mockStorage.On("GetNodesByPoolIDs", ctx, []int64{volumeObj.PoolID}).Return([]*datamodel.Node{node}, nil)
+		mockStorage.On("GetLifsForNodesWithProtocol", ctx, []int64{node.ID}, account.ID, "nas").Return([]*datamodel.Lif{lif}, nil)
 		mockStorage.On("GetVolumeReplicationCountByVolumeID", mock.Anything, mock.Anything).Return(int64(0), nil)
 
 		volumes, err := mockOrchestrator.ListVolumes(ctx, projectNumber)
@@ -17281,7 +17338,7 @@ func TestListVolumes(t *testing.T) {
 		assert.Len(tt, volumes, 0)
 	})
 
-	t.Run("WhenGetIPAddressForVolumeFails_ShouldContinueWithNilIPAddresses", func(tt *testing.T) {
+	t.Run("WhenBatchGetIPAddressesForVolumesFails_ShouldContinueWithNilIPAddresses", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 		mockLogger := log.NewLogger()
@@ -17322,18 +17379,18 @@ func TestListVolumes(t *testing.T) {
 		err = store.DB().Create(volume).Error
 		assert.NoError(tt, err, "Failed to create volume")
 
-		// Mock getIPAddressForVolume to return an error
-		getIPAddressForVolume = func(ctx context.Context, se database.Storage, volume *datamodel.Volume) ([]string, error) {
+		// Mock batchGetIPAddressesForVolumes to return an error
+		batchGetIPAddressesForVolumes = func(ctx context.Context, se database.Storage, volumes []*datamodel.Volume) (map[int64][]string, error) {
 			return nil, errors.New("failed to get IP addresses")
 		}
 		defer func() {
-			getIPAddressForVolume = _getIPAddressForVolume
+			batchGetIPAddressesForVolumes = _batchGetIPAddressesForVolumes
 		}()
 
 		orch := GCPOrchestrator{storage: store}
 
 		volumes, err := orch.ListVolumes(ctx, account.Name)
-		// Should not fail even when getIPAddressForVolume fails
+		// Should not fail even when batch IP address lookup fails
 		assert.NoError(tt, err, "Expected no error even when IP address lookup fails")
 		assert.Len(tt, volumes, 1, "Expected one volume to be returned")
 		assert.Equal(tt, "test-volume", volumes[0].DisplayName)

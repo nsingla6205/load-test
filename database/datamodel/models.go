@@ -924,11 +924,22 @@ type LifDetails struct {
 }
 
 func (nd *LifDetails) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("type assertion to []byte failed")
+	if value == nil {
+		*nd = LifDetails{}
+		return nil
 	}
-	return json.Unmarshal(bytes, &nd)
+
+	var b []byte
+	switch x := value.(type) {
+	case []byte:
+		b = x
+	case string:
+		b = []byte(x)
+	default:
+		return fmt.Errorf("cannot scan %T into LifDetails", value)
+	}
+
+	return json.Unmarshal(b, nd)
 }
 
 func (nd LifDetails) Value() (driver.Value, error) {

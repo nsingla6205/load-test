@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_lifs_account_node_protocol_active;
