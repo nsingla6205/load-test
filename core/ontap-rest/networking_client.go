@@ -35,6 +35,7 @@ type NetworkingClient interface {
 	IpspaceDelete(params *IpspaceDeleteParams) error
 
 	InterclusterLifsGet(params *NetworkIPInterfacesGetParams) ([]*IPInterface, error)
+	NetworkIPInterfaceModify(params *NetworkIPInterfaceModifyParams) error
 }
 
 type networkingClient struct {
@@ -325,4 +326,17 @@ func (nc *networkingClient) InterclusterLifsGet(params *NetworkIPInterfacesGetPa
 	}
 
 	return interfaces, nil
+}
+
+func (nc *networkingClient) NetworkIPInterfaceModify(params *NetworkIPInterfaceModifyParams) error {
+	otParams := networking.NewNetworkIPInterfaceModifyParams().WithUUID(*params.UUID)
+	if params.ServicePolicyName != nil {
+		otParams.SetInfo(&models.IPInterface{
+			ServicePolicy: &models.IPInterfaceInlineServicePolicy{
+				Name: params.ServicePolicyName,
+			},
+		})
+	}
+	_, err := nc.api.NetworkIPInterfaceModify(otParams, nil)
+	return err
 }

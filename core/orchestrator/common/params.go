@@ -1439,6 +1439,22 @@ type DeleteActiveDirectoryParams struct {
 	ActiveDirectoryUUID string
 }
 
+// DiagnoseActiveDirectoryParams carries the inputs required to trigger the
+// Active Directory connectivity-check (diagnosis) workflow for a pool. The
+// flow is async: the orchestrator validates the request synchronously and
+// returns a job UUID; the actual ONTAP / VLM work happens in the Temporal
+// workflow.
+type DiagnoseActiveDirectoryParams struct {
+	ProjectNumber  string
+	LocationId     string
+	PoolUUID       string
+	AccountId      int64
+	XCorrelationId string
+	// ResourceType mirrors the API field; today only "AD" is accepted.
+	// "LDAP" is rejected at the handler with a 400 (matches SDE).
+	ResourceType string
+}
+
 type SplitStartVolumeParams struct {
 	AccountName string
 	Region      string

@@ -1125,6 +1125,53 @@ func (_c *MockProvider_CreateNetworkIpRoute_Call) RunAndReturn(run func(CreateNe
 	return _c
 }
 
+// ModifyNetworkInterfaceServicePolicy provides a mock function with given fields: lifUUID, servicePolicyName
+func (_m *MockProvider) ModifyNetworkInterfaceServicePolicy(lifUUID string, servicePolicyName string) error {
+	ret := _m.Called(lifUUID, servicePolicyName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ModifyNetworkInterfaceServicePolicy")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, string) error); ok {
+		r0 = rf(lifUUID, servicePolicyName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProvider_ModifyNetworkInterfaceServicePolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ModifyNetworkInterfaceServicePolicy'
+type MockProvider_ModifyNetworkInterfaceServicePolicy_Call struct {
+	*mock.Call
+}
+
+// ModifyNetworkInterfaceServicePolicy is a helper method to define mock.On call
+//   - lifUUID string
+//   - servicePolicyName string
+func (_e *MockProvider_Expecter) ModifyNetworkInterfaceServicePolicy(lifUUID interface{}, servicePolicyName interface{}) *MockProvider_ModifyNetworkInterfaceServicePolicy_Call {
+	return &MockProvider_ModifyNetworkInterfaceServicePolicy_Call{Call: _e.mock.On("ModifyNetworkInterfaceServicePolicy", lifUUID, servicePolicyName)}
+}
+
+func (_c *MockProvider_ModifyNetworkInterfaceServicePolicy_Call) Run(run func(lifUUID string, servicePolicyName string)) *MockProvider_ModifyNetworkInterfaceServicePolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_ModifyNetworkInterfaceServicePolicy_Call) Return(_a0 error) *MockProvider_ModifyNetworkInterfaceServicePolicy_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProvider_ModifyNetworkInterfaceServicePolicy_Call) RunAndReturn(run func(string, string) error) *MockProvider_ModifyNetworkInterfaceServicePolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateQoSGroupPolicy provides a mock function with given fields: params
 func (_m *MockProvider) CreateQoSGroupPolicy(params CreateQoSGroupPolicyParams) (*QoSGroupPolicyResponse, error) {
 	ret := _m.Called(params)

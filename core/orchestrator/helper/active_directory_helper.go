@@ -31,6 +31,7 @@ var (
 	ActiveDirectoryStateHierarchy = []gcpgenserver.ActiveDirectoryV1betaActiveDirectoryState{
 		gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateUPDATING,
 		gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateERROR,
+		gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING,
 		gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateINUSE,
 		gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateREADY,
 		// Add more states here in priority order as needed
@@ -156,7 +157,7 @@ func compareADStateHierarchy(sdeAD, vcpAD *vcpModels.ActiveDirectory) {
 	sdeAD.StateDetails = selectedStateDetails
 }
 
-// stringToActiveDirectoryState converts string state to gcpgenserver enum format
+// stringToActiveDirectoryState converts string state to gcpgenserver enum format.
 func stringToActiveDirectoryState(state string) gcpgenserver.ActiveDirectoryV1betaActiveDirectoryState {
 	switch state {
 	case "CREATING":
@@ -171,6 +172,8 @@ func stringToActiveDirectoryState(state string) gcpgenserver.ActiveDirectoryV1be
 		return gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDELETING
 	case "ERROR":
 		return gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateERROR
+	case "DIAGNOSING":
+		return gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 	default:
 		return gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateSTATEUNSPECIFIED
 	}

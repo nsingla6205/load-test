@@ -10058,6 +10058,7 @@ components:
             - IN_USE
             - DELETING
             - ERROR
+            - DIAGNOSING
           example: READY
         activeDirectoryStateDetails:
           title: activeDirectoryStateDetails
@@ -16323,6 +16324,7 @@ components:
             - IN_USE
             - DELETING
             - ERROR
+            - DIAGNOSING
           example: READY
         activeDirectoryStateDetails:
           title: activeDirectoryStateDetails

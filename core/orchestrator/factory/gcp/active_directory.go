@@ -33,6 +33,7 @@ import (
 var (
 	createActiveDirectory         = _createActiveDirectory
 	updateActiveDirectory         = _updateActiveDirectory
+	diagnoseActiveDirectory       = _diagnoseActiveDirectory
 	getActiveDirectory            = _getActiveDirectory
 	getActiveDirectoryVcp         = _getActiveDirectoryVCP
 	getActiveDirectorySde         = _getActiveDirectorySDE
@@ -49,6 +50,9 @@ const (
 	DefaultOrganizationalUnit        = "CN=Computers"
 	MultiADNotAllowedError           = "Multiple Active Directories are not allowed."
 	MaxADLimitReachedForAccountError = "Maximum Active Directory limit reached for this account."
+
+	ActiveDirectoryDiagnosingPoolUpdateMessage = "Active Directory is in diagnosing state. Please wait for the diagnosis to complete before updating the pool"
+	ActiveDirectoryDiagnosingBlockedMessage    = "Active Directory is currently being diagnosed, please try again later"
 )
 
 // _createActiveDirectory orchestrates the creation of an Active Directory resource.
@@ -647,6 +651,11 @@ func _updateActiveDirectory(
 		return nil, "", customerrors.NewNotFoundErr("ActiveDirectory", &params.ActiveDirectoryId)
 	}
 
+	// Reject AD-mutating updates while a diagnosis is in flight
+	if ad.State == datamodel.LifeCycleStateDiagnosing {
+		return nil, "", customerrors.NewBadRequestErr(ActiveDirectoryDiagnosingBlockedMessage)
+	}
+
 	if params.Domain != nil && *params.Domain != ad.Domain {
 		// Check if domain update is allowed
 		err = checkIfDomainUpdateAllowed(ctx, se, ad)
@@ -720,6 +729,163 @@ func _updateActiveDirectory(
 	ad.State = datamodel.LifeCycleStateUpdating
 	ad.StateDetails = datamodel.LifeCycleStateUpdatingDetails
 	return ad, createdJob.UUID, nil
+}
+
+// DiagnoseActiveDirectory triggers the AD connectivity-check workflow on a pool.
+// It validates the request synchronously, flips the AD state to "diagnosing",
+// creates a Job row, starts the Temporal workflow, and returns (ad, jobUUID, nil).
+func (o *GCPOrchestrator) DiagnoseActiveDirectory(
+	ctx context.Context,
+	params *common.DiagnoseActiveDirectoryParams,
+) (*models.ActiveDirectory, string, error) {
+	ad, jobUUID, err := diagnoseActiveDirectory(ctx, o.storage, o.temporal, params)
+	if err != nil {
+		return nil, "", err
+	}
+	return ad, jobUUID, nil
+}
+
+// _diagnoseActiveDirectory mirrors _updateActiveDirectory's shape:
+//  1. Resolve account + pool + AD; surface 404 / 400 synchronously.
+//  2. Reject a pool that is not READY/DEGRADED, and an AD in
+//     error/disabled/updating/deleting/diagnosing state.
+//  3. CreateJob with JobTypeDiagnoseActiveDirectory.
+//  4. Flip AD State to LifeCycleStateDiagnosing, then start the workflow.
+//  5. Return (ad, jobUUID, nil).
+func _diagnoseActiveDirectory(
+	ctx context.Context,
+	se database.Storage,
+	temporal client.Client,
+	params *common.DiagnoseActiveDirectoryParams,
+) (*models.ActiveDirectory, string, error) {
+	logger := util.GetLogger(ctx)
+
+	if params == nil {
+		return nil, "", customerrors.NewUserInputValidationErr("diagnose params must not be nil")
+	}
+	if params.PoolUUID == "" {
+		return nil, "", customerrors.NewUserInputValidationErr("PoolID should be mandatory for Checking Health of ActiveDirectory")
+	}
+
+	account, err := getOrCreateAccount(ctx, se, params.ProjectNumber)
+	if err != nil {
+		return nil, "", err
+	}
+	params.AccountId = account.ID
+
+	// Pool must exist in the VCP DB. If the pool is SDE-owned the handler
+	// will forward to CVP before this method is ever called; here we treat
+	// "not in VCP DB" as a 404.
+	dbPool, err := se.GetPoolByUUID(ctx, params.PoolUUID)
+	if err != nil {
+		if customerrors.IsNotFoundErr(err) {
+			return nil, "", customerrors.NewNotFoundErr("Pool", &params.PoolUUID)
+		}
+		logger.Error("Failed to fetch pool for diagnose AD", "poolUUID", params.PoolUUID, "error", err)
+		return nil, "", customerrors.New("failed to retrieve pool details")
+	}
+	if dbPool == nil {
+		return nil, "", customerrors.NewNotFoundErr("Pool", &params.PoolUUID)
+	}
+
+	// Diagnosis provisions a real SVM on the cluster, so the pool must already
+	// be provisioned.
+	if dbPool.State != datamodel.LifeCycleStateREADY && dbPool.State != datamodel.LifeCycleStateDegraded {
+		errMsg := fmt.Sprintf("Pool %s is in %s state, hence directory service diagnosis cannot be performed",
+			dbPool.Name, strings.ToLower(dbPool.State))
+		return nil, "", customerrors.NewUserInputValidationErr(errMsg)
+	}
+
+	dbAd, err := se.GetActiveDirectoryForPoolByPoolID(ctx, dbPool.ID)
+	if err != nil {
+		logger.Error("Failed to fetch active directory for pool", "poolID", dbPool.ID, "error", err)
+		return nil, "", customerrors.New("failed to retrieve active directory details")
+	}
+	if dbAd == nil {
+		return nil, "", customerrors.NewUserInputValidationErr("ActiveDirectory should be attached to pool")
+	}
+
+	// SDE parity: reject AD in error, disabled, updating, deleting, or diagnosing
+	// state (all 400).
+	if strings.Contains(dbAd.State, datamodel.LifeCycleStateError) {
+		errMsg := fmt.Sprintf("ActiveDirectory %s is in error state", dbAd.AdName)
+		return nil, "", customerrors.NewUserInputValidationErr(errMsg)
+	}
+	if dbAd.State == datamodel.LifeCycleStateDisabled ||
+		dbAd.State == datamodel.LifeCycleStateUpdating ||
+		dbAd.State == datamodel.LifeCycleStateDeleting ||
+		dbAd.State == datamodel.LifeCycleStateDiagnosing {
+		errMsg := fmt.Sprintf("ActiveDirectory %s is in %s state", dbAd.AdName, strings.ToLower(dbAd.State))
+		return nil, "", customerrors.NewUserInputValidationErr(errMsg)
+	}
+
+	job := &datamodel.Job{
+		Type:          string(datamodel.JobTypeDiagnoseActiveDirectory),
+		State:         string(datamodel.JobsStateNEW),
+		ResourceName:  dbAd.AdName,
+		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: dbAd.UUID,
+		},
+	}
+
+	createdJob, err := se.CreateJob(ctx, job)
+	if err != nil {
+		logger.Error("Failed to create diagnose AD job in database", "error", err)
+		return nil, "", customerrors.New("failed to create diagnose job")
+	}
+
+	// Build the model.ActiveDirectory via the shared converter so every nested
+	// field is fully populated (the handler dereferences ActiveDirectoryAttributes).
+	adModel := commonfactory.ConvertDatastoreActiveDirectoryToModel(dbAd)
+
+	// Flip the AD to "diagnosing" before starting the workflow so concurrent
+	// pool/AD updates fail fast, and so this synchronous write lands before the
+	// workflow's deferred RestoreADStateFromSVMUsage (otherwise a fast-failing
+	// diagnose could leave the AD stuck in DIAGNOSING). Capture the previous
+	// state so we can revert if the workflow never starts.
+	previousState := dbAd.State
+	previousStateDetails := dbAd.StateDetails
+	dbAd.State = datamodel.LifeCycleStateDiagnosing
+	dbAd.StateDetails = datamodel.LifeCycleStateDiagnosingDetails
+	if _, updErr := se.UpdateActiveDirectory(ctx, dbAd); updErr != nil {
+		logger.Error("Failed to flip AD state to diagnosing", "adUUID", dbAd.UUID, "error", updErr)
+		if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, updErr.Error()); jobErr != nil {
+			logger.Error("Failed to update job status to error", "jobID", createdJob.UUID, "error", jobErr)
+		}
+		return nil, "", customerrors.New("failed to update active directory state")
+	}
+
+	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
+	err = workflowExecutor.ExecuteWorkflow(
+		ctx,
+		createdJob.WorkflowID,
+		workflowengine.CustomerTaskQueue,
+		workflows.DiagnoseActiveDirectoryWorkflow,
+		nil,
+		params,
+		adModel,
+	)
+	if err != nil {
+		logger.Error("Failed to start DiagnoseActiveDirectoryWorkflow: ", "error", err)
+		// Revert the DIAGNOSING transition since the workflow never started to
+		// perform (or roll back) the diagnosis; otherwise the AD is left stuck.
+		dbAd.State = previousState
+		dbAd.StateDetails = previousStateDetails
+		if _, revertErr := se.UpdateActiveDirectory(ctx, dbAd); revertErr != nil {
+			logger.Error("Failed to revert AD state after workflow start failure", "adUUID", dbAd.UUID, "error", revertErr)
+		}
+		if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, err.Error()); jobErr != nil {
+			logger.Error("Failed to update job status to error", "jobID", createdJob.UUID, "error", jobErr)
+		}
+		return nil, "", err
+	}
+
+	adModel.State = datamodel.LifeCycleStateDiagnosing
+	adModel.StateDetails = datamodel.LifeCycleStateDiagnosingDetails
+	return adModel, createdJob.UUID, nil
 }
 
 func _checkIfDomainUpdateAllowed(ctx context.Context, se database.Storage, oldAd *models.ActiveDirectory) error {

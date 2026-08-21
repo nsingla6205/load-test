@@ -428,6 +428,12 @@ data:
   AD_SYNC_RETRY_MAX_INTERVAL: {{$.Values.workerConfig.adSyncRetryMaxInterval | quote }}
   AD_SYNC_RETRY_MAX_ATTEMPTS: {{$.Values.workerConfig.adSyncRetryMaxAttempts | quote }}
 
+  # AD Diagnostics per-activity timeout configuration
+  AD_DIAGNOSE_DB_ACTIVITY_START_TO_CLOSE_TIMEOUT: {{$.Values.workerConfig.adDiagnoseDbActivityStartToCloseTimeout | quote }}
+  AD_DIAGNOSE_DB_ACTIVITY_HEARTBEAT_TIMEOUT: {{$.Values.workerConfig.adDiagnoseDbActivityHeartbeatTimeout | quote }}
+  AD_DIAGNOSE_ONTAP_ACTIVITY_START_TO_CLOSE_TIMEOUT: {{$.Values.workerConfig.adDiagnoseOntapActivityStartToCloseTimeout | quote }}
+  AD_DIAGNOSE_ONTAP_ACTIVITY_HEARTBEAT_TIMEOUT: {{$.Values.workerConfig.adDiagnoseOntapActivityHeartbeatTimeout | quote }}
+
   # Worker concurrency caps and rate limits
   CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION: {{$.Values.workerConfig.customerWorkerMaxConcurrentActivityExecution | quote }}
   CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION: {{$.Values.workerConfig.customerWorkerMaxConcurrentWorkflowTaskExecution | quote }}

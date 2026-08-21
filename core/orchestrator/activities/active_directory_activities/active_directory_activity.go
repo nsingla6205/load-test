@@ -15,6 +15,7 @@ import (
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	logmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
@@ -53,6 +54,51 @@ func (a ActiveDirectoryActivity) GetActiveDirectoryForPool(ctx context.Context, 
 
 	recordHeartbeat(ctx, fmt.Sprintf("Validating Active Directory for pool %d", poolID))
 	return validateAndGetVsaActiveDirectory(ctx, activeDirectory)
+}
+
+// ConfigureLdapForSVM configures the LDAP client directly on the given SVM (no
+// volume object required), calling the same provider.CreateLdapForSVM that backs
+// the volume-create LDAP path so both configure LDAP identically. protocols only
+// controls whether the NFSv4 v4-id-domain is set.
+func (a ActiveDirectoryActivity) ConfigureLdapForSVM(
+	ctx context.Context,
+	node *models.Node,
+	ad *datamodel.ActiveDirectory,
+	svmName, externalSVMUUID string,
+	protocols []string,
+) error {
+	logger := util.GetLogger(ctx)
+	activity.RecordHeartbeat(ctx, "Starting ConfigureLdapForSVM activity")
+
+	if ad == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("active directory must not be nil")))
+	}
+	if externalSVMUUID == "" {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("externalSVMUUID must not be empty")))
+	}
+
+	ontapProvider, err := getOntapRestProvider(ctx, node)
+	if err != nil {
+		return vsaerrors.WrapOntapError(err, vsaerrors.DomainLDAP)
+	}
+
+	if err := ontapProvider.CreateLdapForSVM(ad, externalSVMUUID, protocols); err != nil {
+		// An existing LDAP config is not a failure; treat it as a pass,
+		// mirroring the volume-create ConfigureLdap behavior.
+		if utilerrors.IsConflictErr(err) {
+			logger.Info("LDAP config already exists on SVM; treating as success", "svm", svmName)
+			activity.RecordHeartbeat(ctx, "Finished ConfigureLdapForSVM activity")
+			return nil
+		}
+		logger.Error("ConfigureLdapForSVM: CreateLdapForSVM failed", "svm", svmName, "error", err)
+		return vsaerrors.WrapOntapError(err, vsaerrors.DomainLDAP)
+	}
+
+	logger.Info("ConfigureLdapForSVM: LDAP configuration succeeded", "svm", svmName)
+	activity.RecordHeartbeat(ctx, "Finished ConfigureLdapForSVM activity")
+	return nil
 }
 
 // GetActiveDirectoryStateFromSVMUsage returns the appropriate state and stateDetails for an AD

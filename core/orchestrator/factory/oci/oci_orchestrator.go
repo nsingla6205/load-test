@@ -705,6 +705,12 @@ func (o *OCIOrchestrator) UpdateActiveDirectory(ctx context.Context, params *com
 	return nil, "", utilserrors.NewNotImplementedYetErr()
 }
 
+// DiagnoseActiveDirectory is not supported on OCI; AD diagnostics is currently a
+// GCP-only feature.
+func (o *OCIOrchestrator) DiagnoseActiveDirectory(ctx context.Context, params *commonparams.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error) {
+	return nil, "", utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetActiveDirectory(ctx context.Context, params *commonparams.GetADParams) (*models.ActiveDirectory, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

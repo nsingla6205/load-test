@@ -890,6 +890,10 @@ type Lif struct {
 	SubnetMask  string        `gorm:"column:subnet_mask;type:text"`
 	IPRangeID   sql.NullInt64 `gorm:"column:ip_range_id;index"`
 	SvmID       sql.NullInt64 `gorm:"column:svm_id;index"`
+	// IsDirectoryDiagnosis identifies short-lived LIFs created by the Active
+	// Directory diagnosis workflow. It is a column so operational LIF queries
+	// can exclude diagnosis LIFs before selecting a row.
+	IsDirectoryDiagnosis bool `gorm:"column:is_directory_diagnosis;default:false" json:"is_directory_diagnosis,omitempty"`
 	// Enrichment fields populated by list/get helpers; not persisted.
 	AccountUUID string `json:"accountUUID" gorm:"-"`
 	AccountName string `json:"accountName" gorm:"-"`
@@ -904,6 +908,11 @@ type SvmDetails struct {
 	NFSv364BitIdentifiers string `json:"nf_sv364_bit_identifiers"`
 	ExternalKmsConfigUUID string `json:"external_kms_config_uuid"`
 	CurrentKmsKeyID       string `json:"current_kms_key_id,omitempty"` // Tracks which service account key this SVM is currently using during rotation
+	// IsDirectoryDiagnosis flags SVMs created exclusively to host an Active Directory
+	// connectivity-check workflow. These rows are torn down at the end of the
+	// diagnose workflow (via VLM DeleteVSASVMWorkflow) and the orphan reaper uses
+	// this flag to identify abandoned diagnosis SVMs.
+	IsDirectoryDiagnosis bool `json:"is_directory_diagnosis,omitempty"`
 }
 
 func (sd *SvmDetails) Scan(value interface{}) error {

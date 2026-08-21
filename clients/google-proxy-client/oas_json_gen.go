@@ -1074,6 +1074,8 @@ func (s *ActiveDirectoryV1betaActiveDirectoryState) Decode(d *jx.Decoder) error 
 		*s = ActiveDirectoryV1betaActiveDirectoryStateDELETING
 	case ActiveDirectoryV1betaActiveDirectoryStateERROR:
 		*s = ActiveDirectoryV1betaActiveDirectoryStateERROR
+	case ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
+		*s = ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 	default:
 		*s = ActiveDirectoryV1betaActiveDirectoryState(v)
 	}
@@ -6945,6 +6947,8 @@ func (s *BatchActiveDirectoryV1betaActiveDirectoryState) Decode(d *jx.Decoder) e
 		*s = BatchActiveDirectoryV1betaActiveDirectoryStateDELETING
 	case BatchActiveDirectoryV1betaActiveDirectoryStateERROR:
 		*s = BatchActiveDirectoryV1betaActiveDirectoryStateERROR
+	case BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
+		*s = BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 	default:
 		*s = BatchActiveDirectoryV1betaActiveDirectoryState(v)
 	}

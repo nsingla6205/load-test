@@ -8,6 +8,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -268,6 +269,62 @@ func TestGetLifForNode(t *testing.T) {
 		assert.Equal(tt, lif.NodeID, result.NodeID, "Expected lif node id %v, got %v", lif.NodeID, result.NodeID)
 		assert.Equal(tt, lif.AccountID, result.AccountID, "Expected lif account id %v, got %v", lif.AccountID, result.AccountID)
 	})
+
+	t.Run("ExcludesDirectoryDiagnosisLif", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		node := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "diagnosis-filter-node"},
+			Name:      "diagnosis-filter-node",
+			AccountID: 1234,
+			PoolID:    1234,
+		}
+		require.NoError(tt, store.db.Create(node).Error())
+
+		diagnosisLif := &datamodel.Lif{
+			BaseModel:            datamodel.BaseModel{ID: 1, UUID: "diagnosis-lif"},
+			Name:                 "diagnosis-lif",
+			NodeID:               node.ID,
+			AccountID:            node.AccountID,
+			IsDirectoryDiagnosis: true,
+		}
+		operationalLif := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{ID: 2, UUID: "operational-lif"},
+			Name:      "operational-lif",
+			NodeID:    node.ID,
+			AccountID: node.AccountID,
+		}
+		require.NoError(tt, store.db.Create(diagnosisLif).Error())
+		require.NoError(tt, store.db.Create(operationalLif).Error())
+
+		result, err := store.GetLifForNode(context.Background(), node.ID, node.AccountID)
+		require.NoError(tt, err)
+		assert.Equal(tt, operationalLif.UUID, result.UUID)
+		assert.False(tt, result.IsDirectoryDiagnosis)
+	})
+
+	t.Run("ReturnsNotFoundWhenOnlyDirectoryDiagnosisLifExists", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		diagnosisLif := &datamodel.Lif{
+			BaseModel:            datamodel.BaseModel{ID: 1, UUID: "only-diagnosis-lif"},
+			Name:                 "only-diagnosis-lif",
+			NodeID:               1,
+			AccountID:            1234,
+			IsDirectoryDiagnosis: true,
+		}
+		require.NoError(tt, store.db.Create(diagnosisLif).Error())
+
+		result, err := store.GetLifForNode(context.Background(), diagnosisLif.NodeID, diagnosisLif.AccountID)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+	})
 }
 
 func TestGetLifsForNodesWithProtocol(t *testing.T) {
@@ -514,6 +571,40 @@ func TestGetLifsForNodesWithProtocol(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.Len(tt, result, 1)
 		assert.Equal(tt, activeLif.UUID, result[0].UUID)
+	})
+
+	t.Run("ExcludesDirectoryDiagnosisLifs", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		operationalLif := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "list-operational-lif"},
+			Name:      "list-operational-lif",
+			NodeID:    1,
+			AccountID: 1234,
+		}
+		diagnosisLif := &datamodel.Lif{
+			BaseModel:            datamodel.BaseModel{ID: 2, UUID: "list-diagnosis-lif"},
+			Name:                 "list-diagnosis-lif",
+			NodeID:               2,
+			AccountID:            1234,
+			IsDirectoryDiagnosis: true,
+		}
+		require.NoError(tt, store.db.Create(operationalLif).Error())
+		require.NoError(tt, store.db.Create(diagnosisLif).Error())
+
+		result, err := store.GetLifsForNodesWithProtocol(
+			context.Background(),
+			[]int64{operationalLif.NodeID, diagnosisLif.NodeID},
+			operationalLif.AccountID,
+			"",
+		)
+		require.NoError(tt, err)
+		require.Len(tt, result, 1)
+		assert.Equal(tt, operationalLif.UUID, result[0].UUID)
+		assert.False(tt, result[0].IsDirectoryDiagnosis)
 	})
 }
 

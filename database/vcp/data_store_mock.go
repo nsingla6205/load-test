@@ -26467,6 +26467,66 @@ func (_c *MockDataStore_UpdateSvmCurrentKmsKeyID_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// UpdateSvmDetails provides a mock function with given fields: ctx, svm, details
+func (_m *MockDataStore) UpdateSvmDetails(ctx context.Context, svm *datamodel.Svm, details *datamodel.SvmDetails) (*datamodel.Svm, error) {
+	ret := _m.Called(ctx, svm, details)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateSvmDetails")
+	}
+
+	var r0 *datamodel.Svm
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Svm, *datamodel.SvmDetails) (*datamodel.Svm, error)); ok {
+		return rf(ctx, svm, details)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Svm, *datamodel.SvmDetails) *datamodel.Svm); ok {
+		r0 = rf(ctx, svm, details)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Svm)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Svm, *datamodel.SvmDetails) error); ok {
+		r1 = rf(ctx, svm, details)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_UpdateSvmDetails_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateSvmDetails'
+type MockDataStore_UpdateSvmDetails_Call struct {
+	*mock.Call
+}
+
+// UpdateSvmDetails is a helper method to define mock.On call
+//   - ctx context.Context
+//   - svm *datamodel.Svm
+//   - details *datamodel.SvmDetails
+func (_e *MockDataStore_Expecter) UpdateSvmDetails(ctx interface{}, svm interface{}, details interface{}) *MockDataStore_UpdateSvmDetails_Call {
+	return &MockDataStore_UpdateSvmDetails_Call{Call: _e.mock.On("UpdateSvmDetails", ctx, svm, details)}
+}
+
+func (_c *MockDataStore_UpdateSvmDetails_Call) Run(run func(ctx context.Context, svm *datamodel.Svm, details *datamodel.SvmDetails)) *MockDataStore_UpdateSvmDetails_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Svm), args[2].(*datamodel.SvmDetails))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateSvmDetails_Call) Return(_a0 *datamodel.Svm, _a1 error) *MockDataStore_UpdateSvmDetails_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateSvmDetails_Call) RunAndReturn(run func(context.Context, *datamodel.Svm, *datamodel.SvmDetails) (*datamodel.Svm, error)) *MockDataStore_UpdateSvmDetails_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateSvmState provides a mock function with given fields: ctx, svm, state, stateDetails, conditions
 func (_m *MockDataStore) UpdateSvmState(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{}) error {
 	_va := make([]interface{}, len(conditions))

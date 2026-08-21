@@ -354,6 +354,8 @@ func convertOrchestratorActiveDirectoryToV1Beta(ad *vcpModels.ActiveDirectory) g
 			state = gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDELETING
 		case "ERROR":
 			state = gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateERROR
+		case "DIAGNOSING":
+			state = gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 		default:
 			state = gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateREADY
 		}

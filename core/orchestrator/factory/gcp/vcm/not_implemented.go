@@ -652,6 +652,10 @@ func (notImplementedOrchestrator) UpdateActiveDirectory(context.Context, *common
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }
 
+func (notImplementedOrchestrator) DiagnoseActiveDirectory(context.Context, *commonparams.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error) {
+	return nil, "", customerrors.NewNotImplementedYetErr()
+}
+
 // Cluster upgrade and external clusters
 func (notImplementedOrchestrator) UpgradeCluster(context.Context, *commonparams.UpgradeClusterParams) (*models.ClusterUpgradeResponse, string, error) {
 	return nil, "", customerrors.NewNotImplementedYetErr()

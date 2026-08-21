@@ -901,6 +901,10 @@ func (s *PersistenceStore) UpdateSvmActiveDirectoryID(ctx context.Context, svm *
 	return s.dataStore.UpdateSvmActiveDirectoryID(ctx, svm, activeDirectoryID)
 }
 
+func (s *PersistenceStore) UpdateSvmDetails(ctx context.Context, svm *datamodel.Svm, details *datamodel.SvmDetails) (*datamodel.Svm, error) {
+	return s.dataStore.UpdateSvmDetails(ctx, svm, details)
+}
+
 func (s *PersistenceStore) UnsetSvmActiveDirectoryID(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	return s.dataStore.UnsetSvmActiveDirectoryID(ctx, svm)
 }

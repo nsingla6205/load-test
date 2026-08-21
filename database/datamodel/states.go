@@ -36,6 +36,7 @@ const (
 	LifeCycleStateMigrating       = "MIGRATING"
 	LifeCycleStateDegraded        = "DEGRADED"
 	LifeCycleStateUnknown         = "UNKNOWN"
+	LifeCycleStateDiagnosing      = "DIAGNOSING"
 
 	// "*Details" human-readable suffixes (used as StateDetails column values).
 	LifeCycleStateCreatingDetails            = "Creation in progress"
@@ -63,6 +64,7 @@ const (
 	LifeCycleStateDegradedDetails            = "We're currently experiencing degraded performance for this resource, which may result in increased write latency. Some operations maybe restricted during this time."
 	LifeCycleStateVolMigratingDetails        = "Volume encryption in progress"
 	LifeCycleStateHyperscalerDisabledDetails = "Hyperscaler disabled"
+	LifeCycleStateDiagnosingDetails          = "Validating Active Directory Configuration"
 )
 
 // allowedADRollbackStates is the single source of truth for the lifecycle states an Active Directory
@@ -215,6 +217,7 @@ const (
 	JobTypeCreateActiveDirectory                    JobType = "CREATE_ACTIVE_DIRECTORY"
 	JobTypeUpdateActiveDirectory                    JobType = "UPDATE_ACTIVE_DIRECTORY"
 	JobTypeDeleteActiveDirectory                    JobType = "DELETE_ACTIVE_DIRECTORY"
+	JobTypeDiagnoseActiveDirectory                  JobType = "DIAGNOSE_ACTIVE_DIRECTORY"
 	JobTypeSplitVolume                              JobType = "SPLIT_CLONE_VOLUME"
 	JobTypeCreateHybridReplication                  JobType = "CREATE_HYBRID_REPLICATION"
 	JobTypeHybridReplicationDeleteVolume            JobType = "HYBRID_REPLICATION_DELETE_VOLUME"

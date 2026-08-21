@@ -89,6 +89,12 @@ func _createPool(ctx context.Context, se database.Storage, temporal client.Clien
 		}
 	}
 
+	// SDE parity: reject pool create when the AD being attached is diagnosing.
+	if params.ActiveDirectoryId != "" && params.ADExistsInVCP && params.ActiveDirectory != nil &&
+		params.ActiveDirectory.State == datamodel.LifeCycleStateDiagnosing {
+		return nil, "", customerrors.NewUserInputValidationErr(ActiveDirectoryDiagnosingBlockedMessage)
+	}
+
 	// TODO: check error code
 	if err = persistAccountTrialMetadataIfSet(ctx, se, account, params.TrialMode); err != nil {
 		logger.Error("Failed to update account trial metadata", "accountUUID", account.UUID, "error", err)
@@ -343,6 +349,14 @@ func _updatePool(ctx context.Context, se database.Storage, temporal client.Clien
 		return nil, "", customerrors.NewUserInputValidationErr(commonparams.POValidationActiveDirectoryMsg)
 	}
 
+	// Reject pool updates while the pool's existing AD is being diagnosed (SDE parity).
+	if dbPool.ActiveDirectoryID.Valid {
+		existingAd, adErr := se.GetActiveDirectoryForPoolByPoolID(ctx, dbPool.ID)
+		if adErr == nil && existingAd != nil && existingAd.State == datamodel.LifeCycleStateDiagnosing {
+			return nil, "", customerrors.NewUserInputValidationErr(ActiveDirectoryDiagnosingPoolUpdateMessage)
+		}
+	}
+
 	if params.ActiveDirectoryConfigId != "" && params.IfADExistsInVCP {
 		activeDir, adErr := se.GetActiveDirectoryByUuidAndAccountId(ctx, params.ActiveDirectoryConfigId, account.ID)
 		if adErr != nil {
@@ -355,6 +369,11 @@ func _updatePool(ctx context.Context, se database.Storage, temporal client.Clien
 
 		if dbPool.ActiveDirectoryID.Valid && dbPool.ActiveDirectoryID.Int64 != activeDir.ID {
 			return nil, "", customerrors.NewUserInputValidationErr("Active Directory configuration cannot be changed for pools already associated with an Active Directory")
+		}
+
+		// Also reject if the AD being attached is currently being diagnosed.
+		if activeDir != nil && activeDir.State == datamodel.LifeCycleStateDiagnosing {
+			return nil, "", customerrors.NewUserInputValidationErr(ActiveDirectoryDiagnosingBlockedMessage)
 		}
 
 		dbPool.ActiveDirectoryID = sql.NullInt64{

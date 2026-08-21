@@ -378,6 +378,23 @@ func TestCompareADStateHierarchy_AllStates(t *testing.T) {
 			"READY vs IN_USE", datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails,
 			datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails,
 		},
+		{
+			"READY vs DIAGNOSING", datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails,
+			datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails,
+		},
+		{
+			"IN_USE vs DIAGNOSING", datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails, datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails,
+			datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails,
+		},
+		// A real mutation or failure is never masked by a read-only check.
+		{
+			"UPDATING vs DIAGNOSING", datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+		},
+		{
+			"DIAGNOSING vs ERROR", datamodel.LifeCycleStateDiagnosing, datamodel.LifeCycleStateDiagnosingDetails, datamodel.LifeCycleStateError, datamodel.LifeCycleStateUpdateErrorDetails,
+			datamodel.LifeCycleStateError, datamodel.LifeCycleStateUpdateErrorDetails,
+		},
 	}
 
 	for _, tt := range tests {

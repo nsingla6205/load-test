@@ -192,6 +192,7 @@ data:
   SMB_CA_SHARE_ENABLED: "{{ index .Values "enableSmbCaShare" }}"
   ENABLE_MULTI_AD: "{{ index .Values "enableMultiAd" }}"
   MAX_NUMBER_OF_AD_PER_ACCOUNT: "{{ index .Values "maxNumberOfAdPerAccount" }}"
+  AD_DIAGNOSTIC_ENABLED: "{{ index .Values "adDiagnosticEnabled" }}"
   READINESS_PROBE_FAILURE_THRESHOLD: "{{ index .Values "readinessProbe" "failureThreshold" }}"
   READINESS_PROBE_PERIOD_SECONDS: "{{ index .Values "readinessProbe" "periodSeconds" }}"
   EXPORT_POLICY_RULES_LIMIT: "{{ index .Values "exportPolicyRulesLimit" }}"

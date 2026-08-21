@@ -791,6 +791,52 @@ func (_c *MockNetworkingClient_NetworkIPRouteCreateDefault_Call) RunAndReturn(ru
 	return _c
 }
 
+// NetworkIPInterfaceModify provides a mock function with given fields: params
+func (_m *MockNetworkingClient) NetworkIPInterfaceModify(params *NetworkIPInterfaceModifyParams) error {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for NetworkIPInterfaceModify")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*NetworkIPInterfaceModifyParams) error); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockNetworkingClient_NetworkIPInterfaceModify_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'NetworkIPInterfaceModify'
+type MockNetworkingClient_NetworkIPInterfaceModify_Call struct {
+	*mock.Call
+}
+
+// NetworkIPInterfaceModify is a helper method to define mock.On call
+//   - params *NetworkIPInterfaceModifyParams
+func (_e *MockNetworkingClient_Expecter) NetworkIPInterfaceModify(params interface{}) *MockNetworkingClient_NetworkIPInterfaceModify_Call {
+	return &MockNetworkingClient_NetworkIPInterfaceModify_Call{Call: _e.mock.On("NetworkIPInterfaceModify", params)}
+}
+
+func (_c *MockNetworkingClient_NetworkIPInterfaceModify_Call) Run(run func(params *NetworkIPInterfaceModifyParams)) *MockNetworkingClient_NetworkIPInterfaceModify_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*NetworkIPInterfaceModifyParams))
+	})
+	return _c
+}
+
+func (_c *MockNetworkingClient_NetworkIPInterfaceModify_Call) Return(_a0 error) *MockNetworkingClient_NetworkIPInterfaceModify_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockNetworkingClient_NetworkIPInterfaceModify_Call) RunAndReturn(run func(*NetworkIPInterfaceModifyParams) error) *MockNetworkingClient_NetworkIPInterfaceModify_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NetworkPing provides a mock function with given fields: params
 func (_m *MockNetworkingClient) NetworkPing(params *operations.NetworkPingParams) (*operations.NetworkPingOK, *operations.NetworkPingAccepted, error) {
 	ret := _m.Called(params)

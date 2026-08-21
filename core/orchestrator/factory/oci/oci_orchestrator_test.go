@@ -1713,6 +1713,20 @@ func TestOCIOrchestrator_DeleteBackup(t *testing.T) {
 	})
 }
 
+func TestOCIOrchestrator_DiagnoseActiveDirectory(t *testing.T) {
+	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
+		orch := &OCIOrchestrator{}
+		ctx := context.Background()
+
+		ad, jobID, err := orch.DiagnoseActiveDirectory(ctx, &commonparams.DiagnoseActiveDirectoryParams{PoolUUID: "pool"})
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, ad)
+		assert.Empty(tt, jobID)
+	})
+}
+
 func TestOCIOrchestrator_DeleteBackupInternal(t *testing.T) {
 	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
 		orch := &OCIOrchestrator{}

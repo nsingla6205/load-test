@@ -2365,6 +2365,7 @@ func TestConvertOrchestratorActiveDirectoryToV1Beta(t *testing.T) {
 			{"IN_USE", gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateINUSE},
 			{"DELETING", gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDELETING},
 			{"ERROR", gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateERROR},
+			{"DIAGNOSING", gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING},
 			{"UNKNOWN", gcpgenserver.ActiveDirectoryV1betaActiveDirectoryStateREADY}, // Default
 		}
 

@@ -2968,6 +2968,11 @@ type KerberosInterfaceCollectionGetParams struct {
 	SvmUUID       *string
 	SvmName       *string
 	InterfaceName *string
+	// Fields selects which fields ONTAP returns. When empty, ONTAP returns only
+	// default (key) fields, which omits "enabled". Set to []string{"*"} (or an
+	// explicit list including "enabled") when the caller needs the Kerberos
+	// enabled state, e.g. to decide whether to disable Kerberos on the LIF.
+	Fields []string
 }
 
 // KerberosInterfaceModifyParams is the input params for nas.KerberosInterfaceModifyParams
@@ -2980,6 +2985,10 @@ type KerberosInterfaceModifyParams struct {
 	AdminUsername     *string
 	AdminPassword     *string
 	OU                *string
+	// Force, when true, lets ONTAP modify the Kerberos interface (e.g. disable
+	// Kerberos and remove the machine account) even when the KDC/AD is
+	// unreachable. Required when disabling Kerberos as part of SVM teardown.
+	Force *bool
 }
 
 // Iscsi is the iscsi service
@@ -4730,9 +4739,7 @@ func nfsServiceModifyParamsToONTAP(params *NfsServiceModifyParams) *nas.NfsModif
 		return otParams
 	}
 
-	nfsInfo := &models.NfsService{
-		Svm: &models.NfsServiceInlineSvm{UUID: &params.SvmUUID},
-	}
+	nfsInfo := &models.NfsService{}
 
 	if params.Enabled != nil {
 		nfsInfo.Enabled = params.Enabled
@@ -4752,12 +4759,13 @@ func nfsServiceModifyParamsToONTAP(params *NfsServiceModifyParams) *nas.NfsModif
 		if params.V4IDDomain != nil {
 			nfsInfo.Protocol.V4IDDomain = params.V4IDDomain
 		}
-		if params.AllowLocalNFSUsersWithLdap != nil {
-			nfsInfo.AuthSysExtendedGroupsEnabled = params.AllowLocalNFSUsersWithLdap
-		}
-		if params.ExtendedGroupsLimit != nil {
-			nfsInfo.ExtendedGroupsLimit = params.ExtendedGroupsLimit
-		}
+	}
+
+	if params.AllowLocalNFSUsersWithLdap != nil {
+		nfsInfo.AuthSysExtendedGroupsEnabled = params.AllowLocalNFSUsersWithLdap
+	}
+	if params.ExtendedGroupsLimit != nil {
+		nfsInfo.ExtendedGroupsLimit = params.ExtendedGroupsLimit
 	}
 
 	otParams.SetInfo(nfsInfo)
@@ -5246,6 +5254,9 @@ func kerberosInterfaceCollectionGetParamsToONTAP(params *KerberosInterfaceCollec
 	if params.InterfaceName != nil {
 		otParams.SetInterfaceName(params.InterfaceName)
 	}
+	if len(params.Fields) > 0 {
+		otParams.SetFields(params.Fields)
+	}
 	return otParams
 }
 
@@ -5262,6 +5273,7 @@ func kerberosInterfaceModifyParamsToONTAP(params *KerberosInterfaceModifyParams)
 		OrganizationalUnit: params.OU,
 		User:               params.AdminUsername,
 		Password:           params.AdminPassword,
+		Force:              params.Force,
 	}
 	otParams.SetInfo(info)
 	return otParams

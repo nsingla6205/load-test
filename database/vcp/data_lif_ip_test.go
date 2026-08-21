@@ -557,6 +557,46 @@ func TestDeleteLifsBySvmID(t *testing.T) {
 	})
 }
 
+// TestDeleteLifsBySvmID_DiagnosisLif verifies the diagnosis SVM's LIF (created
+// with Type=dataLIF) is reclaimed by the existing DeleteLifsBySvmID when scoped
+// by the dedicated diagnosis svm_id.
+func TestDeleteLifsBySvmID_DiagnosisLif(t *testing.T) {
+	store := setupIPRangeStore(t)
+	_, account, _ := seedDataLIFIPRange(t, store)
+	ctx := context.Background()
+
+	svm := &datamodel.Svm{BaseModel: datamodel.BaseModel{UUID: "svm-diag-1"}, Name: "svm-diag-1", AccountID: account.ID, PoolID: 31}
+	require.NoError(t, store.db.GORM().Create(svm).Error)
+
+	diagLif := &datamodel.Lif{
+		Name:                 "diag-lif",
+		AccountID:            account.ID,
+		NodeID:               1,
+		SvmID:                sql.NullInt64{Int64: svm.ID, Valid: true},
+		IPAddress:            "10.0.0.20",
+		Type:                 dataLIFType,
+		IsDirectoryDiagnosis: true,
+		LifDetails: &datamodel.LifDetails{
+			ProtocolType: "nas",
+		},
+	}
+	_, err := store.CreateLif(ctx, diagLif)
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteLifsBySvmID(ctx, svm.ID))
+
+	lifs, err := store.GetLifsBySvmID(ctx, svm.ID)
+	require.NoError(t, err)
+	assert.Empty(t, lifs)
+
+	// The row still exists but is soft-deleted (DeletedAt set).
+	var all []*datamodel.Lif
+	require.NoError(t, store.db.GORM().Unscoped().Where("svm_id = ?", svm.ID).Find(&all).Error)
+	require.Len(t, all, 1)
+	assert.True(t, all[0].DeletedAt.Valid)
+	assert.True(t, all[0].IsDirectoryDiagnosis)
+}
+
 func TestGetDataLIFIPRanges(t *testing.T) {
 	store := setupIPRangeStore(t)
 	ipRange, account, _ := seedDataLIFIPRange(t, store)

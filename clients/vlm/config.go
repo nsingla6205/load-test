@@ -564,10 +564,14 @@ type CreateSVMRequest struct {
 	DnsDomains       string           `json:"dns_ip"`
 	NameServers      string           `json:"servers"`                      // List of servers
 	OntapCredentials OntapCredentials `json:"ontap_credentials"`            // ONTAP credentials for the VSA cluster
-	EnableNasLif     bool             `json:"enable_nas_lif"`               // When true, VLM creates NAS LIF + ILB during SVM creation // VCP-VLM merged, added
 	SvmAdminPassword string           `json:"svm_admin_password,omitempty"` // SVM Admin Password
+	EnableNasLif     bool             `json:"enable_nas_lif"`               // When true, VLM creates NAS LIF + ILB during SVM creation
 	// AggrNames selects data aggregates (sub-pools) for this SVM. Empty attaches all data_aggr.
 	AggrNames []string `json:"aggr_names,omitempty"`
+	// SanLif/NasLif enable reduced-LIF mode scoped by AggrNames. SanLif places a SAN
+	// pair on each eligible HA pair; NasLif places NAS on each eligible node.
+	SanLif bool `json:"san_lif,omitempty"`
+	NasLif bool `json:"nas_lif,omitempty"`
 }
 
 type CreateSVMResponse struct {

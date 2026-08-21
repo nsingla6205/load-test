@@ -228,6 +228,25 @@ func (rc *OntapRestProvider) GetKerberosInterfaces(svmUUID, svmName, interfaceNa
 	return interfaces, nil
 }
 
+// GetKerberosInterfacesForSVM returns every Kerberos interface on the SVM (not
+// filtered by LIF name), with full fields requested so Enabled and
+// Interface.UUID are populated. Used by teardown, which must not depend on a
+// particular data-LIF naming convention.
+func (rc *OntapRestProvider) GetKerberosInterfacesForSVM(svmUUID, svmName string) ([]*ontapRest.KerberosInterface, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NAS().KerberosInterfaceCollectionGet(&ontapRest.KerberosInterfaceCollectionGetParams{
+		SvmUUID: &svmUUID,
+		SvmName: &svmName,
+		// Request all fields so "enabled" and interface.uuid are returned; the
+		// default is key fields only.
+		Fields: []string{"*"},
+	})
+}
+
 // EnableKerberosOnInterface enables Kerberos on a data LIF interface
 func (rc *OntapRestProvider) EnableKerberosOnInterface(params KerberosInterfaceModifyParams) error {
 	client, err := getOntapClientFunc(rc.ClientParams)
@@ -246,6 +265,35 @@ func (rc *OntapRestProvider) EnableKerberosOnInterface(params KerberosInterfaceM
 		AdminUsername:     &params.AdminUsername,
 		AdminPassword:     &params.AdminPassword,
 		OU:                &params.OU,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DisableKerberosOnInterface disables Kerberos on a data LIF interface. Force is
+// always set so ONTAP removes the machine account and clears the interface even
+// when the KDC/AD is unreachable; this is required before an SVM with a
+// Kerberos-enabled LIF can be deleted.
+func (rc *OntapRestProvider) DisableKerberosOnInterface(params KerberosInterfaceModifyParams) error {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return err
+	}
+
+	kerberosEnabled := false
+	force := true
+	interfaceUUID := params.InterfaceUUID
+	if err := client.NAS().KerberosInterfaceModify(&ontapRest.KerberosInterfaceModifyParams{
+		SvmUUID:           params.SvmUUID,
+		InterfaceUUID:     &interfaceUUID,
+		IsKerberosEnabled: &kerberosEnabled,
+		MachineAccount:    &params.MachineAccount,
+		AdminUsername:     &params.AdminUsername,
+		AdminPassword:     &params.AdminPassword,
+		OU:                &params.OU,
+		Force:             &force,
 	}); err != nil {
 		return err
 	}

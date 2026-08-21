@@ -38,6 +38,7 @@ type Provider interface {
 	ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error)
 	CreateDataLIF(params CreateLifParams) (*Lif, error)
 	CreateNetworkIpRoute(params CreateNetworkIPRouteParams) error
+	ModifyNetworkInterfaceServicePolicy(lifUUID, servicePolicyName string) error
 	CreateVolume(params CreateVolumeParams) (*VolumeResponse, error)
 	CreateFlexCacheVolume(params CreateFlexCacheVolumeParams) (*VolumeResponse, error)
 	UnmountVolume(volumeUUID string) (*OntapAsyncResponse, error)

@@ -178,6 +178,9 @@ enableUnixPermissions: true
 enableSmbCaShare: true
 enableMultiAd: true
 maxNumberOfAdPerAccount: 5
+# Gates the Active Directory connectivity-check (diagnose) endpoint. Off until
+# the feature is rolled out per environment.
+adDiagnosticEnabled: false
 enableMqos: true
 enableInferredIops: true
 enableVpgEndpoints: false

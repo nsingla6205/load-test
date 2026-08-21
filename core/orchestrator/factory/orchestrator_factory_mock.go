@@ -3779,6 +3779,72 @@ func (_c *MockOrchestratorFactory_DescribeQuotaRule_Call) RunAndReturn(run func(
 	return _c
 }
 
+// DiagnoseActiveDirectory provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) DiagnoseActiveDirectory(ctx context.Context, params *common.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DiagnoseActiveDirectory")
+	}
+
+	var r0 *models.ActiveDirectory
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DiagnoseActiveDirectoryParams) *models.ActiveDirectory); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.ActiveDirectory)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.DiagnoseActiveDirectoryParams) string); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, *common.DiagnoseActiveDirectoryParams) error); ok {
+		r2 = rf(ctx, params)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrchestratorFactory_DiagnoseActiveDirectory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DiagnoseActiveDirectory'
+type MockOrchestratorFactory_DiagnoseActiveDirectory_Call struct {
+	*mock.Call
+}
+
+// DiagnoseActiveDirectory is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.DiagnoseActiveDirectoryParams
+func (_e *MockOrchestratorFactory_Expecter) DiagnoseActiveDirectory(ctx interface{}, params interface{}) *MockOrchestratorFactory_DiagnoseActiveDirectory_Call {
+	return &MockOrchestratorFactory_DiagnoseActiveDirectory_Call{Call: _e.mock.On("DiagnoseActiveDirectory", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_DiagnoseActiveDirectory_Call) Run(run func(ctx context.Context, params *common.DiagnoseActiveDirectoryParams)) *MockOrchestratorFactory_DiagnoseActiveDirectory_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.DiagnoseActiveDirectoryParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DiagnoseActiveDirectory_Call) Return(_a0 *models.ActiveDirectory, _a1 string, _a2 error) *MockOrchestratorFactory_DiagnoseActiveDirectory_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DiagnoseActiveDirectory_Call) RunAndReturn(run func(context.Context, *common.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error)) *MockOrchestratorFactory_DiagnoseActiveDirectory_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // EncryptPool provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) EncryptPool(ctx context.Context, params *common.EncryptPoolParams) (*models.Pool, string, error) {
 	ret := _m.Called(ctx, params)

@@ -1891,6 +1891,91 @@ func TestGetSvmByExternalIdentifier(t *testing.T) {
 	})
 }
 
+func TestUpdateSvmDetails(t *testing.T) {
+	newStore := func(tt *testing.T) *DataStoreRepository {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+		return store
+	}
+
+	seed := func(tt *testing.T, store *DataStoreRepository, details *datamodel.SvmDetails) *datamodel.Svm {
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+		assert.NoError(tt, store.db.Create(account).Error())
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}, Name: "pool", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
+		assert.NoError(tt, store.db.Create(pool).Error())
+
+		svm := &datamodel.Svm{
+			BaseModel:  datamodel.BaseModel{UUID: "svm-uuid"},
+			Name:       "diag-svm",
+			AccountID:  account.ID,
+			PoolID:     pool.ID,
+			State:      datamodel.LifeCycleStateREADY,
+			SvmDetails: details,
+		}
+		assert.NoError(tt, store.db.Create(svm).Error())
+		return svm
+	}
+
+	// The diagnosis flow relies on this to replace identifiers left behind by a
+	// previous run whose soft-delete failed.
+	t.Run("ReplacesStaleDetails", func(tt *testing.T) {
+		store := newStore(tt)
+		svm := seed(tt, store, &datamodel.SvmDetails{ExternalUUID: "previous-run-uuid", IsDirectoryDiagnosis: true})
+
+		fresh := &datamodel.SvmDetails{ExternalUUID: "fresh-uuid", IPSpace: "Default", IsDirectoryDiagnosis: true}
+		updated, err := store.UpdateSvmDetails(context.Background(), svm, fresh)
+		assert.NoError(tt, err)
+		if assert.NotNil(tt, updated) && assert.NotNil(tt, updated.SvmDetails) {
+			assert.Equal(tt, "fresh-uuid", updated.SvmDetails.ExternalUUID)
+		}
+
+		persisted := &datamodel.Svm{}
+		assert.NoError(tt, store.db.GORM().First(persisted, "uuid = ?", svm.UUID).Error)
+		if assert.NotNil(tt, persisted.SvmDetails) {
+			assert.Equal(tt, "fresh-uuid", persisted.SvmDetails.ExternalUUID)
+			assert.Equal(tt, "Default", persisted.SvmDetails.IPSpace)
+			assert.True(tt, persisted.SvmDetails.IsDirectoryDiagnosis)
+		}
+	})
+
+	t.Run("PopulatesDetailsWhenAbsent", func(tt *testing.T) {
+		store := newStore(tt)
+		svm := seed(tt, store, nil)
+
+		details := &datamodel.SvmDetails{ExternalUUID: "fresh-uuid", IsDirectoryDiagnosis: true}
+		_, err := store.UpdateSvmDetails(context.Background(), svm, details)
+		assert.NoError(tt, err)
+
+		persisted := &datamodel.Svm{}
+		assert.NoError(tt, store.db.GORM().First(persisted, "uuid = ?", svm.UUID).Error)
+		if assert.NotNil(tt, persisted.SvmDetails) {
+			assert.Equal(tt, "fresh-uuid", persisted.SvmDetails.ExternalUUID)
+		}
+	})
+
+	t.Run("ReturnsNotFoundForMissingRow", func(tt *testing.T) {
+		store := newStore(tt)
+
+		_, err := store.UpdateSvmDetails(context.Background(),
+			&datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 4242}},
+			&datamodel.SvmDetails{ExternalUUID: "fresh-uuid"})
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsNotFoundErr(err))
+	})
+
+	t.Run("RejectsNilArguments", func(tt *testing.T) {
+		store := newStore(tt)
+
+		_, err := store.UpdateSvmDetails(context.Background(), nil, &datamodel.SvmDetails{})
+		assert.Error(tt, err)
+
+		_, err = store.UpdateSvmDetails(context.Background(), &datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 1}}, nil)
+		assert.Error(tt, err)
+	})
+}
+
 func TestUnsetSvmActiveDirectoryID(t *testing.T) {
 	t.Run("WhenSvmActiveDirectoryIsUnsetSuccessfully", func(tt *testing.T) {
 		db, err := SetupTestDB()

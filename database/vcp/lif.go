@@ -35,8 +35,14 @@ func (d *DataStoreRepository) GetLifsForNodesWithProtocol(ctx context.Context, n
 
 	db := d.db.GORM().WithContext(ctx)
 
-	// Query by node IDs and account ID
-	dbQuery := db.Where("node_id IN ? AND account_id = ?", nodeIDs, accountID)
+	// Diagnosis LIFs are temporary and must never be returned as operational
+	// LIFs for volume mount or validation paths.
+	dbQuery := db.Where(
+		"node_id IN ? AND account_id = ? AND is_directory_diagnosis = ?",
+		nodeIDs,
+		accountID,
+		false,
+	)
 
 	return getLifsWithProtocolDetails(dbQuery, protocol)
 }
@@ -90,7 +96,8 @@ func (d *DataStoreRepository) DeleteLif(ctx context.Context, lif *datamodel.Lif)
 }
 
 func (d *DataStoreRepository) GetLifForNode(ctx context.Context, nodeID int64, accountID int64) (*datamodel.Lif, error) {
-	lif, err := getLifWithDetails(d.db.GORM().WithContext(ctx), &datamodel.Lif{NodeID: nodeID, AccountID: accountID})
+	db := d.db.GORM().WithContext(ctx).Where("is_directory_diagnosis = ?", false)
+	lif, err := getLifWithDetails(db, &datamodel.Lif{NodeID: nodeID, AccountID: accountID})
 	if err != nil {
 		return nil, err
 	}

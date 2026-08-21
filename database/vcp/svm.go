@@ -495,6 +495,40 @@ func (d *DataStoreRepository) UpdateSvmActiveDirectoryID(ctx context.Context, sv
 	return svm, nil
 }
 
+func (d *DataStoreRepository) UpdateSvmDetails(ctx context.Context, svm *datamodel.Svm, details *datamodel.SvmDetails) (*datamodel.Svm, error) {
+	if svm == nil || details == nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			errors.New("svm and details must not be nil"))
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	updatedAt := time.Now()
+	res := tx.Model(&datamodel.Svm{}).Where("id = ?", svm.ID).Updates(map[string]interface{}{
+		"svm_details": details,
+		"updated_at":  updatedAt,
+	})
+	if res.Error != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, res.Error)
+		return nil, err
+	}
+	if res.RowsAffected == 0 {
+		err = customerrors.NewNotFoundErr("svm not found", nil)
+		return nil, err
+	}
+
+	svm.SvmDetails = details
+	svm.UpdatedAt = updatedAt
+	return svm, nil
+}
+
 func (d *DataStoreRepository) UnsetSvmActiveDirectoryID(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)

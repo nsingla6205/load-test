@@ -574,6 +574,7 @@ const (
 	ActiveDirectoryV1betaActiveDirectoryStateINUSE            ActiveDirectoryV1betaActiveDirectoryState = "IN_USE"
 	ActiveDirectoryV1betaActiveDirectoryStateDELETING         ActiveDirectoryV1betaActiveDirectoryState = "DELETING"
 	ActiveDirectoryV1betaActiveDirectoryStateERROR            ActiveDirectoryV1betaActiveDirectoryState = "ERROR"
+	ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING       ActiveDirectoryV1betaActiveDirectoryState = "DIAGNOSING"
 )
 
 // AllValues returns all ActiveDirectoryV1betaActiveDirectoryState values.
@@ -586,6 +587,7 @@ func (ActiveDirectoryV1betaActiveDirectoryState) AllValues() []ActiveDirectoryV1
 		ActiveDirectoryV1betaActiveDirectoryStateINUSE,
 		ActiveDirectoryV1betaActiveDirectoryStateDELETING,
 		ActiveDirectoryV1betaActiveDirectoryStateERROR,
+		ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING,
 	}
 }
 
@@ -605,6 +607,8 @@ func (s ActiveDirectoryV1betaActiveDirectoryState) MarshalText() ([]byte, error)
 	case ActiveDirectoryV1betaActiveDirectoryStateDELETING:
 		return []byte(s), nil
 	case ActiveDirectoryV1betaActiveDirectoryStateERROR:
+		return []byte(s), nil
+	case ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -634,6 +638,9 @@ func (s *ActiveDirectoryV1betaActiveDirectoryState) UnmarshalText(data []byte) e
 		return nil
 	case ActiveDirectoryV1betaActiveDirectoryStateERROR:
 		*s = ActiveDirectoryV1betaActiveDirectoryStateERROR
+		return nil
+	case ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
+		*s = ActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
@@ -3870,6 +3877,7 @@ const (
 	BatchActiveDirectoryV1betaActiveDirectoryStateINUSE            BatchActiveDirectoryV1betaActiveDirectoryState = "IN_USE"
 	BatchActiveDirectoryV1betaActiveDirectoryStateDELETING         BatchActiveDirectoryV1betaActiveDirectoryState = "DELETING"
 	BatchActiveDirectoryV1betaActiveDirectoryStateERROR            BatchActiveDirectoryV1betaActiveDirectoryState = "ERROR"
+	BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING       BatchActiveDirectoryV1betaActiveDirectoryState = "DIAGNOSING"
 )
 
 // AllValues returns all BatchActiveDirectoryV1betaActiveDirectoryState values.
@@ -3882,6 +3890,7 @@ func (BatchActiveDirectoryV1betaActiveDirectoryState) AllValues() []BatchActiveD
 		BatchActiveDirectoryV1betaActiveDirectoryStateINUSE,
 		BatchActiveDirectoryV1betaActiveDirectoryStateDELETING,
 		BatchActiveDirectoryV1betaActiveDirectoryStateERROR,
+		BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING,
 	}
 }
 
@@ -3901,6 +3910,8 @@ func (s BatchActiveDirectoryV1betaActiveDirectoryState) MarshalText() ([]byte, e
 	case BatchActiveDirectoryV1betaActiveDirectoryStateDELETING:
 		return []byte(s), nil
 	case BatchActiveDirectoryV1betaActiveDirectoryStateERROR:
+		return []byte(s), nil
+	case BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -3930,6 +3941,9 @@ func (s *BatchActiveDirectoryV1betaActiveDirectoryState) UnmarshalText(data []by
 		return nil
 	case BatchActiveDirectoryV1betaActiveDirectoryStateERROR:
 		*s = BatchActiveDirectoryV1betaActiveDirectoryStateERROR
+		return nil
+	case BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING:
+		*s = BatchActiveDirectoryV1betaActiveDirectoryStateDIAGNOSING
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)

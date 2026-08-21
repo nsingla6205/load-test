@@ -222,6 +222,7 @@ type (
 		GetNextSVMIndexByPoolID(ctx context.Context, poolID int64) (int64, error)
 		UpdateSvmWithKmsConfigIDs(ctx context.Context, svm *datamodel.Svm, gcpKmsConfigUUID, externalGcpKmsConfigUUID string) (*datamodel.Svm, error)
 		UpdateSvmActiveDirectoryID(ctx context.Context, svm *datamodel.Svm, activeDirectoryID int64) (*datamodel.Svm, error)
+		UpdateSvmDetails(ctx context.Context, svm *datamodel.Svm, details *datamodel.SvmDetails) (*datamodel.Svm, error)
 		UnsetSvmActiveDirectoryID(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error)
 		UpdateSvmCurrentKmsKeyID(ctx context.Context, svmUUID string, keyID string) error
 		ListSvmsWithAccountId(ctx context.Context, accountId int64) ([]*datamodel.Svm, error)

@@ -176,6 +176,7 @@ type OrchestratorFactory interface {
 
 	CreateActiveDirectory(ctx context.Context, params *commonparams.CreateActiveDirectoryParams) (*models.ActiveDirectory, string, error)
 	UpdateActiveDirectory(ctx context.Context, params *commonparams.UpdateActiveDirectoryParams) (*models.ActiveDirectory, string, error)
+	DiagnoseActiveDirectory(ctx context.Context, params *commonparams.DiagnoseActiveDirectoryParams) (*models.ActiveDirectory, string, error)
 
 	// Cluster upgrade methods
 	UpgradeCluster(ctx context.Context, params *commonparams.UpgradeClusterParams) (*models.ClusterUpgradeResponse, string, error)

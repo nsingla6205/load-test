@@ -507,6 +507,12 @@ workerConfig:
   adSyncRetryMaxInterval: "60s"
   adSyncRetryMaxAttempts: "10"
 
+  # AD Diagnostics per-activity timeout configuration
+  adDiagnoseDbActivityStartToCloseTimeout: "2m"     # DB/in-memory diagnose activities
+  adDiagnoseDbActivityHeartbeatTimeout: "30s"
+  adDiagnoseOntapActivityStartToCloseTimeout: "10m" # ONTAP REST diagnose activities (DNS, CIFS join, LDAP)
+  adDiagnoseOntapActivityHeartbeatTimeout: "1m"
+
   #Backup workflow timeout configuration
   adcWorkflowHeartbeatTimeoutSec : "600"     # 10 minutes
   backupRestoreWorkflowHeartbeatTimeoutSec : "600"     # 10 minutes

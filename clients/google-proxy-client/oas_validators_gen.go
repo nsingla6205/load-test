@@ -852,6 +852,8 @@ func (s ActiveDirectoryV1betaActiveDirectoryState) Validate() error {
 		return nil
 	case "ERROR":
 		return nil
+	case "DIAGNOSING":
+		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)
 	}
@@ -3113,6 +3115,8 @@ func (s BatchActiveDirectoryV1betaActiveDirectoryState) Validate() error {
 	case "DELETING":
 		return nil
 	case "ERROR":
+		return nil
+	case "DIAGNOSING":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)

@@ -127,17 +127,33 @@ func (rc *OntapRestProvider) CreateDns(params CreateDnsParams) error {
 }
 
 func (rc *OntapRestProvider) CreateLdap(ad *datamodel.ActiveDirectory, volume *datamodel.Volume) error {
+	if volume == nil || volume.Svm == nil || volume.Svm.SvmDetails == nil {
+		return errors.New("volume/svm details cannot be nil")
+	}
+
+	var protocols []string
+	if volume.VolumeAttributes != nil {
+		protocols = volume.VolumeAttributes.Protocols
+	}
+
+	return rc.CreateLdapForSVM(ad, volume.Svm.SvmDetails.ExternalUUID, protocols)
+}
+
+// CreateLdapForSVM is the SVM-scoped core of CreateLdap, configuring the LDAP
+// client on the given SVM without requiring a *datamodel.Volume (used by flows
+// with no associated volume, e.g. AD diagnosis). protocols only decides whether
+// to set the NFSv4 v4-id-domain.
+func (rc *OntapRestProvider) CreateLdapForSVM(ad *datamodel.ActiveDirectory, svmUUID string, protocols []string) error {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	logger := util.GetLogger(context.Background())
 	if err != nil {
 		return err
 	}
 
-	if volume == nil || volume.Svm == nil || volume.Svm.SvmDetails == nil {
-		return errors.New("volume/svm details cannot be nil")
+	if svmUUID == "" {
+		return errors.New("svm uuid cannot be empty")
 	}
 
-	svmUUID := volume.Svm.SvmDetails.ExternalUUID
 	_, err = client.NameServices().LdapGet(&ontapRest.LdapGetParams{SvmUUID: svmUUID})
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -253,8 +269,8 @@ func (rc *OntapRestProvider) CreateLdap(ad *datamodel.ActiveDirectory, volume *d
 		var v4IdDomain *string
 		var allowLocalNFSUsersWithLdap *bool
 		// set v4IDDomain only for NFSv4 protocol
-		for i := range volume.VolumeAttributes.Protocols {
-			protocol := volume.VolumeAttributes.Protocols[i]
+		for i := range protocols {
+			protocol := protocols[i]
 			if strings.Contains(protocol, utils.ProtocolNFSv4) {
 				v4IdDomain = &ad.Domain
 			}

@@ -18,3 +18,16 @@ func (rc *OntapRestProvider) CreateNetworkIpRoute(params CreateNetworkIPRoutePar
 	})
 	return err
 }
+
+// ModifyNetworkInterfaceServicePolicy changes the service policy of the LIF
+// identified by lifUUID to servicePolicyName.
+func (rc *OntapRestProvider) ModifyNetworkInterfaceServicePolicy(lifUUID, servicePolicyName string) error {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return err
+	}
+	return client.Networking().NetworkIPInterfaceModify(&ontapRest.NetworkIPInterfaceModifyParams{
+		UUID:              &lifUUID,
+		ServicePolicyName: &servicePolicyName,
+	})
+}
