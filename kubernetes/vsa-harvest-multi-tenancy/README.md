@@ -67,6 +67,10 @@ harvest-poller-<lowercase-name>.vcp.svc.cluster.local:12990
 The OTel sidecar scrapes **`127.0.0.1:<service.port>`** on the same pod — no
 separate OTel `clusters[]` list to keep in sync.
 
+The poller image defaults to the same Artifact Registry mirror used by
+`vsa-harvest-otel` (`vcp-container-images-us/harvest-multi`). Regional
+overrides should keep the image on an accessible mirror and pin its digest.
+
 ## Exports
 
 - **Consumer project**: Harvest ServiceControl (`project` label)

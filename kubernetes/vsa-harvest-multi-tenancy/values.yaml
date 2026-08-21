@@ -11,7 +11,9 @@ fullnameOverride: ""
 
 image:
   # Harvest multi-tenancy poller image used for MT E2E (tenancy Core API support).
-  repository: ghcr.io/vcp-vsa-control-plane/harvest-multi
+  # Keep the default on the Artifact Registry mirror used by vsa-harvest-otel;
+  # GKE environments do not have credentials for this private ghcr.io image.
+  repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-container-images-us/harvest-multi
   tag: "26.08.14-1"
   digest: "sha256:6398640c27433e685f3cc5f27b364d9403afae325e7c45b260bd2d036c397a89"
   pullPolicy: IfNotPresent
