@@ -45,6 +45,7 @@ var (
 	localRegion                    = env.GetString("LOCAL_REGION", "")
 	ociCreator                     = env.GetString("OCI_CREATOR", "vcp")
 	secretURI                      = env.GetString("SECRET_URI", "")
+	smcLicenseSecretURI            = env.GetString("SMC_LICENSE_SECRET_URI", "")
 	dbHeartbeatTimeoutSec          = env.GetUint64("DATABASE_HEARTBEAT_TIMEOUT_SEC", 10)
 	sharedHADataDiskCount          = env.GetIntNotNegative("OCI_VSA_SHARED_HA_DATA_DISK_COUNT", 13)
 	nonSharedHADataDiskCount       = env.GetIntNotNegative("OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT", 10)
@@ -992,8 +993,12 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	createVSAClusterDeploymentRequest.VLMConfig = vlmConfig
 	createVSAClusterDeploymentRequest.OntapCredentials = ontapCredentials
 
+	secretUris := []string{secretURI}
+	if strings.TrimSpace(smcLicenseSecretURI) != "" {
+		secretUris = append(secretUris, smcLicenseSecretURI)
+	}
 	createVSAClusterDeploymentRequest.OntapLicense = vlm.OntapLicense{
-		SecretUri: []string{secretURI},
+		SecretUri: secretUris,
 	}
 }
 

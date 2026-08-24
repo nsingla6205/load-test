@@ -147,6 +147,7 @@ workerConfig:
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7qwngdvtnkwfyx2wxsgpu3d2ttwoufnwixwxkbojlbojodj3p5mq"
   vsaImageName: "ocid1.image.oc1.iad.aaaaaaaakxrywtkyboc5tke4ucxkd2djrbafs6ok7tykohsa5gr4luy5ykta"
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
+  smcLicenseSecretUri: ""
   ociResourcePrincipalRegion: "us-ashburn-1"
   ociResourcePrincipalVersion: "2.2"
   ociExpertModePassword: ""

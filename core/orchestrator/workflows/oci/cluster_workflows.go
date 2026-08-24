@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
@@ -678,10 +679,15 @@ func (wf *ociClusterUpgradeWorkflow) updateLicense(
 		return nil
 	}
 
+	licenseSecretUris := []string{secretURI}
+	if strings.TrimSpace(smcLicenseSecretURI) != "" {
+		licenseSecretUris = append(licenseSecretUris, smcLicenseSecretURI)
+	}
+
 	for _, ip := range nodeMgmtIPs {
 		req := &vlm.UpdateLicenseRequest{
 			OntapLicense: vlm.OntapLicense{
-				SecretUri: []string{secretURI},
+				SecretUri: licenseSecretUris,
 			},
 			OntapCredentials: *credentials,
 			VSAManagementIP:  ip,

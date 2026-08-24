@@ -128,6 +128,7 @@ data:
   OCI_VMRS_ENABLED: {{ $.Values.workerConfig.ociVmrsEnabled | default "false" | quote }}
   OCI_MEDIATOR_INSTANCE_TYPE: {{ $.Values.workerConfig.ociMediatorInstanceType | quote }}
   SECRET_URI: {{ $.Values.workerConfig.secretUri | quote }}
+  SMC_LICENSE_SECRET_URI: {{ $.Values.workerConfig.smcLicenseSecretUri | quote }}
   OCI_RESOURCE_PRINCIPAL_REGION: {{ $.Values.workerConfig.ociResourcePrincipalRegion | quote }}
   OCI_RESOURCE_PRINCIPAL_VERSION: {{ $.Values.workerConfig.ociResourcePrincipalVersion | quote }}
   OCI_EXPERT_MODE_PASSWORD: {{ $.Values.workerConfig.ociExpertModePassword | quote }}

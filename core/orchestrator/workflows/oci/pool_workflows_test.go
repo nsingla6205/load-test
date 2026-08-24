@@ -881,6 +881,56 @@ func TestPrepareCreateVSAClusterDeploymentRequest_InitsNilLabels(t *testing.T) {
 	assert.Equal(t, "aname", req.VLMConfig.Deployment.Labels["account_id"])
 }
 
+func TestPrepareCreateVSAClusterDeploymentRequest_OntapLicenseSecretUris(t *testing.T) {
+	setTestOCIImageEnv(t)
+
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "u1"},
+		Name:                   "pn",
+		PoolExternalIdentifier: "ocid.pool",
+		Account:                &datamodel.Account{Name: "aname"},
+	}
+
+	tests := []struct {
+		name           string
+		secretURI      string
+		smcSecretURI   string
+		wantSecretUris []string
+	}{
+		{
+			name:           "only SECRET_URI set",
+			secretURI:      "ocid1.vaultsecret.oc1..aaa",
+			smcSecretURI:   "",
+			wantSecretUris: []string{"ocid1.vaultsecret.oc1..aaa"},
+		},
+		{
+			name:           "both SECRET_URI and SMC_LICENSE_SECRET_URI set",
+			secretURI:      "ocid1.vaultsecret.oc1..aaa",
+			smcSecretURI:   "ocid1.vaultsecret.oc1..smc",
+			wantSecretUris: []string{"ocid1.vaultsecret.oc1..aaa", "ocid1.vaultsecret.oc1..smc"},
+		},
+		{
+			name:           "SMC_LICENSE_SECRET_URI whitespace-only is excluded",
+			secretURI:      "ocid1.vaultsecret.oc1..aaa",
+			smcSecretURI:   "   ",
+			wantSecretUris: []string{"ocid1.vaultsecret.oc1..aaa"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origSecretURI, origSMC := secretURI, smcLicenseSecretURI
+			secretURI, smcLicenseSecretURI = tt.secretURI, tt.smcSecretURI
+			t.Cleanup(func() { secretURI, smcLicenseSecretURI = origSecretURI, origSMC })
+
+			req := &vlm.CreateVSAClusterDeploymentRequest{}
+			prepareCreateVSAClusterDeploymentRequest(req, vlm.VLMConfig{}, vlm.OntapCredentials{}, pool)
+
+			assert.Equal(t, tt.wantSecretUris, req.OntapLicense.SecretUri)
+		})
+	}
+}
+
 func TestOCIDeletePoolWorkflow_Success(t *testing.T) {
 	setTestOCIImageEnv(t)
 	var ts testsuite.WorkflowTestSuite
