@@ -228,9 +228,9 @@ workerConfig:
   workflowGlobalTimeoutMinutes: "60" # Global timeout for workflows in minutes
   createPoolWorkflowTimeoutMinutes: "150" # Create pool workflow run timeout (standard pools) in minutes
   createPoolWorkflowTimeoutMinutesLV: "150" # Create pool workflow run timeout (LV pools) in minutes
-  updatePoolWorkflowTimeoutMinutes: "300" # Update pool workflow run timeout (standard pools) in minutes
-  updatePoolWorkflowTimeoutMinutesLV: "300" # Update pool workflow run timeout (LV pools) in minutes
-  poolMaintenanceWorkflowTimeoutMinutes: "240" # Pool maintenance workflow run timeout in minutes
+  updatePoolWorkflowTimeoutMinutes: "750" # Update pool workflow run timeout (standard pools) in minutes
+  updatePoolWorkflowTimeoutMinutesLV: "750" # Update pool workflow run timeout (LV pools) in minutes
+  poolMaintenanceWorkflowTimeoutMinutes: "390" # Pool maintenance workflow run timeout in minutes
   deletePoolWorkflowTimeoutMinutes: "60" # Delete pool workflow run timeout in minutes
   rotateFabricPoolKeysWorkflowTimeoutMinutes: "10" # Rotate FabricPool keys workflow run timeout in minutes
   resetOciAdminPasswordWorkflowTimeoutMinutes: "10" # Reset OCI admin password workflow run timeout in minutes
