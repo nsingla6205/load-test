@@ -1,0 +1,10 @@
+# VSCP-5247: suppress disputed glibc findings with no upstream fix.
+# CVE-2019-1010022 is treated as a non-security issue by glibc upstream
+# (https://sourceware.org/bugzilla/show_bug.cgi?id=22850). Debian marks
+# urgency as unimportant with no fixed version:
+# https://security-tracker.debian.org/tracker/CVE-2019-1010022
+#
+# Remaining ArmorCode findings on cloud-backup-adc (locales/libc6/libc-bin)
+# cannot be patched in-repo; this ignore keeps Grype/Code Scanning clean.
+ignore:
+  - vulnerability: CVE-2019-1010022

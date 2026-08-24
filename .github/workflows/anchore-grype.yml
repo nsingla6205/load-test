@@ -39,6 +39,10 @@ jobs:
       matrix:
         image: ${{ fromJson(inputs.images_to_scan) }}
     steps:
+      # Required so anchore/scan-action can load repo-root .grype.yaml ignore rules.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Log in to the Container registry
         run: |
           echo "${{ secrets.GHVSA_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -62,6 +66,7 @@ jobs:
           SYFT_LOG_LEVEL: "error"
         with:
           image: registry:${{ steps.imgref.outputs.ref }}
+          config: .grype.yaml
           output-format: sarif
           output-file: grype-results.sarif
           fail-build: false
