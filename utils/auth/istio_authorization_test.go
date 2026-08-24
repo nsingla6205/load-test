@@ -34,6 +34,8 @@ func TestCoreIstioPolicy_AllowsHarvestCoreAPIEndpoints(t *testing.T) {
 	assert.Contains(t, policy, "cluster.local/ns/vcp/sa/gcnv-harvest-sa")
 	assert.Contains(t, policy, `"/v1/getMultipleReplicationsByExternalUUID"`)
 	assert.Contains(t, policy, `"/v1/getAllVolumeTenancy"`)
+	assert.Contains(t, policy, "allow-harvest-multi-tenancy-volume-tenancy")
+	assert.Contains(t, policy, "cluster.local/ns/vcp/sa/harvest-multi-tenancy")
 
 	harvestSection := policy[strings.Index(policy, "allow-vsa-harvest-otel-replications"):]
 	methodsSection := harvestSection[strings.Index(harvestSection, "methods:"):]

@@ -57,6 +57,10 @@ spec:
           env:
             - name: ENABLE_MULTI_TENANCY
               value: "true"
+            - name: GCP_AUTH_SERVICE_ACCOUNT
+              value: {{ required "serviceAccount.gcpServiceAccount is required for MT tenancy authentication" $.Values.serviceAccount.gcpServiceAccount | quote }}
+            - name: GCP_SERVICE_URL
+              value: {{ required "coreAPI.gcpServiceURL is required for MT tenancy JWT audience" $.Values.coreAPI.gcpServiceURL | quote }}
             - name: TENANCY_CLUSTER_NAME
               value: {{ $pollerName | quote }}
             - name: TENANCY_REQUIRED

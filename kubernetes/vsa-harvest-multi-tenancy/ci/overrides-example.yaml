@@ -12,15 +12,23 @@ multiTenancy:
 serviceAccount:
   create: true
   name: harvest-multi-tenancy
-  annotations:
-    # iam.gke.io/gcp-service-account: harvest-mt-sa@PROJECT.iam.gserviceaccount.com
+  # This may be the same GSA used by the existing vsa-harvest-otel release.
+  # The chart uses it for both the KSA Workload Identity annotation and the
+  # poller's GCP_AUTH_SERVICE_ACCOUNT environment variable.
+  gcpServiceAccount: otel-collector-sa@netapp-au-se1-autopush-sde-tst.iam.gserviceaccount.com
+  annotations: {}
+
+podAnnotations:
+  proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+  traffic.sidecar.istio.io/excludeOutboundIPRanges: 169.254.169.254/32
 
 coreAPI:
-  baseURL: vcp-core-api.vcp.svc.cluster.local
-  port: "9001"
+  baseURL: core-service.vcp.svc.cluster.local
+  port: "8080"
   batchSize: 1000
   environment: gcp
   refreshInterval: 5m
+  gcpServiceURL: https://cloudvolumesgcp-api.netapp.com
 
 serviceControl:
   url: https://servicecontrol.googleapis.com

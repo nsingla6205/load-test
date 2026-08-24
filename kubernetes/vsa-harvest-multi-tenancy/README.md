@@ -82,5 +82,19 @@ overrides should keep the image on an accessible mirror and pin its digest.
 
 - Core API `GET /v1/getAllVolumeTenancy` available in the environment
 - Istio allow from `vcp/sa/harvest-multi-tenancy` to that path
+- Pod annotation `proxy.istio.io/config: holdApplicationUntilProxyStarts` (same as `vsa-harvest-otel`) so Harvest does not dial ONTAP before the sidecar is ready
 - PE IAM: the harvest WI GCP SA needs ServiceControl + Core API access **and**
   Monitoring Metric Writer on customer tenant projects (sidecar shares the poller SA)
+
+Set `serviceAccount.gcpServiceAccount` in regional overrides. The chart uses the
+value for both the KSA `iam.gke.io/gcp-service-account` annotation and the
+poller's `GCP_AUTH_SERVICE_ACCOUNT` environment variable, matching the existing
+`vsa-harvest-otel` identity setup. The same GSA may be reused when PE has granted
+it the required tenant-project permissions and the
+`roles/iam.workloadIdentityUser` binding for
+`serviceAccount:PROJECT.svc.id.goog[vcp/harvest-multi-tenancy]`.
+
+Set `coreAPI.gcpServiceURL` to the same value as Core API's `GCP_SERVICE_URL`
+and the regional `vsa-harvest-otel` `harvestConfig.gcpServiceUrl`. The poller
+uses it as the tenancy JWT audience; an empty or different value causes Core
+API to reject `getAllVolumeTenancy` with `invalid issuer or audience in JWT`.

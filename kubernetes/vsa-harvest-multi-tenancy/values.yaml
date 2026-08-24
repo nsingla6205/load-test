@@ -29,9 +29,12 @@ serviceAccount:
   # Sidecar OTel shares this K8s SA / WI binding: GCP SA needs ServiceControl +
   # Core API access and Monitoring Metric Writer on customer tenant projects.
   name: "harvest-multi-tenancy"
+  # Same default GSA as kubernetes/vsa-harvest-otel/values.yaml. Regional
+  # overrides must replace this with the local vsa-harvest-otel GSA
+  # (us-c1: otel-collector-sa@netapp-us-c1-autopush-sde-tst.iam.gserviceaccount.com).
+  # Used for both Workload Identity and GCP_AUTH_SERVICE_ACCOUNT.
+  gcpServiceAccount: otel-collector-sa@netapp-au-se1-autopush-sde-tst.iam.gserviceaccount.com
   annotations: {}
-  # Example Workload Identity:
-  #   iam.gke.io/gcp-service-account: harvest-mt-sa@PROJECT.iam.gserviceaccount.com
 
 # In-chart OTel sidecar (tenant-only). No changes required in ontap-open-telemetry.
 # Scrapes the co-located poller on localhost and routes each sample to
@@ -75,12 +78,15 @@ externalSecrets:
     name: main-cluster-secret-store
 
 coreAPI:
-  # Cross-namespace Core API (volume tenancy bulk snapshot).
-  baseURL: vcp-core-api.vcp.svc.cluster.local
-  port: "9001"
+  # Same Core Service as kubernetes/vsa-harvest-otel harvestConfig.coreApi*.
+  baseURL: core-service.vcp.svc.cluster.local
+  port: "8080"
   batchSize: 1000
   environment: gcp
   refreshInterval: 5m
+  # JWT audience validated by Core API. Keep this equal to Core's
+  # GCP_SERVICE_URL and vsa-harvest-otel harvestConfig.gcpServiceUrl.
+  gcpServiceURL: https://cloudvolumesgcp-api.netapp.com
 
 serviceControl:
   url: https://servicecontrol.googleapis.com
@@ -94,7 +100,10 @@ resources:
     cpu: 1
     memory: 1Gi
 
-podAnnotations: {}
+# Match vsa-harvest-otel: wait for Istio before Harvest dials ONTAP.
+podAnnotations:
+  proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+  traffic.sidecar.istio.io/excludeOutboundIPRanges: 169.254.169.254/32
 podLabels: {}
 nodeSelector: {}
 tolerations: []
