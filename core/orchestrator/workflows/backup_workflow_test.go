@@ -543,6 +543,246 @@ func TestBackupWorkflowFailAfterSnapshot(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+// adhocBackupRollbackResult captures which rollback steps ran when a backup create failed.
+type adhocBackupRollbackResult struct {
+	snapmirrorDeleted      bool
+	snapmirrorUUID         string
+	snapmirrorVolumeUUID   string
+	snapmirrorEndpointUUID string
+	snapmirrorExcludes     []string
+	snapshotRollbackRan    bool
+	snapshotUseExisting    bool
+	snapshotRollbackUUIDs  []string
+}
+
+// runAdhocBackupRollbackScenario fails an ad-hoc backup create at the transfer step and
+// reports the rollback steps the workflow executed.
+func runAdhocBackupRollbackScenario(t *testing.T, isExpertMode, useExistingSnapshot bool) adhocBackupRollbackResult {
+	t.Helper()
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	mockStorage.On("UpdateBackupState", mock.Anything, mock.Anything).Return(&datamodel.Backup{}, nil).Maybe()
+
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&TestBackupActivity{BackupActivity: &activities.BackupActivity{SE: mockStorage}})
+	env.RegisterWorkflow(CreateBackupWorkflow)
+
+	params := &commonparams.CreateBackupParams{
+		VolumeUUID:         "test-vol",
+		AccountName:        "test-account",
+		BackupName:         "test-backup",
+		IsExpertModeVolume: isExpertMode,
+	}
+	backupVault := &datamodel.BackupVault{
+		Name:          "test-backup-vault",
+		BucketDetails: datamodel.BucketDetailsArray{&datamodel.BucketDetails{BucketName: "test-bucket", ServiceAccountName: "sa-test", VendorSubnetID: "subnet-12345"}},
+	}
+	backup := &datamodel.Backup{
+		BaseModel:     datamodel.BaseModel{UUID: "test-backup-uuid"},
+		Name:          "test-backup",
+		VolumeUUID:    "test-vol",
+		BackupVault:   backupVault,
+		BackupVaultID: 1,
+		Attributes:    &datamodel.BackupAttributes{SnapshotID: "test-snapshot-uuid", UseExistingSnapshot: useExistingSnapshot},
+	}
+	volume := &datamodel.Volume{
+		Pool:             &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: int64(1)}, PoolCredentials: &datamodel.PoolCredentials{Password: "password"}, PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-central1-a"}},
+		Svm:              &datamodel.Svm{Name: "svm_test"},
+		VolumeAttributes: &datamodel.VolumeAttributes{VendorSubnetID: "subnet-12345", ExternalUUID: "external-uuid"},
+	}
+	contextWithMode := func() *activities.BackupActivitiesContext {
+		return &activities.BackupActivitiesContext{
+			BackupWorkflowInit: &activities.BackupWorkflowInput{Backup: backup, BackupVault: backupVault, Volume: volume},
+			Node:               &models.Node{EndpointAddress: "127.0.0.1"},
+			SnapshotName:       "test-backup",
+			IsExpertMode:       isExpertMode,
+			SnapmirrorRelationship: &commonparams.SnapmirrorRelationship{
+				UUID:            "test-snapmirror-uuid",
+				DestinationUUID: nillable.ToPointer("test-endpoint-uuid"),
+			},
+		}
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
+	env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, mock.Anything).Return(contextWithMode(), nil).Maybe()
+	env.OnActivity("GetSnapshotNameByUUIDActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil).Maybe()
+	env.OnActivity("GetVolumesAndConstituentCountActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil).Maybe()
+	env.OnActivity("GetVolumeProtocolsFromOntapActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil).Maybe()
+	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("CreateSnapmirrorRelationshipActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("CreatingSnapshotActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("CreateSnapshotActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil)
+	env.OnActivity("UpdateSnapshotActivity", mock.Anything, mock.Anything).Return(contextWithMode(), nil).Maybe()
+	env.OnActivity("TransferSnapshotActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to transfer snapshot"))
+	env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	result := adhocBackupRollbackResult{}
+	env.OnActivity("DeleteSnapmirrorIfUnused", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			result.snapmirrorDeleted = true
+			result.snapmirrorVolumeUUID, _ = args.Get(2).(string)
+			result.snapmirrorEndpointUUID, _ = args.Get(3).(string)
+			result.snapmirrorExcludes, _ = args.Get(4).([]string)
+			result.snapmirrorUUID, _ = args.Get(5).(string)
+		}).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
+	env.OnActivity("DeleteSnapshotForBackup", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			result.snapshotRollbackRan = true
+			snapshotUUID, _ := args.Get(2).(string)
+			volumeUUID, _ := args.Get(3).(string)
+			result.snapshotRollbackUUIDs = []string{snapshotUUID, volumeUUID}
+			result.snapshotUseExisting, _ = args.Get(4).(bool)
+		}).Return(nil).Maybe()
+
+	env.ExecuteWorkflow(CreateBackupWorkflow, params, backup, backupVault, volume)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.ErrorContains(t, env.GetWorkflowError(), "failed to transfer snapshot")
+	env.AssertExpectations(t)
+
+	return result
+}
+
+// ONTAP refuses to delete a volume that still has a backup relationship, so a failed
+// ONTAP-mode backup create must take the relationship and its snapshot back out.
+func TestBackupWorkflowExpertModeFailureRollsBackSnapmirrorAndSnapshot(t *testing.T) {
+	result := runAdhocBackupRollbackScenario(t, true, false)
+
+	assert.True(t, result.snapmirrorDeleted)
+	assert.Equal(t, "test-snapmirror-uuid", result.snapmirrorUUID)
+	// The relationship is shared by the backups on its endpoint, so the teardown is scoped to the
+	// volume and endpoint and told to ignore this backup, letting the activity keep the
+	// relationship when another backup on that endpoint still needs it.
+	assert.Equal(t, "test-vol", result.snapmirrorVolumeUUID)
+	assert.Equal(t, "test-endpoint-uuid", result.snapmirrorEndpointUUID)
+	assert.Equal(t, []string{"test-backup-uuid"}, result.snapmirrorExcludes)
+	assert.True(t, result.snapshotRollbackRan)
+	assert.Equal(t, []string{"test-snapshot-uuid", "external-uuid"}, result.snapshotRollbackUUIDs)
+	assert.False(t, result.snapshotUseExisting)
+}
+
+// A snapshot the customer supplied must not be deleted by our rollback, so the workflow has
+// to hand the UseExistingSnapshot flag to DeleteSnapshotForBackup, which then skips deletion.
+func TestBackupWorkflowExpertModeFailureFlagsCustomerSuppliedSnapshot(t *testing.T) {
+	result := runAdhocBackupRollbackScenario(t, true, true)
+
+	assert.True(t, result.snapmirrorDeleted)
+	assert.True(t, result.snapshotRollbackRan)
+	assert.True(t, result.snapshotUseExisting)
+}
+
+// GCNV-managed volumes keep their existing behaviour: nothing is rolled back in ONTAP.
+func TestBackupWorkflowNonExpertModeFailureRollsBackNothing(t *testing.T) {
+	result := runAdhocBackupRollbackScenario(t, false, false)
+
+	assert.False(t, result.snapmirrorDeleted)
+	assert.False(t, result.snapshotRollbackRan)
+}
+
+// ContinueAsNew starts a new empty rollback manager. A later poll failure must still
+// tear down the ONTAP-mode relationship and snapshot created in the first run.
+func TestBackupWorkflowExpertModeContinuationFailureRollsBackSnapmirrorAndSnapshot(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContinuedExecutionRunID("previous-run-id")
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	mockStorage.On("UpdateBackupState", mock.Anything, mock.Anything).Return(&datamodel.Backup{}, nil).Maybe()
+
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&TestBackupActivity{BackupActivity: &activities.BackupActivity{SE: mockStorage}})
+	env.RegisterWorkflow(CreateBackupWorkflowWithContext)
+
+	params := &commonparams.CreateBackupParams{
+		VolumeUUID:         "test-vol",
+		AccountName:        "test-account",
+		BackupName:         "test-backup",
+		IsExpertModeVolume: true,
+	}
+	backupVault := &datamodel.BackupVault{
+		Name:          "test-backup-vault",
+		BucketDetails: datamodel.BucketDetailsArray{&datamodel.BucketDetails{BucketName: "test-bucket", ServiceAccountName: "sa-test", VendorSubnetID: "subnet-12345"}},
+	}
+	backup := &datamodel.Backup{
+		BaseModel:     datamodel.BaseModel{UUID: "test-backup-uuid"},
+		Name:          "test-backup",
+		VolumeUUID:    "test-vol",
+		BackupVault:   backupVault,
+		BackupVaultID: 1,
+		Attributes:    &datamodel.BackupAttributes{SnapshotID: "test-snapshot-uuid"},
+	}
+	volume := &datamodel.Volume{
+		Pool:             &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: int64(1)}, PoolCredentials: &datamodel.PoolCredentials{Password: "password"}, PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-central1-a"}},
+		Svm:              &datamodel.Svm{Name: "svm_test"},
+		VolumeAttributes: &datamodel.VolumeAttributes{VendorSubnetID: "subnet-12345", ExternalUUID: "external-uuid"},
+	}
+	backupActivitiesContext := &activities.BackupActivitiesContext{
+		BackupWorkflowInit: &activities.BackupWorkflowInput{Backup: backup, BackupVault: backupVault, Volume: volume},
+		Node:               &models.Node{EndpointAddress: "127.0.0.1"},
+		SnapshotName:       "test-backup",
+		IsExpertMode:       true,
+		SnapmirrorRelationship: &commonparams.SnapmirrorRelationship{
+			UUID:            "test-snapmirror-uuid",
+			DestinationUUID: nillable.ToPointer("test-endpoint-uuid"),
+		},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("PollTransferStatusWithHistoryCheckActivity", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("transfer poll failed after continuation"))
+	env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	result := adhocBackupRollbackResult{}
+	env.OnActivity("DeleteSnapmirrorIfUnused", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			result.snapmirrorDeleted = true
+			result.snapmirrorVolumeUUID, _ = args.Get(2).(string)
+			result.snapmirrorEndpointUUID, _ = args.Get(3).(string)
+			result.snapmirrorExcludes, _ = args.Get(4).([]string)
+			result.snapmirrorUUID, _ = args.Get(5).(string)
+		}).Return(&vsa.OntapAsyncResponse{}, nil)
+	env.OnActivity("DeleteSnapshotForBackup", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			result.snapshotRollbackRan = true
+			snapshotUUID, _ := args.Get(2).(string)
+			volumeUUID, _ := args.Get(3).(string)
+			result.snapshotRollbackUUIDs = []string{snapshotUUID, volumeUUID}
+		}).Return(nil)
+
+	env.ExecuteWorkflow(CreateBackupWorkflowWithContext, backupActivitiesContext, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.ErrorContains(t, env.GetWorkflowError(), "transfer poll failed after continuation")
+	assert.True(t, result.snapmirrorDeleted)
+	assert.Equal(t, "test-snapmirror-uuid", result.snapmirrorUUID)
+	assert.Equal(t, "test-vol", result.snapmirrorVolumeUUID)
+	assert.Equal(t, "test-endpoint-uuid", result.snapmirrorEndpointUUID)
+	assert.Equal(t, []string{"test-backup-uuid"}, result.snapmirrorExcludes)
+	assert.True(t, result.snapshotRollbackRan)
+	assert.Equal(t, []string{"test-snapshot-uuid", "external-uuid"}, result.snapshotRollbackUUIDs)
+	env.AssertExpectations(t)
+}
+
 func TestBackupWorkflowGetSmSourcePathActivityFailure(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()

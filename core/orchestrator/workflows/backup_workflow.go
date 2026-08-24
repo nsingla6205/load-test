@@ -2,7 +2,6 @@ package workflows
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -168,7 +167,7 @@ func (wf *BackupCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	return wf.RunBackupCreateWithContext(ctx, backupActivitiesContext, params)
 }
 
-func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context, backupActivitiesContext *activities.BackupActivitiesContext, params *commonparams.CreateBackupParams) (interface{}, *vsaerrors.CustomError) {
+func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context, backupActivitiesContext *activities.BackupActivitiesContext, params *commonparams.CreateBackupParams) (_ interface{}, customErr *vsaerrors.CustomError) {
 	backupActivity := &activities.BackupActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
@@ -186,6 +185,16 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	rollbackManager := commonparams.NewRollbackManager()
+	defer func() {
+		// ContinueAsNew is not a failure: the backup continues in the next run.
+		if customErr != nil && !workflow.IsContinueAsNewError(customErr.OriginalErr) {
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			rollbackManager.ExecuteRollback(disconnectedCtx, customErr)
+		}
+	}()
+
 	// Check if this is a continuation workflow
 	info := workflow.GetInfo(ctx)
 	isContinuation := info.ContinuedExecutionRunID != ""
@@ -196,6 +205,8 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 			"continuedFromRunID", info.OriginalRunID,
 			"snapshotName", backupActivitiesContext.SnapshotName,
 			"transferStatus", backupActivitiesContext.TransferStatus)
+		registerExpertModeSnapmirrorRollback(rollbackManager, backupActivity, backupActivitiesContext)
+		registerExpertModeSnapshotRollback(rollbackManager, backupActivity, backupActivitiesContext)
 	} else {
 		var node *models.Node
 		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, backupActivitiesContext.BackupWorkflowInit.Volume.Pool).Get(ctx, &node)
@@ -264,6 +275,10 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 			return nil, ConvertToVSAError(err)
 		}
 
+		// In ONTAP mode the customer owns volume delete, and ONTAP refuses to delete a volume that
+		// still has a backup relationship, so a backup that never completes must not leave one behind.
+		registerExpertModeSnapmirrorRollback(rollbackManager, backupActivity, backupActivitiesContext)
+
 		// Creating snapshot in DB
 		err = workflow.ExecuteActivity(ctx, backupActivity.CreatingSnapshotActivity, backupActivitiesContext).Get(ctx, &backupActivitiesContext)
 		if err != nil {
@@ -287,12 +302,10 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 			return nil, ConvertToVSAError(err)
 		}
 
-		rollbackManager := commonparams.NewRollbackManager()
-		// Only add rollback activity if the required fields are not nil
-		if backupActivitiesContext.BackupWorkflowInit.Backup.Attributes != nil &&
-			backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes != nil {
-			rollbackManager.AddActivity(backupActivity.DeleteBackupSnapshot, backupActivitiesContext.Node, backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotID, backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID)
-		}
+		// Expert mode only: GCNV keeps the snapshot in the database too, and UpdateSnapshotActivity
+		// marks that row READY, so deleting it here would leave a snapshot the customer can see
+		// but ONTAP no longer has. DeleteSnapshotForBackup skips customer-supplied snapshots.
+		registerExpertModeSnapshotRollback(rollbackManager, backupActivity, backupActivitiesContext)
 
 		// Transfer snapshot
 		err = workflow.ExecuteActivity(ctx, backupActivity.TransferSnapshotActivity, backupActivitiesContext).Get(ctx, &backupActivitiesContext)
@@ -464,6 +477,27 @@ func (wf *BackupCreateWorkflow) PollTransferStatusWithContinueAsNew(ctx workflow
 	return PollTransferStatusWithContinueAsNewCommon(ctx, backupActivitiesContext, CreateBackupWorkflowWithContext, backupActivitiesContext, params)
 }
 
+func registerExpertModeSnapmirrorRollback(rollbackManager *commonparams.RollbackManager, backupActivity *activities.BackupActivity, ctx *activities.BackupActivitiesContext) {
+	if ctx == nil || !ctx.IsExpertMode || ctx.SnapmirrorRelationship == nil ||
+		ctx.BackupWorkflowInit == nil || ctx.BackupWorkflowInit.Backup == nil {
+		return
+	}
+	backup := ctx.BackupWorkflowInit.Backup
+	rollbackManager.AddActivity(backupActivity.DeleteSnapmirrorIfUnused, ctx.Node, backup.VolumeUUID,
+		ctx.SnapmirrorRelationship.EndpointUUID(), []string{backup.UUID}, ctx.SnapmirrorRelationship.UUID)
+}
+
+func registerExpertModeSnapshotRollback(rollbackManager *commonparams.RollbackManager, backupActivity *activities.BackupActivity, ctx *activities.BackupActivitiesContext) {
+	if ctx == nil || !ctx.IsExpertMode || ctx.BackupWorkflowInit == nil ||
+		ctx.BackupWorkflowInit.Backup == nil || ctx.BackupWorkflowInit.Backup.Attributes == nil ||
+		ctx.BackupWorkflowInit.Volume == nil || ctx.BackupWorkflowInit.Volume.VolumeAttributes == nil {
+		return
+	}
+	attributes := ctx.BackupWorkflowInit.Backup.Attributes
+	rollbackManager.AddActivity(backupActivity.DeleteSnapshotForBackup, ctx.Node, attributes.SnapshotID,
+		ctx.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID, attributes.UseExistingSnapshot)
+}
+
 func getBucketDetailsForBucket(backupVault *datamodel.BackupVault, bucketName string) (*datamodel.BucketDetails, error) {
 	for _, bucketDetail := range backupVault.BucketDetails {
 		if bucketDetail.BucketName == bucketName {
@@ -474,24 +508,11 @@ func getBucketDetailsForBucket(backupVault *datamodel.BackupVault, bucketName st
 }
 
 func backupDeleteEndpointMismatch(rel *commonparams.SnapmirrorRelationship, dbBackup *datamodel.Backup) bool {
-	if rel == nil || rel.DestinationUUID == nil || strings.TrimSpace(*rel.DestinationUUID) == "" {
-		return false
-	}
-	if dbBackup == nil || dbBackup.Attributes == nil {
-		return false
-	}
-	stored := strings.TrimSpace(dbBackup.Attributes.EndpointUUID)
-	if stored == "" {
-		return false
-	}
-	return !strings.EqualFold(stored, strings.TrimSpace(*rel.DestinationUUID))
+	return !commonparams.BackupEndpointMatches(rel.EndpointUUID(), commonparams.BackupEndpointUUID(dbBackup))
 }
 
 func backupAttributesTrimmedEndpointUUID(dbBackup *datamodel.Backup) string {
-	if dbBackup == nil || dbBackup.Attributes == nil {
-		return ""
-	}
-	return strings.TrimSpace(dbBackup.Attributes.EndpointUUID)
+	return commonparams.BackupEndpointUUID(dbBackup)
 }
 
 func DeleteBackupWorkflow(ctx workflow.Context, params *commonparams.DeleteBackupParams) (interface{}, error) {

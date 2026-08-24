@@ -1028,6 +1028,29 @@ type SnapmirrorRelationship struct {
 	TotalTransferBytes *int64
 }
 
+func (s *SnapmirrorRelationship) EndpointUUID() string {
+	if s == nil || s.DestinationUUID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*s.DestinationUUID)
+}
+
+func BackupEndpointUUID(backup *datamodel.Backup) string {
+	if backup == nil || backup.Attributes == nil {
+		return ""
+	}
+	return strings.TrimSpace(backup.Attributes.EndpointUUID)
+}
+
+func BackupEndpointMatches(endpointUUID, backupEndpointUUID string) bool {
+	endpointUUID = strings.TrimSpace(endpointUUID)
+	backupEndpointUUID = strings.TrimSpace(backupEndpointUUID)
+	if endpointUUID == "" || backupEndpointUUID == "" {
+		return true
+	}
+	return strings.EqualFold(endpointUUID, backupEndpointUUID)
+}
+
 type SnapmirrorDeletePrecheckResult struct {
 	RelationshipMissing bool
 	Relationship        *SnapmirrorRelationship

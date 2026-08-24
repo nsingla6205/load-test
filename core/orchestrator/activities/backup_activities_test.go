@@ -1929,6 +1929,153 @@ func TestDeleteSnapmirror(t *testing.T) {
 	})
 }
 
+// Backups on an object-store endpoint share that endpoint's SnapMirror relationship, so it may
+// only be deleted once no backup outside the current run still needs it.
+func TestDeleteSnapmirrorIfUnused(t *testing.T) {
+	const (
+		volumeUUID     = "volume-uuid"
+		endpointUUID   = "endpoint-uuid"
+		snapmirrorUUID = "snapmirror-uuid"
+		ourBackupUUID  = "our-backup-uuid"
+	)
+	exclude := []string{ourBackupUUID}
+	ourBackup := func() *datamodel.Backup {
+		return &datamodel.Backup{
+			BaseModel:  datamodel.BaseModel{UUID: ourBackupUUID},
+			State:      datamodel.LifeCycleStateCreating,
+			Attributes: &datamodel.BackupAttributes{EndpointUUID: endpointUUID},
+		}
+	}
+	backupOnEndpoint := func(uuid, state, endpoint string) *datamodel.Backup {
+		return &datamodel.Backup{
+			BaseModel:  datamodel.BaseModel{UUID: uuid},
+			State:      state,
+			Attributes: &datamodel.BackupAttributes{EndpointUUID: endpoint},
+		}
+	}
+
+	setup := func(t *testing.T, backups []*datamodel.Backup, backupsErr error) (*testsuite.TestActivityEnvironment, BackupActivity, *vsa.MockProvider) {
+		t.Helper()
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		store := database.NewMockStorage(t)
+		store.On("GetBackupsByVolumeUUID", mock.Anything, volumeUUID).Return(backups, backupsErr)
+		activity := BackupActivity{SE: store}
+		env.RegisterActivity(&activity)
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+		return env, activity, mockProvider
+	}
+
+	t.Run("deletesWhenOnlyThisRunsBackupExists", func(t *testing.T) {
+		env, activity, mockProvider := setup(t, []*datamodel.Backup{ourBackup()}, nil)
+		mockProvider.On("SnapmirrorRelationshipDelete", snapmirrorUUID).Return(&vsa.OntapAsyncResponse{}, nil).Once()
+
+		_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+		assert.NoError(t, err)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("deletesWhenOtherBackupsAreTerminal", func(t *testing.T) {
+		backups := []*datamodel.Backup{
+			ourBackup(),
+			backupOnEndpoint("failed-backup", datamodel.LifeCycleStateError, endpointUUID),
+			backupOnEndpoint("gone-backup", datamodel.LifeCycleStateDeleted, endpointUUID),
+		}
+		env, activity, mockProvider := setup(t, backups, nil)
+		mockProvider.On("SnapmirrorRelationshipDelete", snapmirrorUUID).Return(&vsa.OntapAsyncResponse{}, nil).Once()
+
+		_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+		assert.NoError(t, err)
+		mockProvider.AssertExpectations(t)
+	})
+
+	// A backup vault switch leaves the volume's earlier backups on the endpoint they were written
+	// to, and they keep their own relationship, so they must not block this one's teardown.
+	t.Run("deletesWhenOtherBackupsAreOnAnotherEndpoint", func(t *testing.T) {
+		backups := []*datamodel.Backup{
+			ourBackup(),
+			backupOnEndpoint("previous-vault-backup", datamodel.LifeCycleStateAvailable, "endpoint-of-previous-vault"),
+		}
+		env, activity, mockProvider := setup(t, backups, nil)
+		mockProvider.On("SnapmirrorRelationshipDelete", snapmirrorUUID).Return(&vsa.OntapAsyncResponse{}, nil).Once()
+
+		_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+		assert.NoError(t, err)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("keepsRelationshipForAvailableBackupOnSameEndpoint", func(t *testing.T) {
+		backups := []*datamodel.Backup{
+			ourBackup(),
+			backupOnEndpoint("earlier-backup", datamodel.LifeCycleStateAvailable, endpointUUID),
+		}
+		env, activity, mockProvider := setup(t, backups, nil)
+
+		_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+		assert.NoError(t, err)
+		mockProvider.AssertNotCalled(t, "SnapmirrorRelationshipDelete", snapmirrorUUID)
+	})
+
+	// A delete can fail and leave the backup in place, so DELETING is not terminal.
+	t.Run("keepsRelationshipForNonTerminalBackup", func(t *testing.T) {
+		for _, state := range []string{datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateCreating, datamodel.LifeCycleStateUpdating} {
+			t.Run(state, func(t *testing.T) {
+				backups := []*datamodel.Backup{ourBackup(), backupOnEndpoint("other-backup", state, endpointUUID)}
+				env, activity, mockProvider := setup(t, backups, nil)
+
+				_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+				assert.NoError(t, err)
+				mockProvider.AssertNotCalled(t, "SnapmirrorRelationshipDelete", snapmirrorUUID)
+			})
+		}
+	})
+
+	// Backups only record their endpoint once their relationship is known, and a relationship
+	// found rather than created may not report its destination, so an unknown endpoint on either
+	// side has to count as a user of this relationship.
+	t.Run("keepsRelationshipWhenEndpointIsUnknown", func(t *testing.T) {
+		for name, tc := range map[string]struct{ relationshipEndpoint, backupEndpoint string }{
+			"backupEndpointMissing":       {endpointUUID, ""},
+			"relationshipEndpointMissing": {"", "endpoint-of-previous-vault"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				backups := []*datamodel.Backup{
+					ourBackup(),
+					backupOnEndpoint("other-backup", datamodel.LifeCycleStateAvailable, tc.backupEndpoint),
+				}
+				env, activity, mockProvider := setup(t, backups, nil)
+
+				_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, tc.relationshipEndpoint, exclude, snapmirrorUUID)
+
+				assert.NoError(t, err)
+				mockProvider.AssertNotCalled(t, "SnapmirrorRelationshipDelete", snapmirrorUUID)
+			})
+		}
+	})
+
+	t.Run("keepsRelationshipWhenBackupLookupFails", func(t *testing.T) {
+		env, activity, mockProvider := setup(t, nil, errors.New("database unavailable"))
+
+		_, err := env.ExecuteActivity(activity.DeleteSnapmirrorIfUnused, &models.Node{}, volumeUUID, endpointUUID, exclude, snapmirrorUUID)
+
+		assert.Error(t, err)
+		assertOriginalErrContains(t, err, "database unavailable")
+		mockProvider.AssertNotCalled(t, "SnapmirrorRelationshipDelete", snapmirrorUUID)
+	})
+}
+
 func TestDeleteCloudEndpoint(t *testing.T) {
 	t.Run("onSuccessWithJob", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite

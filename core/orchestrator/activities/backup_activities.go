@@ -1398,6 +1398,48 @@ func (a BackupActivity) DeleteSnapmirror(ctx context.Context, node *models.Node,
 	return response, nil
 }
 
+// backupNeedsSnapmirror reports whether a backup in this state can still need its endpoint's
+// SnapMirror relationship. DELETING still counts, since a delete that fails leaves the backup in place.
+func backupNeedsSnapmirror(state string) bool {
+	switch state {
+	case datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeleted:
+		return false
+	default:
+		return true
+	}
+}
+
+// DeleteSnapmirrorIfUnused deletes the relationship only when no backup outside excludeBackupUUIDs
+// still needs it. Backups on endpointUUID share the relationship; those on other endpoints do not.
+func (a BackupActivity) DeleteSnapmirrorIfUnused(ctx context.Context, node *models.Node, volumeUUID, endpointUUID string, excludeBackupUUIDs []string, snapmirrorUUID string) (*vsa.OntapAsyncResponse, error) {
+	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Checking backups of volume %s before deleting snapmirror %s", volumeUUID, snapmirrorUUID))
+	backups, err := a.SE.GetBackupsByVolumeUUID(ctx, volumeUUID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	excluded := make(map[string]struct{}, len(excludeBackupUUIDs))
+	for _, backupUUID := range excludeBackupUUIDs {
+		excluded[backupUUID] = struct{}{}
+	}
+	for _, backup := range backups {
+		if _, ok := excluded[backup.UUID]; ok {
+			continue
+		}
+		if !backupNeedsSnapmirror(backup.State) {
+			continue
+		}
+		if !commonparams.BackupEndpointMatches(endpointUUID, commonparams.BackupEndpointUUID(backup)) {
+			continue
+		}
+		logger.Infof("Skipping snapmirror %s delete for volume %s: backup %s is in state %s", snapmirrorUUID, volumeUUID, backup.UUID, backup.State)
+		return nil, nil
+	}
+
+	return a.DeleteSnapmirror(ctx, node, snapmirrorUUID)
+}
+
 // DeleteCloudEndpoint Enhanced DeleteCloudEndpoint with idempotency
 func (a BackupActivity) DeleteCloudEndpoint(ctx context.Context, node *models.Node, objectStoreUUID string, EndpointUUID string) (*vsa.OntapAsyncResponse, error) {
 	recordHeartbeat(ctx, "delete cloud endpoint started")

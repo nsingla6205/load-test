@@ -405,6 +405,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	if isContinuation {
 		wf.Logger.Infof("Resuming backup workflow from continuation: workflowID=%s continuedFromRunID=%v snapshotName=%s transferStatus=%v",
 			wf.ID, info.OriginalRunID, scheduledBackupContext.SnapshotName, scheduledBackupContext.TransferStatus)
+		registerScheduledPreTransferRollback(preTransferRollbackManager, scheduledBackupContext, backupActivities, scheduledBackupActivities)
 	} else {
 		if cid, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx); err == nil {
 			scheduledBackupContext.CorrelationID = cid
@@ -507,11 +508,18 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 			SourceUUID:      nil,
 			IsRestore:       false,
 		}
-		scheduledBackupContext.SnapmirrorRelationship = snapmirrorRelationship
 		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorGetOrCreate, scheduledBackupContext.Node, &SnapmirrorRelationshipParams).Get(ctx, &snapmirrorRelationship)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
+		scheduledBackupContext.SnapmirrorRelationship = snapmirrorRelationship
+
+		// Backups from this run, excluded by the rollback below and the transfer check further down.
+		excludeBackupUUIDs := scheduledBackupExcludeUUIDs(backups)
+
+		// In ONTAP mode the customer owns volume delete, and ONTAP refuses to delete a volume that
+		// still has a backup relationship, so a backup that never completes must not leave one behind.
+		registerScheduledSnapmirrorRollback(preTransferRollbackManager, scheduledBackupContext, backupActivities, backups)
 
 		var snapshotName string
 		preTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.GenerateScheduledSnapshotName, timestamp).Get(ctx, &snapshotName)
@@ -556,11 +564,6 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 
 		// Check if any backup for the volume is in CREATING/DELETING state before starting Snapmirror transfer
 		// This prevents parallel transfers on the same Snapmirror instance
-		// Exclude the backups we're currently creating in this workflow
-		excludeBackupUUIDs := make([]string, len(backups))
-		for i, backup := range backups {
-			excludeBackupUUIDs[i] = backup.UUID
-		}
 		checkBackupStateActivityOptions := workflow.ActivityOptions{
 			StartToCloseTimeout:    30 * time.Second,
 			ScheduleToCloseTimeout: 23 * time.Hour,
@@ -987,4 +990,43 @@ func (wf *baseScheduledBackupWorkflow) CreateJob(ctx workflow.Context, accountID
 
 func (wf *createScheduledBackupWorkflow) PollTransferStatusWithContinueAsNew(ctx workflow.Context, backupActivitiesContext *activities.BackupActivitiesContext) error {
 	return workflows.PollTransferStatusWithContinueAsNewCommon(ctx, backupActivitiesContext, CreateScheduledBackupWorkflowWithContext, backupActivitiesContext)
+}
+
+func scheduledBackupExcludeUUIDs(backups []*datamodel.Backup) []string {
+	excludeBackupUUIDs := make([]string, 0, len(backups))
+	for _, backup := range backups {
+		if backup != nil {
+			excludeBackupUUIDs = append(excludeBackupUUIDs, backup.UUID)
+		}
+	}
+	return excludeBackupUUIDs
+}
+
+func registerScheduledSnapmirrorRollback(rollbackManager *common.RollbackManager, ctx *activities.BackupActivitiesContext, backupActivities *activities.BackupActivity, backups []*datamodel.Backup) {
+	if ctx == nil || !ctx.IsExpertMode || ctx.SnapmirrorRelationship == nil || len(backups) == 0 || backups[0] == nil {
+		return
+	}
+	rollbackManager.AddActivity(backupActivities.DeleteSnapmirrorIfUnused, ctx.Node, backups[0].VolumeUUID,
+		ctx.SnapmirrorRelationship.EndpointUUID(), scheduledBackupExcludeUUIDs(backups), ctx.SnapmirrorRelationship.UUID)
+}
+
+func registerScheduledPreTransferRollback(rollbackManager *common.RollbackManager, ctx *activities.BackupActivitiesContext, backupActivities *activities.BackupActivity, scheduledBackupActivities backgroundactivities.ScheduledBackupActivity) {
+	if ctx == nil || ctx.ScheduledBackupParams == nil {
+		return
+	}
+	backups := ctx.ScheduledBackupParams.Backups
+	for _, backup := range backups {
+		if backup != nil {
+			rollbackManager.AddActivity(backupActivities.DeleteBackup, backup.UUID)
+		}
+	}
+	registerScheduledSnapmirrorRollback(rollbackManager, ctx, backupActivities, backups)
+	if !ctx.IsExpertMode && ctx.DbSnapshot != nil {
+		rollbackManager.AddActivity(scheduledBackupActivities.DeleteBackupSnapshotInDB, ctx.DbSnapshot.UUID)
+	}
+	if snapshot := ctx.ScheduledBackupParams.OntapSnapshot; snapshot != nil && ctx.BackupWorkflowInit != nil &&
+		ctx.BackupWorkflowInit.Volume != nil && ctx.BackupWorkflowInit.Volume.VolumeAttributes != nil {
+		rollbackManager.AddActivity(backupActivities.DeleteBackupSnapshot, ctx.Node,
+			snapshot.ExternalUUID, ctx.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID)
+	}
 }

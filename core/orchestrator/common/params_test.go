@@ -4,8 +4,66 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
+
+func TestSnapmirrorRelationshipEndpointUUID(t *testing.T) {
+	tests := []struct {
+		name         string
+		relationship *SnapmirrorRelationship
+		want         string
+	}{
+		{name: "nil relationship", relationship: nil, want: ""},
+		{name: "no destination", relationship: &SnapmirrorRelationship{}, want: ""},
+		{name: "destination set", relationship: &SnapmirrorRelationship{DestinationUUID: ptrString("endpoint-uuid")}, want: "endpoint-uuid"},
+		{name: "destination padded", relationship: &SnapmirrorRelationship{DestinationUUID: ptrString("  endpoint-uuid  ")}, want: "endpoint-uuid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.relationship.EndpointUUID())
+		})
+	}
+}
+
+func TestBackupEndpointUUID(t *testing.T) {
+	tests := []struct {
+		name   string
+		backup *datamodel.Backup
+		want   string
+	}{
+		{name: "nil backup", backup: nil, want: ""},
+		{name: "no attributes", backup: &datamodel.Backup{}, want: ""},
+		{name: "endpoint set", backup: &datamodel.Backup{Attributes: &datamodel.BackupAttributes{EndpointUUID: " endpoint-uuid "}}, want: "endpoint-uuid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, BackupEndpointUUID(tt.backup))
+		})
+	}
+}
+
+func TestBackupEndpointMatches(t *testing.T) {
+	tests := []struct {
+		name           string
+		endpoint       string
+		backupEndpoint string
+		want           bool
+	}{
+		{name: "same endpoint", endpoint: "endpoint-a", backupEndpoint: "endpoint-a", want: true},
+		{name: "different endpoint", endpoint: "endpoint-a", backupEndpoint: "endpoint-b", want: false},
+		{name: "case differs", endpoint: "ENDPOINT-A", backupEndpoint: "endpoint-a", want: true},
+		{name: "padding differs", endpoint: " endpoint-a ", backupEndpoint: "endpoint-a", want: true},
+		// An endpoint we cannot read has to count as a match, so callers stay on the safe side.
+		{name: "endpoint unknown", endpoint: "", backupEndpoint: "endpoint-a", want: true},
+		{name: "backup endpoint unknown", endpoint: "endpoint-a", backupEndpoint: "  ", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, BackupEndpointMatches(tt.endpoint, tt.backupEndpoint))
+		})
+	}
+}
 
 func TestUpdateExternalClusterParams_HasUpdates(t *testing.T) {
 	tests := []struct {

@@ -86,6 +86,8 @@ func (s *ScheduledBackupsTestSuite) registerCreateScheduledBackupActivities(comm
 	s.env.RegisterActivity(backupActivity.GetSnapshotFromObjectStore)
 	s.env.RegisterActivity(scheduledBackupActivity.UpdateBackupSize)
 	s.env.RegisterActivity(backupActivity.DeleteBackupSnapshot)
+	s.env.RegisterActivity(backupActivity.DeleteSnapmirror)
+	s.env.RegisterActivity(backupActivity.DeleteSnapmirrorIfUnused)
 	s.env.RegisterActivity(backupActivity.UpdateBackupError)
 	s.env.RegisterActivity(backupActivity.DeleteSnapshotFromObjectStore)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -1434,7 +1436,7 @@ func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_FlexModeUs
 				SecretID: "pool-credential-secret-id",
 			},
 			DeploymentName: "test-pool-deployment",
-			PoolAttributes:  &datamodel.PoolAttributes{PrimaryZone: "test-zone-1"},
+			PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "test-zone-1"},
 		},
 		DataProtection: &datamodel.DataProtection{BackupVaultID: "backup-vault-uuid-1"},
 		VolumeAttributes: &datamodel.VolumeAttributes{
@@ -2649,6 +2651,221 @@ func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_GenerateSn
 		assert.Fail(s.T(), fmt.Sprintf("Expected ActivityError but got: %v", s.env.GetWorkflowError()))
 	}
 	s.env.AssertExpectations(s.T())
+}
+
+// scheduledSnapmirrorRollback records the SnapMirror teardown a failed scheduled backup ran.
+type scheduledSnapmirrorRollback struct {
+	called       bool
+	volumeUUID   string
+	endpointUUID string
+	excludes     []string
+}
+
+// runSnapmirrorRollbackScenario fails a scheduled backup right after the SnapMirror
+// relationship step and reports the SnapMirror teardown it ran as a rollback.
+func (s *ScheduledBackupsTestSuite) runSnapmirrorRollbackScenario(isExpertMode bool) scheduledSnapmirrorRollback {
+	scheduledWeeklyBackupDay = int(time.Now().UTC().Weekday())
+	scheduledMonthlyBackupDay = time.Now().UTC().Day()
+
+	// Expert-mode backup rows key off the ONTAP volume UUID, GCNV-managed ones off the VCP UUID.
+	backupVolumeUUID := "volume-uuid-1"
+	if isExpertMode {
+		backupVolumeUUID = "external-uuid-1"
+	}
+
+	mockStorage := database.NewMockStorage(s.T())
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	backupActivity := &activities.BackupActivity{SE: mockStorage}
+	scheduledBackupActivity := &backgroundactivities.ScheduledBackupActivity{SE: mockStorage}
+
+	s.registerCreateScheduledBackupActivities(commonActivity, backupActivity, scheduledBackupActivity)
+
+	s.env.OnActivity(commonActivity.CreateJob, mock.Anything, mock.Anything).Return(
+		&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}}, nil)
+	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, mock.Anything).
+		Return(&datamodel.BackupVault{
+			Name: "test-backup-vault",
+			BucketDetails: []*datamodel.BucketDetails{
+				{
+					BucketName:         "vsa-backup-bucket",
+					VendorSubnetID:     "pool-network-subnet",
+					ServiceAccountName: "test-service-account",
+				},
+			},
+		}, nil)
+	s.env.OnActivity(scheduledBackupActivity.CreateScheduledBackup, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, _ *datamodel.Volume, _ *datamodel.BackupVault, _, scheduleTag string, _ bool) (*datamodel.Backup, error) {
+			return &datamodel.Backup{
+				BaseModel:  datamodel.BaseModel{UUID: "scheduled-backup-" + scheduleTag},
+				VolumeUUID: backupVolumeUUID,
+				Attributes: &datamodel.BackupAttributes{},
+			}, nil
+		})
+	s.env.OnActivity(backupActivity.DeleteBackup, mock.Anything, mock.Anything).Return(nil, nil).Times(3)
+	s.mockScheduledBackupNodeAndObjectStore(backupActivity)
+
+	destinationUUID := "test-destination-uuid-1"
+	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&common.SnapmirrorRelationship{
+			UUID:            "test-snapmirror-uuid",
+			DestinationUUID: &destinationUUID,
+		}, nil)
+
+	rollback := scheduledSnapmirrorRollback{}
+	s.env.OnActivity(backupActivity.DeleteSnapmirrorIfUnused, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, "test-snapmirror-uuid").
+		Return(func(_ context.Context, _ *models.Node, volumeUUID, endpointUUID string, excludeBackupUUIDs []string, _ string) (*vsa.OntapAsyncResponse, error) {
+			rollback.called = true
+			rollback.volumeUUID = volumeUUID
+			rollback.endpointUUID = endpointUUID
+			rollback.excludes = excludeBackupUUIDs
+			return &vsa.OntapAsyncResponse{}, nil
+		}).Maybe()
+
+	s.env.OnActivity(scheduledBackupActivity.GenerateScheduledSnapshotName, mock.Anything, mock.Anything).
+		Return("", errors.New("could not generate snapshot name"))
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	apiAccessMode := ""
+	if isExpertMode {
+		apiAccessMode = PoolAccessModeOntap
+	}
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "volume-uuid-1"},
+		Name:      "test-volume-1",
+		Account:   &datamodel.Account{Name: "test-account"},
+		Svm:       &datamodel.Svm{Name: "test-svm-1"},
+		DataProtection: &datamodel.DataProtection{
+			BackupVaultID: "backup-vault-uuid-1",
+		},
+		PoolID: 1,
+		Pool: &datamodel.Pool{
+			APIAccessMode: apiAccessMode,
+			Network:       "pool-network-subnet",
+			PoolCredentials: &datamodel.PoolCredentials{
+				Password: "pool-password",
+				SecretID: "pool-credential-secret-id",
+			},
+			DeploymentName: "test-pool-deployment",
+		},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID:   "external-uuid-1",
+			VendorSubnetID: "pool-network-subnet",
+		},
+	}
+	backupPolicy := &datamodel.BackupPolicy{
+		AccountID:            1,
+		DailyBackupsToKeep:   3,
+		WeeklyBackupsToKeep:  1,
+		MonthlyBackupsToKeep: 1,
+	}
+	s.env.ExecuteWorkflow(CreateScheduledBackupWorkflow, volume, backupPolicy)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+	s.env.AssertExpectations(s.T())
+
+	return rollback
+}
+
+// ONTAP-mode volume delete is blocked by a leftover relationship, so a failed backup tears it down.
+func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_ExpertMode_DeletesSnapmirrorOnFailure() {
+	rollback := s.runSnapmirrorRollbackScenario(true)
+
+	assert.True(s.T(), rollback.called)
+	// The relationship is shared by the backups on its endpoint, so the teardown is scoped to the
+	// volume and endpoint and told to ignore every backup this run created.
+	assert.Equal(s.T(), "external-uuid-1", rollback.volumeUUID)
+	assert.Equal(s.T(), "test-destination-uuid-1", rollback.endpointUUID)
+	assert.ElementsMatch(s.T(), []string{
+		"scheduled-backup-" + common.ScheduleTagDaily,
+		"scheduled-backup-" + common.ScheduleTagWeekly,
+		"scheduled-backup-" + common.ScheduleTagMonthly,
+	}, rollback.excludes)
+}
+
+// GCNV-managed volumes keep their existing behaviour: no SnapMirror teardown on backup failure.
+func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_NonExpertMode_KeepsSnapmirrorOnFailure() {
+	assert.False(s.T(), s.runSnapmirrorRollbackScenario(false).called)
+}
+
+func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_ExpertModeContinuationFailure_DeletesSnapmirror() {
+	destinationUUID := "test-destination-uuid-1"
+	backupVolumeUUID := "external-uuid-1"
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "volume-uuid-1"},
+		Name:      "test-volume-1",
+		Account:   &datamodel.Account{Name: "test-account"},
+		Svm:       &datamodel.Svm{Name: "test-svm-1"},
+		PoolID:    1,
+		Pool: &datamodel.Pool{
+			APIAccessMode:   PoolAccessModeOntap,
+			Network:         "pool-network-subnet",
+			PoolCredentials: &datamodel.PoolCredentials{Password: "pool-password", SecretID: "pool-credential-secret-id"},
+			DeploymentName:  "test-pool-deployment",
+		},
+		DataProtection:   &datamodel.DataProtection{BackupVaultID: "backup-vault-uuid-1"},
+		VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: backupVolumeUUID, VendorSubnetID: "pool-network-subnet"},
+	}
+	backups := []*datamodel.Backup{
+		{BaseModel: datamodel.BaseModel{UUID: "scheduled-backup-daily"}, VolumeUUID: backupVolumeUUID, Attributes: &datamodel.BackupAttributes{}},
+		{BaseModel: datamodel.BaseModel{UUID: "scheduled-backup-weekly"}, VolumeUUID: backupVolumeUUID, Attributes: &datamodel.BackupAttributes{}},
+	}
+	ctx := &activities.BackupActivitiesContext{
+		BackupWorkflowInit: &activities.BackupWorkflowInput{Volume: volume},
+		Node:               &models.Node{EndpointAddress: "127.0.0.1"},
+		IsExpertMode:       true,
+		SnapshotName:       "scheduled-snapshot-name",
+		SnapmirrorRelationship: &common.SnapmirrorRelationship{
+			UUID:            "test-snapmirror-uuid",
+			DestinationUUID: &destinationUUID,
+		},
+		ScheduledBackupParams: &activities.ScheduledBackupParams{
+			BackupPolicy:  &datamodel.BackupPolicy{AccountID: 1, DailyBackupsToKeep: 3},
+			Backups:       backups,
+			OntapSnapshot: &vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snap-uuid"}},
+			Job:           &datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"}},
+		},
+	}
+
+	mockStorage := database.NewMockStorage(s.T())
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	backupActivity := &activities.BackupActivity{SE: mockStorage}
+	scheduledBackupActivity := &backgroundactivities.ScheduledBackupActivity{SE: mockStorage}
+	s.registerCreateScheduledBackupActivities(commonActivity, backupActivity, scheduledBackupActivity)
+
+	s.env.SetContinuedExecutionRunID("previous-run-id")
+	s.env.OnActivity("PollTransferStatusWithHistoryCheckActivity", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("transfer poll failed after continuation"))
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(backupActivity.DeleteBackup, mock.Anything, mock.Anything).Return(nil, nil)
+	s.env.OnActivity(backupActivity.DeleteBackupSnapshot, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	rollback := scheduledSnapmirrorRollback{}
+	s.env.OnActivity(backupActivity.DeleteSnapmirrorIfUnused, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, "test-snapmirror-uuid").
+		Return(func(_ context.Context, _ *models.Node, volumeUUID, endpointUUID string, excludeBackupUUIDs []string, _ string) (*vsa.OntapAsyncResponse, error) {
+			rollback.called = true
+			rollback.volumeUUID = volumeUUID
+			rollback.endpointUUID = endpointUUID
+			rollback.excludes = excludeBackupUUIDs
+			return &vsa.OntapAsyncResponse{}, nil
+		})
+
+	s.env.ExecuteWorkflow(CreateScheduledBackupWorkflowWithContext, ctx)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.ErrorContains(s.T(), s.env.GetWorkflowError(), "transfer poll failed after continuation")
+	assert.True(s.T(), rollback.called)
+	assert.Equal(s.T(), backupVolumeUUID, rollback.volumeUUID)
+	assert.Equal(s.T(), destinationUUID, rollback.endpointUUID)
+	assert.ElementsMatch(s.T(), []string{"scheduled-backup-daily", "scheduled-backup-weekly"}, rollback.excludes)
 }
 
 func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_CreateBackupSnapshotInDBFailure() {
