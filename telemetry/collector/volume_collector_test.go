@@ -758,6 +758,10 @@ func Test_GetVolumeMetrics_MultiVaultSameVolume_EmitsBMFPerVault(t *testing.T) {
 	assert.Equal(t, "Project1", result.HydratedMetricsDataModel[2].ConsumerID, "V1+Vault1 bills to Project1")
 	assert.Equal(t, float64(1024), result.HydratedMetricsDataModel[2].Quantity, "detached row billed on volume size")
 	assert.Equal(t, "V1", result.HydratedMetricsDataModel[2].ResourceName)
+
+	for i, hm := range result.HydratedMetricsDataModel {
+		assert.Equal(t, BackupModeDefault, backupModeOf(t, hm), "row [%d] should carry backup_mode=DEFAULT", i)
+	}
 }
 
 func Test_GetVolumeMetrics_GcbdrBackupBillingDisabled_VaultNotFound_SkipsBilling(t *testing.T) {
@@ -3716,5 +3720,702 @@ func Test_GetVolumeMetrics_ExpertModeVolumes_GcbdrBmfDisabled_SuppressesGcbdrBmf
 	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
 	require.NoError(t, err)
 	assert.Empty(t, result.HydratedMetricsDataModel)
+	m.AssertExpectations(t)
+}
+
+// backupModeOf extracts the "backup_mode" value from a HydratedMetrics row's JSONB Metadata.
+func backupModeOf(t *testing.T, hm datamodel2.HydratedMetrics) string {
+	t.Helper()
+	if len(hm.Metadata) == 0 {
+		return ""
+	}
+	var extra map[string]string
+	require.NoError(t, json.Unmarshal(hm.Metadata, &extra))
+	return extra["backup_mode"]
+}
+
+// Test_GetVolumeMetrics_ExpertModeVolume_DetachedGcbdrVault_BillsOntapWithoutDoubleBilling
+func Test_GetVolumeMetrics_ExpertModeVolume_DetachedGcbdrVault_BillsOntapWithoutDoubleBilling(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	backupChainBytes := int64(500)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           "expert-vol-1",
+			Name:           "ExpertVolume1",
+			SizeInBytes:    4096,
+			AccountName:    "ExpertVolumeOwnerProject",
+			DeploymentName: "ev1-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &backupChainBytes,
+				BackupVaultID:    "vault-active-uuid",
+			},
+		},
+	}
+
+	activeVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-active-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "ActiveVaultProject"},
+	}
+	detachedVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-detached-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "DetachedVaultProject"},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{activeVault, detachedVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	// Active vault (already billed; must dedupe) plus a detached vault with remaining backups.
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: "expert-vol-1", BackupVault: activeVault},
+		{VolumeUUID: "expert-vol-1", BackupVault: detachedVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         true,
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.Len(t, result.HydratedMetricsDataModel, 2,
+		"expected 2 BMF rows: expert volume active vault + detached vault (no double-billing)")
+
+	assert.Equal(t, "ActiveVaultProject", result.HydratedMetricsDataModel[0].ConsumerID)
+	assert.Equal(t, float64(4096), result.HydratedMetricsDataModel[0].Quantity)
+	assert.Equal(t, BackupModeOntap, backupModeOf(t, result.HydratedMetricsDataModel[0]),
+		"expert mode active-vault row should carry backup_mode=ONTAP")
+
+	assert.Equal(t, "DetachedVaultProject", result.HydratedMetricsDataModel[1].ConsumerID,
+		"ONTAP volume's detached vault should be billed to the detached vault's owning project")
+	assert.Equal(t, float64(4096), result.HydratedMetricsDataModel[1].Quantity,
+		"detached row billed on volume size")
+	assert.Equal(t, "ExpertVolume1", result.HydratedMetricsDataModel[1].ResourceName)
+	assert.Equal(t, BackupModeOntap, backupModeOf(t, result.HydratedMetricsDataModel[1]),
+		"ONTAP detached-vault row should carry backup_mode=ONTAP")
+
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_ExpertModeVolume_DetachedVaultJoinsOnExternalUUID: join on external UUID (backups.volume_uuid), not internal.
+func Test_GetVolumeMetrics_ExpertModeVolume_DetachedVaultJoinsOnExternalUUID(t *testing.T) {
+	const (
+		internalUUID = "expert-vol-internal-uuid"
+		externalUUID = "expert-vol-external-uuid"
+	)
+
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	backupChainBytes := int64(500)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           internalUUID,
+			ExternalUUID:   externalUUID,
+			Name:           "ExpertVolumeExtUUID",
+			SizeInBytes:    4096,
+			AccountName:    "VolumeOwnerProject",
+			DeploymentName: "ev-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &backupChainBytes,
+				BackupVaultID:    "vault-active-uuid",
+			},
+		},
+	}
+
+	activeVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-active-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "ActiveVaultProject"},
+	}
+	detachedVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-detached-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "DetachedVaultProject"},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{activeVault, detachedVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	// Chain tips reference the external UUID, matching how expert mode backups are written.
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: externalUUID, BackupVault: activeVault},
+		{VolumeUUID: externalUUID, BackupVault: detachedVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         true,
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	var bmfConsumers []string
+	for _, hm := range result.HydratedMetricsDataModel {
+		if hm.MeasuredType == string(metadata.BackupEnabledVolumeAllocatedSize) {
+			bmfConsumers = append(bmfConsumers, hm.ConsumerID)
+		}
+	}
+
+	// Active vault billed once, detached vault billed to its own project, neither twice.
+	assert.Equal(t, []string{"ActiveVaultProject", "DetachedVaultProject"}, bmfConsumers)
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_ExpertModeVolume_ActiveVaultBillingSkipped_DetachedVaultStillBilled
+func Test_GetVolumeMetrics_ExpertModeVolume_ActiveVaultBillingSkipped_DetachedVaultStillBilled(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	zeroChainBytes := int64(0)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           "expert-vol-skip",
+			Name:           "ExpertVolumeSkip",
+			SizeInBytes:    2048,
+			AccountName:    "ExpertVolumeOwnerProject",
+			DeploymentName: "evs-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &zeroChainBytes, // no active backup chain -> active-vault billing skipped
+			},
+		},
+	}
+
+	detachedVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-detached-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "DetachedVaultProject"},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{detachedVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: "expert-vol-skip", BackupVault: detachedVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         true,
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Detached vault still bills when active-vault billing is skipped (BackupChainBytes == 0).
+	require.Len(t, result.HydratedMetricsDataModel, 1,
+		"expert mode volume's detached vault must still be billed even though active-vault billing was skipped")
+	assert.Equal(t, "DetachedVaultProject", result.HydratedMetricsDataModel[0].ConsumerID)
+	assert.Equal(t, float64(2048), result.HydratedMetricsDataModel[0].Quantity)
+	assert.Equal(t, "ExpertVolumeSkip", result.HydratedMetricsDataModel[0].ResourceName)
+	assert.Equal(t, BackupModeOntap, backupModeOf(t, result.HydratedMetricsDataModel[0]))
+
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_ExpertModeBillingDisabled_OntapDetachedNotBilled
+func Test_GetVolumeMetrics_ExpertModeBillingDisabled_OntapDetachedNotBilled(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	volumes := []*database.VolumeMetricsData{
+		{
+			UUID:        "regular-vol-1",
+			Name:        "RegularVolume1",
+			SizeInBytes: 1024,
+			PoolID:      1,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				AccountName:    "RegularProject",
+				DeploymentName: "regular-deployment",
+				Protocols:      []string{"NFSv3"},
+			},
+			DataProtection: &datamodel.DataProtection{},
+		},
+	}
+
+	detachedVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-detached-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "DetachedVaultProject"},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return(volumes, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{detachedVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: "expert-vol-not-fetched", BackupVault: detachedVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: false,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         true,
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Empty(t, result.HydratedMetricsDataModel,
+		"ONTAP volume's detached chain tip should not be billed when EnableExpertModeBackupBilling is off")
+	m.AssertNotCalled(t, "ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything)
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_ExpertModeEnabled_GcbdrBackupBillingDisabled_SuppressesOntapDetachedBmf
+func Test_GetVolumeMetrics_ExpertModeEnabled_GcbdrBackupBillingDisabled_SuppressesOntapDetachedBmf(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      false,
+		EnableGcbdrBmfBilling:         true,
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	assert.Empty(t, result.HydratedMetricsDataModel)
+	m.AssertNotCalled(t, "GetBackupChainMetrics", mock.Anything, mock.Anything, mock.Anything)
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_ExpertModeEnabled_GcbdrBmfBillingDisabled_SuppressesOntapDetachedBmf
+func Test_GetVolumeMetrics_ExpertModeEnabled_GcbdrBmfBillingDisabled_SuppressesOntapDetachedBmf(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         false,
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	assert.Empty(t, result.HydratedMetricsDataModel)
+	m.AssertNotCalled(t, "GetBackupChainMetrics", mock.Anything, mock.Anything, mock.Anything)
+	m.AssertExpectations(t)
+}
+
+func Test_resolveDetachedBMFVolume(t *testing.T) {
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	poolMeta := map[int64]metadata.ResourceMetadata{
+		10: {ResourceType: metadata.VolumePoolRegionalHA},
+		20: {ResourceType: metadata.VolumePool},
+	}
+
+	regular := &database.VolumeMetricsData{
+		UUID:        "vol-regular",
+		Name:        "RegularVol",
+		SizeInBytes: 100,
+		PoolID:      20,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			AccountName: "AcctRegular",
+			Protocols:   []string{"NFSV3"},
+		},
+	}
+	regularHA := &database.VolumeMetricsData{
+		UUID:        "vol-regular-ha",
+		Name:        "RegularHA",
+		SizeInBytes: 200,
+		PoolID:      10,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			AccountName: "AcctRegularHA",
+			Protocols:   []string{"ISCSI"},
+		},
+	}
+	regularMissingPool := &database.VolumeMetricsData{
+		UUID:        "vol-missing-pool",
+		Name:        "MissingPool",
+		SizeInBytes: 50,
+		PoolID:      99,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			AccountName: "AcctMissingPool",
+		},
+	}
+	expert := &database.ExpertModeVolumeMetricsData{
+		UUID:         "vol-expert-internal",
+		ExternalUUID: "vol-expert-external",
+		Name:         "ExpertVol",
+		SizeInBytes:  300,
+		PoolID:       10,
+		AccountName:  "AcctExpert",
+		VolumeAttributes: &datamodel.ExpertModeVolumeAttributes{
+			Protocols: []string{"NFSV3"},
+		},
+	}
+
+	t.Run("regular volume", func(t *testing.T) {
+		got, ok := resolveDetachedBMFVolume(regular.UUID,
+			map[string]*database.VolumeMetricsData{regular.UUID: regular},
+			nil, poolMeta, config)
+		require.True(t, ok)
+		assert.Equal(t, "AcctRegular", got.accountName)
+		assert.Equal(t, metadata.Volume, got.resourceType)
+		assert.False(t, got.isSANProtocol)
+		assert.Equal(t, BackupModeDefault, got.backupMode)
+		assert.Equal(t, int64(100), got.sizeInBytes)
+	})
+
+	t.Run("regular regional HA", func(t *testing.T) {
+		got, ok := resolveDetachedBMFVolume(regularHA.UUID,
+			map[string]*database.VolumeMetricsData{regularHA.UUID: regularHA},
+			nil, poolMeta, config)
+		require.True(t, ok)
+		assert.Equal(t, metadata.VolumeRegionalHA, got.resourceType)
+		assert.True(t, got.isSANProtocol)
+	})
+
+	t.Run("regular missing pool metadata defaults to Volume", func(t *testing.T) {
+		got, ok := resolveDetachedBMFVolume(regularMissingPool.UUID,
+			map[string]*database.VolumeMetricsData{regularMissingPool.UUID: regularMissingPool},
+			nil, poolMeta, config)
+		require.True(t, ok)
+		assert.Equal(t, metadata.Volume, got.resourceType)
+	})
+
+	t.Run("expert volume", func(t *testing.T) {
+		got, ok := resolveDetachedBMFVolume(expert.BackupVolumeUUID(),
+			nil,
+			map[string]*database.ExpertModeVolumeMetricsData{expert.BackupVolumeUUID(): expert},
+			poolMeta, config)
+		require.True(t, ok)
+		assert.Equal(t, "AcctExpert", got.accountName)
+		assert.Equal(t, metadata.VolumeRegionalHA, got.resourceType)
+		assert.Equal(t, BackupModeOntap, got.backupMode)
+	})
+
+	t.Run("regular wins over expert for same UUID", func(t *testing.T) {
+		got, ok := resolveDetachedBMFVolume(regular.UUID,
+			map[string]*database.VolumeMetricsData{regular.UUID: regular},
+			map[string]*database.ExpertModeVolumeMetricsData{regular.UUID: expert},
+			poolMeta, config)
+		require.True(t, ok)
+		assert.Equal(t, BackupModeDefault, got.backupMode)
+		assert.Equal(t, "AcctRegular", got.accountName)
+	})
+
+	t.Run("missing volume", func(t *testing.T) {
+		_, ok := resolveDetachedBMFVolume("unknown", nil, nil, poolMeta, config)
+		assert.False(t, ok)
+	})
+
+	t.Run("empty account skipped", func(t *testing.T) {
+		noAcct := &database.VolumeMetricsData{
+			UUID: "vol-no-acct",
+			Name: "NoAcct",
+		}
+		_, ok := resolveDetachedBMFVolume(noAcct.UUID,
+			map[string]*database.VolumeMetricsData{noAcct.UUID: noAcct},
+			nil, poolMeta, config)
+		assert.False(t, ok)
+	})
+}
+
+// Test_GetVolumeMetrics_AllFlagsEnabled_ActiveAndDetachedSameProject_BilledOnce verifies the
+// prefetch fix: with every billing flag ON, the backup vault map is still loaded, so the
+// active cross-project row is attributed to the vault project and the detached pass dedupes
+// against it instead of double-billing the same volume/project.
+func Test_GetVolumeMetrics_AllFlagsEnabled_ActiveAndDetachedSameProject_BilledOnce(t *testing.T) {
+	const (
+		internalUUID = "expert-vol-internal"
+		externalUUID = "expert-vol-external"
+	)
+
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	backupChainBytes := int64(500)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           internalUUID,
+			ExternalUUID:   externalUUID,
+			Name:           "ExpertVolumeAllFlags",
+			SizeInBytes:    4096,
+			AccountName:    "VolumeOwnerProject",
+			DeploymentName: "ev-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &backupChainBytes,
+				BackupVaultID:    "vault-active-uuid",
+			},
+		},
+	}
+
+	// Active and detached vaults belong to the same cross-project owner, so both the active
+	// loop and the detached pass resolve the same billing account.
+	activeVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-active-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "SharedVaultProject"},
+	}
+	detachedVault := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{UUID: "vault-detached-uuid"},
+		ServiceType: datamodel.ServiceTypeCrossProject,
+		Account:     &datamodel.Account{Name: "SharedVaultProject"},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{activeVault, detachedVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: externalUUID, BackupVault: activeVault},
+		{VolumeUUID: externalUUID, BackupVault: detachedVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	// Every billing flag enabled — this is the case that previously skipped the prefetch.
+	config := &common.TelemetryConfig{
+		RegionName:                            "us-east-1",
+		EnableBackupBillingMetrics:            true,
+		EnableFilesBackupBilling:              true,
+		EnableExpertModeBackupBilling:         true,
+		EnableGcbdrBackupBilling:              true,
+		EnableGcbdrBmfBilling:                 true,
+		EnableCrossRegionBackupBillingMetrics: true,
+		EnableCmekBackupBilling:               true,
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	var bmfConsumers []string
+	for _, hm := range result.HydratedMetricsDataModel {
+		if hm.MeasuredType == string(metadata.BackupEnabledVolumeAllocatedSize) {
+			bmfConsumers = append(bmfConsumers, hm.ConsumerID)
+		}
+	}
+
+	// Exactly one BMF row, attributed to the vault project, not double-billed by the detached pass.
+	assert.Equal(t, []string{"SharedVaultProject"}, bmfConsumers)
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_DetachedCmekVault_CmekBillingDisabled_NotBilled verifies the detached
+// pass applies the same CMEK skip as the active path: a detached CMEK vault must not be billed
+// when CMEK backup billing is disabled.
+func Test_GetVolumeMetrics_DetachedCmekVault_CmekBillingDisabled_NotBilled(t *testing.T) {
+	const (
+		internalUUID = "expert-cmek-internal"
+		externalUUID = "expert-cmek-external"
+	)
+
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	// No active chain, so only the detached pass can produce a row.
+	zeroChainBytes := int64(0)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           internalUUID,
+			ExternalUUID:   externalUUID,
+			Name:           "ExpertVolumeCmek",
+			SizeInBytes:    4096,
+			AccountName:    "VolumeOwnerProject",
+			DeploymentName: "ev-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &zeroChainBytes,
+			},
+		},
+	}
+
+	kmsPath := "projects/p/locations/l/keyRings/kr/cryptoKeys/k"
+	detachedCmekVault := &datamodel.BackupVault{
+		BaseModel:      datamodel.BaseModel{UUID: "vault-cmek-uuid"},
+		ServiceType:    datamodel.ServiceTypeCrossProject,
+		Account:        &datamodel.Account{Name: "DetachedVaultProject"},
+		CmekAttributes: &datamodel.CmekAttributes{KmsConfigResourcePath: &kmsPath},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{detachedCmekVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: externalUUID, BackupVault: detachedCmekVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                    "us-east-1",
+		EnableBackupBillingMetrics:    true,
+		EnableFilesBackupBilling:      true,
+		EnableExpertModeBackupBilling: true,
+		EnableGcbdrBackupBilling:      true,
+		EnableGcbdrBmfBilling:         true,
+		EnableCmekBackupBilling:       false, // CMEK billing off -> CMEK vault must be skipped
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	for _, hm := range result.HydratedMetricsDataModel {
+		assert.NotEqual(t, string(metadata.BackupEnabledVolumeAllocatedSize), hm.MeasuredType,
+			"detached CMEK vault must not be billed when CMEK billing is disabled")
+	}
+	m.AssertExpectations(t)
+}
+
+// Test_GetVolumeMetrics_DetachedCrossRegionVault_CrbBillingDisabled_NotBilled verifies the
+// detached pass applies the same cross-region skip as the active path: a detached cross-region
+// vault must not be billed when CRB billing is disabled.
+func Test_GetVolumeMetrics_DetachedCrossRegionVault_CrbBillingDisabled_NotBilled(t *testing.T) {
+	const (
+		internalUUID = "expert-crb-internal"
+		externalUUID = "expert-crb-external"
+	)
+
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+
+	zeroChainBytes := int64(0)
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:           internalUUID,
+			ExternalUUID:   externalUUID,
+			Name:           "ExpertVolumeCrb",
+			SizeInBytes:    4096,
+			AccountName:    "VolumeOwnerProject",
+			DeploymentName: "ev-deployment",
+			BackupConfig: &datamodel.DataProtection{
+				BackupChainBytes: &zeroChainBytes,
+			},
+		},
+	}
+
+	srcRegion := "us-east-1"
+	dstRegion := "us-west-1"
+	detachedCrbVault := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{UUID: "vault-crb-uuid"},
+		ServiceType:      datamodel.ServiceTypeCrossProject,
+		Account:          &datamodel.Account{Name: "DetachedVaultProject"},
+		SourceRegionName: &srcRegion,
+		BackupRegionName: &dstRegion,
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
+	m.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{detachedCrbVault}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(expertVolumes, nil).Once()
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil)
+
+	chainTips := []*datamodel.Backup{
+		{VolumeUUID: externalUUID, BackupVault: detachedCrbVault},
+	}
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset == 0
+	})).Return(chainTips, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *utils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	config := &common.TelemetryConfig{
+		RegionName:                            "us-east-1",
+		EnableBackupBillingMetrics:            true,
+		EnableFilesBackupBilling:              true,
+		EnableExpertModeBackupBilling:         true,
+		EnableGcbdrBackupBilling:              true,
+		EnableGcbdrBmfBilling:                 true,
+		EnableCrossRegionBackupBillingMetrics: false, // CRB billing off -> cross-region vault skipped
+	}
+
+	result, err := GetVolumeMetrics(ctx, m, config, make(map[int64]metadata.ResourceMetadata), time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	for _, hm := range result.HydratedMetricsDataModel {
+		assert.NotEqual(t, string(metadata.BackupEnabledVolumeAllocatedSize), hm.MeasuredType,
+			"detached cross-region vault must not be billed when CRB billing is disabled")
+	}
 	m.AssertExpectations(t)
 }

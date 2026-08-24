@@ -66,19 +66,13 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	// pair — e.g. when the active vault and a detached vault belong to the same project.
 	emittedBMF := make(map[bmfDedupeKey]struct{})
 
-	// Pre-fetch backup vaults when needed.
-	//   - Flag off (main behaviour): only prefetch when at least one of the billing
-	//     skip filters (CRB, CMEK, GCBDR, GCBDR BMF) is disabled, since that is the only caller.
-	//   - Flag on: always prefetch. The cross-project account override and the
-	//     detached-vault BMF pass both need the map even when all skip flags are on.
+	// Pre-fetch backup vaults whenever backup billing is enabled. The individual billing
+	// flags (CRB, CMEK, GCBDR, GCBDR BMF) are feature gates that decide eligibility and
+	// attribution using this map; they do not control whether it is loaded. Loading it
+	// unconditionally keeps active cross-project attribution and the detached-vault BMF
+	// pass correct even when every skip flag is on.
 	backupVaultMap := make(map[string]*datamodel.BackupVault)
-	prefetchBackupVaults := config.EnableBackupBillingMetrics &&
-		(!config.EnableGcbdrBackupBilling ||
-			!config.EnableGcbdrBmfBilling ||
-			!config.EnableExpertModeBackupBilling ||
-			!config.EnableCrossRegionBackupBillingMetrics ||
-			!config.EnableCmekBackupBilling)
-	if prefetchBackupVaults {
+	if config.EnableBackupBillingMetrics {
 		backupVaults, err := vcpDB.GetMultipleBackupVaults(ctx, nil)
 		if err != nil {
 			logger.Error("Failed to fetch backup vaults for billing filters", "error", err.Error())
@@ -175,49 +169,10 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 					metric := setupHydratedMetric(timestamp, volumeMetadata, metadata.BackupEnabledVolumeAllocatedSize, float64(allocatedSize))
 					metric.Metadata.ResourceType = resourceType
 
-					// Skip BMF billing metrics for volume with cross-region backupVaults
-					// TODO: CRB billing is temporary disabled for preview. Will enable cross-region backup billing metrics as per VSCP-3455.
-					skipBilling := false
-					if !config.EnableCrossRegionBackupBillingMetrics && volume.DataProtection.BackupVaultID != "" {
-						if bv, exists := backupVaultMap[volume.DataProtection.BackupVaultID]; exists {
-							if bv.SourceRegionName != nil && bv.BackupRegionName != nil && *bv.SourceRegionName != *bv.BackupRegionName {
-								logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for volume with cross-region backup vault", "volumeUUID", volume.UUID)
-								skipBilling = true
-							}
-						} else {
-							logger.Error("Backup vault not found in map", "backupVaultID", volume.DataProtection.BackupVaultID, "for volumeUUID", volume.UUID)
-							skipBilling = true
-						}
-					}
-
-					// Additionally skip billing for CMEK backup vaults when CMEK backup billing is disabled.
-					if !skipBilling && !config.EnableCmekBackupBilling && volume.DataProtection.BackupVaultID != "" {
-						if bv, exists := backupVaultMap[volume.DataProtection.BackupVaultID]; exists {
-							if bv.CmekAttributes != nil && bv.CmekAttributes.KmsConfigResourcePath != nil && *bv.CmekAttributes.KmsConfigResourcePath != "" {
-								logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for CMEK backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.DataProtection.BackupVaultID)
-								skipBilling = true
-							}
-						} else {
-							// Conservative: if we can't look up the vault while CMEK billing is disabled,
-							// treat it as non-billable to avoid incorrectly billing CMEK backups.
-							logger.Error("Backup vault not found in map for CMEK billing check", "backupVaultID", volume.DataProtection.BackupVaultID, "for volumeUUID", volume.UUID)
-							skipBilling = true
-						}
-					}
-
-					// Skip billing for cross-project backup vaults when GCBDR BMF billing is disabled.
-					if !skipBilling && volume.DataProtection.BackupVaultID != "" {
-						if bv, exists := backupVaultMap[volume.DataProtection.BackupVaultID]; exists {
-							if bv.ServiceType == datamodel.ServiceTypeCrossProject &&
-								(!config.EnableGcbdrBackupBilling || !config.EnableGcbdrBmfBilling) {
-								logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for cross-project backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.DataProtection.BackupVaultID)
-								skipBilling = true
-							}
-						} else if !config.EnableGcbdrBackupBilling {
-							logger.Error("Backup vault not found in map for cross-project billing check", "backupVaultID", volume.DataProtection.BackupVaultID, "for volumeUUID", volume.UUID)
-							skipBilling = true
-						}
-					}
+					// Skip BMF billing metrics for volumes whose vault feature (CRB/CMEK/GCBDR)
+					// is disabled. TODO: CRB billing is temporarily disabled for preview; will
+					// enable cross-region backup billing metrics as per VSCP-3455.
+					skipBilling := shouldSkipBMFForVault(ctx, config, volume.DataProtection.BackupVaultID, lookupBackupVault(backupVaultMap, volume.DataProtection.BackupVaultID), volume.UUID)
 
 					if !skipBilling {
 						// For cross-project backup vaults, bill to the vault's owning project instead of the volume owner.
@@ -266,13 +221,15 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 		}
 	}
 
-	// Process expert mode volumes for backup management fee billing.
+	// Expert-mode BMF; map stays empty when expert mode billing is disabled.
+	expertVolumeMap := make(map[string]*database.ExpertModeVolumeMetricsData)
 	if config.EnableBackupBillingMetrics && config.EnableExpertModeBackupBilling {
-		expertModeMetrics, err := getExpertModeVolumeBackupMetrics(ctx, vcpDB, config, poolMetadataMap, backupVaultMap, accountStateMap, timestamp)
+		expertModeMetrics, fetchedExpertVolumes, err := getExpertModeVolumeBackupMetrics(ctx, vcpDB, config, poolMetadataMap, backupVaultMap, accountStateMap, emittedBMF, timestamp)
 		if err != nil {
 			logger.Error("Failed to get expert mode volume backup metrics", "error", err.Error())
 		} else {
 			hydratedMetrics = append(hydratedMetrics, expertModeMetrics...)
+			expertVolumeMap = fetchedExpertVolumes
 		}
 	}
 
@@ -284,7 +241,7 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	// has since detached from. Backups across multiple endpoints of the same vault are
 	// collapsed to a single row (billed on volume allocated size).
 	if config.EnableBackupBillingMetrics && config.EnableGcbdrBackupBilling && config.EnableGcbdrBmfBilling {
-		hydratedMetrics = append(hydratedMetrics, collectDetachedVaultBMF(ctx, vcpDB, config, volumes, backupVaultMap, accountStateMap, poolMetadataMap, emittedBMF, timestamp)...)
+		hydratedMetrics = append(hydratedMetrics, collectDetachedVaultBMF(ctx, vcpDB, config, volumes, expertVolumeMap, backupVaultMap, accountStateMap, poolMetadataMap, emittedBMF, timestamp)...)
 	}
 
 	// Return the structured result
@@ -298,7 +255,8 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 
 // getExpertModeVolumeBackupMetrics generates BackupEnabledVolumeAllocatedSize hydrated metrics
 // for expert mode volumes that have active backup chains, emitting the
-// /BackupManagementFeeGbBillable SKU when the volume qualifies for billing.
+// /BackupManagementFeeGbBillable SKU when the volume qualifies for billing. It also returns a
+// map of every expert mode volume fetched (regardless of whether it was billed here)
 func getExpertModeVolumeBackupMetrics(
 	ctx context.Context,
 	vcpDB database.Storage,
@@ -306,11 +264,13 @@ func getExpertModeVolumeBackupMetrics(
 	poolMetadataMap map[int64]metadata.ResourceMetadata,
 	backupVaultMap map[string]*datamodel.BackupVault,
 	accountStateMap map[string]string,
+	emittedBMF map[bmfDedupeKey]struct{},
 	timestamp time.Time,
-) ([]datamodel2.HydratedMetrics, error) {
+) ([]datamodel2.HydratedMetrics, map[string]*database.ExpertModeVolumeMetricsData, error) {
 	logger := util.GetLogger(ctx)
 
 	var hydratedMetrics []datamodel2.HydratedMetrics
+	expertVolumeDataMap := make(map[string]*database.ExpertModeVolumeMetricsData)
 
 	offset := 0
 	limit := config.PoolVolumeLabelPageSize
@@ -324,7 +284,7 @@ func getExpertModeVolumeBackupMetrics(
 
 		expertVolumes, err := vcpDB.ListExpertModeVolumesForTelemetryMetrics(ctx, pagination)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list expert mode volumes for backup billing metrics (offset %d): %w", offset, err)
+			return nil, nil, fmt.Errorf("failed to list expert mode volumes for backup billing metrics (offset %d): %w", offset, err)
 		}
 
 		if len(expertVolumes) == 0 {
@@ -334,6 +294,10 @@ func getExpertModeVolumeBackupMetrics(
 		logger.Info(fmt.Sprintf("Processing %d expert mode volumes for backup billing metrics (offset %d)", len(expertVolumes), offset))
 
 		for _, volume := range expertVolumes {
+			// Key by backups.volume_uuid identity (external UUID for expert mode) for detached-vault joins.
+			if volume.BackupVolumeUUID() != "" {
+				expertVolumeDataMap[volume.BackupVolumeUUID()] = volume
+			}
 			if volume.AccountName == "" {
 				logger.Error(fmt.Sprintf("Expert mode volume account name is missing for volume %s", volume.UUID))
 				continue
@@ -360,49 +324,7 @@ func getExpertModeVolumeBackupMetrics(
 				}
 			}
 
-			skipBilling := false
-
-			// Skip for cross-region backup vaults when CRB billing is disabled.
-			if !config.EnableCrossRegionBackupBillingMetrics && volume.BackupConfig.BackupVaultID != "" {
-				if bv, exists := backupVaultMap[volume.BackupConfig.BackupVaultID]; exists {
-					if bv.SourceRegionName != nil && bv.BackupRegionName != nil && *bv.SourceRegionName != *bv.BackupRegionName {
-						logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing for expert mode volume with cross-region backup vault", "volumeUUID", volume.UUID)
-						skipBilling = true
-					}
-				} else {
-					logger.Error("Backup vault not found in map for expert mode volume", "backupVaultID", volume.BackupConfig.BackupVaultID, "volumeUUID", volume.UUID)
-					skipBilling = true
-				}
-			}
-
-			// Skip for CMEK backup vaults when CMEK billing is disabled.
-			if !skipBilling && !config.EnableCmekBackupBilling && volume.BackupConfig.BackupVaultID != "" {
-				if bv, exists := backupVaultMap[volume.BackupConfig.BackupVaultID]; exists {
-					if bv.CmekAttributes != nil && bv.CmekAttributes.KmsConfigResourcePath != nil && *bv.CmekAttributes.KmsConfigResourcePath != "" {
-						logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing for expert mode volume with CMEK backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.BackupConfig.BackupVaultID)
-						skipBilling = true
-					}
-				} else {
-					logger.Error("Backup vault not found in map for CMEK billing check (expert mode volume)", "backupVaultID", volume.BackupConfig.BackupVaultID, "volumeUUID", volume.UUID)
-					skipBilling = true
-				}
-			}
-
-			// Skip for cross-project backup vaults when GCBDR BMF billing is disabled.
-			if !skipBilling && volume.BackupConfig.BackupVaultID != "" {
-				if bv, exists := backupVaultMap[volume.BackupConfig.BackupVaultID]; exists {
-					if bv.ServiceType == datamodel.ServiceTypeCrossProject &&
-						(!config.EnableGcbdrBackupBilling || !config.EnableGcbdrBmfBilling) {
-						logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing for expert mode volume with cross-project backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.BackupConfig.BackupVaultID)
-						skipBilling = true
-					}
-				} else if !config.EnableGcbdrBackupBilling {
-					logger.Error("Backup vault not found in map for cross-project billing check (expert mode volume)", "backupVaultID", volume.BackupConfig.BackupVaultID, "volumeUUID", volume.UUID)
-					skipBilling = true
-				}
-			}
-
-			if skipBilling {
+			if shouldSkipBMFForVault(ctx, config, volume.BackupConfig.BackupVaultID, lookupBackupVault(backupVaultMap, volume.BackupConfig.BackupVaultID), volume.UUID) {
 				continue
 			}
 
@@ -434,6 +356,8 @@ func getExpertModeVolumeBackupMetrics(
 				// Expert mode volumes always use ONTAP mode.
 				setBackupModeMetadata(hm, BackupModeOntap)
 				hydratedMetrics = append(hydratedMetrics, *hm)
+				// Same key as the detached-vault pass so the active vault is not billed twice.
+				emittedBMF[bmfDedupeKey{VolumeUUID: volume.BackupVolumeUUID(), BillingAccount: billingAccountName}] = struct{}{}
 			}
 		}
 
@@ -443,7 +367,7 @@ func getExpertModeVolumeBackupMetrics(
 
 	logger.Info(fmt.Sprintf("Processed %d expert mode volumes for backup billing metrics", totalProcessed))
 
-	return hydratedMetrics, nil
+	return hydratedMetrics, expertVolumeDataMap, nil
 }
 
 // assembleExpertModeVolumeMetadata creates ResourceMetadata for an expert mode volume.
@@ -460,17 +384,83 @@ func assembleExpertModeVolumeMetadata(volume *database.ExpertModeVolumeMetricsDa
 	return met
 }
 
+// lookupBackupVault returns the vault for vaultID from the prefetched map, or nil when the
+// id is empty or absent. A nil return lets shouldSkipBMFForVault apply its conservative
+// (skip when the feature is disabled and the vault cannot be inspected) behaviour.
+func lookupBackupVault(backupVaultMap map[string]*datamodel.BackupVault, vaultID string) *datamodel.BackupVault {
+	if vaultID == "" {
+		return nil
+	}
+	return backupVaultMap[vaultID]
+}
+
+// shouldSkipBMFForVault reports whether a BMF row must be suppressed for the vault identified
+// by vaultID, based on feature flags. vault is the looked-up vault (nil on miss). It is shared
+// by the active regular loop, the expert-mode loop, and the detached-vault pass so the
+// CRB/CMEK/cross-project eligibility rules cannot drift between them. An empty vaultID means
+// the volume has no attached vault, so no vault-based skip applies.
+func shouldSkipBMFForVault(ctx context.Context, config *common.TelemetryConfig, vaultID string, vault *datamodel.BackupVault, volumeUUID string) bool {
+	if vaultID == "" {
+		return false
+	}
+	logger := util.GetLogger(ctx)
+
+	// Cross-region backup vaults when CRB billing is disabled.
+	if !config.EnableCrossRegionBackupBillingMetrics {
+		if vault != nil {
+			if vault.SourceRegionName != nil && vault.BackupRegionName != nil && *vault.SourceRegionName != *vault.BackupRegionName {
+				logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for cross-region backup vault", "volumeUUID", volumeUUID, "backupVaultID", vaultID)
+				return true
+			}
+		} else {
+			logger.Error("Backup vault not found in map", "backupVaultID", vaultID, "volumeUUID", volumeUUID)
+			return true
+		}
+	}
+
+	// CMEK backup vaults when CMEK billing is disabled. Conservative: if the vault cannot be
+	// looked up while CMEK billing is off, treat it as non-billable.
+	if !config.EnableCmekBackupBilling {
+		if vault != nil {
+			if vault.CmekAttributes != nil && vault.CmekAttributes.KmsConfigResourcePath != nil && *vault.CmekAttributes.KmsConfigResourcePath != "" {
+				logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for CMEK backup vault", "volumeUUID", volumeUUID, "backupVaultID", vaultID)
+				return true
+			}
+		} else {
+			logger.Error("Backup vault not found in map for CMEK billing check", "backupVaultID", vaultID, "volumeUUID", volumeUUID)
+			return true
+		}
+	}
+
+	// Cross-project backup vaults when GCBDR BMF billing is disabled.
+	if vault != nil {
+		if vault.ServiceType == datamodel.ServiceTypeCrossProject &&
+			(!config.EnableGcbdrBackupBilling || !config.EnableGcbdrBmfBilling) {
+			logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for cross-project backup vault", "volumeUUID", volumeUUID, "backupVaultID", vaultID)
+			return true
+		}
+	} else if !config.EnableGcbdrBackupBilling {
+		logger.Error("Backup vault not found in map for cross-project billing check", "backupVaultID", vaultID, "volumeUUID", volumeUUID)
+		return true
+	}
+
+	return false
+}
+
 // collectDetachedVaultBMF emits BackupEnabledVolumeAllocatedSize (BMF) billing rows for
 // (volume, vault) pairs where available backups exist in vaults other than the volume's
 // currently-attached vault. The active-vault row is produced by the main per-volume loop
-// in GetVolumeMetrics; this function covers GCBDR vault switching where a volume still
-// has backups in detached vaults. Chain tips across multiple endpoints of the same vault
-// collapse into a single billing row (volume allocated size billed once per vault).
+// in GetVolumeMetrics (regular volumes) and by getExpertModeVolumeBackupMetrics (ONTAP/expert
+// mode volumes); this function covers GCBDR vault switching where a volume still has backups
+// in detached vaults, for both regular and expert mode volumes. Chain tips across multiple
+// endpoints of the same vault collapse into a single billing row (volume allocated size billed
+// once per vault).
 func collectDetachedVaultBMF(
 	ctx context.Context,
 	vcpDB database.Storage,
 	config *common.TelemetryConfig,
 	volumes []*database.VolumeMetricsData,
+	expertVolumeDataMap map[string]*database.ExpertModeVolumeMetricsData,
 	backupVaultMap map[string]*datamodel.BackupVault,
 	accountStateMap map[string]string,
 	poolMetadataMap map[int64]metadata.ResourceMetadata,
@@ -528,25 +518,25 @@ func collectDetachedVaultBMF(
 	var out []datamodel2.HydratedMetrics
 	for _, key := range orderedKeys {
 		group := groups[key]
-		volume, exists := volumeDataMap[key.VolumeUUID]
-		if !exists {
+
+		resolved, ok := resolveDetachedBMFVolume(key.VolumeUUID, volumeDataMap, expertVolumeDataMap, poolMetadataMap, config)
+		if !ok {
 			continue
 		}
 
-		if volume.UUID == "" || volume.Name == "" {
-			continue
-		}
-		accountName := volume.GetAccountName()
-		if accountName == "" {
-			continue
-		}
-		if accountState, ok := accountStateMap[accountName]; ok && accountState == datamodel.AccountStateHyperscalerDisabled {
+		if accountState, ok := accountStateMap[resolved.accountName]; ok && accountState == datamodel.AccountStateHyperscalerDisabled {
 			continue
 		}
 
 		// Protocol gate (matches existing BMF behaviour).
-		isSANProtocol := volume.VolumeAttributes != nil && utils.IsSanProtocols(volume.VolumeAttributes.Protocols)
-		if !(config.EnableFilesBackupBilling || isSANProtocol) {
+		if !(config.EnableFilesBackupBilling || resolved.isSANProtocol) {
+			continue
+		}
+
+		// Apply the same CRB/CMEK/cross-project eligibility rules as the active paths so a
+		// detached CMEK or cross-region chain is not billed while its feature is disabled.
+		// Use the prefetched vault (nil on miss) so the conservative skip behaviour matches.
+		if shouldSkipBMFForVault(ctx, config, key.VaultUUID, lookupBackupVault(backupVaultMap, key.VaultUUID), key.VolumeUUID) {
 			continue
 		}
 
@@ -557,17 +547,8 @@ func collectDetachedVaultBMF(
 			vault = bv
 		}
 
-		var resourceType metadata.ResourceType
-		if poolMeta, ok := poolMetadataMap[volume.PoolID]; ok {
-			if poolMeta.ResourceType == metadata.VolumePoolRegionalHA {
-				resourceType = metadata.VolumeRegionalHA
-			} else {
-				resourceType = metadata.Volume
-			}
-		}
-
 		// Cross-project vaults bill to the vault's owning project, not the volume owner.
-		billingAccountName := accountName
+		billingAccountName := resolved.accountName
 		if vault.ServiceType == datamodel.ServiceTypeCrossProject && vault.Account != nil && vault.Account.Name != "" {
 			billingAccountName = vault.Account.Name
 		}
@@ -576,33 +557,97 @@ func collectDetachedVaultBMF(
 		// project) already produced a BMF row (either from the main loop's active
 		// vault or from an earlier detached vault in the same project), skip to
 		// avoid billing the same project twice for the same volume.
-		dedupeKey := bmfDedupeKey{VolumeUUID: volume.UUID, BillingAccount: billingAccountName}
+		dedupeKey := bmfDedupeKey{VolumeUUID: key.VolumeUUID, BillingAccount: billingAccountName}
 		if _, already := emittedBMF[dedupeKey]; already {
 			continue
 		}
 
-		vm := assembleVolumeMetadata(volume, config)
-
 		hm := setupHydratedMetricsDataModel(
 			metadata.BackupEnabledVolumeAllocatedSize,
-			resourceType,
+			resolved.resourceType,
 			billingAccountName,
-			vm,
+			resolved.volumeMetadata,
 			timestamp,
-			float64(volume.SizeInBytes),
+			float64(resolved.sizeInBytes),
 		)
 		if hm == nil {
 			continue
 		}
 		if vault.BackupVaultType == activities.CrossRegionBackupType &&
 			vault.BackupRegionName != nil && *vault.BackupRegionName != "" {
-			vm.SetBackupRegionName(*vault.BackupRegionName)
-			setCrossRegionRegionMetadata(logger, hm, vm)
+			resolved.volumeMetadata.SetBackupRegionName(*vault.BackupRegionName)
+			setCrossRegionRegionMetadata(logger, hm, resolved.volumeMetadata)
 		}
+		setBackupModeMetadata(hm, resolved.backupMode)
 		out = append(out, *hm)
 		emittedBMF[dedupeKey] = struct{}{}
 	}
 	return out
+}
+
+// detachedBMFVolume holds the billing fields resolved for a detached-vault BMF row.
+type detachedBMFVolume struct {
+	accountName    string
+	resourceType   metadata.ResourceType
+	isSANProtocol  bool
+	volumeMetadata metadata.ResourceMetadata
+	sizeInBytes    int64
+	backupMode     string
+}
+
+// resolveDetachedBMFVolume looks up a chain-tip volume UUID as either a regular or expert-mode
+// volume. Regular volumes take precedence if the UUID appears in both maps. ok=false means skip.
+func resolveDetachedBMFVolume(
+	volumeUUID string,
+	volumeDataMap map[string]*database.VolumeMetricsData,
+	expertVolumeDataMap map[string]*database.ExpertModeVolumeMetricsData,
+	poolMetadataMap map[int64]metadata.ResourceMetadata,
+	config *common.TelemetryConfig,
+) (detachedBMFVolume, bool) {
+	if volume, exists := volumeDataMap[volumeUUID]; exists {
+		if volume.UUID == "" || volume.Name == "" {
+			return detachedBMFVolume{}, false
+		}
+		accountName := volume.GetAccountName()
+		if accountName == "" {
+			return detachedBMFVolume{}, false
+		}
+		resourceType := metadata.Volume
+		if poolMeta, ok := poolMetadataMap[volume.PoolID]; ok && poolMeta.ResourceType == metadata.VolumePoolRegionalHA {
+			resourceType = metadata.VolumeRegionalHA
+		}
+		return detachedBMFVolume{
+			accountName:    accountName,
+			resourceType:   resourceType,
+			isSANProtocol:  volume.VolumeAttributes != nil && utils.IsSanProtocols(volume.VolumeAttributes.Protocols),
+			volumeMetadata: assembleVolumeMetadata(volume, config),
+			sizeInBytes:    volume.SizeInBytes,
+			backupMode:     BackupModeDefault,
+		}, true
+	}
+
+	expertVolume, exists := expertVolumeDataMap[volumeUUID]
+	if !exists {
+		return detachedBMFVolume{}, false
+	}
+	if expertVolume.UUID == "" || expertVolume.Name == "" {
+		return detachedBMFVolume{}, false
+	}
+	if expertVolume.AccountName == "" {
+		return detachedBMFVolume{}, false
+	}
+	resourceType := metadata.Volume
+	if poolMeta, ok := poolMetadataMap[expertVolume.PoolID]; ok && poolMeta.ResourceType == metadata.VolumePoolRegionalHA {
+		resourceType = metadata.VolumeRegionalHA
+	}
+	return detachedBMFVolume{
+		accountName:    expertVolume.AccountName,
+		resourceType:   resourceType,
+		isSANProtocol:  utils.IsSanProtocols(expertVolume.GetProtocols()),
+		volumeMetadata: assembleExpertModeVolumeMetadata(expertVolume, config),
+		sizeInBytes:    expertVolume.SizeInBytes,
+		backupMode:     BackupModeOntap,
+	}, true
 }
 
 // assembleVolumeMetadata creates metadata from optimized VolumeMetricsData struct

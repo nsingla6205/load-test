@@ -1192,6 +1192,7 @@ func (v *VolumeMetricsData) IsRegionalHA() bool {
 // aggregator to select the correct resource type (Volume vs VolumeRegionalHA).
 type ExpertModeVolumeMetricsData struct {
 	UUID                   string
+	ExternalUUID           string
 	Name                   string
 	SizeInBytes            int64
 	PoolID                 int64
@@ -1204,6 +1205,17 @@ type ExpertModeVolumeMetricsData struct {
 	BackupVaultServiceType string
 	BackupVaultAccountName string
 	BackupVaultAccountID   int64
+}
+
+// BackupVolumeUUID returns the identity that backups.volume_uuid holds for this volume.
+// Expert mode backups reference the volume's external UUID, not the internal one, so any
+// join against backup rows must use this. Volumes provisioned before an external UUID was
+// assigned fall back to the internal UUID to keep the value distinct per volume.
+func (v *ExpertModeVolumeMetricsData) BackupVolumeUUID() string {
+	if v.ExternalUUID != "" {
+		return v.ExternalUUID
+	}
+	return v.UUID
 }
 
 // GetProtocols returns the protocols from volume_attributes for expert mode volumes.
@@ -1231,6 +1243,7 @@ func (d *DataStoreRepository) ListExpertModeVolumesForTelemetryMetrics(ctx conte
 		Joins("LEFT JOIN accounts va ON va.id = bv.account_id").
 		Select(`
 			expert_mode_volumes.uuid,
+			COALESCE(expert_mode_volumes.external_uuid, '') AS external_uuid,
 			expert_mode_volumes.name,
 			expert_mode_volumes.size_in_bytes,
 			expert_mode_volumes.pool_id,
