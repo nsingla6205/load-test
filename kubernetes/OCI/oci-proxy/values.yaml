@@ -33,24 +33,12 @@ waitForTemporalEnabled: false
 hyperScaler: "oci"
 vsaAuthType: 2  # 0 : username/password, 1: password-based auth, 2: certificate authentication
 
-# OCI certificate rotation schedule (created idempotently at oci-proxy startup on the customer task queue).
-# enableOciVsaCertificateRotation: "true" creates the Temporal Schedule; "false" deletes it if present.
-enableOciVsaCertificateRotation: "false"
-# Cron cadence for the rotation schedule. Default is daily at midnight UTC.
+enableOciVsaCertificateRotation: "true"
 ociCertificateRotationCronExpression: "0 0 * * *"
-
-# Gates the reset-password (admin temporary password) API. Must match the
-# vcp-worker-chart's enableAdminTempPassword so the proxy and worker agree.
-enableAdminTempPassword: true
-
-# Expiry window (in hours) reported for the temporary ociadmin password returned
-# by the reset-password API. The response's passwordExpiresAt is computed as the
-# response time (UTC) plus this many hours. Default 24.
+enableAdminTempPassword: "true"
 ociAdminTempPasswordExpiryHours: 24
-
-enableOciTempPasswordResetCron: "false"
+enableOciTempPasswordResetCron: "true"
 ociTempPasswordVerificationCronExpression: "0 0 * * *"
-
 # Global for image registry (standalone chart)
 global:
   primaryImageRegistry: iad.ocir.io

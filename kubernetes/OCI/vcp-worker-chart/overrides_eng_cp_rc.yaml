@@ -20,9 +20,8 @@ workerConfig:
   localRegion: "us-ashburn-1"
   database:
     host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
-  vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7qwngdvtnkwfyx2wxsgpu3d2ttwoufnwixwxkbojlbojodj3p5mq"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaakxrywtkyboc5tke4ucxkd2djrbafs6ok7tykohsa5gr4luy5ykta"
-  secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
+  vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa2delfglt4txfjbxoy7ez2hyvngnfbr3uq5p3ruoorsclelpyzfoa"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaauvhttnd6rsbsgpx5jkh5e332ftqqu2bdftwixnn2547c3sfun2ga"
   ociVaultOcid: "ocid1.vault.oc1.iad.eju42binaahsi.abuwcljtha5cq66ha3q6lb6di7wn3ttuz542asib3oag27k7dljv3cjpnjta"
   ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
   ociVaultCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
@@ -37,6 +36,8 @@ workerConfig:
   enableOciTempPasswordResetCron: true
   ociTempPasswordResetAfterMinutes: 1440
   ociVsaUserBootargs: ""
+  enableOciVsaCertificateRotation: "true"
+  ociCertificateRotationCronExpression: "0 0 * * *"
 
 # Image configuration (OCIR)
 images:

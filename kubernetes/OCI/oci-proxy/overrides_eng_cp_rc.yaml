@@ -15,10 +15,6 @@ global:
 database:
   host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
 
-enableAdminTempPassword: "true"
-enableOciTempPasswordResetCron: "true"
-ociTempPasswordVerificationCronExpression: "0 0 * * *"
-
 images:
   ociProxy:
     name: oci-proxy
