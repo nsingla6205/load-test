@@ -1720,6 +1720,38 @@ func TestDeleteExpertModeVolume(t *testing.T) {
 		assert.True(tt, errors.Is(err, gorm.ErrRecordNotFound) || customerrors.IsNotFoundErr(err))
 	})
 
+	t.Run("WhenVolumeAlreadySoftDeletedIsIdempotent", func(tt *testing.T) {
+		store := setup(tt)
+		ctx := context.Background()
+		account, pool := createTestAccountAndPoolForExpertMode(tt, store)
+		svmName := fmt.Sprintf("test-svm-%s", utils.GenerateRandomAlphanumeric(8))
+		svmExternalUUID := utils.RandomUUID()
+		svm := createTestSVMForExpertMode(tt, store, pool.ID, account.ID, svmName, svmExternalUUID)
+
+		expertModeVolume := &datamodel.ExpertModeVolumes{
+			Name:         "test-volume-double-delete",
+			SizeInBytes:  1099511627776,
+			PoolID:       pool.ID,
+			AccountID:    account.ID,
+			SvmID:        svm.ID,
+			Style:        "flexvol",
+			ExternalUUID: utils.RandomUUID(),
+			State:        datamodel.LifeCycleStateDeleting,
+		}
+
+		createdVolume, err := store.CreateExpertModeVolume(ctx, expertModeVolume)
+		assert.NoError(tt, err)
+
+		// First delete soft-deletes the row (e.g. background reconciler wins the race).
+		err = store.DeleteExpertModeVolume(ctx, createdVolume.UUID)
+		assert.NoError(tt, err)
+
+		// Second delete on the already soft-deleted row (e.g. the delete workflow's final
+		// DeleteExpertModeVolumeInDB) must be a successful no-op, not a record-not-found error.
+		err = store.DeleteExpertModeVolume(ctx, createdVolume.UUID)
+		assert.NoError(tt, err)
+	})
+
 	t.Run("WhenVolumeInDifferentStates", func(tt *testing.T) {
 		states := []string{
 			datamodel.LifeCycleStateCreating,

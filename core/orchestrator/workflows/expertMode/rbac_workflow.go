@@ -59,7 +59,7 @@ func UpdateRbacForSinglePoolWorkflow(ctx workflow.Context, poolId string) error 
 		originalErr := err
 		updateErr := rbacWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), originalErr)
 		if updateErr != nil {
-			rbacWF.Logger.Errorf("Failed to update job status to Error for UpdateRbacForSinglePoolWorkflow: %v", updateErr)
+			workflow.GetLogger(ctx).Error("Failed to update job status to Error for UpdateRbacForSinglePoolWorkflow", "error", updateErr)
 		}
 		return workflows.ConvertToVSAError(originalErr)
 	}
@@ -69,7 +69,7 @@ func UpdateRbacForSinglePoolWorkflow(ctx workflow.Context, poolId string) error 
 		rbacWF.Status = workflows.WorkflowStatusFailed
 		updateErr := rbacWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if updateErr != nil {
-			rbacWF.Logger.Errorf("Failed to update job status to Error for UpdateRbacForSinglePoolWorkflow: %v", updateErr)
+			workflow.GetLogger(ctx).Error("Failed to update job status to Error for UpdateRbacForSinglePoolWorkflow", "error", updateErr)
 		}
 		return workflows.ConvertToVSAError(customErr)
 	}
@@ -103,7 +103,7 @@ func UpdateRbacForPoolsWorkflow(ctx workflow.Context) error {
 		originalErr := err
 		updateErr := rbacWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), originalErr)
 		if updateErr != nil {
-			rbacWF.Logger.Errorf("Failed to update job status to Error for UpdateRbacForPoolsWorkflow: %v", updateErr)
+			workflow.GetLogger(ctx).Error("Failed to update job status to Error for UpdateRbacForPoolsWorkflow", "error", updateErr)
 		}
 		return workflows.ConvertToVSAError(originalErr)
 	}
@@ -114,7 +114,7 @@ func UpdateRbacForPoolsWorkflow(ctx workflow.Context) error {
 		// but always return the original error to maintain consistency with error handling at lines 58-65
 		updateErr := rbacWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if updateErr != nil {
-			rbacWF.Logger.Errorf("Failed to update job status to Error for UpdateRbacForPoolsWorkflow: %v", updateErr)
+			workflow.GetLogger(ctx).Error("Failed to update job status to Error for UpdateRbacForPoolsWorkflow", "error", updateErr)
 		}
 		return workflows.ConvertToVSAError(customErr)
 	}
@@ -168,7 +168,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 		"requestID":                             utils.RandomUUID(),
 		string(middleware.RequestCorrelationID): correlationID,
 	})
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	ao := workflow.ActivityOptions{
 		TaskQueue:           workflowengine.BackgroundTaskQueue,
 		StartToCloseTimeout: workflows.RbacActivityStartToClose,
@@ -189,7 +189,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	var pool *datamodel.Pool
 	err := workflow.ExecuteActivity(ctx, rbacActivity.GetPoolByUUID, poolDetails.PoolUUID).Get(ctx, &pool)
 	if err != nil {
-		logger.Errorf("Failed to get pool for pooluuid, %s error :%v", poolDetails.PoolUUID, err)
+		logger.Error("Failed to get pool for pool uuid", "poolUUID", poolDetails.PoolUUID, "error", err)
 		return err
 	}
 
@@ -198,7 +198,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	if pool.BuildInfo != nil && pool.BuildInfo.OntapVersion != "" {
 		ontapVersion = pool.BuildInfo.OntapVersion
 	} else {
-		logger.Errorf("Pool %s does not have ONTAP version in BuildInfo", poolDetails.PoolUUID)
+		logger.Error("Pool does not have ONTAP version in BuildInfo", "poolUUID", poolDetails.PoolUUID)
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest, errors.New("pool missing ONTAP version")))
 	}
@@ -211,7 +211,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 
 	err = workflow.ExecuteActivity(ctx, poolActivity.ValidateRbacHash, ontapVersion, bucketFileDetails).Get(ctx, nil)
 	if err != nil {
-		logger.Errorf("Failed to validate rbac hash for version: %s, :%v", ontapVersion, err)
+		logger.Error("Failed to validate rbac hash for version", "ontapVersion", ontapVersion, "error", err)
 		return err
 	}
 
@@ -219,7 +219,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	var ontapCredentials *vlm.OntapCredentials
 	err = workflow.ExecuteActivity(ctx, poolActivity.GetOnTapCredentials, pool).Get(ctx, &ontapCredentials)
 	if err != nil {
-		logger.Errorf("Failed to get ontap credentials error :%v", err)
+		logger.Error("Failed to get ontap credentials", "error", err)
 		return err
 	}
 
@@ -227,7 +227,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	var expertModeCredentials *vlm.OntapCredentials
 	err = workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentials, pool).Get(ctx, &expertModeCredentials)
 	if err != nil {
-		logger.Errorf("Failed to get expert mode credentials error :%v", err)
+		logger.Error("Failed to get expert mode credentials", "error", err)
 		return err
 	}
 
@@ -235,7 +235,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	var vlmConfig *vlm.VLMConfig
 	err = workflow.ExecuteActivity(ctx, poolActivity.ParseVlmConfig, pool).Get(ctx, &vlmConfig)
 	if err != nil {
-		logger.Errorf("Failed to parse vlm config error: %v", err)
+		logger.Error("Failed to parse vlm config", "error", err)
 		return err
 	}
 
@@ -243,7 +243,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	createVSAExpertModeUserReq := &vlm.OntapExpertModeUserConfig{}
 	err = workflow.ExecuteActivity(ctx, poolActivity.PrepareCreateVSAExpertModeReq, *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails).Get(ctx, createVSAExpertModeUserReq)
 	if err != nil {
-		logger.Errorf("Failed to create ONTAP expert mode error : %s", err)
+		logger.Error("Failed to create ONTAP expert mode request", "error", err)
 		return err
 	}
 
@@ -251,7 +251,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 	vsaClientWorkflowManager := vlm.NewVSAClientWorkflowManager()
 	ontapExpertModeUserResponse, err := vsaClientWorkflowManager.CreateVSAExpertModeUser(ctx, createVSAExpertModeUserReq)
 	if err != nil {
-		logger.Errorf("Failed to update VSA expert mode user : %s, err:%v", poolDetails.PoolUUID, err)
+		logger.Error("Failed to update VSA expert mode user", "poolUUID", poolDetails.PoolUUID, "error", err)
 		return err
 	}
 
@@ -260,7 +260,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 
 	// Update RBAC checksum in pool
 	if err = workflow.ExecuteActivity(ctx, poolActivity.UpdateRbacCheckSumInPool, pool, bucketFileDetails).Get(ctx, nil); err != nil {
-		logger.Errorf("Failed to update RBAC for pool uuid: %s, err:%v", poolDetails.PoolUUID, err)
+		logger.Error("Failed to update RBAC for pool uuid", "poolUUID", poolDetails.PoolUUID, "error", err)
 		return err
 	}
 
@@ -268,6 +268,7 @@ func UpdateSinglePoolRbacChildWorkflow(ctx workflow.Context, poolDetails expertm
 }
 
 func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: workflows.RbacActivityStartToClose,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -289,7 +290,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 
 	if len(pools) == 0 {
 		// Valid scenario: no active expert mode pools exist. Complete successfully with no work.
-		wf.Logger.Infof("No active ONTAP pools found; skipping RBAC update workflow")
+		logger.Info("No active ONTAP pools found; skipping RBAC update workflow")
 		return nil, nil
 	}
 
@@ -306,7 +307,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 
 	if len(poolListNeedUpdate) == 0 {
 		// No pools need updating
-		wf.Logger.Infof("No pools need RBAC update")
+		logger.Info("No pools need RBAC update")
 		return nil, nil
 	}
 
@@ -324,7 +325,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 
 		batch := poolListNeedUpdate[i:end]
 		currentBatchNum := (i / batchSize) + 1
-		wf.Logger.Infof("Processing batch of pools for RBAC update: batchStart=%d, batchEnd=%d, batchSize=%d, batchNum=%d/%d", i+1, end, len(batch), currentBatchNum, totalBatches)
+		logger.Info("Processing batch of pools for RBAC update", "batchStart", i+1, "batchEnd", end, "batchSize", len(batch), "batchNum", currentBatchNum, "totalBatches", totalBatches)
 
 		// Start all child workflows in the current batch in parallel
 		var futures []workflow.ChildWorkflowFuture
@@ -369,7 +370,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 				futureErrors[idx] = err
 				completed[idx] = true
 				if err != nil {
-					wf.Logger.Errorf("Failed to execute child workflow for pool uuid: %s, error: %v", batch[idx].PoolUUID, err)
+					logger.Error("Failed to execute child workflow for pool uuid", "poolUUID", batch[idx].PoolUUID, "error", err)
 				}
 			})
 		}
@@ -381,7 +382,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 		if err != nil {
 			// workflow.Await returned an error (e.g., context cancelled), mark all remaining incomplete pools as failed
 			completedCount := countCompletedFutures(completed)
-			wf.Logger.Errorf("workflow.Await returned error for batch: batchStart=%d, batchEnd=%d, error=%v, completed=%d/%d", i+1, end, err, completedCount, len(futures))
+			logger.Error("workflow.Await returned error for batch", "batchStart", i+1, "batchEnd", end, "error", err, "completed", completedCount, "total", len(futures))
 			continue
 		}
 
@@ -389,7 +390,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 		for j := 0; j < len(futures); j++ {
 			if !completed[j] {
 				// Future didn't complete - mark as failed
-				wf.Logger.Warnf("Future at index %d did not complete for pool uuid: %s", j, batch[j].PoolUUID)
+				logger.Warn("Future did not complete for pool uuid", "index", j, "poolUUID", batch[j].PoolUUID)
 				failedPools = append(failedPools, failedPoolInfo{
 					poolUUID: batch[j].PoolUUID,
 					err:      errors.New("child workflow did not complete - workflow may have been cancelled or timed out"),
@@ -403,7 +404,7 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 			}
 		}
 
-		wf.Logger.Infof("Completed batch of pools for RBAC update: batchStart=%d, batchEnd=%d", i+1, end)
+		logger.Info("Completed batch of pools for RBAC update", "batchStart", i+1, "batchEnd", end)
 	}
 
 	// Return error if any pools failed
@@ -416,16 +417,17 @@ func (wf *updateRBACForPoolsWorkflow) Run(ctx workflow.Context, args ...interfac
 			}
 			errorMsg += fmt.Sprintf("pool %s: %v", failed.poolUUID, failed.err)
 		}
-		wf.Logger.Errorf("RBAC update workflow completed with failures: %s", errorMsg)
+		logger.Error("RBAC update workflow completed with failures", "error", errorMsg)
 		return nil, workflows.ConvertToVSAError(errors.New(errorMsg))
 	}
 
-	wf.Logger.Infof("RBAC update workflow completed successfully for all %d pools", len(poolListNeedUpdate))
+	logger.Info("RBAC update workflow completed successfully for all pools", "poolCount", len(poolListNeedUpdate))
 	return nil, nil
 }
 
 // RunForSinglePool looks up a single pool by UUID and runs the RBAC update child workflow for it.
 func (wf *updateRBACForPoolsWorkflow) RunForSinglePool(ctx workflow.Context, poolId string) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: workflows.RbacActivityStartToClose,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -459,7 +461,7 @@ func (wf *updateRBACForPoolsWorkflow) RunForSinglePool(ctx workflow.Context, poo
 	}
 
 	if len(poolListNeedUpdate) == 0 {
-		wf.Logger.Infof("Pool %q does not need RBAC update", poolId)
+		logger.Info("Pool does not need RBAC update", "poolID", poolId)
 		return nil, nil
 	}
 
@@ -481,11 +483,11 @@ func (wf *updateRBACForPoolsWorkflow) RunForSinglePool(ctx workflow.Context, poo
 	})
 
 	if err := workflow.ExecuteChildWorkflow(childCtx, UpdateSinglePoolRbacChildWorkflow, poolDetails).Get(ctx, nil); err != nil {
-		wf.Logger.Errorf("Failed to execute child workflow for pool %s: %v", poolDetails.PoolUUID, err)
+		logger.Error("Failed to execute child workflow for pool", "poolUUID", poolDetails.PoolUUID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	wf.Logger.Infof("RBAC update workflow completed successfully for pool %s", poolDetails.PoolUUID)
+	logger.Info("RBAC update workflow completed successfully for pool", "poolUUID", poolDetails.PoolUUID)
 	return nil, nil
 }
 

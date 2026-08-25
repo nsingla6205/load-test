@@ -18,6 +18,7 @@ import (
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -2221,6 +2222,151 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})
+}
+
+// --- Job-status error-logging branches (best-effort ERROR transitions that also fail) ---
+//
+// These use a dedicated environment that mocks the UpdateJobStatus activity directly (rather than
+// the DB layer) so the PROCESSING/ERROR transitions can be forced to fail without triggering the
+// activity's default retry loop.
+
+func newReconEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment, activities.CommonActivities, expertmodeactivities.ExpertModeVolumeActivity) {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
+	env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
+	env.RegisterActivity(commonActivity.UpdateJobStatus)
+	env.RegisterActivity(commonActivity.GetJob)
+	env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
+	env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
+	env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
+	env.RegisterActivity(expertModeActivity.FetchOntapVolumeByUUID)
+	env.RegisterActivity(expertModeActivity.UpdateExpertModeVolumeInDB)
+	env.RegisterActivity(expertModeActivity.DeleteExpertModeVolumeInDB)
+
+	env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	return env, commonActivity, expertModeActivity
+}
+
+func reconTestVolume(state string) *datamodel.ExpertModeVolumes {
+	return &datamodel.ExpertModeVolumes{
+		BaseModel:   datamodel.BaseModel{UUID: "test-volume-uuid"},
+		Name:        "test-volume",
+		SizeInBytes: 1099511627776,
+		Style:       "flexvol",
+		State:       state,
+		Account:     &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-account"},
+		Pool: &datamodel.Pool{
+			BaseModel:       datamodel.BaseModel{ID: 1},
+			DeploymentName:  "test-deployment",
+			PoolCredentials: &datamodel.PoolCredentials{Password: "password"},
+		},
+		Svm: &datamodel.Svm{Name: "test-svm"},
+	}
+}
+
+func isErrorStateJob(job *datamodel.Job) bool {
+	return job.State == string(datamodel.JobsStateERROR)
+}
+
+func nonRetryableErr(msg string) error {
+	return temporal.NewNonRetryableApplicationError(msg, "NonRetryable", nil)
+}
+
+func TestVolumeCreateReconciliationWorkflow_ProcessingAndErrorUpdateFail(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nonRetryableErr("update job status failed")).Maybe()
+
+	env.ExecuteWorkflow(VolumeCreateReconciliationWorkflow, reconTestVolume(datamodel.LifeCycleStateCreating))
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeCreateReconciliationWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(isErrorStateJob)).Return(nonRetryableErr("update job status failed")).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool { return !isErrorStateJob(job) })).Return(nil).Maybe()
+	env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).Return((*models.Node)(nil), nonRetryableErr("resolve node failed")).Maybe()
+
+	env.ExecuteWorkflow(VolumeCreateReconciliationWorkflow, reconTestVolume(datamodel.LifeCycleStateCreating))
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeDeleteReconciliationWorkflow_ProcessingAndErrorUpdateFail(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nonRetryableErr("update job status failed")).Maybe()
+
+	env.ExecuteWorkflow(VolumeDeleteReconciliationWorkflow, reconTestVolume(datamodel.LifeCycleStateDeleting))
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeDeleteReconciliationWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(isErrorStateJob)).Return(nonRetryableErr("update job status failed")).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool { return !isErrorStateJob(job) })).Return(nil).Maybe()
+	env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).Return((*models.Node)(nil), nonRetryableErr("resolve node failed")).Maybe()
+
+	env.ExecuteWorkflow(VolumeDeleteReconciliationWorkflow, reconTestVolume(datamodel.LifeCycleStateDeleting))
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeDeleteReconciliationWorkflow_StateConflict_UpdateInDBFails(t *testing.T) {
+	// Volume still exists in ONTAP (state conflict) and the best-effort UpdateExpertModeVolumeInDB
+	// to AVAILABLE also fails, exercising the error-logging branch.
+	env, commonActivity, expertModeActivity := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+		Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil).Maybe()
+
+	stateConflict := vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError, nil))
+	env.OnActivity(expertModeActivity.CheckVolumeDeletedInOntap, mock.Anything, mock.Anything, mock.Anything).Return(stateConflict).Maybe()
+	env.OnActivity(expertModeActivity.UpdateExpertModeVolumeInDB, mock.Anything, mock.Anything).Return(nonRetryableErr("db update failed")).Maybe()
+
+	env.ExecuteWorkflow(VolumeDeleteReconciliationWorkflow, reconTestVolume(datamodel.LifeCycleStateDeleting))
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeUpdateReconciliationWorkflow_ProcessingAndErrorUpdateFail(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nonRetryableErr("update job status failed")).Maybe()
+
+	vol := reconTestVolume(datamodel.LifeCycleStateUpdating)
+	env.ExecuteWorkflow(VolumeUpdateReconciliationWorkflow, vol, vol)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestVolumeUpdateReconciliationWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	env, commonActivity, _ := newReconEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(isErrorStateJob)).Return(nonRetryableErr("update job status failed")).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool { return !isErrorStateJob(job) })).Return(nil).Maybe()
+	env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).Return((*models.Node)(nil), nonRetryableErr("resolve node failed")).Maybe()
+
+	vol := reconTestVolume(datamodel.LifeCycleStateUpdating)
+	env.ExecuteWorkflow(VolumeUpdateReconciliationWorkflow, vol, vol)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
 func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {

@@ -34,21 +34,21 @@ func ExpertModeFlexCloneSplitWorkflow(ctx workflow.Context, volume *datamodel.Ex
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
-		log.Errorf("Failed to update job status to PROCESSING: %v", err)
+		log := workflow.GetLogger(ctx)
+		log.Error("Failed to update job status to PROCESSING", "error", err)
 		jobErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		if jobErr != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", jobErr)
+			log.Error("Failed to update job status to ERROR", "error", jobErr)
 		}
 		return nil, err
 	}
 	_, cerr := wf.Run(ctx, volume)
 	if cerr != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		err2 := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), cerr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", err2)
+			log.Error("Failed to update job status to ERROR", "error", err2)
 		}
 		return nil, cerr
 	}
@@ -71,7 +71,7 @@ func (wf *expertModeFlexCloneSplitWorkflow) Setup(ctx workflow.Context, input in
 }
 
 func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.ExpertModeVolumes)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -128,7 +128,7 @@ func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...in
 	var dbNodes []*datamodel.Node
 	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, pool.ID).Get(ctx, &dbNodes)
 	if err != nil {
-		log.Errorf("Failed to get nodes for pool %d: %v", pool.ID, err)
+		log.Error("Failed to get nodes for pool", "poolID", pool.ID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -143,17 +143,17 @@ func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...in
 
 	err = workflow.ExecuteActivity(waitCtx, activity.WaitForExpertModeFlexCloneSplitComplete, volume, node).Get(waitCtx, &splitVolumeSize)
 	if err != nil {
-		log.Errorf("WaitForExpertModeFlexCloneSplitComplete failed: %v", err)
+		log.Error("WaitForExpertModeFlexCloneSplitComplete failed", "error", err)
 		_ = workflow.ExecuteActivity(recoverCtx, activity.RecoverExpertModeVolumeAfterFlexCloneSplitFailure, volume, node).Get(recoverCtx, nil)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	err = workflow.ExecuteActivity(ctx, activity.CompleteExpertModeFlexCloneSplitInDB, volume.UUID, splitVolumeSize).Get(ctx, nil)
 	if err != nil {
-		log.Errorf("CompleteExpertModeFlexCloneSplitInDB failed: %v", err)
+		log.Error("CompleteExpertModeFlexCloneSplitInDB failed", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	log.Infof("Expert mode flexclone split workflow completed for volume %s", volume.Name)
+	log.Info("Expert mode flexclone split workflow completed", "volume", volume.Name)
 	return nil, nil
 }

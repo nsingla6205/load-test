@@ -7,8 +7,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -34,12 +32,7 @@ const (
 // page through batch child workflows. Per-batch failures are aggregated into the result
 // counters; they do not fail the parent.
 func ExpertModeVolumeSyncParentWorkflow(ctx workflow.Context) (*GenericParentWorkflowResult, error) {
-	requestID := workflow.GetInfo(ctx).WorkflowExecution.ID
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{
-		"workflowID": requestID,
-		"requestID":  requestID,
-	})
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
@@ -65,16 +58,16 @@ func ExpertModeVolumeSyncParentWorkflow(ctx workflow.Context) (*GenericParentWor
 	for offset := 0; ; offset += expertModeVolumeSyncParentListPageSize {
 		var pools []*database.PoolIdentifier
 		if err := workflow.ExecuteActivity(listActivityCtx, syncActivity.ListOntapModePoolsPaginated, offset, expertModeVolumeSyncParentListPageSize).Get(ctx, &pools); err != nil {
-			logger.Errorf("Parent workflow 'expert-mode-volume-sync-parent' -> list pools failed at offset %d: %v", offset, err)
+			logger.Error("Parent workflow 'expert-mode-volume-sync-parent' -> list pools failed", "offset", offset, "error", err)
 			return nil, err
 		}
 		if len(pools) == 0 {
 			break
 		}
 
-		logger.Infof("Parent workflow 'expert-mode-volume-sync-parent' -> listed %d pools (offset %d)", len(pools), offset)
+		logger.Info("Parent workflow 'expert-mode-volume-sync-parent' -> listed pools", "count", len(pools), "offset", offset)
 
-		processed, successful, failed := runExpertModeVolumeSyncBatch(ctx, offset, pools, logger)
+		processed, successful, failed := runExpertModeVolumeSyncBatch(ctx, offset, pools)
 		totalProcessed += processed
 		totalSuccessful += successful
 		totalFailed += failed
@@ -84,8 +77,8 @@ func ExpertModeVolumeSyncParentWorkflow(ctx workflow.Context) (*GenericParentWor
 		}
 	}
 
-	logger.Infof("Parent workflow 'expert-mode-volume-sync-parent' completed -> Total items processed: %d, successful: %d, failed: %d",
-		totalProcessed, totalSuccessful, totalFailed)
+	logger.Info("Parent workflow 'expert-mode-volume-sync-parent' completed",
+		"totalProcessed", totalProcessed, "successful", totalSuccessful, "failed", totalFailed)
 
 	return &GenericParentWorkflowResult{
 		TotalItemsProcessed: totalProcessed,
@@ -99,7 +92,7 @@ func ExpertModeVolumeSyncParentWorkflow(ctx workflow.Context) (*GenericParentWor
 // expertModeVolumeSyncActivityConcurrency. Per-pool failures are recorded in the return
 // value but do not fail the batch.
 func SyncExpertModeVolumesForPoolBatchWorkflow(ctx workflow.Context, poolIdentifiers []*database.PoolIdentifier) (*backgroundactivities.SyncExpertModeVolumesBatchReturnValue, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	if len(poolIdentifiers) == 0 {
 		return &backgroundactivities.SyncExpertModeVolumesBatchReturnValue{}, nil
 	}
@@ -120,7 +113,7 @@ func SyncExpertModeVolumesForPoolBatchWorkflow(ctx workflow.Context, poolIdentif
 		TotalProcessed: len(poolIdentifiers),
 	}
 
-	logger.Infof("Starting batch workflow for expert mode volume sync: total pools = %d", len(poolIdentifiers))
+	logger.Info("Starting batch workflow for expert mode volume sync", "totalPools", len(poolIdentifiers))
 
 	for i := 0; i < len(poolIdentifiers); i += expertModeVolumeSyncActivityConcurrency {
 		end := i + expertModeVolumeSyncActivityConcurrency
@@ -137,7 +130,7 @@ func SyncExpertModeVolumesForPoolBatchWorkflow(ctx workflow.Context, poolIdentif
 		for j, future := range futures {
 			pool := wave[j]
 			if err := future.Get(ctx, nil); err != nil {
-				logger.Errorf("Failed to sync expert mode volumes for pool %s: %v", pool.Name, err)
+				logger.Error("Failed to sync expert mode volumes for pool", "pool", pool.Name, "error", err)
 				result.Failed++
 				result.FailedResourceNames = append(result.FailedResourceNames, pool.Name)
 				result.FailedResourceErrors = append(result.FailedResourceErrors, backgroundactivities.ParentChildWorkflowError{
@@ -151,10 +144,10 @@ func SyncExpertModeVolumesForPoolBatchWorkflow(ctx workflow.Context, poolIdentif
 	}
 
 	if result.Failed > 0 {
-		logger.Warnf("Expert mode volume sync batch workflow failed for %d pools: %v", result.Failed, result.FailedResourceNames)
+		logger.Warn("Expert mode volume sync batch workflow failed for pools", "failedCount", result.Failed, "pools", result.FailedResourceNames)
 	}
-	logger.Infof("Expert mode volume sync batch workflow completed: total=%d, successful=%d, failed=%d",
-		result.TotalProcessed, result.Successful, result.Failed)
+	logger.Info("Expert mode volume sync batch workflow completed",
+		"total", result.TotalProcessed, "successful", result.Successful, "failed", result.Failed)
 
 	return result, nil
 }
@@ -162,21 +155,22 @@ func SyncExpertModeVolumesForPoolBatchWorkflow(ctx workflow.Context, poolIdentif
 // runExpertModeVolumeSyncBatch reconciles one page of pools via a single batch child
 // workflow and returns the page's processed/successful/failed counts. A child that errors
 // counts all of the page's pools as failed but does not fail the parent workflow.
-func runExpertModeVolumeSyncBatch(ctx workflow.Context, pageOffset int, pools []*database.PoolIdentifier, logger log.Logger) (totalProcessed, successful, failed int) {
+func runExpertModeVolumeSyncBatch(ctx workflow.Context, pageOffset int, pools []*database.PoolIdentifier) (totalProcessed, successful, failed int) {
 	total := len(pools)
 	if total == 0 {
 		return 0, 0, 0
 	}
 
+	logger := workflow.GetLogger(ctx)
 	parentID := workflow.GetInfo(ctx).WorkflowExecution.ID
 	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID: fmt.Sprintf("%s-page-%d", parentID, pageOffset),
 	})
-	logger.Infof("Parent workflow 'expert-mode-volume-sync-parent' -> reconciling page offset %d with %d pools", pageOffset, total)
+	logger.Info("Parent workflow 'expert-mode-volume-sync-parent' -> reconciling page", "pageOffset", pageOffset, "pools", total)
 
 	var batchResult backgroundactivities.SyncExpertModeVolumesBatchReturnValue
 	if err := workflow.ExecuteChildWorkflow(childCtx, SyncExpertModeVolumesForPoolBatchWorkflow, pools).Get(ctx, &batchResult); err != nil {
-		logger.Errorf("Parent workflow 'expert-mode-volume-sync-parent' -> page offset %d failed: %v", pageOffset, err)
+		logger.Error("Parent workflow 'expert-mode-volume-sync-parent' -> page failed", "pageOffset", pageOffset, "error", err)
 		return total, 0, total
 	}
 	return total, batchResult.Successful, batchResult.Failed

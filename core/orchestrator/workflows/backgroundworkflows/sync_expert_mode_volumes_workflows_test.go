@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -287,6 +288,62 @@ func TestSyncExpertModeVolumesForPoolBatchWorkflow_PoolActivityFailure(t *testin
 // TestSyncExpertModeVolumesForPoolBatchWorkflow_MultipleWaves verifies that more pools
 // than expertModeVolumeSyncActivityConcurrency drive multiple sequential waves of
 // per-pool activities (mocked with .Times to enforce the call count).
+// withInvalidRetryBackoff sets the shared RetryBackoff coefficient to an unparseable value so
+// workflows.PopulateRetryPolicyParams() returns an error, then restores it after the test.
+func withInvalidRetryBackoff(t *testing.T) {
+	t.Helper()
+	original := workflows.RetryBackoff
+	t.Cleanup(func() { workflows.RetryBackoff = original })
+	workflows.RetryBackoff = "not-a-float"
+}
+
+func TestExpertModeVolumeSyncParentWorkflow_RetryPolicyError(t *testing.T) {
+	withInvalidRetryBackoff(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+
+	env.ExecuteWorkflow(ExpertModeVolumeSyncParentWorkflow)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestSyncExpertModeVolumesForPoolBatchWorkflow_RetryPolicyError(t *testing.T) {
+	withInvalidRetryBackoff(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+
+	env.ExecuteWorkflow(SyncExpertModeVolumesForPoolBatchWorkflow, []*database.PoolIdentifier{
+		{UUID: "pool-1", Name: "pool-1"},
+	})
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+// TestRunExpertModeVolumeSyncBatch_EmptyPage covers the defensive empty-page guard in
+// runExpertModeVolumeSyncBatch by invoking it from a thin wrapper workflow.
+func TestRunExpertModeVolumeSyncBatch_EmptyPage(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+
+	wrapper := func(ctx workflow.Context) (int, error) {
+		processed, successful, failed := runExpertModeVolumeSyncBatch(ctx, 0, nil)
+		return processed + successful + failed, nil
+	}
+	env.RegisterWorkflow(wrapper)
+
+	env.ExecuteWorkflow(wrapper)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	var sum int
+	assert.NoError(t, env.GetWorkflowResult(&sum))
+	assert.Equal(t, 0, sum)
+}
+
 func TestSyncExpertModeVolumesForPoolBatchWorkflow_MultipleWaves(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()

@@ -21,6 +21,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -345,6 +346,154 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_VolumeSizeInsufficient()
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Error(s.T(), s.env.GetWorkflowError())
 	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "size")
+}
+
+// --- Standalone job-status / rollback error-branch tests ---
+//
+// These use a dedicated environment (not the suite's auto-success UpdateJobStatus mock) so the
+// PROCESSING/ERROR/DONE transitions and the defer rollback can be forced to fail.
+
+type restoreEnvActs struct {
+	common activities.CommonActivities
+	volume activities.VolumeCreateActivity
+	ontap  activities.OntapModeRestoreActivity
+	expert expertmodeactivities.ExpertModeVolumeActivity
+}
+
+func newRestoreEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment, *restoreEnvActs) {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetTestTimeout(2 * time.Minute)
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	loggerFields := log.Fields{string(middleware.RequestCorrelationID): "test-correlation-id"}
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(loggerFields)
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+	env.RegisterWorkflow(RestoreForOntapModeVolumeWorkflow)
+
+	mockStorage := database.NewMockStorage(t)
+	acts := &restoreEnvActs{
+		common: activities.CommonActivities{SE: mockStorage},
+		volume: activities.VolumeCreateActivity{SE: mockStorage},
+		ontap:  activities.OntapModeRestoreActivity{SE: mockStorage},
+		expert: expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage},
+	}
+	env.RegisterActivity(acts.common.GetJob)
+	env.RegisterActivity(acts.common.UpdateJobStatus)
+	env.RegisterActivity(acts.common.ResolveOntapNodeForPool)
+	env.RegisterActivity(acts.common.GetAuthJWTToken)
+	env.RegisterActivity(acts.volume.FetchBackupVaultMetadataForRestore)
+	env.RegisterActivity(acts.volume.FetchBackupMetadataForRestore)
+	env.RegisterActivity(acts.ontap.FetchConstituentCountForLargeVolume)
+	env.RegisterActivity(acts.ontap.VerifyCVCountForLargeVolume)
+	env.RegisterActivity(acts.volume.FetchBucketMetadataForRestore)
+	env.RegisterActivity(acts.volume.CreateRestoreWorkflow)
+	env.RegisterActivity(acts.expert.UpdateExpertModeVolumeStateInDB)
+
+	env.OnActivity(acts.common.GetJob, mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity(acts.common.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil).Maybe()
+	return env, acts
+}
+
+func restoreTestNode() *models.Node {
+	return &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+}
+
+func restoreReadyBackup() (*datamodel.BackupVault, *datamodel.Backup) {
+	backupVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "bv-uuid"}}
+	backup := &datamodel.Backup{
+		BaseModel:   datamodel.BaseModel{UUID: "backup-uuid"},
+		Name:        "backup-name",
+		State:       datamodel.LifeCycleStateREADY,
+		SizeInBytes: 1024,
+		VolumeUUID:  "other-volume-uuid",
+		BackupVault: backupVault,
+	}
+	return backupVault, backup
+}
+
+// mockRestoreHappyPathActivities wires all restore activities (except job status) to succeed.
+func mockRestoreHappyPathActivities(env *testsuite.TestWorkflowEnvironment, acts *restoreEnvActs) {
+	backupVault, backup := restoreReadyBackup()
+	env.OnActivity(acts.common.ResolveOntapNodeForPool, mock.Anything, mock.Anything).Return(restoreTestNode(), nil).Maybe()
+	env.OnActivity(acts.volume.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
+	env.OnActivity(acts.volume.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
+	env.OnActivity(acts.volume.FetchBucketMetadataForRestore, mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
+}
+
+func TestRestore_ProcessingUpdateFails(t *testing.T) {
+	utils.SetFileProtocolSupportedForTesting(true)
+	env, acts := newRestoreEnv(t)
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, makeRestoreParams())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestRestore_RunFailsAndErrorUpdateFails(t *testing.T) {
+	utils.SetFileProtocolSupportedForTesting(true)
+	env, acts := newRestoreEnv(t)
+	// PROCESSING succeeds; the best-effort ERROR transition fails.
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State == string(datamodel.JobsStateERROR)
+	})).Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State != string(datamodel.JobsStateERROR)
+	})).Return(nil).Maybe()
+	// Run fails at node resolution; the rollback state update succeeds.
+	env.OnActivity(acts.common.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+		Return((*models.Node)(nil), temporal.NewNonRetryableApplicationError("resolve failed", "ResolveFailed", nil)).Maybe()
+	env.OnActivity(acts.expert.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, makeRestoreParams())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestRestore_DoneUpdateFails(t *testing.T) {
+	utils.SetFileProtocolSupportedForTesting(true)
+	env, acts := newRestoreEnv(t)
+	mockRestoreHappyPathActivities(env, acts)
+	env.OnActivity(acts.volume.CreateRestoreWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	// PROCESSING succeeds; the final DONE transition fails.
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State == string(datamodel.JobsStateDONE)
+	})).Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State != string(datamodel.JobsStateDONE)
+	})).Return(nil).Maybe()
+
+	env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, makeRestoreParams())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestRestore_RollbackUpdateStateFails(t *testing.T) {
+	utils.SetFileProtocolSupportedForTesting(true)
+	env, acts := newRestoreEnv(t)
+	mockRestoreHappyPathActivities(env, acts)
+	// Run fails at the final CreateRestoreWorkflow step, then the defer rollback state update fails.
+	env.OnActivity(acts.volume.CreateRestoreWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("create restore workflow failed", "CreateFailed", nil)).Maybe()
+	env.OnActivity(acts.expert.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("rollback state update failed")).Maybe()
+	env.OnActivity(acts.common.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, makeRestoreParams())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
 func TestConvertExpertModeVolumeToVolume(t *testing.T) {

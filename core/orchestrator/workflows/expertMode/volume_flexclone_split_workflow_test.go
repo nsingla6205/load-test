@@ -180,3 +180,73 @@ func TestExpertModeFlexCloneSplitWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 }
+
+// newFlexCloneSplitBareEnv builds a flexclone-split environment without the auto-success GetNode /
+// UpdateJob mocks so the job-status and GetNode failure branches can be exercised directly.
+func newFlexCloneSplitBareEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment, activities.CommonActivities) {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
+	env.RegisterActivity(commonActivity.GetNode)
+	env.RegisterActivity(commonActivity.UpdateJobStatus)
+	env.RegisterActivity(commonActivity.GetJob)
+	env.RegisterActivity(expertModeActivity.WaitForExpertModeFlexCloneSplitComplete)
+	env.RegisterActivity(expertModeActivity.RecoverExpertModeVolumeAfterFlexCloneSplitFailure)
+	env.RegisterActivity(expertModeActivity.CompleteExpertModeFlexCloneSplitInDB)
+
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	return env, commonActivity
+}
+
+func TestExpertModeFlexCloneSplitWorkflow_ProcessingUpdateFailsAndErrorUpdateFails(t *testing.T) {
+	env, commonActivity := newFlexCloneSplitBareEnv(t)
+	// Both PROCESSING and the best-effort ERROR transition fail.
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(ExpertModeFlexCloneSplitWorkflow, testFlexCloneSplitVolume())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestExpertModeFlexCloneSplitWorkflow_GetNodeFails(t *testing.T) {
+	env, commonActivity := newFlexCloneSplitBareEnv(t)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
+		Return(([]*datamodel.Node)(nil), temporal.NewNonRetryableApplicationError("get node failed", "GetNodeFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(ExpertModeFlexCloneSplitWorkflow, testFlexCloneSplitVolume())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestExpertModeFlexCloneSplitWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	env, commonActivity := newFlexCloneSplitBareEnv(t)
+	// PROCESSING succeeds; the best-effort ERROR transition after Run fails.
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State == string(datamodel.JobsStateERROR)
+	})).Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State != string(datamodel.JobsStateERROR)
+	})).Return(nil).Maybe()
+	// Run fails at GetNode.
+	env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
+		Return(([]*datamodel.Node)(nil), temporal.NewNonRetryableApplicationError("get node failed", "GetNodeFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(ExpertModeFlexCloneSplitWorkflow, testFlexCloneSplitVolume())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}

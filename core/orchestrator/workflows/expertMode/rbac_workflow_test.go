@@ -20,6 +20,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -1577,6 +1578,263 @@ func TestCountCompletedFutures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- UpdateSinglePoolRbacChildWorkflow direct tests (error branches) ---
+
+// childWorkflowPool returns a fully populated pool used by the child-workflow direct tests.
+func (s *RBACWorkflowTestSuite) childWorkflowPool() *datamodel.Pool {
+	return &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"},
+		Name:      "pool-1",
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion: "9.18.1",
+			RbacFileHash: "old-hash-1",
+			RbacFileUrl:  "GCNV/9.18.1/RBAC/gcnvadmin_create_cli",
+		},
+		VLMConfig: `{"deployment":{"deployment_id":"deployment-1"}}`,
+	}
+}
+
+func (s *RBACWorkflowTestSuite) Test_ChildWorkflow_PoolMissingOntapVersion() {
+	// Pool has no BuildInfo, so the child workflow cannot resolve an ONTAP version and fails fast.
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	poolDetails := expertmodeactivities.PoolDetailsWithRbacHash{PoolUUID: "pool-uuid-1", LatestRbacHash: "new-hash-123"}
+
+	poolNoVersion := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"},
+		Name:      "pool-1",
+		BuildInfo: nil,
+	}
+	s.env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").Return(poolNoVersion, nil).Once()
+
+	s.env.ExecuteWorkflow(UpdateSinglePoolRbacChildWorkflow, poolDetails)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+}
+
+func (s *RBACWorkflowTestSuite) Test_ChildWorkflow_ParseVlmConfigFails() {
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	poolActivity := &activities.PoolActivity{}
+	poolDetails := expertmodeactivities.PoolDetailsWithRbacHash{PoolUUID: "pool-uuid-1", LatestRbacHash: "new-hash-123"}
+	pool := s.childWorkflowPool()
+	ontapCredentials := &vlm.OntapCredentials{AdminPassword: "password"}
+	expertCredentials := &vlm.OntapCredentials{AdminPassword: "expert-password"}
+
+	s.env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").Return(pool, nil).Once()
+	s.env.OnActivity(poolActivity.ValidateRbacHash, mock.Anything, "9.18.1", mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(nil).Once()
+	s.env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(ontapCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.GetExpertModeCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expertCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(nil, errors.New("parse vlm config failed")).Times(3)
+
+	s.env.ExecuteWorkflow(UpdateSinglePoolRbacChildWorkflow, poolDetails)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+}
+
+func (s *RBACWorkflowTestSuite) Test_ChildWorkflow_PrepareCreateReqFails() {
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	poolActivity := &activities.PoolActivity{}
+	poolDetails := expertmodeactivities.PoolDetailsWithRbacHash{PoolUUID: "pool-uuid-1", LatestRbacHash: "new-hash-123"}
+	pool := s.childWorkflowPool()
+	ontapCredentials := &vlm.OntapCredentials{AdminPassword: "password"}
+	expertCredentials := &vlm.OntapCredentials{AdminPassword: "expert-password"}
+	vlmConfig := &vlm.VLMConfig{Deployment: vlm.DeploymentConfig{DeploymentID: "deployment-1"}}
+
+	s.env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").Return(pool, nil).Once()
+	s.env.OnActivity(poolActivity.ValidateRbacHash, mock.Anything, "9.18.1", mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(nil).Once()
+	s.env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(ontapCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.GetExpertModeCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expertCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(vlmConfig, nil).Once()
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("prepare request failed")).Times(3)
+
+	s.env.ExecuteWorkflow(UpdateSinglePoolRbacChildWorkflow, poolDetails)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+}
+
+func (s *RBACWorkflowTestSuite) Test_ChildWorkflow_UpdateRbacCheckSumFails() {
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	poolActivity := &activities.PoolActivity{}
+	poolDetails := expertmodeactivities.PoolDetailsWithRbacHash{PoolUUID: "pool-uuid-1", LatestRbacHash: "new-hash-123"}
+	pool := s.childWorkflowPool()
+	ontapCredentials := &vlm.OntapCredentials{AdminPassword: "password"}
+	expertCredentials := &vlm.OntapCredentials{AdminPassword: "expert-password"}
+	vlmConfig := &vlm.VLMConfig{Deployment: vlm.DeploymentConfig{DeploymentID: "deployment-1"}}
+	createReq := &vlm.OntapExpertModeUserConfig{VLMConfig: *vlmConfig}
+
+	s.env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").Return(pool, nil).Once()
+	s.env.OnActivity(poolActivity.ValidateRbacHash, mock.Anything, "9.18.1", mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(nil).Once()
+	s.env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(ontapCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.GetExpertModeCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expertCredentials, nil).Once()
+	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(vlmConfig, nil).Once()
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createReq, nil).Once()
+	// CreateVSAExpertModeUser child workflow succeeds (registered in SetupTest); the final checksum
+	// update fails.
+	s.env.OnActivity(poolActivity.UpdateRbacCheckSumInPool, mock.Anything, mock.AnythingOfType("*datamodel.Pool"), mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(errors.New("update checksum failed")).Times(3)
+
+	s.env.ExecuteWorkflow(UpdateSinglePoolRbacChildWorkflow, poolDetails)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+}
+
+// newRBACChildEnv builds a standalone workflow test environment wired with the correlation header
+// and context propagator required by the RBAC child workflow.
+func newRBACChildEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetTestTimeout(1 * time.Minute)
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	loggerFields := log.Fields{string(middleware.RequestCorrelationID): "test-correlation-id"}
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(loggerFields)
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+	return env
+}
+
+// TestUpdateSinglePoolRbacChildWorkflow_CreateVSAUserFails covers the branch where the VLM
+// CreateVSAExpertModeUser child workflow returns an error.
+func TestUpdateSinglePoolRbacChildWorkflow_CreateVSAUserFails(t *testing.T) {
+	env := newRBACChildEnv(t)
+
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	poolActivity := &activities.PoolActivity{}
+	env.RegisterWorkflow(UpdateSinglePoolRbacChildWorkflow)
+	env.RegisterActivity(rbacActivity.GetPoolByUUID)
+	env.RegisterActivity(poolActivity.ValidateRbacHash)
+	env.RegisterActivity(poolActivity.GetOnTapCredentials)
+	env.RegisterActivity(poolActivity.GetExpertModeCredentials)
+	env.RegisterActivity(poolActivity.ParseVlmConfig)
+	env.RegisterActivity(poolActivity.PrepareCreateVSAExpertModeReq)
+	env.RegisterActivity(poolActivity.UpdateRbacCheckSumInPool)
+
+	// Register the VLM child workflow to fail.
+	env.RegisterWorkflowWithOptions(
+		func(ctx workflow.Context, request *vlm.OntapExpertModeUserConfig) (vlm.OntapExpertModeUserResponse, error) {
+			return vlm.OntapExpertModeUserResponse{}, errors.New("create vsa expert mode user failed")
+		},
+		workflow.RegisterOptions{Name: vlm.CreateVSAExpertModeUserWorkflowName},
+	)
+
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"},
+		Name:      "pool-1",
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion: "9.18.1",
+			RbacFileHash: "old-hash-1",
+			RbacFileUrl:  "GCNV/9.18.1/RBAC/gcnvadmin_create_cli",
+		},
+		VLMConfig: `{"deployment":{"deployment_id":"deployment-1"}}`,
+	}
+	ontapCredentials := &vlm.OntapCredentials{AdminPassword: "password"}
+	expertCredentials := &vlm.OntapCredentials{AdminPassword: "expert-password"}
+	vlmConfig := &vlm.VLMConfig{Deployment: vlm.DeploymentConfig{DeploymentID: "deployment-1"}}
+	createReq := &vlm.OntapExpertModeUserConfig{VLMConfig: *vlmConfig}
+
+	env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").Return(pool, nil).Once()
+	env.OnActivity(poolActivity.ValidateRbacHash, mock.Anything, "9.18.1", mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(nil).Once()
+	env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(ontapCredentials, nil).Once()
+	env.OnActivity(poolActivity.GetExpertModeCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expertCredentials, nil).Once()
+	env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(vlmConfig, nil).Once()
+	env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createReq, nil).Once()
+
+	poolDetails := expertmodeactivities.PoolDetailsWithRbacHash{PoolUUID: "pool-uuid-1", LatestRbacHash: "new-hash-123"}
+	env.ExecuteWorkflow(UpdateSinglePoolRbacChildWorkflow, poolDetails)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+// --- Job-status error-logging branches (best-effort ERROR transitions that also fail) ---
+
+// newRBACJobEnv builds a standalone environment with the common job activities registered so the
+// workflow's Setup/EnsureJobState/UpdateJobStatus plumbing can run.
+func newRBACJobEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment, activities.CommonActivities) {
+	t.Helper()
+	env := newRBACChildEnv(t)
+	commonActivity := activities.CommonActivities{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(commonActivity.GetJob)
+	env.RegisterActivity(commonActivity.UpdateJobStatus)
+	env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	return env, commonActivity
+}
+
+func TestUpdateRbacForSinglePoolWorkflow_ProcessingAndErrorUpdateFail(t *testing.T) {
+	// Both the PROCESSING transition and the best-effort ERROR transition fail, exercising the
+	// error-logging branch.
+	env, commonActivity := newRBACJobEnv(t)
+	env.RegisterWorkflow(UpdateRbacForSinglePoolWorkflow)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(UpdateRbacForSinglePoolWorkflow, "pool-uuid-1")
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestUpdateRbacForSinglePoolWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	// PROCESSING succeeds, RunForSinglePool fails, and the best-effort ERROR transition also fails.
+	env, commonActivity := newRBACJobEnv(t)
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	env.RegisterWorkflow(UpdateRbacForSinglePoolWorkflow)
+	env.RegisterActivity(rbacActivity.GetPoolByUUID)
+
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State == string(datamodel.JobsStateERROR)
+	})).Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State != string(datamodel.JobsStateERROR)
+	})).Return(nil).Maybe()
+	env.OnActivity(rbacActivity.GetPoolByUUID, mock.Anything, "pool-uuid-1").
+		Return(nil, temporal.NewNonRetryableApplicationError("pool not found", "NotFound", nil)).Maybe()
+
+	env.ExecuteWorkflow(UpdateRbacForSinglePoolWorkflow, "pool-uuid-1")
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestUpdateRbacForPoolsWorkflow_ProcessingAndErrorUpdateFail(t *testing.T) {
+	env, commonActivity := newRBACJobEnv(t)
+	env.RegisterWorkflow(UpdateRbacForPoolsWorkflow)
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(UpdateRbacForPoolsWorkflow)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
+func TestUpdateRbacForPoolsWorkflow_RunFailsAndErrorUpdateFails(t *testing.T) {
+	// PROCESSING succeeds, Run fails (ListActiveExpertModePools errors), and the best-effort ERROR
+	// transition also fails.
+	env, commonActivity := newRBACJobEnv(t)
+	rbacActivity := &expertmodeactivities.RBACUpdateActivity{}
+	env.RegisterWorkflow(UpdateRbacForPoolsWorkflow)
+	env.RegisterActivity(rbacActivity.ListActiveExpertModePools)
+
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State == string(datamodel.JobsStateERROR)
+	})).Return(temporal.NewNonRetryableApplicationError("update job status failed", "UpdateFailed", nil)).Maybe()
+	env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job.State != string(datamodel.JobsStateERROR)
+	})).Return(nil).Maybe()
+	env.OnActivity(rbacActivity.ListActiveExpertModePools, mock.Anything).
+		Return(nil, temporal.NewNonRetryableApplicationError("list pools failed", "ListFailed", nil)).Maybe()
+
+	env.ExecuteWorkflow(UpdateRbacForPoolsWorkflow)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
 func TestRBACWorkflowTestSuite(t *testing.T) {

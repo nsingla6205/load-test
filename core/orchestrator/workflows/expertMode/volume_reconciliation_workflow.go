@@ -50,21 +50,21 @@ func VolumeCreateReconciliationWorkflow(ctx workflow.Context, volume *datamodel.
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
-		log.Errorf("Failed to update job status to PROCESSING, attempting to update to ERROR: %v", err)
+		log := workflow.GetLogger(ctx)
+		log.Error("Failed to update job status to PROCESSING, attempting to update to ERROR", "error", err)
 		err2 := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", err2)
+			log.Error("Failed to update job status to ERROR", "error", err2)
 		}
 		return nil, err
 	}
 	_, cerr := wf.Run(ctx, volume)
 	if cerr != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		err2 := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), cerr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", err2)
+			log.Error("Failed to update job status to ERROR", "error", err2)
 		}
 		return nil, cerr
 	}
@@ -87,7 +87,7 @@ func (wf *volumeCreateReconciliationWorkflow) Setup(ctx workflow.Context, input 
 }
 
 func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.ExpertModeVolumes)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -119,7 +119,7 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	var node *models.Node
 	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
+		log.Error("Failed to resolve ONTAP node for pool", "poolID", pool.ID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -139,12 +139,12 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 		// CREATING. This is safe because ONTAP is the source of truth: the background expert mode
 		// volume reconciler (runs ~every 10 min) re-creates the DB row as AVAILABLE if the volume
 		// actually exists in ONTAP, and leaves it deleted otherwise.
-		log.Infof("Volume %s could not be confirmed in ONTAP after max retries (%v), marking as DELETED", volume.Name, vsaErr)
+		log.Info("Volume could not be confirmed in ONTAP after max retries, marking as DELETED", "volume", volume.Name, "error", vsaErr)
 		err2 := workflow.ExecuteActivity(ctx, activity.DeleteExpertModeVolumeInDB, volume.UUID).Get(ctx, nil)
 		if err2 != nil {
-			log.Errorf("Failed to delete volume in DB: %v", err2)
+			log.Error("Failed to delete volume in DB", "error", err2)
 		} else {
-			log.Infof("ExpertMode volume %s marked as DELETED (not confirmed in ONTAP after all retries exhausted)", volume.Name)
+			log.Info("ExpertMode volume marked as DELETED (not confirmed in ONTAP after all retries exhausted)", "volume", volume.Name)
 		}
 
 		return nil, vsaErr
@@ -153,12 +153,12 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	// Use the updated volume returned from the activity
 	err = workflow.ExecuteActivity(ctx, activity.UpdateExpertModeVolumeInDB, updatedVolume).Get(ctx, nil)
 	if err != nil {
-		log.Errorf("UpdateExpertModeVolumeInDB activity failed: %v", err)
+		log.Error("UpdateExpertModeVolumeInDB activity failed", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	log.Infof("ExpertMode volume state updated to AVAILABLE with size=%d, name=%s, style=%s",
-		updatedVolume.SizeInBytes, updatedVolume.Name, updatedVolume.Style)
+	log.Info("ExpertMode volume state updated to AVAILABLE",
+		"size", updatedVolume.SizeInBytes, "name", updatedVolume.Name, "style", updatedVolume.Style)
 
 	return nil, nil
 }
@@ -174,21 +174,21 @@ func VolumeDeleteReconciliationWorkflow(ctx workflow.Context, volume *datamodel.
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
-		log.Errorf("Failed to update job status to PROCESSING, attempting to update to ERROR: %v", err)
+		log := workflow.GetLogger(ctx)
+		log.Error("Failed to update job status to PROCESSING, attempting to update to ERROR", "error", err)
 		err2 := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", err2)
+			log.Error("Failed to update job status to ERROR", "error", err2)
 		}
 		return nil, err
 	}
 	_, cerr := wf.Run(ctx, volume)
 	if cerr != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		err2 := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), cerr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", err2)
+			log.Error("Failed to update job status to ERROR", "error", err2)
 		}
 		return nil, cerr
 	}
@@ -211,7 +211,7 @@ func (wf *volumeDeleteReconciliationWorkflow) Setup(ctx workflow.Context, input 
 }
 
 func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.ExpertModeVolumes)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -243,7 +243,7 @@ func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	var node *models.Node
 	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
+		log.Error("Failed to resolve ONTAP node for pool", "poolID", pool.ID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -256,22 +256,22 @@ func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...
 		// If error is ErrResourceStateConflictError, it means volume still exists after max retries
 		// Update the volume state to available in DB since it still exists in ONTAP
 		if vsaErr != nil && vsaErr.TrackingID == vsaerrors.ErrResourceStateConflictError {
-			log.Infof("Volume %s still exists in ONTAP after max activity retries, updating state to AVAILABLE in DB", volume.Name)
+			log.Info("Volume still exists in ONTAP after max activity retries, updating state to AVAILABLE in DB", "volume", volume.Name)
 			volume.State = datamodel.LifeCycleStateAvailable
 			err2 := workflow.ExecuteActivity(ctx, activity.UpdateExpertModeVolumeInDB, volume).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to AVAILABLE: %v. Volume still exists in ONTAP, reconciliation complete.", err2)
+				log.Error("Failed to update volume state in DB to AVAILABLE; volume still exists in ONTAP, reconciliation complete", "error", err2)
 			} else {
-				log.Infof("ExpertMode volume %s marked as AVAILABLE in DB (still exists in ONTAP after max retries)", volume.Name)
+				log.Info("ExpertMode volume marked as AVAILABLE in DB (still exists in ONTAP after max retries)", "volume", volume.Name)
 			}
 		}
 		return nil, vsaErr
 	}
 
-	log.Infof("Volume %s not found in ONTAP, deletion is complete. Marking as DELETED in DB", volume.Name)
+	log.Info("Volume not found in ONTAP, deletion is complete; marking as DELETED in DB", "volume", volume.Name)
 	err = workflow.ExecuteActivity(ctx, activity.DeleteExpertModeVolumeInDB, volume.UUID).Get(ctx, nil)
 	if err != nil {
-		log.Errorf("DeleteExpertModeVolumeInDB activity failed: %v", err)
+		log.Error("DeleteExpertModeVolumeInDB activity failed", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	return nil, nil
@@ -288,21 +288,21 @@ func VolumeUpdateReconciliationWorkflow(ctx workflow.Context, volume *datamodel.
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
-		log.Errorf("Failed to update job status to PROCESSING, attempting to update to ERROR: %v", err)
+		log := workflow.GetLogger(ctx)
+		log.Error("Failed to update job status to PROCESSING, attempting to update to ERROR", "error", err)
 		jobErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		if jobErr != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", jobErr)
+			log.Error("Failed to update job status to ERROR", "error", jobErr)
 		}
 		return nil, err
 	}
 	_, cerr := wf.Run(ctx, volume, oldVolume)
 	if cerr != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		jobErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), cerr)
 		if jobErr != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", jobErr)
+			log.Error("Failed to update job status to ERROR", "error", jobErr)
 		}
 		return nil, cerr
 	}
@@ -325,7 +325,7 @@ func (wf *volumeUpdateReconciliationWorkflow) Setup(ctx workflow.Context, input 
 }
 
 func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.ExpertModeVolumes)
 	oldVolume := args[1].(*datamodel.ExpertModeVolumes)
 
@@ -358,7 +358,7 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	var node *models.Node
 	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
+		log.Error("Failed to resolve ONTAP node for pool", "poolID", pool.ID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -376,21 +376,21 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 		// if the error is ErrResourceStateConflictError, it means volume still isn't updated even after max retries
 		// Update the volume state to available in DB since it's available and with older values in ONTAP
 		if vsaErr != nil {
-			log.Infof("Volume UUID: %s not updated in ONTAP after max retries, marking as %s", volume.UUID, datamodel.LifeCycleStateAvailable)
+			log.Info("Volume not updated in ONTAP after max retries, marking as AVAILABLE", "volumeUUID", volume.UUID, "state", datamodel.LifeCycleStateAvailable)
 			err = workflow.ExecuteActivity(ctx1, activity.FetchOntapVolumeByUUID, volume, node).Get(ctx1, &updatedVolume)
 			if err != nil {
-				log.Errorf("Failed to fetch volume from ONTAP: %v", err)
+				log.Error("Failed to fetch volume from ONTAP", "error", err)
 			}
 			if updatedVolume == nil || err != nil {
-				log.Debugf("setting the volume (external UUID: %s) to old volume(name : %s), since fetching volume from ONTAP failed: %v", oldVolume.ExternalUUID, oldVolume.Name, err)
+				log.Debug("setting the volume to old volume since fetching volume from ONTAP failed", "externalUUID", oldVolume.ExternalUUID, "oldVolumeName", oldVolume.Name, "error", err)
 				updatedVolume = oldVolume
 			}
 			updatedVolume.State = datamodel.LifeCycleStateAvailable
 			updateErr := workflow.ExecuteActivity(ctx, activity.UpdateExpertModeVolumeInDB, updatedVolume).Get(ctx, nil)
 			if updateErr != nil {
-				log.Errorf("Failed to update volume state in DB to AVAILABLE: %v. Volume isn't updated in ONTAP, reconciliation complete.", updateErr)
+				log.Error("Failed to update volume state in DB to AVAILABLE; volume isn't updated in ONTAP, reconciliation complete", "error", updateErr)
 			} else {
-				log.Infof("ExpertMode volume %s marked as AVAILABLE (not updated in ONTAP after max retries)", updatedVolume.Name)
+				log.Info("ExpertMode volume marked as AVAILABLE (not updated in ONTAP after max retries)", "volume", updatedVolume.Name)
 			}
 		}
 		return nil, vsaErr
@@ -400,12 +400,12 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	updatedVolume.State = datamodel.LifeCycleStateAvailable
 	err = workflow.ExecuteActivity(ctx, activity.UpdateExpertModeVolumeInDB, updatedVolume).Get(ctx, nil)
 	if err != nil {
-		log.Errorf("UpdateExpertModeVolumeInDB activity failed: %v", err)
+		log.Error("UpdateExpertModeVolumeInDB activity failed", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	log.Infof("ExpertMode volume state updated to AVAILABLE with size=%d, name=%s, style=%s",
-		updatedVolume.SizeInBytes, updatedVolume.Name, updatedVolume.Style)
+	log.Info("ExpertMode volume state updated to AVAILABLE",
+		"size", updatedVolume.SizeInBytes, "name", updatedVolume.Name, "style", updatedVolume.Style)
 
 	return nil, nil
 }

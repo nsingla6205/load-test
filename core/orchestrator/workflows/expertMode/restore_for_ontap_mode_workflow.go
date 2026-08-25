@@ -51,10 +51,10 @@ func convertExpertModeVolumeToVolume(emv *datamodel.ExpertModeVolumes) *datamode
 // RestoreForOntapModeVolumeWorkflow runs full volume restore from backup for ONTAP mode (expert mode) volumes.
 // It calls Setup (job and query handler), then Run which contains the core logic and activity invocations.
 func RestoreForOntapModeVolumeWorkflow(ctx workflow.Context, params *common.RestoreForOntapModeParams) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	wf := &restoreForOntapModeVolumeWorkflow{}
 	if err := wf.Setup(ctx, params); err != nil {
-		log.Errorf("Failed to setup RestoreForOntapModeVolumeWorkflow: %v", err)
+		log.Error("Failed to setup RestoreForOntapModeVolumeWorkflow", "error", err)
 		return err
 	}
 	if err := wf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -62,17 +62,17 @@ func RestoreForOntapModeVolumeWorkflow(ctx workflow.Context, params *common.Rest
 	}
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
-		log.Errorf("Failed to update job status to PROCESSING: %v", err)
+		log.Error("Failed to update job status to PROCESSING", "error", err)
 		return err
 	}
 
 	_, customErr := wf.Run(ctx, params)
 	if customErr != nil {
 		if !workflow.IsContinueAsNewError(customErr.OriginalErr) {
-			log.Errorf("RestoreForOntapModeVolumeWorkflow run failed: %v", customErr.OriginalErr)
+			log.Error("RestoreForOntapModeVolumeWorkflow run failed", "error", customErr.OriginalErr)
 			wf.Status = workflows.WorkflowStatusFailed
 			if updateErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr); updateErr != nil {
-				log.Errorf("Failed to update job state to ERROR: %v", updateErr)
+				log.Error("Failed to update job state to ERROR", "error", updateErr)
 			}
 			return customErr.OriginalErr
 		}
@@ -80,7 +80,7 @@ func RestoreForOntapModeVolumeWorkflow(ctx workflow.Context, params *common.Rest
 	}
 	wf.Status = workflows.WorkflowStatusCompleted
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil); err != nil {
-		log.Errorf("Failed to update job state to DONE: %v", err)
+		log.Error("Failed to update job state to DONE", "error", err)
 		return err
 	}
 	return nil
@@ -111,7 +111,7 @@ func (wf *restoreForOntapModeVolumeWorkflow) Setup(ctx workflow.Context, input i
 // Run executes the restore workflow: convert expert mode volume, fetch backup metadata, enrich from ONTAP, and start RestoreBackupWorkflow.
 func (wf *restoreForOntapModeVolumeWorkflow) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, retErr *vsaerrors.CustomError) {
 	params := args[0].(*common.RestoreForOntapModeParams)
-	log := wf.Logger
+	log := workflow.GetLogger(ctx)
 
 	volumeActivity := &activities.VolumeCreateActivity{}
 	expertModeVolumeActivity := &expertmodeactivities.ExpertModeVolumeActivity{}
@@ -140,7 +140,7 @@ func (wf *restoreForOntapModeVolumeWorkflow) Run(ctx workflow.Context, args ...i
 		// Only restore volume to READY on failure (rollback). On success, RestoreBackupWorkflow sets READY when the actual restore completes.
 		if retErr != nil {
 			if err2 := workflow.ExecuteActivity(ctx, expertModeVolumeActivity.UpdateExpertModeVolumeStateInDB, volume.UUID, datamodel.LifeCycleStateAvailable).Get(ctx, nil); err2 != nil {
-				log.Errorf("Failed to restore expert mode volume state to READY: %v", err2)
+				log.Error("Failed to restore expert mode volume state to READY", "error", err2)
 			}
 		}
 	}()

@@ -153,7 +153,7 @@ func (d *DataStoreRepository) UpdateExpertModeVolume(ctx context.Context, expert
 	return dbVolume, nil
 }
 
-// DeleteExpertModeVolume soft deletes an expert mode volume by setting DeletedAt and State
+// DeleteExpertModeVolume soft deletes an expert mode volume by setting DeletedAt and State.
 func (d *DataStoreRepository) DeleteExpertModeVolume(ctx context.Context, volumeUUID string) error {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
@@ -163,9 +163,14 @@ func (d *DataStoreRepository) DeleteExpertModeVolume(ctx context.Context, volume
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
-	volume, err := getExpertModeVolumeWithDetails(tx, &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: volumeUUID}})
+	volume := &datamodel.ExpertModeVolumes{}
+	err = tx.Unscoped().First(volume, &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: volumeUUID}}).Error
 	if err != nil {
 		return err
+	}
+
+	if volume.DeletedAt != nil && volume.DeletedAt.Valid {
+		return nil
 	}
 
 	volume.DeletedAt = &gorm.DeletedAt{Time: time.Now(), Valid: true}

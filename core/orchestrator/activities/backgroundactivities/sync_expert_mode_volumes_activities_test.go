@@ -3,6 +3,7 @@ package backgroundactivities
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -100,16 +101,6 @@ func TestFilterReconcilableVolumes(t *testing.T) {
 	})
 }
 
-func TestShouldSkipExpertModeVolumeReconcile(t *testing.T) {
-	assert.False(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateCreating))
-	assert.False(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateUpdating))
-	assert.True(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateDeleting))
-	assert.True(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateDeleted))
-	assert.False(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateSplitting))
-	assert.False(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateAvailable))
-	assert.False(t, shouldSkipExpertModeVolumeReconcile(datamodel.LifeCycleStateREADY))
-}
-
 func TestShouldReconcileExpertModeVolumeSize(t *testing.T) {
 	assert.False(t, shouldReconcileExpertModeVolumeSize(datamodel.LifeCycleStateCreating))
 	assert.False(t, shouldReconcileExpertModeVolumeSize(datamodel.LifeCycleStateUpdating))
@@ -200,7 +191,52 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		mockSE.AssertExpectations(tt)
 	})
 
-	t.Run("SkipsVolumesDeletingOrDeleted", func(tt *testing.T) {
+	t.Run("FinalizesDeletingVolumeAbsentFromOntapAsDeleted", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "db-uuid-deleting"},
+				Name:         "deleting-vol",
+				ExternalUUID: "deleting-ext-uuid",
+				State:        datamodel.LifeCycleStateDeleting,
+			},
+		}
+
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "db-uuid-deleting").Return(nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 1, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("SkipsTerminalDeletedVolumeAbsentFromOntap", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		// A terminal DELETED row is left as-is: no delete call.
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "db-uuid-deleted"},
+				Name:         "deleted-vol",
+				ExternalUUID: "deleted-ext-uuid",
+				State:        datamodel.LifeCycleStateDeleted,
+			},
+		}
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertNotCalled(tt, "DeleteExpertModeVolume", mock.Anything, mock.Anything)
+	})
+
+	t.Run("FinalizesDeletingButSkipsDeletedWhenAbsentFromOntap", func(tt *testing.T) {
 		mockSE := database.NewMockStorage(tt)
 
 		ontapVolumes := []*vsa.Volume{}
@@ -219,8 +255,73 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 			},
 		}
 
+		// Only the DELETING row is finalized; the terminal DELETED row is left untouched.
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "db-uuid-deleting").Return(nil)
+
 		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
 		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 1, deleted)
+		mockSE.AssertExpectations(tt)
+		mockSE.AssertNotCalled(tt, "DeleteExpertModeVolume", mock.Anything, "db-uuid-deleted")
+	})
+
+	t.Run("LeavesDeletingVolumeStillPresentInOntap", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		// A DELETING row whose volume is still present in ONTAP is owned by the in-flight delete
+		// workflow: it must not be finalized here (no delete) and its size must not be reconciled.
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("deleting-vol"),
+					UUID:  nillable.ToPointer("deleting-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(4096))},
+				},
+				ExternalUUID: "deleting-ext-uuid",
+			},
+		}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "db-uuid-deleting"},
+				Name:         "deleting-vol",
+				ExternalUUID: "deleting-ext-uuid",
+				SizeInBytes:  2048,
+				State:        datamodel.LifeCycleStateDeleting,
+			},
+		}
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertNotCalled(tt, "DeleteExpertModeVolume", mock.Anything, mock.Anything)
+		mockSE.AssertNotCalled(tt, "UpdateExpertModeVolumeFields", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("AggregatesDeleteErrorWhenFinalizingDeletingFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "db-uuid-deleting-fail"},
+				Name:         "deleting-fail-vol",
+				ExternalUUID: "deleting-fail-ext-uuid",
+				State:        datamodel.LifeCycleStateDeleting,
+			},
+		}
+
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "db-uuid-deleting-fail").Return(errors.New("db error"))
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "0 create errors")
+		assert.Contains(tt, err.Error(), "0 update errors")
+		assert.Contains(tt, err.Error(), "1 delete errors")
 		assert.Equal(tt, 0, added)
 		assert.Equal(tt, 0, updated)
 		assert.Equal(tt, 0, deleted)
@@ -345,6 +446,58 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		assert.Equal(tt, 0, added)
 		assert.Equal(tt, 1, updated)
 		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("SoftDeletesStaleCreatingGhostWhenOntapVolumeAlreadyBoundToExistingRow", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// ONTAP has the real volume "vol1" (external UUID "real-ext-uuid") in svm-1.
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("vol1"),
+					UUID:  nillable.ToPointer("real-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+					Style: nillable.ToPointer("flexvol"),
+				},
+				ExternalUUID: "real-ext-uuid",
+			},
+		}
+		// DB has both: a legit AVAILABLE row already bound to "real-ext-uuid", AND a stale CREATING
+		// ghost (empty external_uuid) for the same name+SVM. The ghost must be soft-deleted as a
+		// duplicate, NOT adopted into a second AVAILABLE row.
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "available-uuid"},
+				Name:         "vol1",
+				ExternalUUID: "real-ext-uuid",
+				SvmID:        1,
+				SizeInBytes:  2048,
+				State:        datamodel.LifeCycleStateAvailable,
+			},
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "vol1",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		// Only the ghost is soft-deleted. The legit row is untouched: no Update (sizes match) and
+		// no second AVAILABLE row created.
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "ghost-uuid").Return(nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 1, deleted)
+		mockSE.AssertNotCalled(tt, "UpdateExpertModeVolume", mock.Anything, mock.Anything)
+		mockSE.AssertNotCalled(tt, "CreateExpertModeVolume", mock.Anything, mock.Anything)
 		mockSE.AssertExpectations(tt)
 	})
 
@@ -699,6 +852,189 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		assert.Equal(tt, 0, deleted)
 		mockSE.AssertExpectations(tt)
 	})
+
+	t.Run("SkipsEmptyExternalUUIDRowInNonCreatingState", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		// A row with an empty external_uuid that is NOT in CREATING state is unexpected: it is
+		// logged and skipped (never added to dbMap, never deleted).
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "db-uuid-orphan"},
+				Name:         "orphan-vol",
+				ExternalUUID: "",
+				State:        datamodel.LifeCycleStateAvailable,
+			},
+		}
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertNotCalled(tt, "DeleteExpertModeVolume", mock.Anything, mock.Anything)
+		mockSE.AssertNotCalled(tt, "UpdateExpertModeVolume", mock.Anything, mock.Anything)
+	})
+
+	t.Run("AggregatesUpdateErrorWhenAdoptingStaleCreatingRowFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// Stale creating ghost present in ONTAP: adoption in place is attempted but the DB update
+		// fails, so an update error is aggregated. The matching ONTAP volume is then created by the
+		// add pass (its external_uuid was not claimed because adoption failed).
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("ghost-vol"),
+					UUID:  nillable.ToPointer("real-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+					Style: nillable.ToPointer("flexvol"),
+				},
+				ExternalUUID: "real-ext-uuid",
+			},
+		}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		mockSE.On("UpdateExpertModeVolume", mock.Anything, mock.Anything).Return((*datamodel.ExpertModeVolumes)(nil), errors.New("db error"))
+		mockSE.On("CreateExpertModeVolume", mock.Anything, mock.Anything).Return(&datamodel.ExpertModeVolumes{}, nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "0 create errors")
+		assert.Contains(tt, err.Error(), "1 update errors")
+		assert.Contains(tt, err.Error(), "0 delete errors")
+		assert.Equal(tt, 1, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("AggregatesDeleteErrorWhenSoftDeletingStaleGhostFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// Stale creating ghost absent from ONTAP: the soft-delete is attempted but fails, so a
+		// delete error is aggregated.
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "ghost-uuid").Return(errors.New("db error"))
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "0 create errors")
+		assert.Contains(tt, err.Error(), "0 update errors")
+		assert.Contains(tt, err.Error(), "1 delete errors")
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("AggregatesDeleteErrorWhenSoftDeletingDuplicateGhostFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// ONTAP volume already bound to an existing AVAILABLE row plus a stale duplicate CREATING
+		// ghost for the same name+SVM: the ghost soft-delete is attempted but fails, so a delete
+		// error is aggregated.
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("vol1"),
+					UUID:  nillable.ToPointer("real-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+				},
+				ExternalUUID: "real-ext-uuid",
+			},
+		}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "available-uuid"},
+				Name:         "vol1",
+				ExternalUUID: "real-ext-uuid",
+				SvmID:        1,
+				SizeInBytes:  2048,
+				State:        datamodel.LifeCycleStateAvailable,
+			},
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "vol1",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "ghost-uuid").Return(errors.New("db error"))
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "0 create errors")
+		assert.Contains(tt, err.Error(), "0 update errors")
+		assert.Contains(tt, err.Error(), "1 delete errors")
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("RecordsHeartbeatWhenScanningManyVolumes", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+
+		// More than expertModeVolumeReconcileHeartbeatInterval (50) in-sync volumes so both the
+		// ONTAP-scan loop and the DB-scan loop cross a heartbeat boundary. Sizes match, so no SE
+		// calls are made.
+		const n = expertModeVolumeReconcileHeartbeatInterval + 1
+		ontapVolumes := make([]*vsa.Volume, n)
+		dbVolumes := make([]*datamodel.ExpertModeVolumes, n)
+		for i := 0; i < n; i++ {
+			ext := fmt.Sprintf("ext-%d", i)
+			name := fmt.Sprintf("vol-%d", i)
+			ontapVolumes[i] = &vsa.Volume{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer(name),
+					UUID:  nillable.ToPointer(ext),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+				},
+				ExternalUUID: ext,
+			}
+			dbVolumes[i] = &datamodel.ExpertModeVolumes{
+				BaseModel:    datamodel.BaseModel{UUID: fmt.Sprintf("db-%d", i)},
+				Name:         name,
+				ExternalUUID: ext,
+				SizeInBytes:  2048,
+				State:        datamodel.LifeCycleStateAvailable,
+			}
+		}
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+	})
 }
 
 // setFixedNowAndGhostMaxAge pins nowUTC to a fixed instant and sets the creating-ghost grace
@@ -950,6 +1286,87 @@ func TestSyncExpertModeVolumesForPool_GetVolumesError(t *testing.T) {
 	err := a.syncExpertModeVolumesForPool(ctx, &database.PoolIdentifier{UUID: "pool-uuid-3", Name: "test-pool"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get ONTAP volumes")
+	mockSE.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestSyncExpertModeVolumesForPool_ListExpertModeVolumesError(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	a := &SyncExpertModeVolumesActivity{SE: mockSE}
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 100, UUID: "pool-uuid-4"}, Name: "test-pool"}
+
+	mockProvider := vsa.NewMockProvider(t)
+	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
+	mockGetOntapRestProviderForPool(t, mockProvider)
+
+	mockSE.On("GetPoolByUUID", mock.Anything, "pool-uuid-4").Return(pool, nil)
+	mockSE.On("ListExpertModeVolumesByPoolID", mock.Anything, int64(100)).Return(nil, errors.New("db error"))
+
+	err := a.syncExpertModeVolumesForPool(ctx, &database.PoolIdentifier{UUID: "pool-uuid-4", Name: "test-pool"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get DB expert mode volumes")
+	mockSE.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestSyncExpertModeVolumesForPool_GetSvmsError(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	a := &SyncExpertModeVolumesActivity{SE: mockSE}
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 100, UUID: "pool-uuid-5"}, Name: "test-pool"}
+
+	mockProvider := vsa.NewMockProvider(t)
+	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
+	mockGetOntapRestProviderForPool(t, mockProvider)
+
+	mockSE.On("GetPoolByUUID", mock.Anything, "pool-uuid-5").Return(pool, nil)
+	mockSE.On("ListExpertModeVolumesByPoolID", mock.Anything, int64(100)).Return([]*datamodel.ExpertModeVolumes{}, nil)
+	mockSE.On("GetSvmsByPoolID", mock.Anything, int64(100)).Return(nil, errors.New("db error"))
+
+	err := a.syncExpertModeVolumesForPool(ctx, &database.PoolIdentifier{UUID: "pool-uuid-5", Name: "test-pool"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get SVMs")
+	mockSE.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestSyncExpertModeVolumesForPool_ReconcileError(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	a := &SyncExpertModeVolumesActivity{SE: mockSE}
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 100, UUID: "pool-uuid-6"}, AccountID: 10, Name: "test-pool"}
+
+	// One ONTAP volume needing a create; the create fails so reconcileExpertModeVolumes returns an
+	// aggregate error that syncExpertModeVolumesForPool propagates.
+	ontapVolumes := []*vsa.Volume{
+		{
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("new-vol"),
+				UUID: nillable.ToPointer("new-ext-uuid"),
+				Svm:  &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+			},
+			ExternalUUID: "new-ext-uuid",
+		},
+	}
+
+	mockProvider := vsa.NewMockProvider(t)
+	mockProvider.On("GetVolumes").Return(ontapVolumes, nil)
+	mockGetOntapRestProviderForPool(t, mockProvider)
+
+	mockSE.On("GetPoolByUUID", mock.Anything, "pool-uuid-6").Return(pool, nil)
+	mockSE.On("ListExpertModeVolumesByPoolID", mock.Anything, int64(100)).Return([]*datamodel.ExpertModeVolumes{}, nil)
+	mockSE.On("GetSvmsByPoolID", mock.Anything, int64(100)).Return([]*datamodel.Svm{
+		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "svm-1"},
+	}, nil)
+	mockSE.On("CreateExpertModeVolume", mock.Anything, mock.Anything).Return((*datamodel.ExpertModeVolumes)(nil), errors.New("db error"))
+
+	err := a.syncExpertModeVolumesForPool(ctx, &database.PoolIdentifier{UUID: "pool-uuid-6", Name: "test-pool"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "reconciliation incomplete")
 	mockSE.AssertExpectations(t)
 	mockProvider.AssertExpectations(t)
 }

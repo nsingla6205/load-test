@@ -206,19 +206,7 @@ func reconcileExpertModeVolumes(
 	var createErrors, updateErrors, deleteErrors int
 	processed := 0
 
-	// Reconcile creating rows (empty external_uuid, CREATING state) by name against ONTAP before
-	// the add/delete passes below. A row is owned by an in-flight create workflow until it ages out
-	// of the grace window (expertModeCreatingGhostMaxAge), so fresh rows are always left alone.
-	// Once a row is past the grace age the workflow is no longer expected to finalize it:
-	//   - present in ONTAP: the create landed but the workflow never wrote back the external_uuid.
-	//     The row is adopted in place (external_uuid + AVAILABLE set on the SAME row) rather than
-	//     deleted and recreated. Updating in place preserves the row UUID, so a slow create
-	//     workflow's UpdateExpertModeVolumeInDB (which looks the row up by UUID) still succeeds, and
-	//     no duplicate AVAILABLE row is created by the add pass.
-	//   - absent from ONTAP: the create never landed, so the row is soft-deleted as a failed create.
-	// External UUIDs owned by a creating row (adopted, or left within the grace window while the
-	// volume already exists in ONTAP) are recorded in claimedExternalUUIDs so the add pass does not
-	// create a duplicate AVAILABLE row for a volume the create workflow will bind to this row.
+	// Reconcile creating ghosts (empty external_uuid, CREATING) past the grace window: adopt in place if present and unbound, soft-delete if absent or a duplicate of an already-bound row.
 	ontapVolumesBySvmAndName := buildOntapVolumesBySvmAndName(ontapVolumes, svmNameToID)
 	claimedExternalUUIDs := make(map[string]bool)
 	now := nowUTC()
@@ -237,6 +225,24 @@ func reconcileExpertModeVolumes(
 		}
 
 		if presentInOntap {
+			// Soft-delete the duplicate instead which includes creating ghost.
+			if _, alreadyBound := dbMap[ontapVol.ExternalUUID]; alreadyBound {
+				if deleteErr := se.DeleteExpertModeVolume(ctx, creatingVol.UUID); deleteErr != nil {
+					logger.Errorf(
+						"Failed to soft-delete duplicate creating expert mode volume %s (uuid %s) for pool %s: %v",
+						creatingVol.Name, creatingVol.UUID, pool.Name, deleteErr,
+					)
+					deleteErrors++
+					continue
+				}
+				deleted++
+				logger.Infof(
+					"Soft-deleted duplicate creating expert mode volume %s (uuid %s) for pool %s: ONTAP volume (ext uuid %s) already bound to an existing row",
+					creatingVol.Name, creatingVol.UUID, pool.Name, ontapVol.ExternalUUID,
+				)
+				continue
+			}
+
 			if adoptErr := adoptCreatingExpertModeVolumeInPlace(ctx, se, creatingVol, ontapVol); adoptErr != nil {
 				logger.Errorf(
 					"Failed to adopt creating expert mode volume %s (uuid %s) in place for pool %s: %v",
@@ -343,11 +349,13 @@ func reconcileExpertModeVolumes(
 			continue
 		}
 
-		if shouldSkipExpertModeVolumeReconcile(dbVol.State) {
+		// Terminal DELETED rows are left as-is. A DELETING row that reaches here is already confirmed absent from ONTAP
+		if dbVol.State == datamodel.LifeCycleStateDeleted {
 			logger.Debugf("Skipping expert mode volume %s (ext UUID %s) in state %s during sync for pool %s",
 				dbVol.Name, extUUID, dbVol.State, pool.Name)
 			continue
 		}
+		finalizingDeleting := dbVol.State == datamodel.LifeCycleStateDeleting
 
 		if deleteErr := se.DeleteExpertModeVolume(ctx, dbVol.UUID); deleteErr != nil {
 			logger.Errorf("Failed to delete expert mode volume %s (ext UUID %s) from DB for pool %s: %v", dbVol.Name, extUUID, pool.Name, deleteErr)
@@ -355,7 +363,12 @@ func reconcileExpertModeVolumes(
 			continue
 		}
 		deleted++
-		logger.Infof("Deleted expert mode volume %s (ext UUID %s) from DB for pool %s", dbVol.Name, extUUID, pool.Name)
+		if finalizingDeleting {
+			logger.Infof("Finalized DELETING expert mode volume %s (ext UUID %s) absent from ONTAP as DELETED for pool %s",
+				dbVol.Name, extUUID, pool.Name)
+		} else {
+			logger.Infof("Deleted expert mode volume %s (ext UUID %s) from DB for pool %s", dbVol.Name, extUUID, pool.Name)
+		}
 	}
 
 	if createErrors > 0 || updateErrors > 0 || deleteErrors > 0 {
@@ -410,12 +423,6 @@ func reconcileExpertModeVolumeSize(
 		dbVol.Name, dbVol.ExternalUUID, pool.Name, dbVol.SizeInBytes, ontapSize,
 	)
 	return true, nil
-}
-
-// shouldSkipExpertModeVolumeReconcile returns true when the volume must not be
-// removed by background sync (delete in progress or terminal deleted).
-func shouldSkipExpertModeVolumeReconcile(state string) bool {
-	return state == datamodel.LifeCycleStateDeleting || state == datamodel.LifeCycleStateDeleted
 }
 
 // shouldReconcileExpertModeVolumeSize returns true when the DB row is in a state that is safe
