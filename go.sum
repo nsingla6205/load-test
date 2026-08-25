@@ -50,6 +50,8 @@ github.com/VCP-VSA-control-Plane/go-workflows v0.0.0-20260605164658-8ef4f86f45f4
 github.com/VCP-VSA-control-Plane/go-workflows v0.0.0-20260605164658-8ef4f86f45f4/go.mod h1:er1QSQQfwyP0+mMfW6ajUNVRjUx/R7mEcAReQhACgCA=
 github.com/agiledragon/gomonkey/v2 v2.14.0 h1:FASzes6sjtD0hRo5lu0g796qKL03bOHCgcIA/4am9QM=
 github.com/agiledragon/gomonkey/v2 v2.14.0/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
+github.com/apache/thrift v0.23.0 h1:wKR6YnefQSEnxpEfmgTPuJibNG4bF0p2TK34tHLWi3s=
+github.com/apache/thrift v0.23.0/go.mod h1:zPt6WxgvTOM6hF92y8C+MkEM5LMxZuk4JcQOiU4Esvs=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
