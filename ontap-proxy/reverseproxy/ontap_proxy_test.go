@@ -847,6 +847,62 @@ func TestLogCurlCommand(t *testing.T) {
 	})
 }
 
+func TestSetCommonHeaders(t *testing.T) {
+	// A rule context means the response body must be inspected/rewritten by the rule engine, so the
+	// proxy clears Accept-Encoding to force ONTAP to return an uncompressed body. The Accept header
+	// (application/json or application/hal+json) is a passthrough and must be left untouched.
+	action := dsl.Allow{Name: "Test Action"}
+
+	t.Run("WhenRuleContextPresentWithAcceptJSON_ShouldClearAcceptEncodingAndPreserveAccept", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/storage/volumes", nil)
+		require.NoError(t, err, "Failed to create request")
+		req.RemoteAddr = "10.0.0.1:12345"
+		req.Header.Set("Accept", "application/json")
+		req = req.WithContext(context.WithValue(req.Context(), models.RuleContextKey, action))
+
+		setCommonHeaders(req)
+
+		assert.Equal(t, "10.0.0.1:12345", req.Header.Get("X-Forwarded-For"), "X-Forwarded-For should be set from RemoteAddr")
+		assert.Equal(t, "ontap-proxy", req.Header.Get("X-Proxy-By"), "X-Proxy-By should be set")
+		encoding, ok := req.Header["Accept-Encoding"]
+		assert.True(t, ok, "Accept-Encoding should be present (cleared) when a rule context is set")
+		assert.Equal(t, []string{""}, encoding, "Accept-Encoding should be cleared to force an uncompressed body")
+		assert.Equal(t, "application/json", req.Header.Get("Accept"), "Accept header should be preserved unchanged")
+	})
+
+	t.Run("WhenRuleContextPresentWithAcceptHalJSON_ShouldClearAcceptEncodingAndPreserveAccept", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/storage/volumes", nil)
+		require.NoError(t, err, "Failed to create request")
+		req.RemoteAddr = "10.0.0.2:54321"
+		req.Header.Set("Accept", "application/hal+json")
+		req = req.WithContext(context.WithValue(req.Context(), models.RuleContextKey, action))
+
+		setCommonHeaders(req)
+
+		assert.Equal(t, "10.0.0.2:54321", req.Header.Get("X-Forwarded-For"), "X-Forwarded-For should be set from RemoteAddr")
+		assert.Equal(t, "ontap-proxy", req.Header.Get("X-Proxy-By"), "X-Proxy-By should be set")
+		encoding, ok := req.Header["Accept-Encoding"]
+		assert.True(t, ok, "Accept-Encoding should be present (cleared) when a rule context is set")
+		assert.Equal(t, []string{""}, encoding, "Accept-Encoding should be cleared to force an uncompressed body")
+		assert.Equal(t, "application/hal+json", req.Header.Get("Accept"), "Accept header should be preserved unchanged")
+	})
+
+	t.Run("WhenNoRuleContext_ShouldNotTouchAcceptEncoding", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/storage/volumes", nil)
+		require.NoError(t, err, "Failed to create request")
+		req.RemoteAddr = "10.0.0.3:1111"
+		req.Header.Set("Accept", "application/json")
+
+		setCommonHeaders(req)
+
+		assert.Equal(t, "10.0.0.3:1111", req.Header.Get("X-Forwarded-For"), "X-Forwarded-For should be set from RemoteAddr")
+		assert.Equal(t, "ontap-proxy", req.Header.Get("X-Proxy-By"), "X-Proxy-By should be set")
+		_, ok := req.Header["Accept-Encoding"]
+		assert.False(t, ok, "Accept-Encoding should not be modified when no rule context is present")
+		assert.Equal(t, "application/json", req.Header.Get("Accept"), "Accept header should be preserved unchanged")
+	})
+}
+
 func TestBuildOntapRESTProxy(t *testing.T) {
 	t.Run("WhenProxyCreated_ShouldReturnValidProxy", func(t *testing.T) {
 		proxy := BuildOntapRESTProxy()

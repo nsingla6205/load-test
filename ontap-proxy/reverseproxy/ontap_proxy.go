@@ -561,7 +561,6 @@ func configureRequestAuthentication(req *http.Request, authData *models.AuthData
 func setCommonHeaders(req *http.Request) {
 	req.Header.Set("X-Forwarded-For", req.RemoteAddr)
 	req.Header.Set("X-Proxy-By", "ontap-proxy")
-	req.Header.Set("Accept", "application/json")
 	if req.Context().Value(models.RuleContextKey) != nil {
 		req.Header.Set("Accept-Encoding", "")
 	}
