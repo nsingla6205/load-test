@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	expertModeWorkflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/expertMode"
@@ -89,21 +88,14 @@ func manageBackupConfigForExpertModeVolume(ctx context.Context, se database.Stor
 		}
 		// else: nil + no policy/KMS = no vault operation needed; fall through.
 	} else if *params.BackupVaultID == "" {
-		// Explicit detach: block if a policy is attached, a KMS grant is set, or backups exist.
+		// Explicit detach: an attached policy always blocks; existing backups block depending on
+		// the vault-switching feature flags. An existing KMS grant does not block detach.
 		if expertModeVolume.BackupConfig != nil && expertModeVolume.BackupConfig.BackupVaultID != "" {
 			if expertModeVolume.BackupConfig.BackupPolicyID != "" {
 				return nil, "", customerrors.NewUserInputValidationErr("cannot remove backup vault while a backup policy is attached; detach the backup policy first")
 			}
-			if expertModeVolume.BackupConfig.KmsGrant != nil && *expertModeVolume.BackupConfig.KmsGrant != "" {
-				return nil, "", customerrors.NewUserInputValidationErr("cannot remove backup vault while a KMS grant is attached; remove the KMS grant first")
-			}
-			backupCounts, err := se.GetBackupCountByVolumeUUIDs(ctx, []string{expertModeVolume.ExternalUUID}, nil)
-			if err != nil {
-				logger.Error("Failed to check backup count for volume", "volumeUUID", expertModeVolume.ExternalUUID, "error", err)
+			if err := validateExpertModeVaultDetach(ctx, se, expertModeVolume); err != nil {
 				return nil, "", err
-			}
-			if backupCounts[expertModeVolume.ExternalUUID] > 0 {
-				return nil, "", customerrors.NewUserInputValidationErr("cannot remove backup vault as there are backups associated with it")
 			}
 		}
 	}
@@ -149,18 +141,18 @@ func manageBackupConfigForExpertModeVolume(ctx context.Context, se database.Stor
 				return nil, "", customerrors.NewUserInputValidationErr("KMS Grant is required for CMEK Backup vault")
 			}
 
-			// Re-attaching a vault when none is currently set: if the volume already has available
-			// backups tied to a previously detached vault, only a GCBDR vault may be attached
-			// (non-GCBDR cannot consume that backup chain).
-			if utils.EnableBackupVaultSwitching {
-				noVaultAttached := expertModeVolume.BackupConfig == nil || expertModeVolume.BackupConfig.BackupVaultID == ""
-				if noVaultAttached {
-					vaultIDs, errDistinct := se.GetDistinctBackupVaultIDsByVolumeUUID(ctx, expertModeVolume.UUID)
-					if errDistinct != nil {
-						return nil, "", errDistinct
-					}
-					if len(vaultIDs) > 0 && bv.ServiceType != activities.GCBDRServiceType {
-						return nil, "", customerrors.NewUserInputValidationErr("cannot attach a non-GCBDR backup vault while the volume has existing backups from a detached backup vault; delete those backups first, or attach a GCBDR backup vault")
+			// Initial attach or re-attach (no vault currently set). A GCNV vault must belong to the
+			// volume's account; only GCBDR vaults may be cross-project. When backups from a
+			// previously detached vault are still around, the attached vault must be compatible
+			// with them.
+			noVaultAttached := expertModeVolume.BackupConfig == nil || expertModeVolume.BackupConfig.BackupVaultID == ""
+			if noVaultAttached {
+				if bv.ServiceType == datamodel.ServiceTypeGCNV && bv.AccountID != expertModeVolume.AccountID {
+					return nil, "", customerrors.NewUserInputValidationErr("The target backup vault belongs to a different account and cannot be associated with the volume")
+				}
+				if utils.EnableBackupVaultSwitching {
+					if err := validateReattachVaultAfterDetach(ctx, se, expertModeVolume.ExternalUUID, bv); err != nil {
+						return nil, "", err
 					}
 				}
 			}
@@ -230,16 +222,19 @@ func manageBackupConfigForExpertModeVolume(ctx context.Context, se database.Stor
 				if errDistinct != nil {
 					return nil, "", errDistinct
 				}
-				volumeHasBackups := len(distinctVaultIDs) > 0
 
-				if err := validateBackupVaultFamilySwitch(currentVault, bv, volumeHasBackups); err != nil {
+				// With GCNV vault switching, a same-family switch is allowed while backups exist and
+				// cross-family only without them. Without it, a switch with backups is limited to
+				// GCBDR -> GCBDR.
+				if utils.EnableGCNVVaultSwitching {
+					if err := validateBackupVaultFamilySwitch(currentVault, bv, len(distinctVaultIDs) > 0); err != nil {
+						return nil, "", err
+					}
+					if bv != nil && bv.ServiceType == datamodel.ServiceTypeGCNV && bv.AccountID != expertModeVolume.AccountID {
+						return nil, "", customerrors.NewUserInputValidationErr("The target backup vault belongs to a different account and cannot be associated with the volume")
+					}
+				} else if err := validateBackupVaultChangeLegacy(currentVault, bv, expertModeVolumeAsVolume(expertModeVolume), false, distinctVaultIDs); err != nil {
 					return nil, "", err
-				}
-				if err := validateDetachedBackupsAllowAttachVault(ctx, se, expertModeVolume.ExternalUUID, bv); err != nil {
-					return nil, "", err
-				}
-				if bv != nil && bv.ServiceType == datamodel.ServiceTypeGCNV && bv.AccountID != expertModeVolume.AccountID {
-					return nil, "", customerrors.NewUserInputValidationErr("The target backup vault belongs to a different account and cannot be associated with the volume")
 				}
 			} else {
 				backupCount, errCount := se.GetBackupCountByVolumeAndVault(ctx, expertModeVolume.ExternalUUID, currentVault.ID)
@@ -339,6 +334,60 @@ const (
 	ExpertModeVolumeStyleFlexgroup = "flexgroup"
 	APIAccessModeONTAP             = "ONTAP"
 )
+
+// expertModeVolumeAsVolume adapts an expert mode volume to the *datamodel.Volume shape expected by
+// the shared backup-vault validators, which only read the owning account.
+func expertModeVolumeAsVolume(emv *datamodel.ExpertModeVolumes) *datamodel.Volume {
+	return &datamodel.Volume{AccountID: emv.AccountID}
+}
+
+// validateExpertModeVaultDetach enforces the backup-vault detach rules for an expert mode volume.
+// With EnableBackupVaultSwitching off, any existing backup blocks the detach (legacy behaviour).
+// With it on, a backup in a transient state always blocks, and AVAILABLE backups block only when
+// EnableGCNVVaultSwitching is off and the attached vault is not a cross-project (GCBDR) vault.
+func validateExpertModeVaultDetach(ctx context.Context, se database.Storage, volume *datamodel.ExpertModeVolumes) error {
+	logger := util.GetLogger(ctx)
+
+	if !utils.EnableBackupVaultSwitching {
+		backupCounts, err := se.GetBackupCountByVolumeUUIDs(ctx, []string{volume.ExternalUUID}, nil)
+		if err != nil {
+			logger.Error("Failed to check backup count for volume", "volumeUUID", volume.ExternalUUID, "error", err)
+			return err
+		}
+		if backupCounts[volume.ExternalUUID] > 0 {
+			return customerrors.NewUserInputValidationErr("cannot remove backup vault as there are backups associated with it")
+		}
+		return nil
+	}
+
+	backupInProgress, err := se.IsBackupInCreatingorDeletingStateByVolume(ctx, volume.ExternalUUID)
+	if err != nil {
+		return err
+	}
+	if backupInProgress {
+		return customerrors.NewUserInputValidationErr("A backup operation on the volume is currently in progress. Please wait for it to complete before changing or removing the backup vault")
+	}
+
+	// GCNV vault switching lets both vault families keep their AVAILABLE backups across a detach.
+	if utils.EnableGCNVVaultSwitching {
+		return nil
+	}
+
+	distinctVaultIDs, err := se.GetDistinctBackupVaultIDsByVolumeUUID(ctx, volume.ExternalUUID)
+	if err != nil {
+		return err
+	}
+	if len(distinctVaultIDs) == 0 {
+		return nil
+	}
+
+	currentVault, err := se.GetBackupVault(ctx, volume.BackupConfig.BackupVaultID)
+	if err != nil {
+		logger.Error("Failed to look up current backup vault for detach check", "backupVaultID", volume.BackupConfig.BackupVaultID, "error", err)
+		return err
+	}
+	return validateBackupVaultChangeLegacy(currentVault, nil, expertModeVolumeAsVolume(volume), true, distinctVaultIDs)
+}
 
 // expertModeVolumeToVolumeForSFR builds a partial *datamodel.Volume from expert mode volume for use with RestoreFilesFromBackupWorkflow.
 // Same field mapping as convertExpertModeVolumeToVolume in workflows/expertMode (VolumeAttributes has no FileProperties/BlockProperties).

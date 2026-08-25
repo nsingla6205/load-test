@@ -1,7 +1,9 @@
 package expertMode
 
 import (
+	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -125,6 +128,21 @@ func mockStateRestore(env *testsuite.TestWorkflowEnvironment, expertModeActivity
 		Return(nil).Maybe()
 }
 
+// stubRemoteBackupVaultActivities registers and stubs the remote-vault activities that run
+// during new-bucket provisioning. Both stubs are .Maybe() so tests whose failure point
+// comes earlier, or that attach to an already-provisioned bucket, are unaffected.
+func stubRemoteBackupVaultActivities(env *testsuite.TestWorkflowEnvironment) {
+	volumeCreateActivity := activities.VolumeCreateActivity{}
+	env.RegisterActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP)
+	env.RegisterActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails)
+	env.OnActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "remote-bv-uuid"}}, nil).Maybe()
+	env.OnActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+}
+
 // mockJobFlow stubs GetJob (returns NEW) and UpdateJob (returns nil) for the given
 // number of UpdateJob calls expected.
 func mockJobFlow(mockStorage *database.MockStorage, updateJobCalls int) {
@@ -145,6 +163,10 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
 
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
 		env.RegisterActivity(updateActivity2.CheckBucketResourceName)
@@ -164,7 +186,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		// Step 4: existing bucket
 		env.OnActivity(updateActivity2.CheckBucketResourceName, mock.Anything, mock.Anything).
 			Return(populatedBucketDetails(), nil)
-		// Step 6: policy exists
+		// Step 6: policy already exists in VCP – persist the ID; schedule work is deferred.
 		volume := baseVolume()
 		params := baseParams()
 		params.BackupPolicyID = nillable.ToPointer("bp-uuid")
@@ -183,6 +205,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
 		assert.Equal(tt, (3*time.Minute)/2, *heartbeatTimeout)
+		env.AssertActivityNumberOfCalls(tt, "CheckOrCreateRemoteBackupVaultInVCP", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateRemoteBackupVaultWithBucketDetails", 0)
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})
@@ -541,9 +565,76 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
+	t.Run("Success_ExistingBucket_GCBDRVault_RemoteVaultAndCrossProjectPermissionsStillRun", func(tt *testing.T) {
+		// Regular volumes also re-sync the remote vault on an existing-bucket attach.
+		// ONTAP mode still skips that; only the GCBDR pool-SA grant is re-applied here.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.CheckBucketResourceName)
+		env.RegisterActivity(updateActivity2.CreateBucketForBackupVault)
+		env.RegisterActivity(updateActivity2.UpdateBucketDetailsOfBackupVault)
+
+		volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP)
+		env.RegisterActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails)
+		env.RegisterActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions)
+
+		mockJobFlow(mockStorage, 2)
+
+		gcbdrVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "bv-uuid"},
+			ServiceType: activities.GCBDRServiceType,
+			BucketDetails: []*datamodel.BucketDetails{
+				{TenantProjectNumber: "gcbdr-project"},
+			},
+		}
+		isExistingBucket := func(bucketDetails *commonparams.BucketDetails) bool {
+			return bucketDetails != nil && bucketDetails.BucketName == "existing-bucket"
+		}
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(gcbdrVault, nil)
+		env.OnActivity(updateActivity2.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		// Stubbed but must never run: the bucket already exists.
+		env.OnActivity(updateActivity2.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil).Maybe()
+		env.OnActivity(updateActivity2.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).Maybe()
+		env.OnActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions, mock.Anything,
+			mock.MatchedBy(func(pool *datamodel.Pool) bool { return pool != nil && pool.VendorID == "vendor-id" }),
+			mock.MatchedBy(isExistingBucket)).
+			Return(nil).Once()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "CheckOrCreateRemoteBackupVaultInVCP", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateRemoteBackupVaultWithBucketDetails", 0)
+		env.AssertActivityNumberOfCalls(tt, "SetupCrossProjectBackupPermissions", 1)
+		env.AssertActivityNumberOfCalls(tt, "CreateBucketForBackupVault", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateBucketDetailsOfBackupVault", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
 	t.Run("Success_CrossRegionVault_ExistingBucket_PolicyNotExists_PolicyEnabled", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -605,6 +696,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Success_CrossRegionVault_ExistingBucket_PolicyNotExists_PolicyDisabled", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -668,9 +760,63 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
+	t.Run("Success_PolicyExists_LeavesScheduleUntouched", func(tt *testing.T) {
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+		env.RegisterActivity(updateActivity2.CheckBucketResourceName)
+		env.RegisterActivity(updateActivity2.VerifyIfBackupPolicyExistsInVCP)
+		env.RegisterActivity(updateActivity2.FetchAndCreateBackupPolicyFromSDE)
+		env.RegisterActivity(updateActivity2.CreateScheduleForBackupPolicy)
+
+		backupPolicyActivity := activities.BackupPolicyActivity{SE: mockStorage}
+		env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
+		env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
+		env.RegisterActivity(backupPolicyActivity.PauseBackupPolicySchedule)
+		env.RegisterActivity(backupPolicyActivity.UnpauseBackupPolicySchedule)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity2.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(updateActivity2.VerifyIfBackupPolicyExistsInVCP, mock.Anything, "bp-uuid", int64(1)).
+			Return(true, nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		volume := baseVolume()
+		params := baseParams()
+		params.BackupPolicyID = nillable.ToPointer("bp-uuid")
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "GetBackupPolicyByUUIDAndAccountID", 0)
+		env.AssertActivityNumberOfCalls(tt, "CheckIfBackupPolicyScheduleExists", 0)
+		env.AssertActivityNumberOfCalls(tt, "CreateScheduleForBackupPolicy", 0)
+		env.AssertActivityNumberOfCalls(tt, "PauseBackupPolicySchedule", 0)
+		env.AssertActivityNumberOfCalls(tt, "UnpauseBackupPolicySchedule", 0)
+		env.AssertActivityNumberOfCalls(tt, "FetchAndCreateBackupPolicyFromSDE", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
 	t.Run("Success_ScheduledBackupEnabled_NonNil_IsPersistedToBackupConfig", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -707,6 +853,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Success_BackupConfigNilOnVolume_IsInitialized", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -742,6 +889,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Success_QueryWorkflowStatus", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1002,6 +1150,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_CheckBucketResourceNameFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1030,6 +1179,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_GenerateResourceNamesForBackupVaultFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1061,6 +1211,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_CreateBucketForBackupVaultFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1095,6 +1246,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_UpdateBucketDetailsOfBackupVaultFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1137,6 +1289,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_GCBDRVault_NilPool", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.CheckBucketResourceName)
@@ -1186,6 +1339,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_SetupCrossProjectBackupPermissionsFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.CheckBucketResourceName)
@@ -1334,6 +1488,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_SetupCrossRegionBackupPermissionsFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1377,6 +1532,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_VerifyIfBackupPolicyExistsInVCPFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1412,6 +1568,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_FetchAndCreateBackupPolicyFromSDEFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1450,6 +1607,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_CreateScheduleForBackupPolicyFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1491,6 +1649,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_PauseBackupPolicyScheduleFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1540,6 +1699,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 	t.Run("Failure_UpdateExpertModeVolumeBackupConfigInDBFails", func(tt *testing.T) {
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1578,6 +1738,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		deleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
 		env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
@@ -1653,6 +1814,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1790,6 +1952,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		deleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
 		env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
@@ -1845,6 +2008,173 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Explicit detach (leaving a vault without attaching a new one)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	t.Run("VaultChange_ExplicitDetach_TeardownAndSkipsProvisioning", func(tt *testing.T) {
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(true)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		// Detach teardown only exists from version 1 onwards.
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
+		deleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
+		env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
+		backupActivity := activities.BackupActivity{SE: mockStorage}
+		env.RegisterActivity(backupActivity.GetBackupVault)
+		env.RegisterActivity(backupActivity.GetLatestBackupByVolumeAndVault)
+		env.RegisterActivity(backupActivity.DeleteSnapshotForBackup)
+
+		mockJobFlow(mockStorage, 2)
+
+		oldVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "old-vault-uuid"},
+		}
+		latestBackup := &datamodel.Backup{
+			BaseModel: datamodel.BaseModel{UUID: "backup-uuid"},
+			Attributes: &datamodel.BackupAttributes{
+				SnapshotID:          "snap-uuid",
+				UseExistingSnapshot: false,
+			},
+		}
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
+		env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, nil)
+		env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").
+			Return(oldVault, nil)
+		env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, "ext-uuid", int64(10)).
+			Return(latestBackup, nil)
+		env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, "snap-uuid", "ext-uuid", false).
+			Return(nil)
+		// No expectation for CheckBackupVaultExistInVCP: an explicit detach must not
+		// enter new-vault provisioning. Any call would fail the test.
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything,
+			mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+				return v.BackupConfig != nil && v.BackupConfig.BackupVaultID == "" &&
+					v.BackupConfig.KmsGrant != nil &&
+					*v.BackupConfig.KmsGrant == "projects/p/locations/l/keyRings/kr/cryptoKeys/k"
+			})).Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		volume := baseVolume()
+		volume.ExternalUUID = "ext-uuid"
+		volume.BackupConfig = &datamodel.DataProtection{
+			BackupVaultID: "old-vault-uuid",
+			KmsGrant:      nillable.ToPointer("projects/p/locations/l/keyRings/kr/cryptoKeys/k"),
+		}
+		volume.Pool.PoolCredentials = &datamodel.PoolCredentials{Password: "pass"}
+		params := &commonparams.ManageBackupConfigForExpertModeVolumeParams{
+			AccountName:   "test-account",
+			BackupVaultID: nillable.ToPointer(""), // explicit detach
+			Region:        "us-east1",
+		}
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("VaultChange_ExplicitDetach_FlagDisabled_SkipsTeardown", func(tt *testing.T) {
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(false)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		// No teardown expectations: the feature flag gates the SnapMirror teardown.
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything,
+			mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+				return v.BackupConfig != nil && v.BackupConfig.BackupVaultID == "" &&
+					v.BackupConfig.KmsGrant != nil &&
+					*v.BackupConfig.KmsGrant == "projects/p/locations/l/keyRings/kr/cryptoKeys/k"
+			})).Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		volume := baseVolume()
+		volume.ExternalUUID = "ext-uuid"
+		volume.BackupConfig = &datamodel.DataProtection{
+			BackupVaultID: "old-vault-uuid",
+			KmsGrant:      nillable.ToPointer("projects/p/locations/l/keyRings/kr/cryptoKeys/k"),
+		}
+		params := &commonparams.ManageBackupConfigForExpertModeVolumeParams{
+			AccountName:   "test-account",
+			BackupVaultID: nillable.ToPointer(""),
+			Region:        "us-east1",
+		}
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("VaultChange_ExplicitDetach_NoExistingVault_SkipsTeardown", func(tt *testing.T) {
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(true)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		// Nothing to tear down when no vault was attached.
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything,
+			mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+				return v.BackupConfig != nil && v.BackupConfig.BackupVaultID == "" && v.BackupConfig.KmsGrant == nil
+			})).Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		volume := baseVolume()
+		volume.ExternalUUID = "ext-uuid"
+		params := &commonparams.ManageBackupConfigForExpertModeVolumeParams{
+			AccountName:   "test-account",
+			BackupVaultID: nillable.ToPointer(""),
+			Region:        "us-east1",
+		}
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
 }
 
 // TestManageBackupConfigWorkflow_StateManagement covers the volume-state lifecycle
@@ -1857,6 +2187,7 @@ func TestManageBackupConfigWorkflow_StateManagement(t *testing.T) {
 		// with the volume UUID and LifeCycleStateAvailable (step 8).
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1892,6 +2223,7 @@ func TestManageBackupConfigWorkflow_StateManagement(t *testing.T) {
 		// The failure defer then also fires, calling UpdateExpertModeVolumeStateInDB again.
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1930,6 +2262,7 @@ func TestManageBackupConfigWorkflow_StateManagement(t *testing.T) {
 		// UpdateExpertModeVolumeStateInDB with AVAILABLE.
 		env, mockStorage := newManageBackupConfigTestEnv(tt)
 		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -2161,6 +2494,7 @@ func registerDedicatedCapacityProvisioningActivities(
 	env.RegisterActivity(adcActivity.CreateHmacKeys)
 	env.OnActivity(backupConfigActivity.GetDedicatedCapacityBackupHmacSecret, mock.Anything, mock.Anything).
 		Return(nil, nil).Maybe()
+	stubRemoteBackupVaultActivities(env)
 	return adcActivity
 }
 
@@ -2440,5 +2774,505 @@ func TestManageBackupConfigWorkflow_DedicatedCapacityProvisioningFailures(t *tes
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.Error(tt, env.GetWorkflowError())
 		env.AssertExpectations(tt)
+	})
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow versioning
+//
+// Histories started before the backup-vault parity release replay under
+// workflow.DefaultVersion and must see the exact activity graph that was
+// deployed at the time. Version 1 carries all parity behaviour.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// vaultTeardownActivityNames are the activities that only run when a volume leaves
+// the vault it is currently attached to.
+var vaultTeardownActivityNames = []string{
+	"ResolveOntapNodeForPool",
+	"DeleteSnapmirrorInONTAP",
+	"GetBackupVault",
+	"GetLatestBackupByVolumeAndVault",
+	"DeleteSnapshotForBackup",
+}
+
+// stubVaultTeardownActivities registers the SnapMirror teardown activities with permissive
+// stubs so a test can assert on whether the workflow scheduled them at all.
+func stubVaultTeardownActivities(env *testsuite.TestWorkflowEnvironment, mockStorage *database.MockStorage) {
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	deleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
+	backupActivity := activities.BackupActivity{SE: mockStorage}
+	env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
+	env.RegisterActivity(backupActivity.GetBackupVault)
+	env.RegisterActivity(backupActivity.GetLatestBackupByVolumeAndVault)
+	env.RegisterActivity(backupActivity.DeleteSnapshotForBackup)
+
+	env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+		Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
+	env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+	env.OnActivity(backupActivity.GetBackupVault, mock.Anything, mock.Anything).
+		Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 10, UUID: "old-vault-uuid"}}, nil).Maybe()
+	env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+	env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+}
+
+func assertNoVaultTeardown(t *testing.T, env *testsuite.TestWorkflowEnvironment) {
+	t.Helper()
+	for _, name := range vaultTeardownActivityNames {
+		env.AssertActivityNumberOfCalls(t, name, 0)
+	}
+}
+
+// recordActivityOrder captures the order in which activities start, so a test can
+// assert on the relative position of two activities in the graph.
+func recordActivityOrder(env *testsuite.TestWorkflowEnvironment) *[]string {
+	order := make([]string, 0, 16)
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		order = append(order, info.ActivityType.Name)
+	})
+	return &order
+}
+
+// volumeWithAttachedVault returns a volume already attached to "old-vault-uuid".
+func volumeWithAttachedVault() *datamodel.ExpertModeVolumes {
+	volume := baseVolume()
+	volume.ExternalUUID = "ext-uuid"
+	volume.BackupConfig = &datamodel.DataProtection{BackupVaultID: "old-vault-uuid"}
+	volume.Pool.PoolCredentials = &datamodel.PoolCredentials{Password: "pass"}
+	return volume
+}
+
+func detachParams() *commonparams.ManageBackupConfigForExpertModeVolumeParams {
+	return &commonparams.ManageBackupConfigForExpertModeVolumeParams{
+		AccountName:   "test-account",
+		BackupVaultID: nillable.ToPointer(""),
+		Region:        "us-east1",
+	}
+}
+
+func TestManageBackupConfigWorkflow_Versioning(t *testing.T) {
+	t.Run("DefaultVersion_ExplicitDetach_SkipsTeardown", func(tt *testing.T) {
+		// Historical graph: a detach (&"") never tore down SnapMirror, even with the
+		// feature flag on. Replaying such a history must not schedule new activities.
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(true)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubVaultTeardownActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volumeWithAttachedVault(), detachParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		assertNoVaultTeardown(tt, env)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_ExplicitDetach_NilKmsGrantParam_PreservesExistingGrant", func(tt *testing.T) {
+		// Historical patch: a detach with params.KmsGrant == nil left the persisted
+		// grant untouched. Replaying that history must send the original grant in
+		// the UpdateExpertModeVolumeBackupConfigInDB payload.
+		const existingGrant = "projects/p/locations/l/keyRings/kr/cryptoKeys/k"
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything,
+			mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+				return v.BackupConfig != nil &&
+					v.BackupConfig.BackupVaultID == "" &&
+					v.BackupConfig.KmsGrant != nil &&
+					*v.BackupConfig.KmsGrant == existingGrant
+			})).Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		volume := volumeWithAttachedVault()
+		volume.BackupConfig.KmsGrant = nillable.ToPointer(existingGrant)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, detachParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_VaultSwitch_StillTearsDown", func(tt *testing.T) {
+		// Switching between two real vaults is historical behaviour and must be preserved,
+		// including reading the feature flag straight off the global (no new side effect).
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(true)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubVaultTeardownActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+		env.OnSideEffect().Return(true).Maybe()
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volumeWithAttachedVault(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "ResolveOntapNodeForPool", 1)
+		env.AssertActivityNumberOfCalls(tt, "DeleteSnapmirrorInONTAP", 1)
+		env.AssertActivityNumberOfCalls(tt, "GetBackupVault", 1)
+		env.AssertActivityNumberOfCalls(tt, "GetLatestBackupByVolumeAndVault", 1)
+		// The flag stays a plain global read on the historical path.
+		env.AssertWorkflowNumberOfCalls(tt, "workflow.SideEffect", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_ExistingBucket_SkipsRemoteVaultActivities", func(tt *testing.T) {
+		// Historically the remote-vault activities only ran inside new-bucket provisioning.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "CheckOrCreateRemoteBackupVaultInVCP", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateRemoteBackupVaultWithBucketDetails", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_NewBucket_RemoteVaultRunsAfterBucketProvisioning", func(tt *testing.T) {
+		// Historical order inside new-bucket provisioning:
+		// UpdateBucketDetailsOfBackupVault → CheckOrCreateRemoteBackupVaultInVCP (with the
+		// resolved bucket details) → UpdateRemoteBackupVaultWithBucketDetails.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+		env.RegisterActivity(updateActivity2.GenerateResourceNamesForBackupVault)
+		env.RegisterActivity(updateActivity2.CreateBucketForBackupVault)
+		env.RegisterActivity(updateActivity2.UpdateBucketDetailsOfBackupVault)
+
+		syncActivity := &backgroundactivities.SyncBackupZiZsActivity{}
+		env.RegisterActivity(syncActivity.SyncBucketDetails)
+
+		volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP)
+		env.RegisterActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(&commonparams.BucketDetails{}, nil)
+		env.OnActivity(updateActivity2.GenerateResourceNamesForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.ResourceNames{BucketName: "new-bucket"}, nil)
+		env.OnActivity(updateActivity2.CreateBucketForBackupVault, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(syncActivity.SyncBucketDetails, mock.Anything, mock.Anything).
+			Return(&datamodel.BucketDetails{BucketName: "existing-bucket"}, nil)
+		env.OnActivity(updateActivity2.UpdateBucketDetailsOfBackupVault, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+		// Historically the remote vault was created with the bucket details already known.
+		env.OnActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP,
+			mock.Anything, mock.Anything, mock.Anything,
+			mock.MatchedBy(func(bucketDetails *commonparams.BucketDetails) bool {
+				return bucketDetails != nil && bucketDetails.BucketName == "existing-bucket"
+			})).
+			Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "remote-bv"}}, nil).Once()
+		env.OnActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails,
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).Once()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		order := recordActivityOrder(env)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		bucketUpdated := slices.Index(*order, "UpdateBucketDetailsOfBackupVault")
+		remoteCreated := slices.Index(*order, "CheckOrCreateRemoteBackupVaultInVCP")
+		remoteUpdated := slices.Index(*order, "UpdateRemoteBackupVaultWithBucketDetails")
+		require.NotEqual(tt, -1, bucketUpdated)
+		require.NotEqual(tt, -1, remoteCreated)
+		require.NotEqual(tt, -1, remoteUpdated)
+		assert.Less(tt, bucketUpdated, remoteCreated, "remote vault must be created after bucket provisioning")
+		assert.Less(tt, remoteCreated, remoteUpdated)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_GCBDRVault_ExistingBucket_SkipsCrossProjectPermissions", func(tt *testing.T) {
+		// Historically the GCBDR IAM grant only ran inside new-bucket provisioning.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions)
+
+		mockJobFlow(mockStorage, 2)
+
+		gcbdrVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "bv-uuid"},
+			ServiceType: activities.GCBDRServiceType,
+			BucketDetails: []*datamodel.BucketDetails{
+				{TenantProjectNumber: "gcbdr-project"},
+			},
+		}
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(gcbdrVault, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(volumeCreateActivity.SetupCrossProjectBackupPermissions, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).Maybe()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "SetupCrossProjectBackupPermissions", 0)
+		env.AssertActivityNumberOfCalls(tt, "CheckOrCreateRemoteBackupVaultInVCP", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateRemoteBackupVaultWithBucketDetails", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("DefaultVersion_PolicyAlreadyExists_IsNoOp", func(tt *testing.T) {
+		// Historically an already-existing backup policy was left untouched.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubRemoteBackupVaultActivities(env)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+		env.RegisterActivity(updateActivity2.VerifyIfBackupPolicyExistsInVCP)
+		env.RegisterActivity(updateActivity2.CreateScheduleForBackupPolicy)
+
+		backupPolicyActivity := activities.BackupPolicyActivity{SE: mockStorage}
+		env.RegisterActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID)
+		env.RegisterActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists)
+		env.RegisterActivity(backupPolicyActivity.PauseBackupPolicySchedule)
+		env.RegisterActivity(backupPolicyActivity.UnpauseBackupPolicySchedule)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(updateActivity2.VerifyIfBackupPolicyExistsInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(true, nil)
+		// Stubbed but must never run on the historical graph.
+		env.OnActivity(backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID, mock.Anything, mock.Anything, mock.Anything).
+			Return(&datamodel.BackupPolicy{BaseModel: datamodel.BaseModel{UUID: "vcp-bp-uuid"}, PolicyEnabled: true}, nil).Maybe()
+		env.OnActivity(backupPolicyActivity.CheckIfBackupPolicyScheduleExists, mock.Anything, mock.Anything).
+			Return(true, nil).Maybe()
+		env.OnActivity(updateActivity2.CreateScheduleForBackupPolicy, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).Maybe()
+		env.OnActivity(backupPolicyActivity.PauseBackupPolicySchedule, mock.Anything, mock.Anything).
+			Return(nil).Maybe()
+		env.OnActivity(backupPolicyActivity.UnpauseBackupPolicySchedule, mock.Anything, mock.Anything).
+			Return(nil).Maybe()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		params := baseParams()
+		params.BackupPolicyID = nillable.ToPointer("bp-uuid")
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "GetBackupPolicyByUUIDAndAccountID", 0)
+		env.AssertActivityNumberOfCalls(tt, "CheckIfBackupPolicyScheduleExists", 0)
+		env.AssertActivityNumberOfCalls(tt, "CreateScheduleForBackupPolicy", 0)
+		env.AssertActivityNumberOfCalls(tt, "PauseBackupPolicySchedule", 0)
+		env.AssertActivityNumberOfCalls(tt, "UnpauseBackupPolicySchedule", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("Version1_ExistingBucket_DoesNotSyncRemoteVault", func(tt *testing.T) {
+		// Regular volumes always-run CheckOrCreateRemoteBackupVaultInVCP on attach.
+		// ONTAP mode still only syncs the remote vault during new-bucket provisioning;
+		// that always-run path is deferred from this PR.
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, updateActivity, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+
+		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
+		env.RegisterActivity(updateActivity2.FindTenancyDetails)
+
+		volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP)
+		env.RegisterActivity(volumeCreateActivity.UpdateRemoteBackupVaultWithBucketDetails)
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
+			Return(standardBackupVault(), nil)
+		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&commonparams.TenancyInfo{RegionalTenantProject: "project-123"}, nil)
+		env.OnActivity(updateActivity.CheckBucketResourceName, mock.Anything, mock.Anything).
+			Return(populatedBucketDetails(), nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, baseVolume(), baseParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		env.AssertActivityNumberOfCalls(tt, "CheckOrCreateRemoteBackupVaultInVCP", 0)
+		env.AssertActivityNumberOfCalls(tt, "UpdateRemoteBackupVaultWithBucketDetails", 0)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("Version1_VaultSwitchingFlagCapturedBySideEffect", func(tt *testing.T) {
+		// The feature flag is a process global, so version 1 pins it with a side effect at
+		// workflow start. A replay that recorded "false" must skip teardown even though the
+		// worker now reads "true" from the global.
+		orig := utils.EnableBackupVaultSwitching
+		utils.SetEnableBackupVaultSwitchingForTest(true)
+		defer utils.SetEnableBackupVaultSwitchingForTest(orig)
+
+		env, mockStorage := newManageBackupConfigTestEnv(tt)
+		commonActivity, _, expertModeActivity, _ := registerCoreActivities(env, mockStorage)
+		stubVaultTeardownActivities(env, mockStorage)
+
+		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(expertModeBackupConfigVaultParityVersion)
+		env.OnSideEffect().Return(false).Once()
+
+		mockJobFlow(mockStorage, 2)
+
+		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
+			Return("test-token", nil).Maybe()
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+
+		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volumeWithAttachedVault(), detachParams())
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.NoError(tt, env.GetWorkflowError())
+		assertNoVaultTeardown(tt, env)
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
 	})
 }

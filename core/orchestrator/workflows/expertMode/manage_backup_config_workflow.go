@@ -23,6 +23,13 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+const (
+	// expertModeBackupConfigVaultParityChangeID versions the backup-vault parity release:
+	// detach teardown and unconditional GCBDR bucket IAM grant.
+	expertModeBackupConfigVaultParityChangeID = "expertModeBackupConfigVaultParity"
+	expertModeBackupConfigVaultParityVersion  = workflow.Version(1)
+)
+
 type manageBackupConfigWorkflow struct {
 	workflows.BaseWorkflow
 }
@@ -106,6 +113,23 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
+	// Version gate for the backup-vault parity release. Histories started before it keep
+	// replaying the activity graph that was deployed when they began.
+	parityVersion := workflow.GetVersion(ctx, expertModeBackupConfigVaultParityChangeID,
+		workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion)
+	isVaultParityVersion := parityVersion >= expertModeBackupConfigVaultParityVersion
+
+	// EnableBackupVaultSwitching is a mutable process global, so version 1 pins its value
+	// into the history at workflow start. DefaultVersion keeps the historical live read.
+	enableVaultSwitching := utils.EnableBackupVaultSwitching
+	if isVaultParityVersion {
+		if sideEffectErr := workflow.SideEffect(ctx, func(workflow.Context) interface{} {
+			return utils.EnableBackupVaultSwitching
+		}).Get(&enableVaultSwitching); sideEffectErr != nil {
+			return nil, workflows.ConvertToVSAError(sideEffectErr)
+		}
+	}
+
 	updateActivity := &activities.VolumeUpdateActivity{}
 	expertModeActivity := &expertmodeactivities.ExpertModeVolumeActivity{}
 	backupConfigActivity := &expertmodeactivities.ExpertModeBackupConfigActivity{}
@@ -135,17 +159,23 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
 	}
 
-	// ── Step 1b: Vault switch – tear down SnapMirror for old vault ──────────
-	// When the flag is on and the volume already has a different vault attached,
-	// delete the SnapMirror relationship and clean up the ONTAP-side backup
-	// snapshot before provisioning the new vault.
-	isVaultSwitch := utils.EnableBackupVaultSwitching &&
-		params.BackupVaultID != nil && *params.BackupVaultID != "" &&
-		volume.BackupConfig != nil && volume.BackupConfig.BackupVaultID != "" &&
+	// Leaving a vault: tear down SnapMirror for the old vault. When the flag is on and
+	// the volume is leaving its currently attached vault — either switching to a different
+	// one or detaching explicitly (&"") — delete the SnapMirror relationship and clean up
+	// the ONTAP-side backup snapshot. Backup records and their data in the old vault are
+	// preserved.
+	// DefaultVersion only tore down on a switch to another real vault, never on a detach.
+	hasAttachedVault := volume.BackupConfig != nil && volume.BackupConfig.BackupVaultID != ""
+	isLeavingVault := params.BackupVaultID != nil && hasAttachedVault &&
 		volume.BackupConfig.BackupVaultID != *params.BackupVaultID
-	if isVaultSwitch {
+	if isVaultParityVersion {
+		isLeavingVault = enableVaultSwitching && isLeavingVault
+	} else {
+		isLeavingVault = utils.EnableBackupVaultSwitching && isLeavingVault && *params.BackupVaultID != ""
+	}
+	if isLeavingVault {
 		oldVaultID := volume.BackupConfig.BackupVaultID
-		log.Infof("Vault switch detected for expert mode volume %s (old=%s new=%s); tearing down SnapMirror",
+		log.Infof("Vault change detected for expert mode volume %s (old=%s new=%q); tearing down SnapMirror",
 			volume.UUID, oldVaultID, *params.BackupVaultID)
 
 		commonActivity := &activities.CommonActivities{}
@@ -170,7 +200,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		}
 		err = workflows.WaitForONTAPJob(ctx, ontapAsyncResponse, node, time.Minute*10)
 		if err != nil {
-			return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to delete snapmirror during vault switch: %w", err))
+			return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to delete snapmirror during vault change: %w", err))
 		}
 
 		var oldBackupVault *datamodel.BackupVault
@@ -195,7 +225,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			}
 		}
 
-		log.Infof("Vault switch SnapMirror teardown complete for expert mode volume %s", volume.UUID)
+		log.Infof("Vault change SnapMirror teardown complete for expert mode volume %s", volume.UUID)
 	}
 
 	// Steps 2-6 only run when a real vault UUID is being set. When BackupVaultID is nil
@@ -229,6 +259,13 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 				return nil, workflows.ConvertToVSAError(fmt.Errorf("GCBDR vault has no tenant project information"))
 			}
 		}
+
+		// Regular UpdateVolumeWorkflow always runs CheckOrCreateRemoteBackupVaultInVCP on
+		// attach, including when the bucket already exists. ONTAP mode still only creates
+		// and updates the remote vault during new-bucket provisioning below. Bringing the
+		// always-run path over is deferred from this PR.
+		volumeActivity := &activities.VolumeCreateActivity{}
+		var remoteBV *datamodel.BackupVault
 
 		// ── Step 4: Check for existing bucket – create if absent ─────────────
 		var bucketDetails *commonparams.BucketDetails
@@ -278,24 +315,24 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 				return nil, workflows.ConvertToVSAError(err)
 			}
 
-			// ── GCBDR: grant pool SA access to bucket ─────────────────────────
-			if backupVault.ServiceType == activities.GCBDRServiceType {
-				if volume.Pool == nil {
-					log.Errorf("Pool details not available for volume %s", volume.UUID)
-					return nil, workflows.ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
+			if !isVaultParityVersion {
+				// Historical graph: GCBDR grant, then remote vault creation with the bucket
+				// details already resolved, then the remote vault update.
+				if backupVault.ServiceType == activities.GCBDRServiceType {
+					if volume.Pool == nil {
+						log.Errorf("Pool details not available for volume %s", volume.UUID)
+						return nil, workflows.ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
+					}
+					err = workflow.ExecuteActivity(ctx, volumeActivity.SetupCrossProjectBackupPermissions,
+						volumeForActivities.Pool, bucketDetails).Get(ctx, nil)
+					if err != nil {
+						log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+						return nil, workflows.ConvertToVSAError(err)
+					}
+					log.Infof("Granted pool SA access to GCBDR bucket %s for volume %s", bucketDetails.BucketName, volume.UUID)
 				}
-				volumeCreateActivity := &activities.VolumeCreateActivity{}
-				err = workflow.ExecuteActivity(ctx, volumeCreateActivity.SetupCrossProjectBackupPermissions,
-					volumeForActivities.Pool, bucketDetails).Get(ctx, nil)
-				if err != nil {
-					log.Errorf("Failed to setup cross-project backup permissions: %v", err)
-					return nil, workflows.ConvertToVSAError(err)
-				}
-				log.Infof("Granted pool SA access to GCBDR bucket %s for volume %s", bucketDetails.BucketName, volume.UUID)
 			}
 
-			volumeActivity := &activities.VolumeCreateActivity{}
-			var remoteBV *datamodel.BackupVault
 			err = workflow.ExecuteActivity(ctx, volumeActivity.CheckOrCreateRemoteBackupVaultInVCP,
 				volumeForActivities, backupVault, bucketDetails).Get(ctx, &remoteBV)
 			if err != nil {
@@ -306,6 +343,24 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 				volumeForActivities, backupVault, remoteBV, bucketDetails).Get(ctx, nil)
 			if err != nil {
 				return nil, workflows.ConvertToVSAError(err)
+			}
+		}
+
+		if isVaultParityVersion {
+			// GCBDR: grant the pool SA access to the bucket. Idempotent and unconditional so
+			// a pool attaching to an already-provisioned vault still receives the IAM grant.
+			if backupVault.ServiceType == activities.GCBDRServiceType {
+				if volume.Pool == nil {
+					log.Errorf("Pool details not available for volume %s", volume.UUID)
+					return nil, workflows.ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
+				}
+				err = workflow.ExecuteActivity(ctx, volumeActivity.SetupCrossProjectBackupPermissions,
+					volumeForActivities.Pool, bucketDetails).Get(ctx, nil)
+				if err != nil {
+					log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+					return nil, workflows.ConvertToVSAError(err)
+				}
+				log.Infof("Granted pool SA access to GCBDR bucket %s for volume %s", bucketDetails.BucketName, volume.UUID)
 			}
 		}
 
