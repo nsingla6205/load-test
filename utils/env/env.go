@@ -563,8 +563,6 @@ var (
 	CurrentOntapVersionDetails = GetString("ONTAP_VERSION_DETAILS", "9.17.1P2")
 	// Get experimental ONTAP version from environment (for allowlisted accounts)
 	ExperimentalOntapVersionDetails = GetString("ONTAP_VERSION_DETAILS_EXPERIMENTAL", "")
-	// File support ONTAP version (used for file protocol support check)
-	FileSupportOntapVersion = GetString("FILE_SUPPORT_ONTAP_VERSION", "9.18.1")
 	// ONTAP Image Version Match Configuration
 	SkipOntapImageVersionMatch = GetBool("SKIP_ONTAP_IMAGE_VERSION_MATCH", false)
 	// EnableBackupVaultVCPOrchestration when true makes VCP the orchestrator for backup vault

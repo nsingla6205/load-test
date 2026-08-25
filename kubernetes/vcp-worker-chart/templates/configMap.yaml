@@ -134,7 +134,6 @@ data:
   VSA_LIFECYCLE_MANAGER_QUEUE_PREFIX: {{$.Values.workerConfig.vsaLifecycleManagerQueuePrefix | quote }}
   ONTAP_VERSION_DETAILS: {{$.Values.workerConfig.ontapVersionDetails | quote }}
   ONTAP_VERSION_DETAILS_EXPERIMENTAL: {{$.Values.workerConfig.ontapVersionDetailsExperimental | quote }}
-  FILE_SUPPORT_ONTAP_VERSION: {{$.Values.workerConfig.fileSupportOntapVersion | quote }}
   ONTAP_REST_ASYNC_POLL_TIMEOUT_MINUTES: {{$.Values.workerConfig.ontapRestAsyncPollTimeoutMinutes | quote }}
   ONTAP_REST_POLL_WORKFLOW_MAX_RETRIES: {{$.Values.workerConfig.ontapRestPollWorkflowMaxRetries | quote }}
   ONTAP_REST_POLL_WORKFLOW_RETRY_WAIT_SECONDS: {{$.Values.workerConfig.ontapRestPollWorkflowRetryWaitSeconds | quote }}

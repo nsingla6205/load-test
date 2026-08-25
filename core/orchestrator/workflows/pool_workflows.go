@@ -2906,14 +2906,17 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	}
 	if pool.Account != nil {
 		vlmConfig.Deployment.Labels["account_id"] = pool.Account.Name
-		ontapVersion := ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(pool.Account.Name))
-
-		var enableIlb bool
-		if createNasLifDuringPoolCreation {
-			enableIlb = utils.IsOntapVersionGreaterOrEqual(ontapVersion, env.FileSupportOntapVersion) || utils.IsFileProtocolSupportedV2(ontapVersion)
-		} else {
-			enableIlb = utils.IsOntapVersionGreaterOrEqual(ontapVersion, env.FileSupportOntapVersion) && (pool.APIAccessMode == common.ONTAPMode) || (utils.IsFileProtocolSupportedV2(ontapVersion) && pool.LargeCapacity)
-		}
+		// The ILB fronts the NAS LIFs, so it has to be up for any pool that can serve file
+		// protocols: every pool once NAS LIFs are provisioned at pool-create time, ONTAP-mode
+		// pools because the customer drives the cluster directly, and large-capacity pools
+		// whose cluster reports a usable ONTAP version. Enabling it does not by itself expose
+		// an endpoint — FILES_PROTOCOL_SUPPORT still gates the protocols, and
+		// IsFileProtocolSupportedV2 refuses an unknown or malformed version so an
+		// unidentified cluster is never treated as file-capable.
+		enableIlb := createNasLifDuringPoolCreation ||
+			pool.APIAccessMode == common.ONTAPMode ||
+			(pool.LargeCapacity && utils.IsFileProtocolSupportedV2(
+				ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(pool.Account.Name))))
 
 		if enableIlb {
 			vlmConfig.Deployment.DevFlags.EnableIlbSupport = true

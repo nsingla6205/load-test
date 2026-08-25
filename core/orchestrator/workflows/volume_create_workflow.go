@@ -270,7 +270,7 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 
 	ontapVersion := activities.GetOntapVersionFromPool(dbVolume.Pool)
 
-	// Check file support conditions: FileProtocolSupported flag + ONTAP >= 9.18
+	// Check file support conditions: FileProtocolSupported flag + known ONTAP version
 	if utils.IsFileProtocolSupportedV2(ExtractOntapVersion(ontapVersion)) {
 		// Check if naslif exists in VLMConfig using activity
 		var hasNasLif bool

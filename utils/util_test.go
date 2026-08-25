@@ -7,8 +7,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	stdErrors "errors"
 	"encoding/pem"
+	stdErrors "errors"
 	"math/big"
 	"net"
 	"net/http"
@@ -4517,9 +4517,10 @@ func TestIsFileProtocolSupportedV2_InvalidVersion(t *testing.T) {
 	assert.False(t, result, "Should return false when extracted version is empty")
 }
 
-// TestIsFileProtocolSupportedV2_VersionCheck tests line 1120
-// Tests IsFileProtocolSupportedV2 version comparison
-func TestIsFileProtocolSupportedV2_VersionCheck(t *testing.T) {
+// TestIsFileProtocolSupportedV2_NoMinimumVersion asserts that any well-formed ONTAP
+// version is accepted. File protocol support is no longer gated on a minimum version,
+// so a version that predates file support must no longer be rejected here.
+func TestIsFileProtocolSupportedV2_NoMinimumVersion(t *testing.T) {
 	originalFlag := FileProtocolSupported
 	defer func() {
 		SetFileProtocolSupportedForTesting(originalFlag)
@@ -4528,13 +4529,34 @@ func TestIsFileProtocolSupportedV2_VersionCheck(t *testing.T) {
 	// Enable file protocol support
 	SetFileProtocolSupportedForTesting(true)
 
-	// Test with version >= 9.18 (line 1120)
-	result := IsFileProtocolSupportedV2("9.18.1")
-	assert.True(t, result, "Should return true for version >= 9.18")
+	for _, ontapVersion := range []string{"9.17.1", "9.18.1P3", "9.19.1"} {
+		assert.True(t, IsFileProtocolSupportedV2(ontapVersion),
+			"Should return true for well-formed version %s", ontapVersion)
+	}
+}
 
-	// Test with version < 9.18
-	result = IsFileProtocolSupportedV2("9.17.1")
-	assert.False(t, result, "Should return false for version < 9.18")
+// TestIsFileProtocolSupportedV2_UnidentifiableVersion asserts that dropping the minimum-version
+// comparison did not widen the function to accept a cluster whose version cannot be identified.
+// A version that is absent or does not carry a full X.Y.Z token must still be refused, so an
+// unknown cluster is never treated as file-capable.
+func TestIsFileProtocolSupportedV2_UnidentifiableVersion(t *testing.T) {
+	originalFlag := FileProtocolSupported
+	defer func() {
+		SetFileProtocolSupportedForTesting(originalFlag)
+	}()
+
+	SetFileProtocolSupportedForTesting(true)
+
+	for _, ontapVersion := range []string{"", "   ", "unknown-release", "9.18", "9", "P3", "x-9-18-1"} {
+		assert.False(t, IsFileProtocolSupportedV2(ontapVersion),
+			"Should return false for unidentifiable version %q", ontapVersion)
+	}
+
+	// ontapVersionRegex is unanchored, so a string that merely contains a full version token is
+	// accepted. Both production callers pass values through ExtractOntapVersion first, which
+	// yields "" for input without such a token, so this shape does not reach the function.
+	assert.True(t, IsFileProtocolSupportedV2("NetApp Release 9.18.1"),
+		"Embedded version token is matched; callers are expected to pass extracted versions")
 }
 
 // TestGetOntapVersionBasedOnAllowlisting_NoExperimentalVersion tests lines 1128-1129
@@ -4727,20 +4749,29 @@ func TestCompareOntapVersion_ConversionError(t *testing.T) {
 	assert.Equal(t, 0, result, "Should return 0 when conversion to int fails for v2")
 }
 
-// TestIsOntapVersionGreaterOrEqual tests line 1371
-// Tests IsOntapVersionGreaterOrEqual function
+// TestIsOntapVersionGreaterOrEqual keeps the generic version comparator covered. The helper has no
+// production callers now that file protocol support is not gated on a minimum ONTAP version, so
+// this test is the only thing holding its behaviour in place for whoever reuses it next.
 func TestIsOntapVersionGreaterOrEqual(t *testing.T) {
-	// Test when version is greater
-	result := IsOntapVersionGreaterOrEqual("9.18.1", "9.17.1")
-	assert.True(t, result, "Should return true when version is greater")
+	tests := []struct {
+		name          string
+		version       string
+		targetVersion string
+		expected      bool
+	}{
+		{name: "version is greater", version: "9.18.1", targetVersion: "9.17.1", expected: true},
+		{name: "version is equal", version: "9.18.1", targetVersion: "9.18.1", expected: true},
+		{name: "version is lower", version: "9.17.1", targetVersion: "9.18.1", expected: false},
+		{name: "minor version decides", version: "9.19.1", targetVersion: "9.18.1", expected: true},
+		{name: "patch suffix is ignored, so equal base versions compare equal", version: "9.18.1", targetVersion: "9.18.1P3", expected: true},
+	}
 
-	// Test when version is equal
-	result = IsOntapVersionGreaterOrEqual("9.18.1", "9.18.1")
-	assert.True(t, result, "Should return true when version is equal")
-
-	// Test when version is less
-	result = IsOntapVersionGreaterOrEqual("9.17.1", "9.18.1")
-	assert.False(t, result, "Should return false when version is less")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsOntapVersionGreaterOrEqual(tt.version, tt.targetVersion),
+				"IsOntapVersionGreaterOrEqual(%q, %q)", tt.version, tt.targetVersion)
+		})
+	}
 }
 
 // TestGetONTAPSnapshotNameFromCBSDisplaySnapshotName tests GetONTAPSnapshotNameFromCBSDisplaySnapshotName function

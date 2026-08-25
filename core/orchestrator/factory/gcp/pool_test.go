@@ -4576,18 +4576,8 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 		assert.NoError(tt, err, "KMS config with nil service account should pass validation")
 	})
 
-	// Tests for ONTAP mode version validation
-	t.Run("ONTAPMode_ValidVersion_ShouldPass", func(tt *testing.T) {
-		// Set environment to return a valid version (>= 9.18)
-		originalCurrent := env.CurrentOntapVersionDetails
-		originalExperimental := env.ExperimentalOntapVersionDetails
-		defer func() {
-			env.CurrentOntapVersionDetails = originalCurrent
-			env.ExperimentalOntapVersionDetails = originalExperimental
-		}()
-		env.CurrentOntapVersionDetails = "9.18.1" // Valid version >= 9.18
-		env.ExperimentalOntapVersionDetails = ""
-
+	// Tests for ONTAP mode validation
+	t.Run("ONTAPMode_ShouldPass", func(tt *testing.T) {
 		params := &common.CreatePoolParams{
 			AccountName:   "test-account",
 			Mode:          common.ONTAPMode,
@@ -4602,49 +4592,10 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 		}
 
 		err := _validateCreatePoolParams(params, logger)
-		assert.NoError(tt, err, "ONTAP mode with valid version should pass validation")
+		assert.NoError(tt, err, "ONTAP mode should pass validation")
 	})
 
-	t.Run("ONTAPMode_InvalidVersion_ShouldFail", func(tt *testing.T) {
-		// Set environment to return an invalid version (< 9.18)
-		originalCurrent := env.CurrentOntapVersionDetails
-		originalExperimental := env.ExperimentalOntapVersionDetails
-		defer func() {
-			env.CurrentOntapVersionDetails = originalCurrent
-			env.ExperimentalOntapVersionDetails = originalExperimental
-		}()
-		env.CurrentOntapVersionDetails = "9.17.1" // Invalid version < 9.18
-		env.ExperimentalOntapVersionDetails = ""
-
-		params := &common.CreatePoolParams{
-			AccountName:   "test-account",
-			Mode:          common.ONTAPMode,
-			SizeInBytes:   uint64(2 * utils.TiBInBytes),
-			ServiceLevel:  ServiceLevelNameFLEX,
-			QosType:       utils.QosTypeAuto,
-			LargeCapacity: false,
-			CustomPerformanceParams: &common.CustomPerformanceParams{
-				ThroughputMibps: 128,
-				Iops:            nillable.ToPointer(int64(2048)),
-			},
-		}
-
-		err := _validateCreatePoolParams(params, logger)
-		assert.Error(tt, err, "ONTAP mode with invalid version should fail validation")
-		assert.Contains(tt, err.Error(), "ONTAP version")
-		assert.Contains(tt, err.Error(), "below the minimum required version")
-	})
-
-	t.Run("ONTAPMode_PORequest_SkipsEnvVersionCheck", func(tt *testing.T) {
-		originalCurrent := env.CurrentOntapVersionDetails
-		originalExperimental := env.ExperimentalOntapVersionDetails
-		defer func() {
-			env.CurrentOntapVersionDetails = originalCurrent
-			env.ExperimentalOntapVersionDetails = originalExperimental
-		}()
-		env.CurrentOntapVersionDetails = "9.17.1"
-		env.ExperimentalOntapVersionDetails = ""
-
+	t.Run("ONTAPMode_PORequest_HandlesPerformanceParams", func(tt *testing.T) {
 		params := &common.CreatePoolParams{
 			AccountName:  "test-account",
 			Mode:         common.ONTAPMode,
@@ -4658,7 +4609,7 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 		}
 
 		err := _validateCreatePoolParams(params, logger)
-		assert.NoError(tt, err, "PO requests should not use env-based ONTAP version gating")
+		assert.NoError(tt, err, "PO requests should pass validation")
 		assert.False(tt, params.CustomPerformanceParams.Enabled)
 		if common.POSvmQoSEnabled() {
 			assert.NotNil(tt, params.CustomPerformanceParams.Iops)

@@ -15303,8 +15303,8 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
 		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
-		// Verify file protocol configuration is applied: ILB support enabled when ONTAP version >= FileSupportOntapVersion
-		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport, "EnableIlbSupport should be true when ONTAP version >= FileSupportOntapVersion")
+		// Verify file protocol configuration is applied: ILB support enabled during pool creation
+		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport, "EnableIlbSupport should be true when NAS LIFs are created during pool creation")
 		// Images will be default since experimental images are not configured in this test
 		assert.Equal(t, "x-9-17-1p2-gcnv", req.VLMConfig.Deployment.Images.VSAImageName, "VSAImageName should use default image when experimental images are not configured")
 		assert.Equal(t, "cvo-mediator-x-9-17-1p2d1", req.VLMConfig.Deployment.Images.MediatorImageName, "MediatorImageName should use default mediator image when experimental images are not configured")
@@ -15371,12 +15371,12 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		assert.Equal(t, "true", req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
-			"EnableNfsV364BitIdentifier should be set when ONTAP version >= FileSupportOntapVersion")
+			"EnableNfsV364BitIdentifier should be set when NAS LIFs are created during pool creation")
 	})
 
-	// Test case: When FileProtocolSupported flag is false but ONTAP version >= FileSupportOntapVersion
-	// (via allowlisting), the function should still enable ILB support and NFS V3 64-bit identifier.
-	// The condition depends only on ONTAP version, not on the FileProtocolSupported flag alone.
+	// Test case: When the FileProtocolSupported flag is false, the function should still enable
+	// ILB support and the NFS V3 64-bit identifier during pool creation. File support no longer
+	// depends on the FileProtocolSupported flag alone.
 	t.Run("VersionSufficient_EnablesFileSupportWithoutFileProtocolFlag", func(t *testing.T) {
 		testAccountID := "test-account-version-only"
 		originalFileProtocolSupported := utils.FileProtocolSupported
@@ -15428,13 +15428,13 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
-			"EnableIlbSupport should be true when ONTAP version >= FileSupportOntapVersion, even without FileProtocolSupported flag")
+			"EnableIlbSupport should be true during pool creation, even without FileProtocolSupported flag")
 		assert.Equal(t, "true", req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
-			"EnableNfsV364BitIdentifier should be set when ONTAP version >= FileSupportOntapVersion, even without FileProtocolSupported flag")
+			"EnableNfsV364BitIdentifier should be set during pool creation, even without FileProtocolSupported flag")
 	})
 
 	// Test case: When CREATE_NAS_LIF_DURING_POOL_CREATION flag is OFF, the old condition requiring ONTAPMode or
-	// (FileProtocolSupportedV2 && LargeCapacity) must still apply — even if ONTAP version is sufficient.
+	// (FileProtocolSupportedV2 && LargeCapacity) must still apply.
 	t.Run("FlagOff_RequiresOntapModeOrLargeCapacity", func(t *testing.T) {
 		testAccountID := "test-account-flag-off"
 		originalFileProtocolSupported := utils.FileProtocolSupported
@@ -15491,8 +15491,165 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 			"EnableNfsV364BitIdentifier should not be set when CREATE_NAS_LIF_DURING_POOL_CREATION flag is off and pool lacks ONTAPMode/LargeCapacity")
 	})
 
-	// Test case: When file protocol is not supported and version is below threshold, the function
-	// should use default images and keep ILB support disabled.
+	// Test case: with the flag off, an ONTAP-mode pool enables ILB on its own. FileProtocolSupported
+	// is left off to prove the ONTAPMode term does not depend on it.
+	t.Run("FlagOff_OntapModePool_EnablesIlb", func(t *testing.T) {
+		testAccountID := "test-account-ontap-mode"
+		originalFileProtocolSupported := utils.FileProtocolSupported
+		originalCreateNasLifDuringPoolCreation := createNasLifDuringPoolCreation
+		defer func() {
+			utils.FileProtocolSupported = originalFileProtocolSupported
+			createNasLifDuringPoolCreation = originalCreateNasLifDuringPoolCreation
+		}()
+		utils.FileProtocolSupported = false
+		createNasLifDuringPoolCreation = false
+
+		vlmConfig := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Labels:                make(map[string]string),
+				DevFlags:              vlm.DevFlags{EnableIlbSupport: false},
+				DeploymentConfigFlags: vlm.DeploymentConfigFlags{},
+				Images: vlm.ImageConfig{
+					VSAImageName:      "default-vsa-image",
+					MediatorImageName: "default-mediator-image",
+				},
+			},
+		}
+		pool := &datamodel.Pool{
+			Name:          "test-pool-ontap-mode",
+			BaseModel:     datamodel.BaseModel{UUID: "test-pool-ontap-mode-uuid"},
+			APIAccessMode: common.ONTAPMode,
+			Account: &datamodel.Account{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				Name:      testAccountID,
+			},
+		}
+		resolvedLocationInfo := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-2",
+			MediatorZone:  "mediator-zone",
+		}
+
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
+
+		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
+			"EnableIlbSupport should be true for an ONTAP-mode pool even with the flag off and FileProtocolSupported disabled")
+		assert.Equal(t, "true", req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
+			"EnableNfsV364BitIdentifier should be set for an ONTAP-mode pool")
+	})
+
+	// Test case: with the flag off and the pool not in ONTAP mode, a large-capacity pool enables ILB
+	// only through IsFileProtocolSupportedV2, so the cluster must report a usable ONTAP version.
+	t.Run("FlagOff_LargeCapacityWithUsableVersion_EnablesIlb", func(t *testing.T) {
+		testAccountID := "test-account-large-capacity"
+		originalFileProtocolSupported := utils.FileProtocolSupported
+		originalExperimentalOntapVersion := envs.ExperimentalOntapVersionDetails
+		originalCreateNasLifDuringPoolCreation := createNasLifDuringPoolCreation
+		defer func() {
+			utils.FileProtocolSupported = originalFileProtocolSupported
+			envs.ExperimentalOntapVersionDetails = originalExperimentalOntapVersion
+			createNasLifDuringPoolCreation = originalCreateNasLifDuringPoolCreation
+			utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+		}()
+		utils.FileProtocolSupported = true
+		createNasLifDuringPoolCreation = false
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting(testAccountID)
+		envs.ExperimentalOntapVersionDetails = "9.18.1"
+
+		vlmConfig := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Labels:                make(map[string]string),
+				DevFlags:              vlm.DevFlags{EnableIlbSupport: false},
+				DeploymentConfigFlags: vlm.DeploymentConfigFlags{},
+				Images: vlm.ImageConfig{
+					VSAImageName:      "default-vsa-image",
+					MediatorImageName: "default-mediator-image",
+				},
+			},
+		}
+		pool := &datamodel.Pool{
+			Name:          "test-pool-large-capacity",
+			BaseModel:     datamodel.BaseModel{UUID: "test-pool-large-capacity-uuid"},
+			LargeCapacity: true,
+			Account: &datamodel.Account{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				Name:      testAccountID,
+			},
+		}
+		resolvedLocationInfo := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-2",
+			MediatorZone:  "mediator-zone",
+		}
+
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
+
+		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
+			"EnableIlbSupport should be true for a large-capacity pool whose cluster reports a usable ONTAP version")
+		assert.Equal(t, "true", req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
+			"EnableNfsV364BitIdentifier should be set for a large-capacity pool with a usable ONTAP version")
+	})
+
+	// Test case: removing the minimum-version gate must not let an unidentifiable cluster through.
+	// A version the extractor cannot parse collapses to "", which IsFileProtocolSupportedV2 refuses,
+	// so a large-capacity pool keeps ILB disabled even with FileProtocolSupported on. Going through
+	// ExtractOntapVersion is the real shape of this path, so the empty-version branch is the one
+	// that protects it here rather than the version-format check.
+	t.Run("FlagOff_LargeCapacityWithUnusableVersion_KeepsIlbDisabled", func(t *testing.T) {
+		testAccountID := "test-account-unusable-version"
+		originalFileProtocolSupported := utils.FileProtocolSupported
+		originalExperimentalOntapVersion := envs.ExperimentalOntapVersionDetails
+		originalCreateNasLifDuringPoolCreation := createNasLifDuringPoolCreation
+		defer func() {
+			utils.FileProtocolSupported = originalFileProtocolSupported
+			envs.ExperimentalOntapVersionDetails = originalExperimentalOntapVersion
+			createNasLifDuringPoolCreation = originalCreateNasLifDuringPoolCreation
+			utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+		}()
+		utils.FileProtocolSupported = true
+		createNasLifDuringPoolCreation = false
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting(testAccountID)
+		envs.ExperimentalOntapVersionDetails = "unknown-release"
+
+		vlmConfig := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Labels:                make(map[string]string),
+				DevFlags:              vlm.DevFlags{EnableIlbSupport: false},
+				DeploymentConfigFlags: vlm.DeploymentConfigFlags{},
+				Images: vlm.ImageConfig{
+					VSAImageName:      "default-vsa-image",
+					MediatorImageName: "default-mediator-image",
+				},
+			},
+		}
+		pool := &datamodel.Pool{
+			Name:          "test-pool-unusable-version",
+			BaseModel:     datamodel.BaseModel{UUID: "test-pool-unusable-version-uuid"},
+			LargeCapacity: true,
+			Account: &datamodel.Account{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				Name:      testAccountID,
+			},
+		}
+		resolvedLocationInfo := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-2",
+			MediatorZone:  "mediator-zone",
+		}
+
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
+
+		assert.False(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
+			"EnableIlbSupport should remain false when the cluster's ONTAP version cannot be identified")
+		assert.Empty(t, req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
+			"EnableNfsV364BitIdentifier should not be set when the cluster's ONTAP version cannot be identified")
+	})
+
+	// Test case: When file protocol is not supported and the pool is neither ONTAP mode nor
+	// large capacity, the function should use default images and keep ILB support disabled.
 	t.Run("FileProtocolNotSupported_UsesDefaultImages", func(t *testing.T) {
 		testAccountID := "test-account-456"
 		// Save original value and restore it after test

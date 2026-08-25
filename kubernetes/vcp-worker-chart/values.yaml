@@ -195,7 +195,6 @@ workerConfig:
   vsaLifecycleManagerQueuePrefix: "vsa-lifecycle-manager"
   ontapVersionDetails: "9.19.1"
   ontapVersionDetailsExperimental: ""
-  fileSupportOntapVersion: "9.19.1"
   enforceMinSpConfig: "false"
   maxNodesPerGroup: 200
   maxNestedCloneLimit: 499

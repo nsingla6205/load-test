@@ -1332,7 +1332,10 @@ func IsAccountAllowlisted(accountID string) bool {
 
 // IsFileProtocolSupportedV2 returns true if file protocol support is enabled based on:
 // 1. FileProtocolSupported flag is enabled
-// 2. ONTAP version is >= 9.18.1
+// 2. The cluster's ONTAP version is known and well-formed
+// Every supported ONTAP version now provides file protocols, so no minimum version
+// is compared. The version is still required because an unknown version means the
+// cluster's capabilities are unknown, which must not be treated as file-capable.
 // This version does not check account allowlisting, only the flag and ONTAP version.
 // Note: Callers are expected to pass already-extracted versions.
 func IsFileProtocolSupportedV2(ontapVersion string) bool {
@@ -1347,14 +1350,7 @@ func IsFileProtocolSupportedV2(ontapVersion string) bool {
 	}
 
 	// Validate that the version matches the expected format (callers pass extracted versions)
-	// If the version doesn't match the format, CompareOntapVersion will return 0 (equal),
-	// which would incorrectly make IsOntapVersionGreaterOrEqual return true.
-	if !ontapVersionRegex.MatchString(ontapVersion) {
-		return false
-	}
-
-	// Check if version >= file support ONTAP version
-	return IsOntapVersionGreaterOrEqual(ontapVersion, env.FileSupportOntapVersion)
+	return ontapVersionRegex.MatchString(ontapVersion)
 }
 
 // GetOntapVersionBasedOnAllowlisting returns the appropriate ONTAP version based on account allowlisting.
@@ -1602,6 +1598,9 @@ func ExtractOntapRBACVersion(input string) string {
 //
 // Handles versions like "9.17.1", "9.18.1", "9.18.1P2", "9.18.1X29", etc.
 // Patch levels (P2, P3, X29, etc.) are ignored for comparison purposes.
+//
+// Retained as a general-purpose comparator alongside IsOntapVersionGreaterOrEqual; neither has a
+// production caller since file protocol support stopped being gated on a minimum ONTAP version.
 func CompareOntapVersion(version1, version2 string) int {
 	// Extract base versions (remove patch suffixes like P2)
 	v1 := ExtractOntapVersion(version1)
@@ -1657,6 +1656,10 @@ func CompareOntapVersion(version1, version2 string) int {
 }
 
 // IsOntapVersionGreaterOrEqual checks if the given ONTAP version is greater than or equal to the target version.
+//
+// Retained as a generic, tested utility. It has no production callers since file protocol support
+// stopped being gated on a minimum ONTAP version, but it stays available so a future version
+// comparison reuses this rather than reintroducing an ad-hoc check at the call site.
 func IsOntapVersionGreaterOrEqual(version, targetVersion string) bool {
 	return CompareOntapVersion(version, targetVersion) >= 0
 }

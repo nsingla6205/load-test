@@ -21111,6 +21111,20 @@ func TestGetVolumeTypeValidator(t *testing.T) {
 		assert.NoError(tt, err)
 	})
 
+	// The flag stays on here so the ONTAP version is the only thing that can refuse the request.
+	// Dropping the minimum-version gate must not let a cluster with an unidentifiable version be
+	// treated as file-capable at the validation layer.
+	t.Run("File-based protocol returns error when ONTAP version is unidentifiable", func(tt *testing.T) {
+		utils.SetFileProtocolSupportedForTesting(true)
+		defer utils.SetFileProtocolSupportedForTesting(false)
+		for _, ontapVersion := range []string{"", "   ", "unknown-release", "9.18"} {
+			validator, err := GetVolumeTypeValidator([]string{"NFSV4"}, ontapVersion)
+			assert.Nil(tt, validator, "no validator should be returned for version %q", ontapVersion)
+			assert.ErrorContains(tt, err, "file protocols are not enabled",
+				"NAS request must be refused when the ONTAP version is %q", ontapVersion)
+		}
+	})
+
 	t.Run("Unknown protocol returns error", func(tt *testing.T) {
 		validator, err := GetVolumeTypeValidator([]string{"UNKNOWN"}, "9.18.1")
 		assert.Nil(tt, validator)

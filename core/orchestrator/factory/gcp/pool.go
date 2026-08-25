@@ -585,17 +585,6 @@ func _validateCreatePoolParams(params *commonparams.CreatePoolParams, logger log
 		params.CustomPerformanceParams.Iops = perf.Iops
 	}
 
-	// Validate ONTAP version meets minimum requirement (9.18) for ONTAP mode pool creation.
-	// VLM pools use the configured deployment ONTAP version; PO pools skip this gate
-	// (IsPORequest) because the target cluster is pre-existing.
-	if params.Mode == commonparams.ONTAPMode && !commonparams.IsPORequest(params) {
-		ontapVersion := utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(params.AccountName))
-		if !utils.IsOntapVersionGreaterOrEqual(ontapVersion, env.FileSupportOntapVersion) {
-			logger.Errorf("ONTAP version %s is below the minimum required version %s for ONTAP mode pool creation.", ontapVersion, env.FileSupportOntapVersion)
-			return customerrors.NewUnavailableErr(fmt.Sprintf("ONTAP version %s is below the minimum required version %s for ONTAP mode pool creation.", ontapVersion, env.FileSupportOntapVersion))
-		}
-	}
-
 	if params.KmsConfig != nil {
 		switch params.KmsConfig.State {
 		case datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateInUse:

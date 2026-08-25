@@ -88,7 +88,6 @@ global:
     temporalTlsKey: ""
     vcpPairedRegions: ""
     ontapVersionDetails: "9.19.1"
-    fileSupportOntapVersion: "9.19.1"
     skipOntapImageVersionMatch: "false"
     gcpKmsKeyRotationEnabled: "false"
     enableMqos: "true"
