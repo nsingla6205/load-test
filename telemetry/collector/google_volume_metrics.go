@@ -124,8 +124,7 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 		}
 		req.Aggregation = agg
 
-		quotaCtx := grpcmetadata.AppendToOutgoingContext(ctx, "x-goog-user-project", projectID)
-		it := g.client.ListTimeSeries(quotaCtx, req)
+		it := g.client.ListTimeSeries(withQuotaProject(ctx, projectID, telemetryConfig.EnableTenantQuotaProject), req)
 		for {
 			resp, err := it.Next()
 			if errors.Is(err, iterator.Done) {
@@ -204,6 +203,15 @@ func GetTenantProject(ctx context.Context, logger log.Logger, vcpDatastore datab
 	}
 
 	return projects, nil
+}
+
+const quotaProjectHeader = "x-goog-user-project"
+
+func withQuotaProject(ctx context.Context, projectID string, enabled bool) context.Context {
+	if !enabled {
+		return ctx
+	}
+	return grpcmetadata.AppendToOutgoingContext(ctx, quotaProjectHeader, projectID)
 }
 
 func collectVolumeMetrics(ctx context.Context, logger log.Logger, provider VolumeMetricsProvider, timestamp time.Time) error {

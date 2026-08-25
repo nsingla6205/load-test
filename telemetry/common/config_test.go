@@ -108,6 +108,24 @@ func TestEnableLargeVolumesBillingWithEnvironmentVariable(t *testing.T) {
 	}
 }
 
+func TestEnableTenantQuotaProjectDefaultValue(t *testing.T) {
+	config := LoadConfig()
+
+	if !config.EnableTenantQuotaProject {
+		t.Fatalf("Expected EnableTenantQuotaProject to default to true, got %v", config.EnableTenantQuotaProject)
+	}
+}
+
+func TestEnableTenantQuotaProjectWithEnvironmentVariable(t *testing.T) {
+	t.Setenv("ENABLE_TENANT_QUOTA_PROJECT", "false")
+
+	config := LoadConfig()
+
+	if config.EnableTenantQuotaProject {
+		t.Fatalf("Expected EnableTenantQuotaProject to be false when env var is 'false', got %v", config.EnableTenantQuotaProject)
+	}
+}
+
 func TestEnableBackupVaultMetricsDefaultValue(t *testing.T) {
 	config := LoadConfig()
 

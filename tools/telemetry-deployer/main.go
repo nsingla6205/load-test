@@ -527,6 +527,7 @@ func getDefaultEnvVars() map[string]string {
 		"ENABLE_ONTAP_MODE_REPLICATION_BILLING":            getEnvOrDefault("ENABLE_ONTAP_MODE_REPLICATION_BILLING", "false"),
 		"ENABLE_FILES_REPLICATION_BILLING_METRICS":         getEnvOrDefault("ENABLE_FILES_REPLICATION_BILLING_METRICS", "false"),
 		"ENABLE_LARGE_VOLUMES_BILLING":                     getEnvOrDefault("ENABLE_LARGE_VOLUMES_BILLING", "false"),
+		"ENABLE_TENANT_QUOTA_PROJECT":                      getEnvOrDefault("ENABLE_TENANT_QUOTA_PROJECT", "true"),
 		"ENABLE_BATCH_USAGE_UPDATES":                       getEnvOrDefault("ENABLE_BATCH_USAGE_UPDATES", "false"),
 		"PUSH_BATCH_SIZE":                                  getEnvOrDefault("PUSH_BATCH_SIZE", "1000"),
 		"TELEMETRY_JOB_MAX_RETRY_PERFORMANCE":              getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_PERFORMANCE", "5"),

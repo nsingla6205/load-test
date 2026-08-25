@@ -339,6 +339,7 @@ telemetryDeployer:
   enableATVolumeBasedPoolBilling: true
   enableFilesReplicationBillingMetrics: false
   enableLargeVolumesBilling: false
+  enableTenantQuotaProject: true
   enableBatchUsageUpdates: false  # Feature flag for high-performance batch usage updates (PostgreSQL bulk operations)
   resultUpdateBatchSize: 100
   intervalBackfillLimitMinutes: 60

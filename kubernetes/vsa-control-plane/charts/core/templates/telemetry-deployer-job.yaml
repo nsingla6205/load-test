@@ -219,6 +219,8 @@ spec:
               value: {{ .Values.telemetryDeployer.enableSfrCrossRegionRestoreBilling | default "false" | quote }}
             - name: ENABLE_LARGE_VOLUMES_BILLING
               value: {{ .Values.telemetryDeployer.enableLargeVolumesBilling | default "false" | quote }}
+            - name: ENABLE_TENANT_QUOTA_PROJECT
+              value: {{ .Values.telemetryDeployer.enableTenantQuotaProject | default "true" | quote }}
             - name: ENABLE_BATCH_USAGE_UPDATES
               value: {{ .Values.telemetryDeployer.enableBatchUsageUpdates | default "false" | quote }}
             - name: RESULT_UPDATE_BATCH_SIZE

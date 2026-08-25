@@ -82,6 +82,7 @@ type TelemetryConfig struct {
 	IntervalBackfillLimitMinutes                 int
 	CounterBackfillLimitMinutes                  int
 	EnableLargeVolumesBilling                    bool // When true, enables billing for Large Volumes pools (CRR/Backup/AutoTiering)
+	EnableTenantQuotaProject                     bool // When true, ListTimeSeries bills Cloud Monitoring quota to the tenant project
 	EnableBackupVaultMetrics                     bool
 	EnableBackupHistoryFormatter                 bool
 	EnableATVolumeBasedPoolBilling               bool
@@ -152,6 +153,7 @@ func LoadConfig() *TelemetryConfig {
 	counterBackfillLimitMinutes := env.GetInt("COUNTER_BACKFILL_LIMIT_MINUTES", 60)
 	targetMinute := env.GetInt("TARGET_MINUTE", 15)
 	enableLargeVolumesBilling := env.GetBool("ENABLE_LARGE_VOLUMES_BILLING", false)
+	enableTenantQuotaProject := env.GetBool("ENABLE_TENANT_QUOTA_PROJECT", true)
 	enableATVolumeBasedPoolBilling := env.GetBool("ENABLE_AT_VOLUME_BASED_POOL_BILLING", true)
 	injectionWindowMinutes := env.GetInt("INJECTION_WINDOW_MINUTES", 10)
 	enableCounterFormatter := env.GetBool("ENABLE_COUNTER_FORMATTER", false)
@@ -206,6 +208,7 @@ func LoadConfig() *TelemetryConfig {
 		IntervalBackfillLimitMinutes:                 intervalBackfillLimitMinutes,
 		CounterBackfillLimitMinutes:                  counterBackfillLimitMinutes,
 		EnableLargeVolumesBilling:                    enableLargeVolumesBilling,
+		EnableTenantQuotaProject:                     enableTenantQuotaProject,
 		EnableATVolumeBasedPoolBilling:               enableATVolumeBasedPoolBilling,
 		InjectionWindowMinutes:                       injectionWindowMinutes,
 		EnableCounterFormatter:                       enableCounterFormatter,

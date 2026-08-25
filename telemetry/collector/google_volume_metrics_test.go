@@ -32,11 +32,77 @@ import (
 func contextWithQuotaProject(projectID string) interface{} {
 	return mock.MatchedBy(func(ctx context.Context) bool {
 		outgoingMetadata, ok := grpcmetadata.FromOutgoingContext(ctx)
+		if !common.LoadConfig().EnableTenantQuotaProject {
+			if !ok {
+				return true
+			}
+			return len(outgoingMetadata.Get("x-goog-user-project")) == 0
+		}
 		if !ok {
 			return false
 		}
 		values := outgoingMetadata.Get("x-goog-user-project")
 		return len(values) == 1 && values[0] == projectID
+	})
+}
+
+func TestWithQuotaProject(t *testing.T) {
+	ctx := context.Background()
+	projectID := "tenant-project-1"
+
+	t.Run("disabled leaves context unchanged", func(t *testing.T) {
+		got := withQuotaProject(ctx, projectID, false)
+		_, ok := grpcmetadata.FromOutgoingContext(got)
+		assert.False(t, ok)
+		assert.Equal(t, ctx, got)
+	})
+
+	t.Run("enabled sets x-goog-user-project", func(t *testing.T) {
+		got := withQuotaProject(ctx, projectID, true)
+		outgoingMetadata, ok := grpcmetadata.FromOutgoingContext(got)
+		require.True(t, ok)
+		assert.Equal(t, []string{projectID}, outgoingMetadata.Get("x-goog-user-project"))
+	})
+}
+
+func TestCollectProjectMetrics_QuotaProjectHeaderFlag(t *testing.T) {
+	logger := log.NewLogger()
+	timestamp := time.Now()
+	projectID := "project1"
+
+	newProvider := func(mockClient *MockMonitoringClient) *GoogleVolumeMetricsProvider {
+		return &GoogleVolumeMetricsProvider{
+			client:    mockClient,
+			startTime: timestamp.Add(-time.Hour),
+			endTime:   timestamp,
+			metrics: []common.MetricItem{
+				{Metric: "volume_space_logical_used", ResourceType: "custom.googleapis.com"},
+			},
+		}
+	}
+
+	t.Run("omits header when flag is disabled", func(t *testing.T) {
+		t.Setenv("ENABLE_TENANT_QUOTA_PROJECT", "false")
+		mockIterator := new(MockTimeSeriesIterator)
+		mockIterator.On("Next").Return(nil, iterator.Done)
+		mockClient := new(MockMonitoringClient)
+		mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
+
+		_, err := newProvider(mockClient).CollectProjectMetrics(context.Background(), logger, projectID, timestamp)
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("sets header when flag is enabled", func(t *testing.T) {
+		t.Setenv("ENABLE_TENANT_QUOTA_PROJECT", "true")
+		mockIterator := new(MockTimeSeriesIterator)
+		mockIterator.On("Next").Return(nil, iterator.Done)
+		mockClient := new(MockMonitoringClient)
+		mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
+
+		_, err := newProvider(mockClient).CollectProjectMetrics(context.Background(), logger, projectID, timestamp)
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
 	})
 }
 
