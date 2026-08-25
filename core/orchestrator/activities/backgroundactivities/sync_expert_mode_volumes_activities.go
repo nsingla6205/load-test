@@ -243,6 +243,11 @@ func reconcileExpertModeVolumes(
 				continue
 			}
 
+			// Claim the ONTAP UUID up-front so the add pass never creates a duplicate AVAILABLE row
+			// for this volume, even if the in-place adoption below fails: the ghost is still a live
+			// CREATING row that will be retried on a later sync.
+			claimedExternalUUIDs[ontapVol.ExternalUUID] = true
+
 			if adoptErr := adoptCreatingExpertModeVolumeInPlace(ctx, se, creatingVol, ontapVol); adoptErr != nil {
 				logger.Errorf(
 					"Failed to adopt creating expert mode volume %s (uuid %s) in place for pool %s: %v",
@@ -251,7 +256,6 @@ func reconcileExpertModeVolumes(
 				updateErrors++
 				continue
 			}
-			claimedExternalUUIDs[creatingVol.ExternalUUID] = true
 			updated++
 			logger.Infof(
 				"Adopted stale creating expert mode volume %s (uuid %s, ext uuid %s) in place for pool %s",

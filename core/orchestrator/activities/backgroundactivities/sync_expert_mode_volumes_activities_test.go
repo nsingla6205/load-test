@@ -882,8 +882,9 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
 
 		// Stale creating ghost present in ONTAP: adoption in place is attempted but the DB update
-		// fails, so an update error is aggregated. The matching ONTAP volume is then created by the
-		// add pass (its external_uuid was not claimed because adoption failed).
+		// fails, so an update error is aggregated. The matching ONTAP volume's external_uuid is
+		// claimed up-front, so the add pass must NOT create a duplicate AVAILABLE row - the ghost
+		// stays a live CREATING row to be retried on a later sync.
 		ontapVolumes := []*vsa.Volume{
 			{
 				Volume: ontaprestmodel.Volume{
@@ -907,16 +908,16 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		}
 
 		mockSE.On("UpdateExpertModeVolume", mock.Anything, mock.Anything).Return((*datamodel.ExpertModeVolumes)(nil), errors.New("db error"))
-		mockSE.On("CreateExpertModeVolume", mock.Anything, mock.Anything).Return(&datamodel.ExpertModeVolumes{}, nil)
 
 		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "0 create errors")
 		assert.Contains(tt, err.Error(), "1 update errors")
 		assert.Contains(tt, err.Error(), "0 delete errors")
-		assert.Equal(tt, 1, added)
+		assert.Equal(tt, 0, added)
 		assert.Equal(tt, 0, updated)
 		assert.Equal(tt, 0, deleted)
+		mockSE.AssertNotCalled(tt, "CreateExpertModeVolume", mock.Anything, mock.Anything)
 		mockSE.AssertExpectations(tt)
 	})
 
