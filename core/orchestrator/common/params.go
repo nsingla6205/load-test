@@ -94,10 +94,34 @@ type CreatePoolParams struct {
 	MediatorFaultDomain  string
 	// WorkflowID, when set, is used as the Temporal workflow ID (OCI: opc-request-id).
 	WorkflowID string
+	// SecondaryIpRange holds parent interclusterLIF CIDR(s) from address_ranges when IC LIF
+	// address-space management is enabled. Used to carve a GCP secondary range on new data subnets.
+	SecondaryIpRange []string
 
 	// VCM holds VCM-specific pool-create inputs (stateless go-workflows path).
 	// Populated only when the request originates from vcm-proxy; nil for GCP/OCI.
 	VCM *VCMCreatePoolParams
+}
+
+// CreateDataSubnetOpResult is returned by GetCreateDataSubnetOp when a new data subnet LRO is started.
+type CreateDataSubnetOpResult struct {
+	OperationName string
+}
+
+// EnsureICSecondaryRangeResult is returned by EnsureInterclusterSecondaryRangeOp.
+// IPRangeID is the persist-first ip_ranges claim (or an existing row on reuse).
+// OperationName identifies the compute LRO that attaches CarvedSecondaryCIDR; empty when
+// the range is already on the subnet or the patch was skipped.
+type EnsureICSecondaryRangeResult struct {
+	OperationName             string
+	Project                   string
+	CarvedSecondaryCIDR       string
+	ParentInterclusterRangeID int64
+	IPRangeID                 int64
+	// ReleaseClaimOnPatchFailure is true only when this workflow inserted a new ip_ranges claim
+	// in EnsureInterclusterSecondaryRangeOp. Shared or pre-existing rows must not be released
+	// when a patch LRO wait fails.
+	ReleaseClaimOnPatchFailure bool
 }
 
 // VCMCreatePoolParams carries the VCM pool-create inputs that do not map onto the
@@ -338,6 +362,8 @@ type TenancyInfo struct {
 	SnHostProject         string
 	Gateway               string
 	AllocatedSubnetCIDR   string
+	// IPRangeID is the carved interclusterLIF ip_ranges row for this data subnet.
+	IPRangeID int64
 }
 
 // LocationInfo contains location-related information for pool operations

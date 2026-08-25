@@ -663,6 +663,15 @@ func allPoolsDeleting(pools []*datamodel.PoolView) bool {
 	return true
 }
 
+// shouldReleaseSharedDataSubnet reports whether a shared data subnet (and its carved
+// intercluster ip_ranges row) may be released. Matches ReleaseDataSubnetOp gating.
+func shouldReleaseSharedDataSubnet(pools []*datamodel.PoolView) bool {
+	if len(pools) == 0 {
+		return false
+	}
+	return len(pools) <= 1 || allPoolsDeleting(pools)
+}
+
 func _isSubnetReusable(ctx context.Context, se database.Storage, subnet hyperscaler_models.Subnet, accountId, poolNetwork string) (bool, error) {
 	recordHeartbeat(ctx, fmt.Sprintf("Checking available addresses in subnet %s", subnet.Name))
 	availableIPs, err := findEmptySubnet(ctx, se, subnet, accountId, "")

@@ -888,6 +888,7 @@ type Lif struct {
 	IPAddress   string        `gorm:"column:ip_address;type:text"`
 	NodeID      int64         `gorm:"column:node_id;type:bigint"`
 	SubnetMask  string        `gorm:"column:subnet_mask;type:text"`
+	PoolID      sql.NullInt64 `gorm:"column:pool_id;type:bigint"`
 	IPRangeID   sql.NullInt64 `gorm:"column:ip_range_id;index"`
 	SvmID       sql.NullInt64 `gorm:"column:svm_id;index"`
 	// IsDirectoryDiagnosis identifies short-lived LIFs created by the Active
@@ -930,6 +931,7 @@ func (sd SvmDetails) Value() (driver.Value, error) {
 type LifDetails struct {
 	ExternalUUID string `json:"external_uuid"`
 	ProtocolType string `json:"protocol_type"`
+	HAPairIndex  int    `json:"ha_pair_index"`
 }
 
 func (nd *LifDetails) Scan(value interface{}) error {

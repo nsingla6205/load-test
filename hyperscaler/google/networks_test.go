@@ -1206,6 +1206,191 @@ func Test_getNetworkSize(t *testing.T) {
 	})
 }
 
+func TestAddSubnetSecondaryRangeOp(t *testing.T) {
+	ctx := context.Background()
+	region := "us-central1"
+	projectID := "test-project"
+	subnetName := "test-subnet"
+	rangeName := "ic-lif-10-50-166-0-29"
+	ipCidrRange := "10.50.166.0/29"
+	subnetURL := "/projects/test-project/regions/us-central1/subnetworks/test-subnet"
+
+	newService := func(tt *testing.T, handler http.HandlerFunc) (*GcpServices, func()) {
+		server := httptest.NewServer(handler)
+		computeSvc, err := compute.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			server.Close()
+			tt.Fatalf("Failed to create compute service: %v", err)
+		}
+		return &GcpServices{
+			AdminGCPService: &AdminGCPService{computeService: computeSvc},
+			Ctx:             ctx,
+			Logger:          util.GetLogger(ctx),
+		}, server.Close
+	}
+
+	t.Run("WhenPatchSucceeds", func(tt *testing.T) {
+		var patched *compute.Subnetwork
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			if req.URL.Path != subnetURL {
+				rw.WriteHeader(http.StatusNotFound)
+				return
+			}
+			switch req.Method {
+			case http.MethodGet:
+				response, _ := json.Marshal(&compute.Subnetwork{
+					Name:        subnetName,
+					Fingerprint: "fingerprint-1",
+					SecondaryIpRanges: []*compute.SubnetworkSecondaryRange{
+						{RangeName: "existing-range", IpCidrRange: "10.60.0.0/29"},
+					},
+				})
+				_, _ = rw.Write(response)
+			case http.MethodPatch:
+				patched = &compute.Subnetwork{}
+				_ = json.NewDecoder(req.Body).Decode(patched)
+				response, _ := json.Marshal(&compute.Operation{Name: "patch-op-1"})
+				_, _ = rw.Write(response)
+			default:
+				rw.WriteHeader(http.StatusBadRequest)
+			}
+		})
+		defer closeServer()
+
+		opName, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err != nil {
+			tt.Fatalf("Unexpected error: %v", err)
+		}
+		if opName != "patch-op-1" {
+			tt.Errorf("Expected operation name patch-op-1, got %s", opName)
+		}
+		if patched == nil {
+			tt.Fatal("Expected a patch request to be sent")
+		}
+		if patched.Fingerprint != "fingerprint-1" {
+			tt.Errorf("Expected the current fingerprint to be sent, got %s", patched.Fingerprint)
+		}
+		if len(patched.SecondaryIpRanges) != 2 {
+			tt.Fatalf("Expected the existing range to be preserved alongside the new one, got %d", len(patched.SecondaryIpRanges))
+		}
+		if patched.SecondaryIpRanges[1].RangeName != rangeName || patched.SecondaryIpRanges[1].IpCidrRange != ipCidrRange {
+			tt.Errorf("Unexpected appended range: %+v", patched.SecondaryIpRanges[1])
+		}
+	})
+
+	t.Run("WhenRangeAlreadyAttached", func(tt *testing.T) {
+		patchCalled := false
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPatch {
+				patchCalled = true
+			}
+			response, _ := json.Marshal(&compute.Subnetwork{
+				Name:        subnetName,
+				Fingerprint: "fingerprint-1",
+				SecondaryIpRanges: []*compute.SubnetworkSecondaryRange{
+					{RangeName: rangeName, IpCidrRange: ipCidrRange},
+				},
+			})
+			_, _ = rw.Write(response)
+		})
+		defer closeServer()
+
+		opName, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err != nil {
+			tt.Fatalf("Unexpected error: %v", err)
+		}
+		if opName != "" {
+			tt.Errorf("Expected no operation when the range is already attached, got %s", opName)
+		}
+		if patchCalled {
+			tt.Error("Expected no patch call when the range is already attached")
+		}
+	})
+
+	t.Run("WhenAnotherRangeHoldsTheSameCIDR", func(tt *testing.T) {
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			response, _ := json.Marshal(&compute.Subnetwork{
+				Name:        subnetName,
+				Fingerprint: "fingerprint-1",
+				SecondaryIpRanges: []*compute.SubnetworkSecondaryRange{
+					{RangeName: "other-range", IpCidrRange: ipCidrRange},
+				},
+			})
+			_, _ = rw.Write(response)
+		})
+		defer closeServer()
+
+		_, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err == nil {
+			tt.Fatal("Expected an error but got nothing")
+		}
+		var customErr *vsaerrors.CustomError
+		if !errors.As(err, &customErr) || customErr.OriginalErr == nil ||
+			!strings.Contains(customErr.OriginalErr.Error(), "conflicts with existing range") {
+			tt.Errorf("Expected a conflict error, got: %v", err)
+		}
+	})
+
+	t.Run("WhenGetFails", func(tt *testing.T) {
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			http.Error(rw, "internal error", http.StatusInternalServerError)
+		})
+		defer closeServer()
+
+		opName, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err == nil || !strings.Contains(err.Error(), "internal error") {
+			tt.Errorf("Expected the read failure to surface, got: %v", err)
+		}
+		if opName != "" {
+			tt.Errorf("Expected empty operation name on error, got: %s", opName)
+		}
+	})
+
+	t.Run("WhenPatchConflicts", func(tt *testing.T) {
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPatch {
+				rw.WriteHeader(http.StatusConflict)
+				_, _ = rw.Write([]byte(`{"error": {"code": 409, "message": "IP range overlaps with an existing subnetwork"}}`))
+				return
+			}
+			response, _ := json.Marshal(&compute.Subnetwork{Name: subnetName, Fingerprint: "fingerprint-1"})
+			_, _ = rw.Write(response)
+		})
+		defer closeServer()
+
+		_, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err == nil {
+			tt.Fatal("Expected an error but got nothing")
+		}
+		var appErr *temporal.ApplicationError
+		if !errors.As(err, &appErr) || !appErr.NonRetryable() {
+			tt.Errorf("Expected a non-retryable application error, got: %v", err)
+		}
+	})
+
+	t.Run("WhenFingerprintIsStale", func(tt *testing.T) {
+		gService, closeServer := newService(tt, func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPatch {
+				rw.WriteHeader(http.StatusPreconditionFailed)
+				_, _ = rw.Write([]byte(`{"error": {"code": 412, "message": "fingerprint mismatch"}}`))
+				return
+			}
+			response, _ := json.Marshal(&compute.Subnetwork{Name: subnetName, Fingerprint: "fingerprint-1"})
+			_, _ = rw.Write(response)
+		})
+		defer closeServer()
+
+		_, err := gService.AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange)
+		if err == nil {
+			tt.Fatal("Expected an error but got nothing")
+		}
+		var appErr *temporal.ApplicationError
+		if errors.As(err, &appErr) && appErr.NonRetryable() {
+			tt.Error("Expected a stale fingerprint to stay retryable")
+		}
+	})
+}
+
 func TestReleaseSubnetworkOp(t *testing.T) {
 	ctx := context.Background()
 	region := "us-central1"

@@ -20,14 +20,21 @@ type VPCNetwork struct {
 	SelfLink    string
 }
 
+// SecondaryIpRange is a GCP subnetwork secondary IP range (alias range).
+type SecondaryIpRange struct {
+	RangeName   string
+	IpCidrRange string
+}
+
 type Subnet struct {
-	ProjectName    string
-	Name           string
-	Region         *string
-	Network        string
-	IpCidrRange    string
-	GatewayAddress string
-	SelfLink       string
+	ProjectName       string
+	Name              string
+	Region            *string
+	Network           string
+	IpCidrRange       string
+	GatewayAddress    string
+	SelfLink          string
+	SecondaryIpRanges []SecondaryIpRange
 }
 
 type Firewall struct {

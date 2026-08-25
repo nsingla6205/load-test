@@ -57,7 +57,7 @@ var (
 var (
 	_                       WorkflowInterface = &createPoolWorkflow{} // Enforcing the WorkflowInterface on createPoolWorkflow
 	setupNwHeartbeatTimeout                   = env.GetUint64("SETUP_NW_HEARTBEAT_TIMEOUT_SEC", 300)
-	vmrsConfigPath                            = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
+	vmrsConfigPath                            = env.GetString(env.EnvVMRSConfigPath, "/config/vmrs_gcp.yaml")
 	// vmrsConfigPathV2 is the c3 + c4 catalog, used when ONTAP supports c4; the
 	// legacy vmrsConfigPath above is c3-only. See resolveVMRSConfigPath.
 	vmrsConfigPathV2                   = env.GetString("VMRS_CONFIG_PATH_V2", "/config/vmrs_gcp_v2.yaml")
@@ -82,6 +82,7 @@ var (
 	enableSyncPoolZIZS                = env.GetBool("ENABLE_SYNC_POOL_ZIZS", false)
 	enableLdap                        = env.GetBool("ENABLE_LDAP", false)
 	createNasLifDuringPoolCreation    = env.GetBool("CREATE_NAS_LIF_DURING_POOL_CREATION", false)
+	icLifAddressSpaceEnabled          = env.GetBool(env.EnvIcLifAddressSpaceEnabled, false)
 	poolSubnetSupervisorGracePeriod   = env.GetDuration("POOL_SUBNET_SUPERVISOR_GRACE_PERIOD", 30*time.Minute)
 	zoneSwitchMetricActivityTimeout   = env.GetDuration("ZONE_SWITCH_METRIC_ACTIVITY_START_TO_CLOSE_TIMEOUT", 5)
 
@@ -947,10 +948,14 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		IsLargeCapacityPool: pool.LargeCapacity,
 		IsOntapMode:         isOntapMode,
 		AccountID:           params.AccountName,
+		PoolID:              dbPool.ID,
 	}
 	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, identifyVMsRequest).Get(ctx, vlmConfig)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
+	}
+	if tenancyDetails != nil && tenancyDetails.IPRangeID > 0 && !disableVsaCleanupOnVLMFailure {
+		rollbackManager.AddActivity(poolActivity.DeleteInterclusterLifsForPool, dbPool.ID)
 	}
 
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
@@ -1762,6 +1767,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		IsLargeCapacityPool: pool.LargeCapacity,
 		IsOntapMode:         isOntapMode,
 		AccountID:           updatePoolParams.AccountName,
+		PoolID:              dbPool.ID,
 	}
 	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, identifyVMsRequest).Get(ctx, newVlmConfig)
 	if err != nil {
@@ -2513,6 +2519,57 @@ func getStartToCloseTimeoutDataSubnet(actionType models.ResourceOperation) strin
 	return StartToCloseTimeoutDataSubnetDelete
 }
 
+// ensureInterclusterSecondaryRange makes sure the data subnet carries a carved intercluster
+// secondary range, attaching one with a compute subnetworks.patch call when it does not. It serves
+// both the newly created and the reused subnet, and does nothing when IC LIF address-space
+// management is off or the subnet already has a carved range.
+//
+// The claim is persisted before the patch. A failed wait releases that ip_ranges row so
+// the CIDR can be carved again. After a successful wait, PersistInterclusterIPRange marks
+// the parent address range IN_USE (the row already exists).
+func ensureInterclusterSecondaryRange(ctx, subnetCtx workflow.Context, poolActivity *activities.PoolActivity,
+	params *common.CreatePoolParams, poolUUID, subnetName string, tenancyDetails *common.TenancyInfo, opTimeout time.Duration) error {
+	if subnetName == "" || len(params.SecondaryIpRange) == 0 {
+		return nil
+	}
+	ensureResult := &common.EnsureICSecondaryRangeResult{}
+	err := workflow.ExecuteActivity(ctx, poolActivity.EnsureInterclusterSecondaryRangeOp, params, poolUUID, tenancyDetails.SnHostProject, subnetName).Get(ctx, ensureResult)
+	if err != nil {
+		return err
+	}
+	if ensureResult.IPRangeID != 0 && ensureResult.OperationName == "" && ensureResult.CarvedSecondaryCIDR == "" {
+		tenancyDetails.IPRangeID = ensureResult.IPRangeID
+		return nil
+	}
+	if ensureResult.CarvedSecondaryCIDR == "" && ensureResult.IPRangeID == 0 {
+		return nil
+	}
+	if ensureResult.OperationName != "" {
+		operations := []common.Operations{{
+			Project:            ensureResult.Project,
+			OperationName:      ensureResult.OperationName,
+			IsRegionalResource: true,
+		}}
+		if err = WaitForGCPNetworkOperationStatus(subnetCtx, poolActivity, &operations, opTimeout); err != nil {
+			if ensureResult.IPRangeID != 0 && ensureResult.ReleaseClaimOnPatchFailure {
+				if releaseErr := workflow.ExecuteActivity(ctx, poolActivity.ReleaseInterclusterIPRangeClaim, ensureResult.IPRangeID).Get(ctx, nil); releaseErr != nil {
+					workflow.GetLogger(ctx).Error("Failed to release intercluster IP range claim after patch failure",
+						"ipRangeID", ensureResult.IPRangeID, "error", releaseErr)
+				}
+			}
+			return vsaerror.Errorf("failed to attach intercluster secondary range %s to subnet %s: %w", ensureResult.CarvedSecondaryCIDR, subnetName, err)
+		}
+	}
+	var ipRangeID int64
+	err = workflow.ExecuteActivity(ctx, poolActivity.PersistInterclusterIPRange, params, poolUUID, subnetName,
+		ensureResult.CarvedSecondaryCIDR, ensureResult.ParentInterclusterRangeID).Get(ctx, &ipRangeID)
+	if err != nil {
+		return err
+	}
+	tenancyDetails.IPRangeID = ipRangeID
+	return nil
+}
+
 func (wf *poolDataSubnetWorkFlow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	params := args[0].(*common.CreatePoolParams)
 	poolUUID := args[1].(string)
@@ -2557,16 +2614,20 @@ func (wf *poolDataSubnetWorkFlow) Run(ctx workflow.Context, args ...interface{})
 		}
 
 		if subnet.Name == "" {
-			var operationName string
-			err = workflow.ExecuteActivity(subnetCtx, poolActivity.GetCreateDataSubnetOp, params, tenantProjectNumber).Get(ctx, &operationName)
+			// Fail closed before creating anything: the intercluster carve only happens once the
+			// subnet exists, so an exhausted address range discovered later would strand the subnet.
+			if err = workflow.ExecuteActivity(ctx, poolActivity.CheckInterclusterCarveAvailability, params).Get(ctx, nil); err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			var subnetOpResult common.CreateDataSubnetOpResult
+			err = workflow.ExecuteActivity(subnetCtx, poolActivity.GetCreateDataSubnetOp, params, tenantProjectNumber).Get(ctx, &subnetOpResult)
 			if err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			if operationName == "" {
+			if subnetOpResult.OperationName == "" {
 				return nil, ConvertToVSAError(fmt.Errorf("failed to create subnet for tenant project: %s, operation name is empty", tenantProjectNumber))
 			}
-			// add retry only for Google timeout : strings.Contains(err.Error(), "Timeout while confirming service network google components")
-			opSubnetInBytes, err := WaitForServiceNetworkOperationStatus(subnetCtx, poolActivity, operationName, retryPolicy.StartToCloseTimeout)
+			opSubnetInBytes, err := WaitForServiceNetworkOperationStatus(subnetCtx, poolActivity, subnetOpResult.OperationName, retryPolicy.StartToCloseTimeout)
 			if err != nil {
 				return nil, ConvertToVSAError(fmt.Errorf("failed to create subnet for tenant project while waiting to get operation status: %s: %w", tenantProjectNumber, err))
 			}
@@ -2574,15 +2635,37 @@ func (wf *poolDataSubnetWorkFlow) Run(ctx workflow.Context, args ...interface{})
 			if err != nil {
 				return nil, ConvertToVSAError(fmt.Errorf("failed to get subnet from operation for tenant project: %s: %w", tenantProjectNumber, err))
 			}
+			tenancyDetails := &common.TenancyInfo{}
+			err = workflow.ExecuteActivity(ctx, poolActivity.GetTenancyInfo, tenantProjectNumber, subnet).Get(ctx, &tenancyDetails)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			// Record the subnet before attaching the secondary range. Rollback and delete both
+			// resolve the subnet from the pool row, so anything that fails after this point can
+			// still be cleaned up instead of leaking the subnet.
+			err = workflow.ExecuteActivity(ctx, poolActivity.UpdatePoolSubnet, poolUUID, tenancyDetails).Get(ctx, nil)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			if err = ensureInterclusterSecondaryRange(ctx, subnetCtx, poolActivity, params, poolUUID, subnet.Name, tenancyDetails, retryPolicy.StartToCloseTimeout); err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			wf.TenancyDetails = tenancyDetails
+			return tenancyDetails, nil
 		}
 		tenancyDetails := &common.TenancyInfo{}
 		err = workflow.ExecuteActivity(ctx, poolActivity.GetTenancyInfo, tenantProjectNumber, subnet).Get(ctx, &tenancyDetails)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-
+		// Record the subnet before attaching the secondary range, for the same reason as the
+		// newly created subnet above. On this path the subnet is shared, so a later rollback only
+		// releases it when no other pool is still using it.
 		err = workflow.ExecuteActivity(ctx, poolActivity.UpdatePoolSubnet, poolUUID, tenancyDetails).Get(ctx, nil)
 		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		if err = ensureInterclusterSecondaryRange(ctx, subnetCtx, poolActivity, params, poolUUID, subnet.Name, tenancyDetails, retryPolicy.StartToCloseTimeout); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 		// Adding the result to the workflow, which will be returned to the caller as Query after workflow completion
@@ -2609,6 +2692,20 @@ func (wf *poolDataSubnetWorkFlow) Run(ctx workflow.Context, args ...interface{})
 		err = WaitForGCPNetworkOperationStatus(subnetCtx, poolActivity, &deleteSubnetOp, retryPolicy.StartToCloseTimeout)
 		if err != nil {
 			return nil, ConvertToVSAError(vsaerror.Errorf("failed to release data subnet for pool: %s project: %s with error : %w", dbPool.Name, dbPool.Account.Name, err))
+		}
+		// IC LIF reservation/ip_range cleanup only happens when the managed IC LIF
+		// address-space feature is on. Gate the activity calls at the workflow level
+		// so disabled environments don't pay an extra Temporal round-trip per delete
+		// for activities that would only early-return nil.
+		if icLifAddressSpaceEnabled {
+			if dbPool.ID > 0 {
+				if lifErr := workflow.ExecuteActivity(ctx, poolActivity.DeleteInterclusterLifsForPool, dbPool.ID).Get(ctx, nil); lifErr != nil {
+					return nil, ConvertToVSAError(lifErr)
+				}
+			}
+			if ipRangeErr := workflow.ExecuteActivity(ctx, poolActivity.DeleteInterclusterIPRangeForSubnet, dbPool).Get(ctx, nil); ipRangeErr != nil {
+				return nil, ConvertToVSAError(ipRangeErr)
+			}
 		}
 		// Expose tenancy details (including pre-deletion AllocatedSubnetCIDR) via the query
 		// handler so DataSubnetSequentialPoller can return the CIDR to the delete workflow for

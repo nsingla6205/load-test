@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -93,6 +94,9 @@ func Test_convertGoogleSubnetToSubnet(t *testing.T) {
 			Network:     "test-network",
 			IpCidrRange: "10.0.0.0/24",
 			SelfLink:    "projects/test-project/regions/us-central1/subnetworks/test-subnet",
+			SecondaryIpRanges: []*compute.SubnetworkSecondaryRange{
+				{RangeName: "ic-lif-10-1-0-0-29-abc", IpCidrRange: "10.1.0.0/29"},
+			},
 		}
 
 		expected := &models.Subnet{
@@ -100,10 +104,30 @@ func Test_convertGoogleSubnetToSubnet(t *testing.T) {
 			Network:     "test-network",
 			IpCidrRange: "10.0.0.0/24",
 			SelfLink:    "projects/test-project/regions/us-central1/subnetworks/test-subnet",
+			SecondaryIpRanges: []models.SecondaryIpRange{
+				{RangeName: "ic-lif-10-1-0-0-29-abc", IpCidrRange: "10.1.0.0/29"},
+			},
 		}
 
 		result := convertGoogleSubnetToSubnet(input)
 		assert.Equal(tt, expected, result, "Expected result to match the converted subnet")
+	})
+
+	t.Run("WhenSecondaryRangeEntryIsNil", func(tt *testing.T) {
+		input := &compute.Subnetwork{
+			Name:        "test-subnet",
+			Network:     "test-network",
+			IpCidrRange: "10.0.0.0/24",
+			SecondaryIpRanges: []*compute.SubnetworkSecondaryRange{
+				nil,
+				{RangeName: "ic-lif-10-1-0-0-29-abc", IpCidrRange: "10.1.0.0/29"},
+			},
+		}
+
+		result := convertGoogleSubnetToSubnet(input)
+		require.NotNil(tt, result)
+		require.Len(tt, result.SecondaryIpRanges, 1)
+		assert.Equal(tt, "10.1.0.0/29", result.SecondaryIpRanges[0].IpCidrRange)
 	})
 }
 

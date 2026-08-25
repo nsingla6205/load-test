@@ -99,6 +99,7 @@ data:
   HARVEST_HOST: "harvest-farm-service.vcp.svc.cluster.local:3000"
   ENABLE_METRICS: "false"
   ADDRESS_SPACE_MGMT_ENABLED: "true"
+  IC_LIF_ADDRESS_SPACE_ENABLED: "false"
   HARVEST_REST_PROTOCOL: "http"
   CERTIFICATE_LIFETIME: "25920000s"
   CA_NAME: "20250718-pn6-boa"

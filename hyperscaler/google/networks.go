@@ -24,6 +24,17 @@ var (
 	serviceDisabledErrorReason          = "SERVICE_DISABLED"
 	accessNotConfiguredErrorMsg         = "accessNotConfigured"
 
+	// secondaryRangeConflictMarkers are the lowercased GCP messages that mean the requested
+	// secondary range can never be attached, so the patch must not be retried.
+	secondaryRangeConflictMarkers = []string{
+		"already exists",
+		"conflicts with",
+		"ip range overlaps",
+		"overlaps with",
+		"ipcidrrangeoverlap",
+		"alreadyexists",
+	}
+
 	waitTimeoutMinutes         = time.Minute * time.Duration(env.GetInt("GCP_LRO_TIMEOUT_MINUTES", 20))
 	minimumTenantNetworkSize   = env.GetInt64("DATA_SUBNET_CIDR_BLOCK", int64(28))
 	minimumLVTenantNetworkSize = env.GetInt64("DATA_SUBNET_CIDR_BLOCK_LV", int64(26))
@@ -67,7 +78,10 @@ func getNetworkSize(isLargeCapacity bool) int64 {
 	return minimumTenantNetworkSize
 }
 
-// CreateTPSubnetOp returns GCP operation for creating subnetwork for a tenant project
+// CreateTPSubnetOp returns GCP operation for creating subnetwork for a tenant project.
+// The subnet is created without secondary ranges; the IC LIF secondary range is attached
+// afterwards by AddSubnetSecondaryRangeOp so that GCP does not have to satisfy the primary
+// allocation and the secondary block in a single request.
 func (gcpService *GcpServices) CreateTPSubnetOp(tenantProjectNumber, consumerNetwork, region, subnetName string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 	consumerProjectNumber, consumerPeeringNetwork, err := utils.ParseProjectId(consumerNetwork)
 	if err != nil {
@@ -92,6 +106,83 @@ func (gcpService *GcpServices) CreateTPSubnetOp(tenantProjectNumber, consumerNet
 		return nil, err
 	}
 	return &snProducerOperation.Name, nil
+}
+
+// AddSubnetSecondaryRangeOp attaches a secondary IP range to an existing subnetwork and
+// returns the name of the resulting regional compute operation. Reference :
+// https://cloud.google.com/compute/docs/reference/rest/v1/subnetworks/patch
+//
+// Patch replaces the whole secondaryIpRanges list, so the current list is read first and the
+// new range appended to it. The read also supplies the fingerprint that GCP uses for optimistic
+// concurrency. An empty operation name is returned when the range is already attached, which
+// makes the call safe to retry.
+func (gcpService *GcpServices) AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange string) (string, error) {
+	gcpService.Logger.Infof("Calling AddSubnetSecondaryRangeOp for project : %s, region : %s, subnet : %s, range name : %s, CIDR : %s", projectID, region, subnetName, rangeName, ipCidrRange)
+
+	current, err := gcpService.AdminGCPService.computeService.Subnetworks.Get(projectID, region, subnetName).Context(gcpService.Ctx).Do()
+	if err != nil {
+		gcpService.Logger.Errorf("AddSubnetSecondaryRangeOp failed to read subnet %s in project %s, region %s. Error : %s", subnetName, projectID, region, err.Error())
+		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
+	}
+	for _, existing := range current.SecondaryIpRanges {
+		if existing == nil {
+			continue
+		}
+		if existing.RangeName == rangeName && existing.IpCidrRange == ipCidrRange {
+			gcpService.Logger.Infof("Secondary range %s (%s) already attached to subnet %s, skipping patch", rangeName, ipCidrRange, subnetName)
+			return "", nil
+		}
+		if existing.RangeName == rangeName || existing.IpCidrRange == ipCidrRange {
+			gcpService.Logger.Errorf("Secondary range conflict on subnet %s: requested %s (%s) collides with existing %s (%s)", subnetName, rangeName, ipCidrRange, existing.RangeName, existing.IpCidrRange)
+			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+				vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+					fmt.Errorf("secondary range %s (%s) conflicts with existing range %s (%s) on subnet %s", rangeName, ipCidrRange, existing.RangeName, existing.IpCidrRange, subnetName)))
+		}
+	}
+
+	ranges := make([]*compute.SubnetworkSecondaryRange, 0, len(current.SecondaryIpRanges)+1)
+	ranges = append(ranges, current.SecondaryIpRanges...)
+	ranges = append(ranges, &compute.SubnetworkSecondaryRange{
+		RangeName:   rangeName,
+		IpCidrRange: ipCidrRange,
+	})
+
+	patch := &compute.Subnetwork{
+		Fingerprint:       current.Fingerprint,
+		SecondaryIpRanges: ranges,
+	}
+	op, err := gcpService.AdminGCPService.computeService.Subnetworks.Patch(projectID, region, subnetName, patch).Context(gcpService.Ctx).Do()
+	if err != nil {
+		if isSecondaryRangeConflictError(err) {
+			gcpService.Logger.Errorf("AddSubnetSecondaryRangeOp failed with an unusable range: subnet %s, range %s (%s). Error : %s", subnetName, rangeName, ipCidrRange, err.Error())
+			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError, err))
+		}
+		// A stale fingerprint (412) stays retryable so the next attempt re-reads the subnet.
+		gcpService.Logger.Errorf("AddSubnetSecondaryRangeOp failed for subnet %s in project %s, region %s with retryable error : %s", subnetName, projectID, region, err.Error())
+		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceProvisionError, err)
+	}
+	gcpService.Logger.Infof("Operation to attach secondary range %s (%s) to subnet %s created successfully", rangeName, ipCidrRange, subnetName)
+	return op.Name, nil
+}
+
+// isSecondaryRangeConflictError reports whether a subnetworks.patch failure is caused by the
+// requested range itself (overlap with an existing range, or a duplicate name) rather than by a
+// transient condition. Such failures never succeed on retry.
+func isSecondaryRangeConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var gerr *googleapi.Error
+	if stdErrors.As(err, &gerr) && gerr.Code == 409 {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, marker := range secondaryRangeConflictMarkers {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // ReleaseSubnetwork calls GCP releaseSubnetwork API and return a long-running operation.

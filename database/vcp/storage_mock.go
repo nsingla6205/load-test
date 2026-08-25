@@ -2627,6 +2627,120 @@ func (_c *MockStorage_CreateIPRange_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// ClaimCarvedInterclusterIPRange provides a mock function with given fields: ctx, claim
+func (_m *MockStorage) ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error) {
+	ret := _m.Called(ctx, claim)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimCarvedInterclusterIPRange")
+	}
+
+	var r0 *InterclusterCarveResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)); ok {
+		return rf(ctx, claim)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) *InterclusterCarveResult); ok {
+		r0 = rf(ctx, claim)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*InterclusterCarveResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, InterclusterCarveClaim) error); ok {
+		r1 = rf(ctx, claim)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ClaimCarvedInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimCarvedInterclusterIPRange'
+type MockStorage_ClaimCarvedInterclusterIPRange_Call struct {
+	*mock.Call
+}
+
+// ClaimCarvedInterclusterIPRange is a helper method to define mock.On call
+func (_e *MockStorage_Expecter) ClaimCarvedInterclusterIPRange(ctx interface{}, claim interface{}) *MockStorage_ClaimCarvedInterclusterIPRange_Call {
+	return &MockStorage_ClaimCarvedInterclusterIPRange_Call{Call: _e.mock.On("ClaimCarvedInterclusterIPRange", ctx, claim)}
+}
+
+func (_c *MockStorage_ClaimCarvedInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterCarveClaim)) *MockStorage_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(InterclusterCarveClaim))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ClaimCarvedInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockStorage_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ClaimCarvedInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)) *MockStorage_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AdoptInterclusterIPRange provides a mock function with given fields: ctx, claim
+func (_m *MockStorage) AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error) {
+	ret := _m.Called(ctx, claim)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdoptInterclusterIPRange")
+	}
+
+	var r0 *InterclusterCarveResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)); ok {
+		return rf(ctx, claim)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) *InterclusterCarveResult); ok {
+		r0 = rf(ctx, claim)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*InterclusterCarveResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, InterclusterAdoptClaim) error); ok {
+		r1 = rf(ctx, claim)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_AdoptInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdoptInterclusterIPRange'
+type MockStorage_AdoptInterclusterIPRange_Call struct {
+	*mock.Call
+}
+
+// AdoptInterclusterIPRange is a helper method to define mock.On call
+func (_e *MockStorage_Expecter) AdoptInterclusterIPRange(ctx interface{}, claim interface{}) *MockStorage_AdoptInterclusterIPRange_Call {
+	return &MockStorage_AdoptInterclusterIPRange_Call{Call: _e.mock.On("AdoptInterclusterIPRange", ctx, claim)}
+}
+
+func (_c *MockStorage_AdoptInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterAdoptClaim)) *MockStorage_AdoptInterclusterIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(InterclusterAdoptClaim))
+	})
+	return _c
+}
+
+func (_c *MockStorage_AdoptInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockStorage_AdoptInterclusterIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_AdoptInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)) *MockStorage_AdoptInterclusterIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateImageVersion provides a mock function with given fields: ctx, imageVersion
 func (_m *MockStorage) CreateImageVersion(ctx context.Context, imageVersion *datamodel.ImageVersion) (*datamodel.ImageVersion, error) {
 	ret := _m.Called(ctx, imageVersion)
@@ -4835,6 +4949,35 @@ func (_m *MockStorage) DeleteIPRange(ctx context.Context, irID string) (*datamod
 	return r0, r1
 }
 
+func (_m *MockStorage) DeleteIPRangeByID(ctx context.Context, ipRangeID int64) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, ipRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteIPRangeByID")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, ipRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *datamodel.IPRange); ok {
+		r0 = rf(ctx, ipRangeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, ipRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // MockStorage_DeleteIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIPRange'
 type MockStorage_DeleteIPRange_Call struct {
 	*mock.Call
@@ -4862,6 +5005,79 @@ func (_c *MockStorage_DeleteIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 err
 func (_c *MockStorage_DeleteIPRange_Call) RunAndReturn(run func(context.Context, string) (*datamodel.IPRange, error)) *MockStorage_DeleteIPRange_Call {
 	_c.Call.Return(run)
 	return _c
+}
+
+func (_m *MockStorage) ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber, vpcName string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, hostProjectNumber, vpcName)
+	if len(ret) == 0 {
+		panic("no return value specified for ListInterclusterIPRangesForVPC")
+	}
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, hostProjectNumber, vpcName)
+	}
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.IPRange)
+	}
+	r1 = ret.Error(1)
+	return r0, r1
+}
+
+func (_m *MockStorage) ReserveInterclusterLifIPs(ctx context.Context, poolID, accountID, ipRangeID int64, count int) ([]string, error) {
+	ret := _m.Called(ctx, poolID, accountID, ipRangeID, count)
+	if len(ret) == 0 {
+		panic("no return value specified for ReserveInterclusterLifIPs")
+	}
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, int64, int) ([]string, error)); ok {
+		return rf(ctx, poolID, accountID, ipRangeID, count)
+	}
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]string)
+	}
+	r1 = ret.Error(1)
+	return r0, r1
+}
+
+func (_m *MockStorage) ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, poolID)
+	if len(ret) == 0 {
+		panic("no return value specified for ListInterclusterLifsByPoolID")
+	}
+	var r0 []*datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, poolID)
+	}
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.Lif)
+	}
+	r1 = ret.Error(1)
+	return r0, r1
+}
+
+func (_m *MockStorage) BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error {
+	ret := _m.Called(ctx, poolID, ipAddress, nodeID)
+	if len(ret) == 0 {
+		panic("no return value specified for BindInterclusterLifToNode")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, int64) error); ok {
+		return rf(ctx, poolID, ipAddress, nodeID)
+	}
+	return ret.Error(0)
+}
+
+func (_m *MockStorage) DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error {
+	ret := _m.Called(ctx, poolID)
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteInterclusterLifsByPoolID")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
+		return rf(ctx, poolID)
+	}
+	return ret.Error(0)
 }
 
 // DeleteImageVersion provides a mock function with given fields: ctx, ontapVersion
@@ -23643,6 +23859,120 @@ func (_c *MockStorage_UpdateAddressRangeState_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// MarkAddressRangeInUseByID provides a mock function with given fields: ctx, addressRangeID
+func (_m *MockStorage) MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error) {
+	ret := _m.Called(ctx, addressRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkAddressRangeInUseByID")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (bool, error)); ok {
+		return rf(ctx, addressRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) bool); ok {
+		r0 = rf(ctx, addressRangeID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, addressRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_MarkAddressRangeInUseByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkAddressRangeInUseByID'
+type MockStorage_MarkAddressRangeInUseByID_Call struct {
+	*mock.Call
+}
+
+// MarkAddressRangeInUseByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - addressRangeID int64
+func (_e *MockStorage_Expecter) MarkAddressRangeInUseByID(ctx interface{}, addressRangeID interface{}) *MockStorage_MarkAddressRangeInUseByID_Call {
+	return &MockStorage_MarkAddressRangeInUseByID_Call{Call: _e.mock.On("MarkAddressRangeInUseByID", ctx, addressRangeID)}
+}
+
+func (_c *MockStorage_MarkAddressRangeInUseByID_Call) Run(run func(ctx context.Context, addressRangeID int64)) *MockStorage_MarkAddressRangeInUseByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_MarkAddressRangeInUseByID_Call) Return(_a0 bool, _a1 error) *MockStorage_MarkAddressRangeInUseByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_MarkAddressRangeInUseByID_Call) RunAndReturn(run func(context.Context, int64) (bool, error)) *MockStorage_MarkAddressRangeInUseByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReleaseInterclusterAddressRangeIfUnused provides a mock function with given fields: ctx, addressRangeID
+func (_m *MockStorage) ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error) {
+	ret := _m.Called(ctx, addressRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReleaseInterclusterAddressRangeIfUnused")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (bool, error)); ok {
+		return rf(ctx, addressRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) bool); ok {
+		r0 = rf(ctx, addressRangeID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, addressRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReleaseInterclusterAddressRangeIfUnused'
+type MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call struct {
+	*mock.Call
+}
+
+// ReleaseInterclusterAddressRangeIfUnused is a helper method to define mock.On call
+//   - ctx context.Context
+//   - addressRangeID int64
+func (_e *MockStorage_Expecter) ReleaseInterclusterAddressRangeIfUnused(ctx interface{}, addressRangeID interface{}) *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call {
+	return &MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call{Call: _e.mock.On("ReleaseInterclusterAddressRangeIfUnused", ctx, addressRangeID)}
+}
+
+func (_c *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call) Run(run func(ctx context.Context, addressRangeID int64)) *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call) Return(_a0 bool, _a1 error) *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call) RunAndReturn(run func(context.Context, int64) (bool, error)) *MockStorage_ReleaseInterclusterAddressRangeIfUnused_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateAddressRangeStateToCreatedIfLastPool provides a mock function with given fields: ctx, arUUID, network, excludePoolUUID, addressRangeCidr
 func (_m *MockStorage) UpdateAddressRangeStateToCreatedIfLastPool(ctx context.Context, arUUID string, network string, excludePoolUUID string, addressRangeCidr string) (bool, error) {
 	ret := _m.Called(ctx, arUUID, network, excludePoolUUID, addressRangeCidr)
@@ -26116,17 +26446,17 @@ func (_c *MockStorage_UpdatePoolState_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
-// UpdatePoolSubnetNames provides a mock function with given fields: ctx, poolUUID, snHostProject, subnetNames
-func (_m *MockStorage) UpdatePoolSubnetNames(ctx context.Context, poolUUID string, snHostProject string, subnetNames []string) error {
-	ret := _m.Called(ctx, poolUUID, snHostProject, subnetNames)
+// UpdatePoolSubnetNames provides a mock function with given fields: ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames
+func (_m *MockStorage) UpdatePoolSubnetNames(ctx context.Context, poolUUID string, snHostProject string, regionalTenantProject string, subnetNames []string) error {
+	ret := _m.Called(ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePoolSubnetNames")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) error); ok {
-		r0 = rf(ctx, poolUUID, snHostProject, subnetNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []string) error); ok {
+		r0 = rf(ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -26143,14 +26473,15 @@ type MockStorage_UpdatePoolSubnetNames_Call struct {
 //   - ctx context.Context
 //   - poolUUID string
 //   - snHostProject string
+//   - regionalTenantProject string
 //   - subnetNames []string
-func (_e *MockStorage_Expecter) UpdatePoolSubnetNames(ctx interface{}, poolUUID interface{}, snHostProject interface{}, subnetNames interface{}) *MockStorage_UpdatePoolSubnetNames_Call {
-	return &MockStorage_UpdatePoolSubnetNames_Call{Call: _e.mock.On("UpdatePoolSubnetNames", ctx, poolUUID, snHostProject, subnetNames)}
+func (_e *MockStorage_Expecter) UpdatePoolSubnetNames(ctx interface{}, poolUUID interface{}, snHostProject interface{}, regionalTenantProject interface{}, subnetNames interface{}) *MockStorage_UpdatePoolSubnetNames_Call {
+	return &MockStorage_UpdatePoolSubnetNames_Call{Call: _e.mock.On("UpdatePoolSubnetNames", ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames)}
 }
 
-func (_c *MockStorage_UpdatePoolSubnetNames_Call) Run(run func(ctx context.Context, poolUUID string, snHostProject string, subnetNames []string)) *MockStorage_UpdatePoolSubnetNames_Call {
+func (_c *MockStorage_UpdatePoolSubnetNames_Call) Run(run func(ctx context.Context, poolUUID string, snHostProject string, regionalTenantProject string, subnetNames []string)) *MockStorage_UpdatePoolSubnetNames_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].([]string))
 	})
 	return _c
 }
@@ -26160,7 +26491,7 @@ func (_c *MockStorage_UpdatePoolSubnetNames_Call) Return(_a0 error) *MockStorage
 	return _c
 }
 
-func (_c *MockStorage_UpdatePoolSubnetNames_Call) RunAndReturn(run func(context.Context, string, string, []string) error) *MockStorage_UpdatePoolSubnetNames_Call {
+func (_c *MockStorage_UpdatePoolSubnetNames_Call) RunAndReturn(run func(context.Context, string, string, string, []string) error) *MockStorage_UpdatePoolSubnetNames_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -297,7 +297,7 @@ func (d *DataStoreRepository) UpdatedPool(ctx context.Context, pool *datamodel.P
 	return ConvertPoolViewToPool(updatedPoolView), nil
 }
 
-func (d *DataStoreRepository) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject string, subnetNames []string) error {
+func (d *DataStoreRepository) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject, regionalTenantProject string, subnetNames []string) error {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -315,6 +315,11 @@ func (d *DataStoreRepository) UpdatePoolSubnetNames(ctx context.Context, poolUUI
 		dbPool.ClusterDetails.SubnetNames = subnetNames
 		dbPool.ClusterDetails.SnHostProject = snHostProject
 		dbPool.SnHostProject = snHostProject
+		// Deletion skips subnet cleanup unless RegionalTenantProject is set, so record it with the
+		// subnet rather than leaving it for a later save that a failed create may never reach.
+		if regionalTenantProject != "" {
+			dbPool.ClusterDetails.RegionalTenantProject = regionalTenantProject
+		}
 	}
 	dbPool.UpdatedAt = time.Now()
 

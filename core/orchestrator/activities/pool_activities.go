@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"slices"
@@ -122,7 +123,11 @@ var (
 	// kubernetes/OCI/vcp-worker-chart/templates/configMap.yaml. Each
 	// worker binary runs against exactly one hyperscaler, so the single
 	// env var carries the correct YAML for the running cloud.
-	OCIVMRSConfigFilePath             = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_oci.yaml")
+	OCIVMRSConfigFilePath = env.GetString(env.EnvVMRSConfigPath, "/config/vmrs_oci.yaml")
+	// GCPVMRSConfigFilePath is the on-disk path of the GCP VMRS YAML catalogue.
+	// It uses the same VMRS_CONFIG_PATH env var as OCI; GCP workers wire it to
+	// /config/vmrs_gcp.yaml.
+	GCPVMRSConfigFilePath             = env.GetString(env.EnvVMRSConfigPath, "/config/vmrs_gcp.yaml")
 	CreateLargeVolumeVMRSConfig       = _createLargeVolumeVMRSConfig
 	VlmConfigFilePath                 = env.GetString("VLM_CONFIG_FILE_PATH", "/common/vsa_config/vlm-config.json")
 	ValidateVlmConfigInputs           = _validateVlmConfigInputs
@@ -986,7 +991,7 @@ func fetchAddressRangesForSubnetFilter(ctx context.Context, se database.Storage,
 }
 
 // GetCreateDataSubnetOp creates a subnetwork for the tenant project
-func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*commonparams.CreateDataSubnetOpResult, error) {
 	recordHeartbeat(ctx, fmt.Sprintf("Creating data subnet via GCP Service Networking - pool: %s, tenantProject: %s, region: %s", params.Name, tenantProjectNumber, params.Region))
 	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
@@ -995,19 +1000,26 @@ func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonp
 	return GetCreateDataSubnetworkOp(service, params, tenantProjectNumber)
 }
 
-func _getCreateDataSubnetworkOp(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+func _getCreateDataSubnetworkOp(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*commonparams.CreateDataSubnetOpResult, error) {
 	tenantProjectRegion := params.Region
 	consumerVPC := params.VendorSubNetID
 	logger := service.GetLogger()
-	// if snHost is not found or subnet found cannot be used, create a new subnetwork for the tenant project
 	logger.Debugf("Handling creation of new subnetwork for pool : %s, tenant project: %s ", params.Name, tenantProjectNumber)
-	logger.Debugf("CreateSubnetwork: passing requestedRanges=%v to GCP Service Networking for pool=%s network=%s", params.RequestedRanges, params.Name, consumerVPC)
+
+	// The subnet is created bare. Any IC LIF secondary range is attached afterwards by
+	// EnsureInterclusterSecondaryRangeOp via a compute subnetworks.patch call.
+	logger.Debugf("CreateSubnetwork: passing requestedRanges=%v to GCP Service Networking for pool=%s network=%s",
+		params.RequestedRanges, params.Name, consumerVPC)
 	operationName, err := GetCreateSubnetworkOperation(service, tenantProjectNumber, consumerVPC, &tenantProjectRegion, params.LargeCapacity, params.RequestedRanges)
 	if err != nil {
 		logger.Errorf("Error creating subnetwork for pool: %s tenant project: %s, Region %s. Error : %s", params.Name, tenantProjectNumber, tenantProjectRegion, err.Error())
 		return nil, err
 	}
-	return operationName, err
+	if operationName == nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError,
+			errors.New("create subnetwork returned nil operation name"))
+	}
+	return &commonparams.CreateDataSubnetOpResult{OperationName: *operationName}, nil
 }
 
 // GetSnHostProject returns the Shared-VPC (Service Networking) host project for a
@@ -1055,7 +1067,7 @@ func (j *PoolActivity) GetTenancyInfo(ctx context.Context, tenantProjectNumber s
 // UpdatePoolSubnet updates the subnet name for the pool in the database
 func (j *PoolActivity) UpdatePoolSubnet(ctx context.Context, poolUUID string, tenancyDetails commonparams.TenancyInfo) error {
 	recordHeartbeat(ctx, fmt.Sprintf("Updating subnet names for pool %s, snHostProject: %s", poolUUID, tenancyDetails.SnHostProject))
-	err := j.SE.UpdatePoolSubnetNames(ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.SubnetworkNames)
+	err := j.SE.UpdatePoolSubnetNames(ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.RegionalTenantProject, tenancyDetails.SubnetworkNames)
 	if err != nil {
 		return err
 	}
@@ -2319,6 +2331,7 @@ type IdentifyVMsRequest struct {
 	IsLargeCapacityPool bool
 	IsOntapMode         bool
 	AccountID           string
+	PoolID              int64
 }
 
 // validate ensures the pointer inputs of the IdentifyVMs activity are non-nil before they are
@@ -2436,6 +2449,23 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	if req.IsLargeCapacityPool {
 		vlmConfig.Deployment.NumHAPair = decision.ClusterMetadata.NumHAPairs
 	}
+
+	if icLifAddressSpaceEnabled() && req.TenancyInfo.IPRangeID > 0 && req.PoolID > 0 {
+		applyICManagedInterclusterNetConfig(vlmConfig)
+		haPairCount := interclusterHAPairCount(vlmConfig)
+		ensureHAPairStructInVLMConfig(vlmConfig, haPairCount)
+		reserveCount := interclusterLIFReservationCount(vlmConfig)
+		account, acctErr := j.SE.GetAccount(ctx, req.AccountID)
+		if acctErr != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(acctErr)
+		}
+		ips, reserveErr := j.SE.ReserveInterclusterLifIPs(ctx, req.PoolID, account.ID, req.TenancyInfo.IPRangeID, reserveCount)
+		if reserveErr != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(reserveErr)
+		}
+		assignInterclusterLifIPsToVLMConfig(vlmConfig, ips)
+	}
+
 	// Prefer the caller-supplied region identifier; fall back to the worker's
 	// REGION_NUMBER_MAP[LOCAL_REGION] lookup when the request did not carry one.
 	regionIdentifier := req.RegionIdentifier
@@ -2450,6 +2480,74 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 
 	orchestrator.RecordHeartbeat(ctx, "Finished IdentifyVMs activity")
 	return vlmConfig, nil
+}
+
+func interclusterLIFReservationCount(vlmConfig *vlm.VLMConfig) int {
+	return interclusterHAPairCount(vlmConfig) * interclusterLIFIPsPerHAPair
+}
+
+func interclusterHAPairCount(vlmConfig *vlm.VLMConfig) int {
+	if vlmConfig == nil {
+		return 0
+	}
+	if vlmConfig.Deployment.NumHAPair > 0 {
+		return vlmConfig.Deployment.NumHAPair
+	}
+	if len(vlmConfig.Cloud.HAPairs) > 0 {
+		return len(vlmConfig.Cloud.HAPairs)
+	}
+	return 1
+}
+
+// ensureHAPairStructInVLMConfig sizes cloud.ha_pair so reserved IC LIF IPs can be injected before VLM deploy.
+func ensureHAPairStructInVLMConfig(vlmConfig *vlm.VLMConfig, haPairCount int) {
+	if vlmConfig == nil || haPairCount <= 0 {
+		return
+	}
+	for len(vlmConfig.Cloud.HAPairs) < haPairCount {
+		vlmConfig.Cloud.HAPairs = append(vlmConfig.Cloud.HAPairs, vlm.HAPair{
+			VM1: vlm.VMConfig{},
+			VM2: vlm.VMConfig{},
+		})
+	}
+}
+
+// applyICManagedInterclusterNetConfig sets secondary-IP flags on net_config.intercluster
+// for the IC address-space managed path. No-op when vlmConfig or the intercluster entry is missing.
+func applyICManagedInterclusterNetConfig(vlmConfig *vlm.VLMConfig) {
+	if vlmConfig == nil || vlmConfig.Deployment.NetConfig == nil {
+		return
+	}
+	nc, ok := vlmConfig.Deployment.NetConfig[vlm.LIFTypeInterCluster]
+	if !ok {
+		return
+	}
+	nc.GCPNetworkConfig.IsSecondaryIP = true
+	nc.GCPNetworkConfig.SkipIPReservation = true
+	vlmConfig.Deployment.NetConfig[vlm.LIFTypeInterCluster] = nc
+}
+
+func assignInterclusterLifIPsToVLMConfig(vlmConfig *vlm.VLMConfig, ips []string) {
+	if vlmConfig == nil || len(ips) == 0 {
+		return
+	}
+	assign := func(vm *vlm.VMConfig, ip string) {
+		if vm.SystemLIFs == nil {
+			vm.SystemLIFs = map[vlm.VSALIFType]vlm.LIFConfig{}
+		}
+		vm.SystemLIFs[vlm.LIFTypeInterCluster] = vlm.LIFConfig{IP: ip}
+	}
+	ipIdx := 0
+	for i := range vlmConfig.Cloud.HAPairs {
+		ha := &vlmConfig.Cloud.HAPairs[i]
+		for _, vm := range []*vlm.VMConfig{&ha.VM1, &ha.VM2} {
+			if ipIdx >= len(ips) {
+				return
+			}
+			assign(vm, ips[ipIdx])
+			ipIdx++
+		}
+	}
 }
 
 // DecideOCIVMRS selects the OCI instance shape, OCPU count, memory, and VPU
@@ -3159,8 +3257,72 @@ func (j *PoolActivity) SaveVSANodeDetails(ctx context.Context, pool *datamodel.P
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 	}
+	if icLifAddressSpaceEnabled() && pool.ID > 0 {
+		if bindErr := bindInterclusterLifsToNodes(ctx, j.SE, pool.ID, vlmConfig); bindErr != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(bindErr)
+		}
+	}
 	activity.RecordHeartbeat(ctx, "Finished SaveVSANodeDetails activity")
 	return node1, nil
+}
+
+func bindInterclusterLifsToNodes(ctx context.Context, se database.Storage, poolID int64, vlmConfig *vlm.VLMConfig) error {
+	if vlmConfig == nil || len(vlmConfig.Cloud.HAPairs) == 0 {
+		return nil
+	}
+	reservedLifs, err := se.ListInterclusterLifsByPoolID(ctx, poolID)
+	if err != nil {
+		return err
+	}
+	if len(reservedLifs) == 0 {
+		return nil
+	}
+	nodes, err := se.GetNodesByPoolID(ctx, poolID)
+	if err != nil {
+		return err
+	}
+	nodeByName := make(map[string]int64, len(nodes))
+	for _, node := range nodes {
+		nodeByName[node.Name] = node.ID
+	}
+
+	lifIdx := 0
+	for _, ha := range vlmConfig.Cloud.HAPairs {
+		for _, vm := range []vlm.VMConfig{ha.VM1, ha.VM2} {
+			if lifIdx >= len(reservedLifs) {
+				// More VM legs than reserved IC LIF IPs: the remaining nodes
+				// will not get an IC IP bound. Surface this so partial binds
+				// are diagnosable instead of failing silently.
+				slog.WarnContext(ctx, "bindInterclusterLifsToNodes: reserved IC LIF count is short of VM legs; leaving remaining nodes unbound",
+					"pool_id", poolID, "reserved_count", len(reservedLifs), "vm_host", vm.HostName, "vm_name", vm.Name)
+				return nil
+			}
+			nodeID, ok := nodeIDForVM(nodeByName, vm)
+			if !ok || nodeID == 0 {
+				slog.WarnContext(ctx, "bindInterclusterLifsToNodes: no matching node for VM; skipping IC LIF bind for this leg",
+					"pool_id", poolID, "vm_host", vm.HostName, "vm_name", vm.Name, "ip_address", reservedLifs[lifIdx].IPAddress)
+				lifIdx++
+				continue
+			}
+			if err := se.BindInterclusterLifToNode(ctx, poolID, reservedLifs[lifIdx].IPAddress, nodeID); err != nil {
+				return err
+			}
+			lifIdx++
+		}
+	}
+	return nil
+}
+
+func nodeIDForVM(nodeByName map[string]int64, vm vlm.VMConfig) (int64, bool) {
+	for _, name := range []string{vm.HostName, vm.Name} {
+		if name == "" {
+			continue
+		}
+		if nodeID, ok := nodeByName[name]; ok {
+			return nodeID, true
+		}
+	}
+	return 0, false
 }
 
 func _saveNodeDetails(ctx context.Context, se database.Storage, vmConfig vlm.VMConfig, deploymentConfig vlm.DeploymentConfig, pool *datamodel.Pool, deploymentName string, hostMap map[string]string) (*datamodel.Node, error) {
@@ -3252,8 +3414,12 @@ func _saveNodeDetails(ctx context.Context, se database.Storage, vmConfig vlm.VMC
 	default:
 		rec.HostDNSName = node.EndpointAddress
 	}
-	if _, err = se.CreateNode(ctx, rec); err != nil && !utilErrors.IsConflictErr(err) {
+	createdNode, err := se.CreateNode(ctx, rec)
+	if err != nil && !utilErrors.IsConflictErr(err) {
 		return nil, err
+	}
+	if createdNode != nil {
+		return createdNode, nil
 	}
 	return rec, nil
 }
@@ -3329,8 +3495,7 @@ func (j *PoolActivity) ReleaseDataSubnetOp(ctx context.Context, pool *datamodel.
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	logger.Infof("Found %d pools using the same subnetwork: %s for account: %s, network: %s", len(poolsUsingSubnet), subnetName, pool.Account.Name, pool.Network)
-	allPoolsForDeleting := allPoolsDeleting(poolsUsingSubnet)
-	if len(poolsUsingSubnet) > 1 && !allPoolsForDeleting {
+	if !shouldReleaseSharedDataSubnet(poolsUsingSubnet) {
 		logger.Infof("Skipping release subnetwork as there are other pools using the same subnetwork: %s for account: %s, network: %s, pool : %s", subnetName, pool.Account.Name, pool.Network, pool.Name)
 		return nil, nil
 	}
@@ -3367,6 +3532,9 @@ func (j *PoolActivity) DeletePoolResources(ctx context.Context, pool *datamodel.
 	activity.RecordHeartbeat(ctx, "Starting DeletePoolResources activity")
 
 	activity.RecordHeartbeat(ctx, "Deleting LIFs")
+	if err := j.DeleteInterclusterLifsForPool(ctx, pool.ID); err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
 	// Delete LIFs
 	if err := DeleteLIFs(ctx, se, pool); err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)

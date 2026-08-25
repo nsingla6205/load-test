@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	coreerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
@@ -223,4 +225,88 @@ func TestResolveRequestedRanges_EmptyRanges_ReturnsNil(t *testing.T) {
 
 	result := resolveRequestedRanges(ctx, store, logger, "projects/123/global/networks/vpc-empty", true)
 	assert.Nil(t, result)
+}
+
+func TestResolveSecondaryIpRange_MultipleInterclusterParents(t *testing.T) {
+	t.Setenv(env.EnvIcLifAddressSpaceEnabled, "true")
+	ctx := arTestCtx()
+	logger := log.NewLogger()
+	_, store, _, _ := setup(t)
+
+	ranges := []*datamodel.AddressRange{
+		{Name: "ic-a", AddressRangeCidr: "10.44.0.0/16", Network: "n", VpcName: "vpc1", HostProjectNumber: "123", LifType: database.AddressRangeLifTypeInterclusterLIF},
+		{Name: "ic-b", AddressRangeCidr: "10.45.0.0/16", Network: "n", VpcName: "vpc1", HostProjectNumber: "123", LifType: database.AddressRangeLifTypeInterclusterLIF},
+	}
+	for _, r := range ranges {
+		_, err := store.CreateAddressRange(ctx, r)
+		require.NoError(t, err)
+	}
+
+	result, err := resolveSecondaryIpRange(ctx, store, logger, "projects/123/global/networks/vpc1", nil)
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+	assert.Contains(t, result, "10.44.0.0/16")
+	assert.Contains(t, result, "10.45.0.0/16")
+}
+
+func TestResolveSecondaryIpRange_Disabled(t *testing.T) {
+	t.Setenv(env.EnvIcLifAddressSpaceEnabled, "false")
+	ctx := arTestCtx()
+	logger := log.NewLogger()
+	_, store, _, _ := setup(t)
+
+	result, err := resolveSecondaryIpRange(ctx, store, logger, "projects/123/global/networks/vpc1", []string{"keep-me"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"keep-me"}, result)
+}
+
+// The next three cases pin the fail-closed contract: while the flag is on, the pool create must
+// not silently continue on the legacy IC path when the parent range cannot be resolved.
+
+func TestResolveSecondaryIpRange_UnparseableNetwork_Fails(t *testing.T) {
+	t.Setenv(env.EnvIcLifAddressSpaceEnabled, "true")
+	ctx := arTestCtx()
+	logger := log.NewLogger()
+	_, store, _, _ := setup(t)
+
+	result, err := resolveSecondaryIpRange(ctx, store, logger, "not-a-network", nil)
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var customErr *coreerrors.CustomError
+	require.True(t, coreerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(coreerrors.ErrInputValidationError))
+}
+
+func TestResolveSecondaryIpRange_ListError_Fails(t *testing.T) {
+	t.Setenv(env.EnvIcLifAddressSpaceEnabled, "true")
+	ctx := arTestCtx()
+	logger := log.NewLogger()
+	mockStore := database.NewMockStorage(t)
+
+	lifType := database.AddressRangeLifTypeInterclusterLIF
+	mockStore.On("ListAddressRanges", ctx, "123", "vpc1", (*string)(nil), &lifType).
+		Return(nil, errors.New("db error"))
+
+	result, err := resolveSecondaryIpRange(ctx, mockStore, logger, "projects/123/global/networks/vpc1", nil)
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var customErr *coreerrors.CustomError
+	require.True(t, coreerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(coreerrors.ErrDatabaseDataReadError))
+	mockStore.AssertExpectations(t)
+}
+
+func TestResolveSecondaryIpRange_NoActiveParent_KeepsLegacyPath(t *testing.T) {
+	// An empty result is a legitimate "no IC parent registered for this VPC" state, so it stays a
+	// fallback rather than a create failure.
+	t.Setenv(env.EnvIcLifAddressSpaceEnabled, "true")
+	ctx := arTestCtx()
+	logger := log.NewLogger()
+	_, store, _, _ := setup(t)
+
+	result, err := resolveSecondaryIpRange(ctx, store, logger, "projects/123/global/networks/vpc-none", nil)
+	require.NoError(t, err)
+	assert.Empty(t, result)
 }

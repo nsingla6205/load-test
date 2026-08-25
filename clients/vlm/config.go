@@ -275,8 +275,14 @@ type OCIConfig struct {
 	FabricPoolConfig           FabricPoolConfig                  `json:"fabric_pool_config"`           // Fabric pool configuration
 }
 
+// GCPNetworkConfig GCP-specific network config for a NIC.
 type GCPNetworkConfig struct {
-	SubnetProjectID string `json:"subnet_project_id"` // Project ID for the subnet
+	// IsSecondaryIP When true, the NIC uses a secondary/alias IP path (GCNV additional IP range). The reserved nic3 primary is tracked as dataprimary.
+	IsSecondaryIP bool `json:"is_secondary_ip,omitempty"`
+	// SkipIPReservation When true, skip IP reservation for this NIC (used with secondary IP / dataprimary flows).
+	SkipIPReservation bool `json:"skip_ip_reservation,omitempty"`
+	// SubnetProjectID Project ID for the subnet.
+	SubnetProjectID string `json:"subnet_project_id,omitempty"`
 }
 
 type OCINetworkConfig struct {

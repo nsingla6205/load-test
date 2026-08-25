@@ -815,6 +815,8 @@ func Test_prepareVlmConfig_Success(t *testing.T) {
 	assert.Equal(t, "test-zone2", cfg.Deployment.Zone.Zone2)
 	assert.Equal(t, "test-network", cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].VPC)
 	assert.Equal(t, "test-sn-host-project", cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].GCPNetworkConfig.SubnetProjectID)
+	assert.False(t, cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].GCPNetworkConfig.IsSecondaryIP)
+	assert.False(t, cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].GCPNetworkConfig.SkipIPReservation)
 	assert.Equal(t, int64(64), cfg.Deployment.SPConfig.Throughput)
 	assert.Equal(t, int64(1024), cfg.Deployment.SPConfig.IOps)
 	assert.Equal(t, "1024Gi", cfg.Deployment.SPConfig.Size)
@@ -1386,7 +1388,13 @@ func Test_SaveNodeDetails_Success(t *testing.T) {
 	vsaNode := &vsa.Node{}
 
 	mockProvider.On("GetNodeByName", mock.Anything).Return(vsaNode, nil)
-	mockStorage.On("CreateNode", ctx, mock.Anything).Return(&datamodel.Node{}, nil)
+	mockStorage.On("CreateNode", ctx, mock.Anything).Return(
+		func(_ context.Context, rec *datamodel.Node) *datamodel.Node {
+			rec.BaseModel.ID = 42
+			return rec
+		},
+		func(context.Context, *datamodel.Node) error { return nil },
+	)
 
 	node, err := activities.SaveNodeDetails(ctx, mockStorage, vmConfig, deploymentConfig, pool, "clustername", map[string]string{})
 
@@ -1813,6 +1821,7 @@ func Test_DeletePoolResources_Success(t *testing.T) {
 
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}}
 
+	mockStorage.On("DeleteInterclusterLifsByPoolID", mock.Anything, pool.ID).Return(nil)
 	mockStorage.On("DeletePool", mock.Anything, pool).Return(nil)
 	deleteSVMS := activities.DeleteSVMs
 	deleteNodes := activities.DeleteNodes
@@ -1853,6 +1862,7 @@ func Test_DeletePoolResources_FailsToDeleteLIFs(t *testing.T) {
 	env.RegisterActivity(activity.DeletePoolResources)
 
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}}
+	mockStorage.On("DeleteInterclusterLifsByPoolID", mock.Anything, pool.ID).Return(nil)
 	deleteLIFs := activities.DeleteLIFs
 	defer func() {
 		activities.DeleteLIFs = deleteLIFs
@@ -1892,6 +1902,7 @@ func Test_DeletePoolResources_FailsToDeleteSVMs(t *testing.T) {
 	activities.DeleteSVMs = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) error {
 		return errors.New("failed to delete SVMs")
 	}
+	mockStorage.On("DeleteInterclusterLifsByPoolID", mock.Anything, pool.ID).Return(nil)
 
 	encodedValue, err := env.ExecuteActivity(activity.DeletePoolResources, pool)
 
@@ -1928,6 +1939,7 @@ func Test_DeletePoolResources_FailsToDeleteNodes(t *testing.T) {
 	activities.DeleteNodes = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) error {
 		return errors.New("failed to delete nodes")
 	}
+	mockStorage.On("DeleteInterclusterLifsByPoolID", mock.Anything, pool.ID).Return(nil)
 
 	encodedValue, err := env.ExecuteActivity(activity.DeletePoolResources, pool)
 
@@ -1964,6 +1976,7 @@ func Test_DeletePoolResources_FailsToDeletePool(t *testing.T) {
 	activities.DeleteNodes = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) error {
 		return nil
 	}
+	mockStorage.On("DeleteInterclusterLifsByPoolID", mock.Anything, pool.ID).Return(nil)
 	mockStorage.On("DeletePool", mock.Anything, pool).Return(errors.New("failed to delete pool"))
 
 	encodedValue, err := env.ExecuteActivity(activity.DeletePoolResources, pool)
@@ -3221,14 +3234,15 @@ func TestPoolActivity_UpdatePoolSubnet(t *testing.T) {
 	ctx := context.Background()
 	poolUUID := "test-pool-uuid"
 	tenancyDetails := &commonparams.TenancyInfo{
-		SnHostProject:   "test-sn-host",
-		SubnetworkNames: []string{"subnet-1", "subnet-2"},
+		SnHostProject:         "test-sn-host",
+		RegionalTenantProject: "123456789",
+		SubnetworkNames:       []string{"subnet-1", "subnet-2"},
 	}
 
 	t.Run("Success", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &activities.PoolActivity{SE: mockStorage}
-		mockStorage.On("UpdatePoolSubnetNames", ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.SubnetworkNames).Return(nil)
+		mockStorage.On("UpdatePoolSubnetNames", ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.RegionalTenantProject, tenancyDetails.SubnetworkNames).Return(nil)
 		err := activity.UpdatePoolSubnet(ctx, poolUUID, *tenancyDetails)
 		assert.NoError(t, err)
 		mockStorage.AssertExpectations(t)
@@ -3237,7 +3251,7 @@ func TestPoolActivity_UpdatePoolSubnet(t *testing.T) {
 	t.Run("UpdatePoolSubnetNames fails", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &activities.PoolActivity{SE: mockStorage}
-		mockStorage.On("UpdatePoolSubnetNames", ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.SubnetworkNames).Return(errors.New("db error"))
+		mockStorage.On("UpdatePoolSubnetNames", ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.RegionalTenantProject, tenancyDetails.SubnetworkNames).Return(errors.New("db error"))
 		err := activity.UpdatePoolSubnet(ctx, poolUUID, *tenancyDetails)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "db error")
@@ -7249,13 +7263,13 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
-			return &expectedSubnetName, nil
+		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*commonparams.CreateDataSubnetOpResult, error) {
+			return &commonparams.CreateDataSubnetOpResult{OperationName: expectedSubnetName}, nil
 		}
 
 		result, err := activity.GetCreateDataSubnetOp(ctx, params, tenantProjectNumber)
 		assert.NoError(t, err)
-		assert.Equal(t, expectedSubnetName, *result)
+		assert.Equal(t, expectedSubnetName, result.OperationName)
 	})
 
 	t.Run("GetGCPServiceError", func(t *testing.T) {
@@ -7281,13 +7295,13 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*commonparams.CreateDataSubnetOpResult, error) {
 			return nil, errors.New("create subnet error")
 		}
 
 		result, err := activity.GetCreateDataSubnetOp(ctx, params, tenantProjectNumber)
 		assert.Error(t, err)
-		assert.Empty(t, result)
+		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "create subnet error")
 	})
 }
@@ -8396,7 +8410,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, expectedOperationName, *result)
+		assert.Equal(t, expectedOperationName, result.OperationName)
 		mockService.AssertExpectations(t)
 	})
 
@@ -8425,6 +8439,31 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 		result, err := activities.GetCreateDataSubnetworkOp(mockService, params, tenantProjectNumber)
 
 		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		mockService.AssertExpectations(t)
+	})
+
+	t.Run("NilOperationNameReturnsError", func(t *testing.T) {
+		mockService := new(hyperscaler2.MockServices)
+		mockLogger := util.GetLogger(context.Background())
+
+		params := commonparams.CreatePoolParams{
+			Region:         "us-central1",
+			VendorSubNetID: "test-vpc",
+		}
+		tenantProjectNumber := "123456789"
+
+		mockService.On("GetLogger").Return(mockLogger)
+
+		originalGetCreateSubnetworkOperation := activities.GetCreateSubnetworkOperation
+		defer func() { activities.GetCreateSubnetworkOperation = originalGetCreateSubnetworkOperation }()
+
+		activities.GetCreateSubnetworkOperation = func(service hyperscaler2.Services, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
+			return nil, nil
+		}
+
+		result, err := activities.GetCreateDataSubnetworkOp(mockService, params, tenantProjectNumber)
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		mockService.AssertExpectations(t)
@@ -8473,7 +8512,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 				// Assert
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, operationName, *result)
+				assert.Equal(t, operationName, result.OperationName)
 				mockService.AssertExpectations(t)
 			})
 		}
@@ -19082,7 +19121,13 @@ func Test_SaveNodeDetails_SumsDataDiskSizes(t *testing.T) {
 	deploymentConfig := vlm.DeploymentConfig{VSAInstanceType: "n1-standard-4"}
 
 	mockProvider.On("GetNodeByName", mock.Anything).Return(&vsa.Node{}, nil)
-	mockStorage.On("CreateNode", ctx, mock.Anything).Return(&datamodel.Node{}, nil)
+	mockStorage.On("CreateNode", ctx, mock.Anything).Return(
+		func(_ context.Context, rec *datamodel.Node) *datamodel.Node {
+			rec.BaseModel.ID = 42
+			return rec
+		},
+		func(context.Context, *datamodel.Node) error { return nil },
+	)
 
 	node, err := activities.SaveNodeDetails(ctx, mockStorage, vmConfig, deploymentConfig, pool, "clusterName", map[string]string{})
 

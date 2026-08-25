@@ -8253,15 +8253,44 @@ func TestCreateAddressRange_PersistenceStore(t *testing.T) {
 		assert.Error(tt, err)
 	})
 
-	t.Run("WhenSecondInterclusterLIFIsRejected", func(tt *testing.T) {
+	t.Run("WhenSecondNonOverlappingInterclusterLIFIsAllowed", func(tt *testing.T) {
 		store := setupAddressRangeStore(tt)
 		ar1 := newTestAddressRange("", "ar-ic-1", "10.4.0.0/24", "vpc1", "123456", "interclusterLIF")
 		_, err := store.CreateAddressRange(ctx, ar1)
 		assert.NoError(tt, err)
 
 		ar2 := newTestAddressRange("", "ar-ic-2", "10.5.0.0/24", "vpc1", "123456", "interclusterLIF")
+		created, err := store.CreateAddressRange(ctx, ar2)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, created)
+	})
+
+	t.Run("WhenOverlappingInterclusterLIFIsRejected", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar1 := newTestAddressRange("", "ar-ic-overlap-1", "10.44.0.0/16", "vpc1", "123456", "interclusterLIF")
+		_, err := store.CreateAddressRange(ctx, ar1)
+		assert.NoError(tt, err)
+
+		ar2 := newTestAddressRange("", "ar-ic-overlap-2", "10.44.1.0/24", "vpc1", "123456", "interclusterLIF")
 		_, err = store.CreateAddressRange(ctx, ar2)
 		assert.Error(tt, err)
+		var customErr *vsaerrors.CustomError
+		require.True(tt, vsaerrors.As(err, &customErr))
+		assert.True(tt, customErr.IsError(vsaerrors.ErrResourceStateConflictError))
+	})
+
+	t.Run("WhenDuplicateInterclusterLIFCIDRIsRejected", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar1 := newTestAddressRange("", "ar-ic-dup-1", "10.50.0.0/24", "vpc1", "123456", "interclusterLIF")
+		_, err := store.CreateAddressRange(ctx, ar1)
+		assert.NoError(tt, err)
+
+		ar2 := newTestAddressRange("", "ar-ic-dup-2", "10.50.0.0/24", "vpc1", "123456", "interclusterLIF")
+		_, err = store.CreateAddressRange(ctx, ar2)
+		assert.Error(tt, err)
+		var customErr *vsaerrors.CustomError
+		require.True(tt, vsaerrors.As(err, &customErr))
+		assert.True(tt, customErr.IsError(vsaerrors.ErrResourceStateConflictError))
 	})
 
 	t.Run("WhenSameCIDROnDifferentVPCIsAllowed", func(tt *testing.T) {
@@ -8525,6 +8554,173 @@ func TestDeleteAddressRange_PersistenceStore(t *testing.T) {
 		_, err := store.DeleteAddressRange(ctx, "non-existent-uuid")
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "Resource not found")
+	})
+
+	t.Run("WhenInterclusterRangeStillHasCarvedIPRanges", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-ic-carved", "10.63.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		// The range is still CREATED, but a carved child exists — deletion must be refused.
+		seedCarvedInterclusterIPRange(tt, store, created.ID, "10.63.0.0", "10.63.0.7")
+
+		_, err = store.DeleteAddressRange(ctx, created.UUID)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "invalid state")
+	})
+
+	t.Run("WhenInterclusterRangeHasNoCarvedIPRanges", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-ic-free", "10.64.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		deleted, err := store.DeleteAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, AddressRangeStateDeleted, deleted.AddressRangeState)
+	})
+}
+
+// seedCarvedInterclusterIPRange inserts an ip_ranges row linked to the given parent address
+// range, standing in for a subnet carved out during pool creation.
+func seedCarvedInterclusterIPRange(t *testing.T, store *DataStoreRepository, addressRangeID int64, startIP, endIP string) *datamodel.IPRange {
+	t.Helper()
+	network := "vsa-test-subnet"
+	ir := &datamodel.IPRange{
+		BaseModel:      datamodel.BaseModel{UUID: utils.RandomUUID()},
+		Network:        &network,
+		StartIP:        startIP,
+		EndIP:          endIP,
+		Netmask:        "29",
+		LifType:        LifTypeInterclusterLIF,
+		AddressRangeID: sql.NullInt64{Int64: addressRangeID, Valid: true},
+	}
+	require.NoError(t, store.db.GORM().Create(ir).Error)
+	return ir
+}
+
+func TestMarkAddressRangeInUseByID_PersistenceStore(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("WhenRangeIsCreatedItTransitionsToInUse", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-mark-1", "10.80.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		updated, err := store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.True(tt, updated)
+
+		reloaded, err := store.GetAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, AddressRangeStateInUse, reloaded.AddressRangeState)
+	})
+
+	t.Run("WhenRangeIsAlreadyInUseItIsANoOp", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-mark-2", "10.81.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		_, err = store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+
+		// Second call must succeed without changing anything — the carve path is retried
+		// by Temporal and must stay idempotent.
+		updated, err := store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.False(tt, updated)
+
+		reloaded, err := store.GetAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, AddressRangeStateInUse, reloaded.AddressRangeState)
+	})
+
+	t.Run("WhenAddressRangeIDIsInvalid", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		_, err := store.MarkAddressRangeInUseByID(ctx, 0)
+		assert.Error(tt, err)
+	})
+}
+
+func TestReleaseInterclusterAddressRangeIfUnused_PersistenceStore(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("WhenCarvedIPRangesRemainItIsNotReleased", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-rel-1", "10.82.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		_, err = store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+		seedCarvedInterclusterIPRange(tt, store, created.ID, "10.82.0.0", "10.82.0.7")
+
+		released, err := store.ReleaseInterclusterAddressRangeIfUnused(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.False(tt, released)
+
+		reloaded, err := store.GetAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, AddressRangeStateInUse, reloaded.AddressRangeState)
+	})
+
+	t.Run("WhenLastCarvedIPRangeIsDeletedItIsReleased", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-rel-2", "10.83.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		_, err = store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+		ir := seedCarvedInterclusterIPRange(tt, store, created.ID, "10.83.0.0", "10.83.0.7")
+
+		_, err = store.DeleteIPRangeByID(ctx, ir.ID)
+		assert.NoError(tt, err)
+
+		released, err := store.ReleaseInterclusterAddressRangeIfUnused(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.True(tt, released)
+
+		reloaded, err := store.GetAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, AddressRangeStateCreated, reloaded.AddressRangeState)
+
+		// Once released and free of carved children, the operator can delete it.
+		_, err = store.DeleteAddressRange(ctx, created.UUID)
+		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenTwoPoolsShareAParentOnlyTheLastReleaseSucceeds", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		ar := newTestAddressRange("", "ar-rel-3", "10.84.0.0/24", "vpc1", "123456", AddressRangeLifTypeInterclusterLIF)
+		created, err := store.CreateAddressRange(ctx, ar)
+		assert.NoError(tt, err)
+
+		_, err = store.MarkAddressRangeInUseByID(ctx, created.ID)
+		assert.NoError(tt, err)
+		first := seedCarvedInterclusterIPRange(tt, store, created.ID, "10.84.0.0", "10.84.0.7")
+		second := seedCarvedInterclusterIPRange(tt, store, created.ID, "10.84.0.8", "10.84.0.15")
+
+		_, err = store.DeleteIPRangeByID(ctx, first.ID)
+		assert.NoError(tt, err)
+		released, err := store.ReleaseInterclusterAddressRangeIfUnused(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.False(tt, released)
+
+		_, err = store.DeleteIPRangeByID(ctx, second.ID)
+		assert.NoError(tt, err)
+		released, err = store.ReleaseInterclusterAddressRangeIfUnused(ctx, created.ID)
+		assert.NoError(tt, err)
+		assert.True(tt, released)
+	})
+
+	t.Run("WhenAddressRangeIDIsInvalid", func(tt *testing.T) {
+		store := setupAddressRangeStore(tt)
+		_, err := store.ReleaseInterclusterAddressRangeIfUnused(ctx, 0)
+		assert.Error(tt, err)
 	})
 }
 

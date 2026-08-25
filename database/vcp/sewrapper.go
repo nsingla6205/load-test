@@ -77,10 +77,10 @@ func (re *retryEngine) UpdatedPool(ctx context.Context, pool *datamodel.Pool) (*
 	return var0, err
 }
 
-func (re *retryEngine) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject string, subnetNames []string) error {
+func (re *retryEngine) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject, regionalTenantProject string, subnetNames []string) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		err = re.dataStore.UpdatePoolSubnetNames(ctx, poolUUID, snHostProject, subnetNames)
+		err = re.dataStore.UpdatePoolSubnetNames(ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames)
 		if err != nil {
 			re.logError("UpdatePoolSubnetNames", err)
 			if !dbutils.IsTransientErr(err) {
@@ -7099,6 +7099,38 @@ func (re *retryEngine) UpdateAddressRangeStateToCreatedIfLastPool(ctx context.Co
 	return var0, err
 }
 
+func (re *retryEngine) MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error) {
+	var var0 bool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.MarkAddressRangeInUseByID(ctx, addressRangeID)
+		if err != nil {
+			re.logError("MarkAddressRangeInUseByID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error) {
+	var var0 bool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ReleaseInterclusterAddressRangeIfUnused(ctx, addressRangeID)
+		if err != nil {
+			re.logError("ReleaseInterclusterAddressRangeIfUnused", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) ResetAddressRangesInUseToCreated(ctx context.Context, hostProjectNumber, vpcName string) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
@@ -7368,6 +7400,132 @@ func (re *retryEngine) DeleteIPRange(ctx context.Context, irID string) (*datamod
 		return true, err
 	})
 	return var0, err
+}
+
+func (re *retryEngine) DeleteIPRangeByID(ctx context.Context, ipRangeID int64) (*datamodel.IPRange, error) {
+	var var0 *datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.DeleteIPRangeByID(ctx, ipRangeID)
+		if err != nil {
+			re.logError("DeleteIPRangeByID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber, vpcName string) ([]*datamodel.IPRange, error) {
+	var var0 []*datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListInterclusterIPRangesForVPC(ctx, hostProjectNumber, vpcName)
+		if err != nil {
+			re.logError("ListInterclusterIPRangesForVPC", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error) {
+	var var0 *InterclusterCarveResult
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ClaimCarvedInterclusterIPRange(ctx, claim)
+		if err != nil {
+			re.logError("ClaimCarvedInterclusterIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error) {
+	var var0 *InterclusterCarveResult
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.AdoptInterclusterIPRange(ctx, claim)
+		if err != nil {
+			re.logError("AdoptInterclusterIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ReserveInterclusterLifIPs(ctx context.Context, poolID, accountID, ipRangeID int64, count int) ([]string, error) {
+	var var0 []string
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ReserveInterclusterLifIPs(ctx, poolID, accountID, ipRangeID, count)
+		if err != nil {
+			re.logError("ReserveInterclusterLifIPs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListInterclusterLifsByPoolID(ctx, poolID)
+		if err != nil {
+			re.logError("ListInterclusterLifsByPoolID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.BindInterclusterLifToNode(ctx, poolID, ipAddress, nodeID)
+		if err != nil {
+			re.logError("BindInterclusterLifToNode", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.DeleteInterclusterLifsByPoolID(ctx, poolID)
+		if err != nil {
+			re.logError("DeleteInterclusterLifsByPoolID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
 }
 
 func (re *retryEngine) CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error) {

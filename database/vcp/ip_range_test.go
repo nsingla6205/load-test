@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -637,6 +638,29 @@ func TestUpdateDeleteIPRangeErrorBranches(t *testing.T) {
 		_, err := store.DeleteIPRange(context.Background(), record.UUID)
 		require.Error(t, err)
 	})
+}
+
+func TestIsIPRangeBlockUniqueViolation(t *testing.T) {
+	// idx_ip_ranges_unique_ic_block is what catches two concurrent carves that both pass the
+	// SELECT-then-INSERT overlap check, so its violation has to be recognised as a conflict rather
+	// than reported as a generic insert failure.
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil", err: nil, expected: false},
+		{name: "typedSentinel", err: gorm.ErrDuplicatedKey, expected: true},
+		{name: "wrappedTypedSentinel", err: fmt.Errorf("insert failed: %w", gorm.ErrDuplicatedKey), expected: true},
+		{name: "postgresMessage", err: errors.New(`ERROR: duplicate key value violates unique constraint "idx_ip_ranges_unique_ic_block"`), expected: true},
+		{name: "sqliteMessage", err: errors.New("UNIQUE constraint failed: ip_ranges.start_ip"), expected: true},
+		{name: "unrelated", err: errors.New("connection reset by peer"), expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isIPRangeBlockUniqueViolation(tt.err))
+		})
+	}
 }
 
 func TestGetRegionByUUIDReadError(t *testing.T) {

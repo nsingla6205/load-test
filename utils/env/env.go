@@ -115,6 +115,14 @@ const (
 	// EnvPOVlanBandwidth is the CVN VLAN bandwidth tier for PO pools (e.g. BPS_50G).
 	EnvPOVlanBandwidth = "PO_VLAN_BANDWIDTH"
 
+	// EnvIcLifAddressSpaceEnabled enables managed intercluster LIF secondary-range carve,
+	// ip_ranges persistence, and pre-deploy IC IP reservation in lifs.
+	EnvIcLifAddressSpaceEnabled = "IC_LIF_ADDRESS_SPACE_ENABLED"
+
+	// EnvVMRSConfigPath is the path to the VMRS config file the worker reads when
+	// making VM right-sizing decisions.
+	EnvVMRSConfigPath = "VMRS_CONFIG_PATH"
+
 	// EnvEnableICLifsForPOPools gates intercluster LIF ensure on PO pool create.
 	EnvEnableICLifsForPOPools = "ENABLE_IC_LIFS_FOR_PO_POOLS"
 

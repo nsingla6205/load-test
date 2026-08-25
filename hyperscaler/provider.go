@@ -86,6 +86,7 @@ type Services interface {
 	GetTenantProject(consumerNetwork, customerProjectNumber, tenantProjectRegion string) (string, error)
 	GetSnHost(project string) (string, error)
 	CreateTPSubnetOp(tenantProjectNumber, consumerNetwork, region, subnetName string, isLargeCapacity bool, requestedRanges []string) (*string, error)
+	AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange string) (string, error)
 	GetServiceNetOpStatus(operationName string) (*models.ComputeOperation, error)
 	GetComputeGlobalOpStatus(tenantProject, operationName string) (*models.ComputeOperation, error)
 

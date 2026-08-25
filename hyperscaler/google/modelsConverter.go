@@ -52,12 +52,23 @@ func convertGoogleSubnetToSubnet(subnet *compute.Subnetwork) *models.Subnet {
 	if subnet == nil {
 		return nil
 	}
+	secondaries := make([]models.SecondaryIpRange, 0, len(subnet.SecondaryIpRanges))
+	for _, sr := range subnet.SecondaryIpRanges {
+		if sr == nil {
+			continue
+		}
+		secondaries = append(secondaries, models.SecondaryIpRange{
+			RangeName:   sr.RangeName,
+			IpCidrRange: sr.IpCidrRange,
+		})
+	}
 	return &models.Subnet{
-		Name:           subnet.Name,
-		Network:        subnet.Network,
-		IpCidrRange:    subnet.IpCidrRange,
-		GatewayAddress: subnet.GatewayAddress,
-		SelfLink:       subnet.SelfLink,
+		Name:              subnet.Name,
+		Network:           subnet.Network,
+		IpCidrRange:       subnet.IpCidrRange,
+		GatewayAddress:    subnet.GatewayAddress,
+		SelfLink:          subnet.SelfLink,
+		SecondaryIpRanges: secondaries,
 	}
 }
 

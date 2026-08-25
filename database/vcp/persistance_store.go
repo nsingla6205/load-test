@@ -419,8 +419,8 @@ func (s *PersistenceStore) UpdatedPool(ctx context.Context, pool *datamodel.Pool
 	return s.dataStore.UpdatedPool(ctx, pool)
 }
 
-func (s *PersistenceStore) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject string, subnetNames []string) error {
-	return s.dataStore.UpdatePoolSubnetNames(ctx, poolUUID, snHostProject, subnetNames)
+func (s *PersistenceStore) UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject, regionalTenantProject string, subnetNames []string) error {
+	return s.dataStore.UpdatePoolSubnetNames(ctx, poolUUID, snHostProject, regionalTenantProject, subnetNames)
 }
 
 func (s *PersistenceStore) UpdatePoolState(ctx context.Context, pool *datamodel.Pool, state string, stateDetails string) (*datamodel.Pool, error) {
@@ -2202,6 +2202,14 @@ func (s *PersistenceStore) UpdateAddressRangeStateToCreatedIfLastPool(ctx contex
 	return s.dataStore.UpdateAddressRangeStateToCreatedIfLastPool(ctx, arUUID, network, excludePoolUUID, addressRangeCidr)
 }
 
+func (s *PersistenceStore) MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error) {
+	return s.dataStore.MarkAddressRangeInUseByID(ctx, addressRangeID)
+}
+
+func (s *PersistenceStore) ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error) {
+	return s.dataStore.ReleaseInterclusterAddressRangeIfUnused(ctx, addressRangeID)
+}
+
 func (s *PersistenceStore) ResetAddressRangesInUseToCreated(ctx context.Context, hostProjectNumber, vpcName string) error {
 	return s.dataStore.ResetAddressRangesInUseToCreated(ctx, hostProjectNumber, vpcName)
 }
@@ -2268,6 +2276,38 @@ func (s *PersistenceStore) UpdateIPRangeNetwork(ctx context.Context, ir *datamod
 
 func (s *PersistenceStore) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
 	return s.dataStore.DeleteIPRange(ctx, irID)
+}
+
+func (s *PersistenceStore) DeleteIPRangeByID(ctx context.Context, ipRangeID int64) (*datamodel.IPRange, error) {
+	return s.dataStore.DeleteIPRangeByID(ctx, ipRangeID)
+}
+
+func (s *PersistenceStore) ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber, vpcName string) ([]*datamodel.IPRange, error) {
+	return s.dataStore.ListInterclusterIPRangesForVPC(ctx, hostProjectNumber, vpcName)
+}
+
+func (s *PersistenceStore) ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error) {
+	return s.dataStore.ClaimCarvedInterclusterIPRange(ctx, claim)
+}
+
+func (s *PersistenceStore) AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error) {
+	return s.dataStore.AdoptInterclusterIPRange(ctx, claim)
+}
+
+func (s *PersistenceStore) ReserveInterclusterLifIPs(ctx context.Context, poolID, accountID, ipRangeID int64, count int) ([]string, error) {
+	return s.dataStore.ReserveInterclusterLifIPs(ctx, poolID, accountID, ipRangeID, count)
+}
+
+func (s *PersistenceStore) ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error) {
+	return s.dataStore.ListInterclusterLifsByPoolID(ctx, poolID)
+}
+
+func (s *PersistenceStore) BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error {
+	return s.dataStore.BindInterclusterLifToNode(ctx, poolID, ipAddress, nodeID)
+}
+
+func (s *PersistenceStore) DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error {
+	return s.dataStore.DeleteInterclusterLifsByPoolID(ctx, poolID)
 }
 
 func (s *PersistenceStore) GetHarvestHaSiblingNodeGroupID(ctx context.Context, nodeID int64) (int64, error) {

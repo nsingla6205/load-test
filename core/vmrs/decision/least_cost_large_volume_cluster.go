@@ -16,6 +16,24 @@ var (
 	LVHaPair = env.GetInt("NUMBER_OF_HA_PAIRS_LARGE_CAPACITY", 6)
 )
 
+// LargeVolumeHAPairs returns the number of HA pairs a large-volume cluster is deployed with:
+// NUMBER_OF_HA_PAIRS_LARGE_CAPACITY, or EXPERIMENTAL_NUMBER_OF_HA_PAIRS_LARGE_CAPACITY when
+// accountID is allowlisted. An empty accountID yields the non-allowlisted default.
+//
+// This is the single source of the HA pair count. The intercluster LIF carve calls it directly
+// rather than running a VMRS decision, so the carve covers exactly the cluster FindOptimalVMs
+// will later describe.
+//
+// accountID must be the same identifier FindOptimalVMs reads from
+// Deployment.Labels["account_id"] — the account name, not a numeric database id — or the two
+// callers disagree on how many HA pairs the pool gets.
+func LargeVolumeHAPairs(accountID string) int {
+	if accountID == "" {
+		return LVHaPair
+	}
+	return int(utils.LvHaPairsForLargeVolume(accountID, int64(LVHaPair)))
+}
+
 // LeastCostLargeVolumeClusterDecisionMaker implements the DecisionMaker interface for large volume (FlexGroup) clusters.
 // It uses non-linear scaling factors to account for cluster overhead and selects optimal homogeneous VM configurations.
 type LeastCostLargeVolumeClusterDecisionMaker struct {
@@ -91,12 +109,11 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) CompareVMScalingDirection(cur
 // It applies non-linear scaling factors to customer requirements, distributes load across HA pairs,
 // and returns a homogeneous cluster configuration with the cheapest suitable VM type.
 func (d *LeastCostLargeVolumeClusterDecisionMaker) FindOptimalVMs(config *vmrs.VMRSConfig, customerRequest vmrs.CustomerRequestedPerformance, currentConfig *vlm.VLMConfig) (*vmrs.Decision, error) {
-	requiredHAPairs := LVHaPair
+	accountID := ""
 	if currentConfig != nil && currentConfig.Deployment.Labels != nil {
-		if accountID := currentConfig.Deployment.Labels["account_id"]; accountID != "" {
-			requiredHAPairs = int(utils.LvHaPairsForLargeVolume(accountID, int64(LVHaPair)))
-		}
+		accountID = currentConfig.Deployment.Labels["account_id"]
 	}
+	requiredHAPairs := LargeVolumeHAPairs(accountID)
 
 	scaledIOPSPerHaPair, scaledThroughputPerHaPair, err := d.applyNonLinearScaling(customerRequest.DesiredIOPS, customerRequest.DesiredThroughputInMiBs, requiredHAPairs, customerRequest.ScalingTopology.Topology)
 	if err != nil {

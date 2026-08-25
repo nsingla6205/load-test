@@ -42,7 +42,7 @@ type (
 		CreatingPool(ctx context.Context, pool *datamodel.Pool) (*datamodel.Pool, error)
 		UpdatingPool(ctx context.Context, pool *datamodel.Pool) (*datamodel.Pool, error)
 		UpdatedPool(ctx context.Context, pool *datamodel.Pool) (*datamodel.Pool, error)
-		UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject string, subnetNames []string) error
+		UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject, regionalTenantProject string, subnetNames []string) error
 		UpdatePoolState(ctx context.Context, pool *datamodel.Pool, state string, stateDetails string) (*datamodel.Pool, error)
 		UpdatePoolFields(ctx context.Context, poolUUID string, updates map[string]interface{}) error
 		UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error
@@ -580,6 +580,8 @@ type (
 		UpdateAddressRange(ctx context.Context, ar *datamodel.AddressRange) (*datamodel.AddressRange, error)
 		UpdateAddressRangeState(ctx context.Context, arID, state string, routeAggregationApplied *bool) (*datamodel.AddressRange, error)
 		UpdateAddressRangeStateToCreatedIfLastPool(ctx context.Context, arUUID, network, excludePoolUUID, addressRangeCidr string) (bool, error)
+		MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error)
+		ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error)
 		ResetAddressRangesInUseToCreated(ctx context.Context, hostProjectNumber, vpcName string) error
 		DeleteAddressRange(ctx context.Context, arID string) (*datamodel.AddressRange, error)
 
@@ -603,6 +605,15 @@ type (
 		GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error)
 		UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
 		DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
+		DeleteIPRangeByID(ctx context.Context, ipRangeID int64) (*datamodel.IPRange, error)
+		ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber, vpcName string) ([]*datamodel.IPRange, error)
+		ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error)
+		AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error)
+
+		ReserveInterclusterLifIPs(ctx context.Context, poolID, accountID, ipRangeID int64, count int) ([]string, error)
+		ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error)
+		BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error
+		DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error
 
 		// External cluster hosts
 		CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error)

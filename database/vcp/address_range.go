@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -55,19 +56,10 @@ func (d *DataStoreRepository) CreateAddressRange(ctx context.Context, ar *datamo
 			fmt.Errorf("address range with name %s already exists for vpc %s", ar.Name, ar.VpcName))
 	}
 
-	// Only one interclusterLIF per VPC+host project
+	// Multiple interclusterLIF ranges are allowed per VPC, but they must not overlap.
 	if ar.LifType == AddressRangeLifTypeInterclusterLIF {
-		err = d.db.GORM().WithContext(ctx).
-			Model(&datamodel.AddressRange{}).
-			Where("vpc_name = ? AND host_project_number = ? AND lif_type = ? AND deleted_at IS NULL",
-				ar.VpcName, ar.HostProjectNumber, AddressRangeLifTypeInterclusterLIF).
-			Count(&count).Error
-		if err != nil {
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-		}
-		if count > 0 {
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
-				fmt.Errorf("only one interclusterLIF address range is allowed per VPC and host project"))
+		if err := d.rejectOverlappingInterclusterAddressRange(ctx, ar); err != nil {
+			return nil, err
 		}
 	}
 
@@ -86,6 +78,60 @@ func (d *DataStoreRepository) CreateAddressRange(ctx context.Context, ar *datamo
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 	}
 	return ar, nil
+}
+
+// rejectOverlappingInterclusterAddressRange returns a conflict error when the
+// candidate interclusterLIF CIDR overlaps any existing active IC LIF range for
+// the same VPC + host project.
+func (d *DataStoreRepository) rejectOverlappingInterclusterAddressRange(ctx context.Context, ar *datamodel.AddressRange) error {
+	var existing []*datamodel.AddressRange
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.AddressRange{}).
+		Where("vpc_name = ? AND host_project_number = ? AND lif_type = ? AND deleted_at IS NULL",
+			ar.VpcName, ar.HostProjectNumber, AddressRangeLifTypeInterclusterLIF).
+		Find(&existing).Error
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	for _, other := range existing {
+		if addressRangeCIDRsOverlap(ar.AddressRangeCidr, other.AddressRangeCidr) {
+			return vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+				fmt.Errorf("interclusterLIF address range CIDR %s overlaps existing range %s (%s) for vpc %s",
+					ar.AddressRangeCidr, other.AddressRangeCidr, other.Name, ar.VpcName))
+		}
+	}
+	return nil
+}
+
+func addressRangeCIDRsOverlap(a, b string) bool {
+	_, netA, err := net.ParseCIDR(strings.TrimSpace(a))
+	if err != nil {
+		return false
+	}
+	_, netB, err := net.ParseCIDR(strings.TrimSpace(b))
+	if err != nil {
+		return false
+	}
+	startA, endA, okA := addressRangeCIDRBounds(netA)
+	startB, endB, okB := addressRangeCIDRBounds(netB)
+	if !okA || !okB {
+		return false
+	}
+	return startA <= endB && startB <= endA
+}
+
+func addressRangeCIDRBounds(network *net.IPNet) (uint32, uint32, bool) {
+	ip := network.IP.To4()
+	if ip == nil {
+		return 0, 0, false
+	}
+	start := uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+	maskSize, bitsTotal := network.Mask.Size()
+	if bitsTotal != 32 || maskSize < 0 || maskSize > 32 {
+		return 0, 0, false
+	}
+	size := uint32(1 << (32 - maskSize))
+	return start, start + size - 1, true
 }
 
 // GetAddressRange retrieves a single address range by UUID.
@@ -233,6 +279,74 @@ func (d *DataStoreRepository) UpdateAddressRangeStateToCreatedIfLastPool(ctx con
 	return result.RowsAffected > 0, nil
 }
 
+// MarkAddressRangeInUseByID atomically transitions an address range from CREATED to IN_USE
+// using its numeric primary key. It is used by the interclusterLIF carve path, where the
+// parent range is identified by ID (ip_ranges.address_range_id) rather than by CIDR
+// containment of the pool's primary subnet.
+//
+// Returns (true, nil) when the row was updated, (false, nil) when the range was already
+// IN_USE or is not in a transitionable state (idempotent), or (false, err) on failure.
+func (d *DataStoreRepository) MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error) {
+	if addressRangeID <= 0 {
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("addressRangeID is required"))
+	}
+	now := time.Now().UTC()
+	result := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.AddressRange{}).
+		Where("id = ? AND address_range_state = ? AND deleted_at IS NULL",
+			addressRangeID, AddressRangeStateCreated).
+		Updates(map[string]interface{}{
+			"address_range_state":         AddressRangeStateInUse,
+			"address_range_state_details": AddressRangeStateInUse,
+			"updated_at":                  now,
+		})
+	if result.Error != nil {
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// ReleaseInterclusterAddressRangeIfUnused atomically transitions an IN_USE interclusterLIF
+// address range back to CREATED, but only when no active carved ip_ranges row still
+// references it. The check and update run as a single conditional UPDATE with a NOT EXISTS
+// subquery so that concurrent pool deletions cannot race each other into releasing a range
+// that another pool still occupies.
+//
+// Returns (true, nil) when the row was released, (false, nil) when carved children remain
+// or the range was not IN_USE, or (false, err) on failure.
+func (d *DataStoreRepository) ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error) {
+	if addressRangeID <= 0 {
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("addressRangeID is required"))
+	}
+	now := time.Now().UTC()
+	result := d.db.GORM().WithContext(ctx).Exec(`
+		UPDATE address_ranges
+		SET address_range_state = ?,
+		    address_range_state_details = ?,
+		    route_aggregation_applied = false,
+		    route_aggregation_applied_at = NULL,
+		    updated_at = ?
+		WHERE id = ?
+		  AND lif_type = ?
+		  AND address_range_state = ?
+		  AND deleted_at IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1 FROM ip_ranges
+		    WHERE address_range_id = ?
+		      AND deleted_at IS NULL
+		  )`,
+		AddressRangeStateCreated, AddressRangeStateCreated, now,
+		addressRangeID, AddressRangeLifTypeInterclusterLIF, AddressRangeStateInUse,
+		addressRangeID,
+	)
+	if result.Error != nil {
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
 // ResetAddressRangesInUseToCreated bulk-transitions all IN_USE dataLIF address ranges
 // for the given VPC to CREATED in a single UPDATE query.
 func (d *DataStoreRepository) ResetAddressRangesInUseToCreated(ctx context.Context, hostProjectNumber, vpcName string) error {
@@ -270,6 +384,21 @@ func (d *DataStoreRepository) DeleteAddressRange(ctx context.Context, arID strin
 			fmt.Errorf("address range is IN_USE, cannot delete"))
 	}
 
+	// An interclusterLIF range can still be occupied by carved ip_ranges even if its state
+	// was never advanced to IN_USE (e.g. a range carved before the state transition existed).
+	// Check for live children directly so a stale state cannot allow an occupied range to be
+	// deleted out from under running pools.
+	if existing.LifType == AddressRangeLifTypeInterclusterLIF {
+		carved, err := d.countActiveIPRangesForAddressRange(ctx, existing.ID)
+		if err != nil {
+			return nil, err
+		}
+		if carved > 0 {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+				fmt.Errorf("address range %s has %d intercluster LIF subnet(s) carved from it, cannot delete", existing.AddressRangeCidr, carved))
+		}
+	}
+
 	now := time.Now().UTC()
 	existing.AddressRangeState = AddressRangeStateDeleted
 	existing.AddressRangeStateDetails = AddressRangeStateDeleted
@@ -281,4 +410,18 @@ func (d *DataStoreRepository) DeleteAddressRange(ctx context.Context, arID strin
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, err)
 	}
 	return existing, nil
+}
+
+// countActiveIPRangesForAddressRange returns the number of live ip_ranges rows carved from
+// the given parent address range.
+func (d *DataStoreRepository) countActiveIPRangesForAddressRange(ctx context.Context, addressRangeID int64) (int64, error) {
+	var count int64
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.IPRange{}).
+		Where("address_range_id = ? AND deleted_at IS NULL", addressRangeID).
+		Count(&count).Error
+	if err != nil {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return count, nil
 }

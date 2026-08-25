@@ -194,6 +194,9 @@ func (UnsupportedServices) GetSnHost(project string) (string, error) {
 func (UnsupportedServices) CreateTPSubnetOp(tenantProjectNumber, consumerNetwork, region, subnetName string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 	return nil, unsupported()
 }
+func (UnsupportedServices) AddSubnetSecondaryRangeOp(projectID, region, subnetName, rangeName, ipCidrRange string) (string, error) {
+	return "", unsupported()
+}
 func (UnsupportedServices) GetServiceNetOpStatus(operationName string) (*models.ComputeOperation, error) {
 	return nil, unsupported()
 }

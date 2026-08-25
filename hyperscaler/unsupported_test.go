@@ -100,6 +100,10 @@ func TestUnsupportedServices_allUnsupportedMethods(t *testing.T) {
 			_, err := svc.CreateTPSubnetOp("123", "net", "us-central1", "subnet", false, nil)
 			return err
 		}},
+		{name: "AddSubnetSecondaryRangeOp", run: func() error {
+			_, err := svc.AddSubnetSecondaryRangeOp("proj", "us-central1", "subnet", "ic-lif-range", "10.50.166.0/29")
+			return err
+		}},
 		{name: "GetServiceNetOpStatus", run: func() error { _, err := svc.GetServiceNetOpStatus("op"); return err }},
 		{name: "GetComputeGlobalOpStatus", run: func() error { _, err := svc.GetComputeGlobalOpStatus("tp", "op"); return err }},
 		{name: "GenerateVSASignedURL", run: func() error { _, err := svc.GenerateVSASignedURL(ctx, "vsa-image.tgz"); return err }},

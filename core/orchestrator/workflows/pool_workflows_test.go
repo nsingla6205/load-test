@@ -10462,7 +10462,7 @@ func TestPoolDataSubnetWorkFlow(t *testing.T) {
 		Name: "",
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("GetSubnetFromOperation", mock.Anything, mock.Anything).Return(&hyperscalermodels.Subnet{Name: "subnet-name"}, nil)
 	env.OnActivity("GetTenancyInfo", mock.Anything, mock.Anything, mock.Anything).Return(&common.TenancyInfo{
 		Network:               "test-network",
@@ -11227,7 +11227,7 @@ func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation1(t *testing.T) {
 		Name: "",
 	}, nil)
 	operationName := ""
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("UpdateJobStatus", mock.Anything, &datamodel.Job{
 		BaseModel: datamodel.BaseModel{
 			UUID: "default-test-workflow-id",
@@ -11295,7 +11295,7 @@ func TestPoolDataSubnetWorkFlow_WaitFails(t *testing.T) {
 		Name: "", // Empty name triggers subnet creation path
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("UpdateJobStatus", mock.Anything, &datamodel.Job{
 		BaseModel: datamodel.BaseModel{
 			UUID: "default-test-workflow-id",
@@ -11362,7 +11362,7 @@ func TestPoolDataSubnetWorkFlow_GetSubnet(t *testing.T) {
 		Name: "", // Empty name triggers subnet creation path
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("GetSubnetFromOperation", mock.Anything, mock.Anything).Return(&hyperscalermodels.Subnet{
 		Name: "test-subnet",
 	}, errors.New("failed to get subnet from operation"))
@@ -11432,7 +11432,7 @@ func TestPoolDataSubnetWorkFlow_GetTenancyInfo(t *testing.T) {
 		Name: "", // Empty name triggers subnet creation path
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("GetSubnetFromOperation", mock.Anything, mock.Anything).Return(&hyperscalermodels.Subnet{
 		Name: "test-subnet",
 	}, nil)
@@ -11503,7 +11503,7 @@ func TestPoolDataSubnetWorkFlow_UpdatePoolSubnet(t *testing.T) {
 		Name: "", // Empty name triggers subnet creation path
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("GetSubnetFromOperation", mock.Anything, mock.Anything).Return(&hyperscalermodels.Subnet{
 		Name: "test-subnet",
 	}, nil)
@@ -11581,7 +11581,7 @@ func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation(t *testing.T) {
 		Name: "", // Empty name triggers subnet creation path
 	}, nil)
 	operationName := "test-operation-123"
-	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&operationName, nil)
+	env.OnActivity("GetCreateDataSubnetOp", mock.Anything, mock.Anything, mock.Anything).Return(&common.CreateDataSubnetOpResult{OperationName: operationName}, nil)
 	env.OnActivity("GetSubnetFromOperation", mock.Anything, mock.Anything).Return(&hyperscalermodels.Subnet{
 		Name: "test-subnet",
 	}, nil)

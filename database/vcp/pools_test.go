@@ -2201,8 +2201,9 @@ func TestUpdatePoolSubnetNames_UpdatesSnHostProject(t *testing.T) {
 
 	// Update SnHostProject
 	expectedSnHostProject := "new-sn-host-project"
+	expectedTenantProject := "123456789"
 	subnetNames := []string{"subnet-1", "subnet-2"}
-	err = store.UpdatePoolSubnetNames(context.Background(), pool.UUID, expectedSnHostProject, subnetNames)
+	err = store.UpdatePoolSubnetNames(context.Background(), pool.UUID, expectedSnHostProject, expectedTenantProject, subnetNames)
 	assert.NoError(t, err)
 
 	// Verify update
@@ -2210,6 +2211,45 @@ func TestUpdatePoolSubnetNames_UpdatesSnHostProject(t *testing.T) {
 	err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSnHostProject, updatedPool.SnHostProject)
+	assert.Equal(t, subnetNames, updatedPool.ClusterDetails.SubnetNames)
+	assert.Equal(t, expectedTenantProject, updatedPool.ClusterDetails.RegionalTenantProject,
+		"RegionalTenantProject must be stored with the subnet so pool deletion does not skip subnet cleanup")
+}
+
+func TestUpdatePoolSubnetNames_PreservesExistingTenantProjectWhenEmpty(t *testing.T) {
+	db, err := SetupTestDB()
+	if err != nil {
+		t.Fatalf("Failed to set up test database: %v", err)
+	}
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	err = ClearInMemoryDB(store.db.GORM())
+	if err != nil {
+		t.Fatalf("Failed to clean up test database: %v", err)
+	}
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"}, Name: "test_account"}
+	if err = store.db.Create(account).Error(); err != nil {
+		t.Fatalf("Failed to create account: %v", err)
+	}
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:           "test_pool",
+		AccountID:      account.ID,
+		Account:        account,
+		ClusterDetails: datamodel.ClusterDetails{RegionalTenantProject: "existing-tenant"},
+	}
+	if err = store.db.Create(pool).Error(); err != nil {
+		t.Fatalf("Failed to create pool: %v", err)
+	}
+
+	err = store.UpdatePoolSubnetNames(context.Background(), pool.UUID, "sn-host", "", []string{"subnet-1"})
+	assert.NoError(t, err)
+
+	updatedPool := &datamodel.Pool{}
+	err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+	assert.NoError(t, err)
+	assert.Equal(t, "existing-tenant", updatedPool.ClusterDetails.RegionalTenantProject)
 }
 
 func TestGetNextSerialNumber(t *testing.T) {

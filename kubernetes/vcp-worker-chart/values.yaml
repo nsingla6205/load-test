@@ -169,6 +169,7 @@ workerConfig:
   enableTrueZonalLV: "false"
   enableMqos: "true"
   addressSpaceMgmtEnabled: "false"
+  icLifAddressSpaceEnabled: "false"
   sequenceWorkflowResilienceEnabled: "true"
   enableVpgEndpoints: "false"
   vsaDeployedDnsName: "au-se1.vsa"

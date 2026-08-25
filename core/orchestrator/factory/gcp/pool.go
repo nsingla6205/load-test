@@ -186,6 +186,14 @@ func _createPool(ctx context.Context, se database.Storage, temporal client.Clien
 		}
 	}()
 
+	// Resolved after the job-error defer is armed so a failure here marks the job errored instead
+	// of leaving it pending.
+	params.SecondaryIpRange, err = resolveSecondaryIpRange(ctx, se, logger, params.VendorSubNetID, params.SecondaryIpRange)
+	if err != nil {
+		logger.Error("Failed to resolve intercluster secondary IP range", "error", err, "network", params.VendorSubNetID)
+		return nil, "", err
+	}
+
 	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
 	err = workflowExecutor.ExecuteWorkflow(
 		ctx,
@@ -234,6 +242,47 @@ func resolveRequestedRanges(ctx context.Context, se database.Storage, logger log
 	}
 	logger.Info("resolveRequestedRanges: resolved address ranges", "requestedRanges", requestedRanges, "totalFound", len(addressRanges), "network", vendorSubNetID)
 	return requestedRanges
+}
+
+// resolveSecondaryIpRange loads interclusterLIF parent CIDR(s) from address_ranges when IC LIF
+// address-space management is enabled. Returns the incoming list unchanged when the flag is off,
+// when caller already supplied ranges, or when no active interclusterLIF row exists.
+//
+// While the flag is on, an unparseable network id or a failed address_ranges lookup is returned as
+// an error instead of an empty result. Falling back there would silently create the pool on the
+// legacy IC path, so the cluster would deploy without the reserved secondary range.
+func resolveSecondaryIpRange(ctx context.Context, se database.Storage, logger log.Logger, vendorSubNetID string, secondaryIpRanges []string) ([]string, error) {
+	if !env.GetBool(env.EnvIcLifAddressSpaceEnabled, false) {
+		logger.Info("resolveSecondaryIpRange: skipping — IC LIF address space management disabled", "network", vendorSubNetID)
+		return secondaryIpRanges, nil
+	}
+	if len(secondaryIpRanges) > 0 || vendorSubNetID == "" {
+		return secondaryIpRanges, nil
+	}
+	hostProjectNumber, vpcName, _ := utils.ParseProjectId(vendorSubNetID)
+	if hostProjectNumber == "" || vpcName == "" {
+		logger.Error("resolveSecondaryIpRange: could not parse network", "network", vendorSubNetID)
+		return nil, coreerrors.NewVCPError(coreerrors.ErrInputValidationError,
+			fmt.Errorf("cannot resolve intercluster address range: unparseable network %q", vendorSubNetID))
+	}
+	lifType := database.AddressRangeLifTypeInterclusterLIF
+	addressRanges, err := se.ListAddressRanges(ctx, hostProjectNumber, vpcName, nil, &lifType)
+	if err != nil {
+		logger.Error("resolveSecondaryIpRange: failed to list intercluster address ranges", "error", err, "network", vendorSubNetID)
+		return nil, coreerrors.NewVCPError(coreerrors.ErrDatabaseDataReadError, err)
+	}
+	resolved := make([]string, 0, len(addressRanges))
+	for _, ar := range addressRanges {
+		if (ar.AddressRangeState == database.AddressRangeStateCreated || ar.AddressRangeState == database.AddressRangeStateInUse) && ar.AddressRangeCidr != "" {
+			resolved = append(resolved, ar.AddressRangeCidr)
+		}
+	}
+	if len(resolved) == 0 {
+		logger.Info("resolveSecondaryIpRange: no active interclusterLIF address range for VPC; legacy IC path", "network", vendorSubNetID)
+		return secondaryIpRanges, nil
+	}
+	logger.Info("resolveSecondaryIpRange: resolved secondary ranges", "secondaryRanges", resolved, "totalFound", len(addressRanges), "network", vendorSubNetID)
+	return resolved, nil
 }
 
 func createExpertModeUser(poolObj *datamodel.Pool, userName string) *datamodel.ExpertModeCredentials {
