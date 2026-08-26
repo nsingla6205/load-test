@@ -133,6 +133,68 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
+				case 'h': // Prefix: "hostGroups"
+
+					if l := len("hostGroups"); len(elem) >= l && elem[0:l] == "hostGroups" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "GET":
+							s.handleV1ListHostGroupsRequest([0]string{}, elemIsEscaped, w, r)
+						case "POST":
+							s.handleV1CreateHostGroupRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET,POST")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "name"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "DELETE":
+								s.handleV1DeleteHostGroupRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "GET":
+								s.handleV1DescribeHostGroupRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "PUT":
+								s.handleV1UpdateHostGroupRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "DELETE,GET,PUT")
+							}
+
+							return
+						}
+
+					}
+
 				case 'o': // Prefix: "operations/"
 
 					if l := len("operations/"); len(elem) >= l && elem[0:l] == "operations/" {
@@ -362,6 +424,88 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						default:
 							return
 						}
+					}
+
+				case 'h': // Prefix: "hostGroups"
+
+					if l := len("hostGroups"); len(elem) >= l && elem[0:l] == "hostGroups" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "GET":
+							r.name = V1ListHostGroupsOperation
+							r.summary = ""
+							r.operationID = "v1_listHostGroups"
+							r.pathPattern = "/v1/hostGroups"
+							r.args = args
+							r.count = 0
+							return r, true
+						case "POST":
+							r.name = V1CreateHostGroupOperation
+							r.summary = "Create a new HostGroup"
+							r.operationID = "v1_createHostGroup"
+							r.pathPattern = "/v1/hostGroups"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "name"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "DELETE":
+								r.name = V1DeleteHostGroupOperation
+								r.summary = "Delete a HostGroup"
+								r.operationID = "v1_deleteHostGroup"
+								r.pathPattern = "/v1/hostGroups/{name}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "GET":
+								r.name = V1DescribeHostGroupOperation
+								r.summary = "Describe a HostGroup"
+								r.operationID = "v1_describeHostGroup"
+								r.pathPattern = "/v1/hostGroups/{name}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "PUT":
+								r.name = V1UpdateHostGroupOperation
+								r.summary = "Update a HostGroup"
+								r.operationID = "v1_updateHostGroup"
+								r.pathPattern = "/v1/hostGroups/{name}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+
 					}
 
 				case 'o': // Prefix: "operations/"

@@ -100,7 +100,10 @@ func TestErrorResponseV1_Examples(t *testing.T) {
 	}{
 		{Input: "{\"code\":1994,\"message\":\"Out of cheese error! Please reboot the Universe\",\"retriable\":false}"},
 		{Input: "{\"code\":400,\"message\":\"Bad Request or Input\"}"},
-		{Input: "{\"code\":404,\"message\":\"The resource was not found\"}"},
+		{Input: "{\"code\":401,\"message\":\"Unauthorized access attempt\",\"retriable\":false}"},
+		{Input: "{\"code\":403,\"message\":\"Access to this resource forbidden\",\"retriable\":false}"},
+		{Input: "{\"code\":404,\"message\":\"The resource was not found\",\"retriable\":false}"},
+		{Input: "{\"code\":409,\"message\":\"Conflict. Resource already exists\",\"retriable\":false}"},
 		{Input: "{\"code\":500,\"message\":\"Internal server error\"}"},
 		{Input: "{\"code\":501,\"message\":\"Not Implemented\"}"},
 		{Input: "{\"code\":503,\"message\":\"VCM is not ready to serve API requests\"}"},
@@ -149,6 +152,170 @@ func TestHealthResponse_EncodeDecode(t *testing.T) {
 
 	var typ2 HealthResponse
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestHostGroupCreateV1_EncodeDecode(t *testing.T) {
+	var typ HostGroupCreateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 HostGroupCreateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestHostGroupCreateV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"deadline\":\"2026-08-03T14:00:00Z\",\"hostGroup\":{\"hosts\":[\"iqn.1998-01.com.vmware:db1\",\"iqn.1998-01.com.vmware:db2\"],\"name\":\"hg-db-linux\",\"osType\":\"LINUX\"},\"requestId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ HostGroupCreateV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 HostGroupCreateV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestHostGroupUpdateV1_EncodeDecode(t *testing.T) {
+	var typ HostGroupUpdateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 HostGroupUpdateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestHostGroupUpdateV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"hosts\":[\"iqn.1998-01.com.vmware:example1\",\"iqn.1998-01.com.vmware:example3\"]}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ HostGroupUpdateV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 HostGroupUpdateV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestHostGroupV1_EncodeDecode(t *testing.T) {
+	var typ HostGroupV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 HostGroupV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestHostGroupV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"hosts\":[\"iqn.1998-01.com.vmware:db1\",\"iqn.1998-01.com.vmware:db2\"],\"name\":\"hg-db-linux\",\"osType\":\"LINUX\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ HostGroupV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 HostGroupV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestHostGroupV1OsType_EncodeDecode(t *testing.T) {
+	var typ HostGroupV1OsType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 HostGroupV1OsType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestHostGroupV1OsType_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"LINUX\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ HostGroupV1OsType
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 HostGroupV1OsType
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestIpConfigV1_EncodeDecode(t *testing.T) {
 	var typ IpConfigV1
@@ -293,6 +460,35 @@ func TestOperationV1_EncodeDecode(t *testing.T) {
 
 	var typ2 OperationV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestOperationV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"done\":false,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ OperationV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 OperationV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestOperationV1Response_EncodeDecode(t *testing.T) {
 	var typ OperationV1Response
@@ -506,6 +702,330 @@ func TestSpConfigV1_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 SpConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateHostGroupBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1CreateHostGroupBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateHostGroupBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateHostGroupConflict_EncodeDecode(t *testing.T) {
+	var typ V1CreateHostGroupConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateHostGroupConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateHostGroupForbidden_EncodeDecode(t *testing.T) {
+	var typ V1CreateHostGroupForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateHostGroupForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateHostGroupInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1CreateHostGroupInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateHostGroupInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateHostGroupUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1CreateHostGroupUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateHostGroupUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupConflict_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteHostGroupUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DeleteHostGroupUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteHostGroupUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeHostGroupBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DescribeHostGroupBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeHostGroupBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeHostGroupForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DescribeHostGroupForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeHostGroupForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeHostGroupInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DescribeHostGroupInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeHostGroupInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeHostGroupNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DescribeHostGroupNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeHostGroupNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeHostGroupUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DescribeHostGroupUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeHostGroupUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListHostGroupsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListHostGroupsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListHostGroupsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListHostGroupsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListHostGroupsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListHostGroupsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListHostGroupsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListHostGroupsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListHostGroupsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListHostGroupsOK_EncodeDecode(t *testing.T) {
+	var typ V1ListHostGroupsOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListHostGroupsOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListHostGroupsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListHostGroupsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListHostGroupsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupConflict_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateHostGroupUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdateHostGroupUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateHostGroupUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestVmLifsV1_EncodeDecode(t *testing.T) {

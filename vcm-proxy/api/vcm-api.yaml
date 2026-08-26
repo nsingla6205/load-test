@@ -17,6 +17,8 @@ tags:
     description: VCM bootstrap / common configuration operations
   - name: clusters
     description: VCM cluster lifecycle operations
+  - name: HostGroups
+    description: HostGroup operations
   - name: operations
     description: Long-running VCM operation status
 
@@ -99,6 +101,229 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
+  /v1/hostGroups:
+    get:
+      tags:
+        - HostGroups
+      operationId: v1_listHostGroups
+      description: Returns details of all HostGroups owned by the caller.
+      parameters:
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      hostGroups:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/HostGroup_v1"
+              example:
+                hostGroups:
+                  - name: hg-db-linux
+                    osType: LINUX
+                    hosts:
+                      - iqn.1998-01.com.vmware:db1
+                      - iqn.1998-01.com.vmware:db2
+                  - name: hg-app-windows
+                    osType: WINDOWS
+                    hosts:
+                      - iqn.1998-01.com.vmware:win1
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+    post:
+      tags:
+        - HostGroups
+      summary: Create a new HostGroup
+      description: Create a new HostGroup.
+      operationId: v1_createHostGroup
+      parameters:
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      requestBody:
+        description: The required parameters to create a new HostGroup.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostGroupCreate_v1"
+            example:
+              requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              deadline: "2026-08-03T14:00:00Z"
+              hostGroup:
+                name: hg-db-linux
+                osType: LINUX
+                hosts:
+                  - iqn.1998-01.com.vmware:db1
+                  - iqn.1998-01.com.vmware:db2
+      responses:
+        "202":
+          description: HostGroup creation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "409":
+          $ref: "#/components/responses/StandardError-409"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+  /v1/hostGroups/{name}:
+    get:
+      tags:
+        - HostGroups
+      summary: Describe a HostGroup
+      description: Returns the details of the specified HostGroup by name.
+      operationId: v1_describeHostGroup
+      parameters:
+        - $ref: "#/components/parameters/hostGroupNamePathParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostGroup_v1"
+              example:
+                name: hg-db-linux
+                osType: LINUX
+                hosts:
+                  - iqn.1998-01.com.vmware:db1
+                  - iqn.1998-01.com.vmware:db2
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "404":
+          $ref: "#/components/responses/StandardError-404"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+    put:
+      tags:
+        - HostGroups
+      summary: Update a HostGroup
+      description: Update the specified HostGroup.
+      operationId: v1_updateHostGroup
+      parameters:
+        - $ref: "#/components/parameters/hostGroupNamePathParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      requestBody:
+        description: The parameters that can be updated for the HostGroup.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostGroupUpdate_v1"
+            example:
+              hosts:
+                - iqn.1998-01.com.vmware:example1
+                - iqn.1998-01.com.vmware:example3
+      responses:
+        "202":
+          description: Updating HostGroup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "404":
+          $ref: "#/components/responses/StandardError-404"
+        "409":
+          $ref: "#/components/responses/StandardError-409"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+    delete:
+      tags:
+        - HostGroups
+      summary: Delete a HostGroup
+      description: Warning! This operation will permanently delete the HostGroup.
+      operationId: v1_deleteHostGroup
+      parameters:
+        - $ref: "#/components/parameters/hostGroupNamePathParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      responses:
+        "202":
+          description: Deleting HostGroup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "404":
+          $ref: "#/components/responses/StandardError-404"
+        "409":
+          $ref: "#/components/responses/StandardError-409"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
   /v1/operations/{operationId}:
     get:
       operationId: operationGet_v1
@@ -165,6 +390,23 @@ paths:
 
 components:
   parameters:
+    hostGroupNamePathParameter:
+      name: name
+      in: path
+      description: A human readable label for the HostGroup. Used as the ONTAP iGroup name on this cluster.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      example: my-host-group
+
+    xCorrelationIdHeader:
+      name: X-Correlation-ID
+      in: header
+      description: Correlation identifier
+      schema:
+        type: string
+
     operationIdPath:
       name: operationId
       in: path
@@ -196,6 +438,37 @@ components:
           example:
             code: 404
             message: The resource was not found
+            retriable: false
+    StandardError-401:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse_v1"
+          example:
+            code: 401
+            message: Unauthorized access attempt
+            retriable: false
+    StandardError-403:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse_v1"
+          example:
+            code: 403
+            message: Access to this resource forbidden
+            retriable: false
+    StandardError-409:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse_v1"
+          example:
+            code: 409
+            message: Conflict. Resource already exists
+            retriable: false
     StandardError-500:
       description: Internal server error
       content:
@@ -253,6 +526,101 @@ components:
         code: 1994.0
         message: Out of cheese error! Please reboot the Universe
         retriable: false
+
+    HostGroup_v1:
+      title: HostGroup
+      type: object
+      required:
+        - name
+        - hosts
+        - osType
+      properties:
+        name:
+          title: name
+          type: string
+          minLength: 1
+          description: A human readable label for the HostGroup
+          example: my-host-group
+        hosts:
+          title: hosts
+          type: array
+          description: List of iSCSI Qualified Names associated with this HostGroup
+          items:
+            type: string
+          example:
+            - iqn.1998-01.com.vmware:example1
+            - iqn.1998-01.com.vmware:example2
+        osType:
+          allOf:
+            - description: |
+                Specifies the operating system type for the HostGroup.
+                The operating system type indicates the type of host operating system used by all of the hosts in the HostGroup.
+                All hosts in a HostGroup must be of the same operating system type.
+            - $ref: "#/components/schemas/OSType_v1"
+
+    HostGroupUpdate_v1:
+      title: HostGroup
+      type: object
+      required:
+        - hosts
+      properties:
+        hosts:
+          title: hosts
+          type: array
+          description: List of iSCSI Qualified Names associated with this HostGroup
+          items:
+            type: string
+          example:
+            - iqn.1998-01.com.vmware:example1
+            - iqn.1998-01.com.vmware:example3
+
+    HostGroupCreate_v1:
+      type: object
+      required:
+        - requestId
+        - deadline
+        - hostGroup
+      properties:
+        requestId:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          description: |
+            Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
+            Generated by CLH before the first attempt and reused for every retry
+            of the same logical HostGroup create request.
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        deadline:
+          type: string
+          format: date-time
+          description: |
+            Absolute UTC (RFC 3339) time by which this HostGroup create request must
+            complete. VCM rejects a request whose deadline is already in the past
+            and stops work with a deadline-exceeded error once it elapses.
+          example: "2026-08-03T14:00:00Z"
+        hostGroup:
+          description: The HostGroup to create on the ontap cluster.
+          $ref: "#/components/schemas/HostGroup_v1"
+      example:
+        requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        deadline: "2026-08-03T14:00:00Z"
+        hostGroup:
+          name: hg-db-linux
+          osType: LINUX
+          hosts:
+            - iqn.1998-01.com.vmware:db1
+            - iqn.1998-01.com.vmware:db2
+
+    OSType_v1:
+      title: OSType
+      type: string
+      enum:
+        - OS_TYPE_UNSPECIFIED
+        - LINUX
+        - WINDOWS
+        - ESXI
+      example: LINUX
 
     # Long-running operation resource (AIP-151). Returned both by POST /v1/pools
     # (202 Accepted, done=false) and by GET /v1/operations/{operationId} for polling.

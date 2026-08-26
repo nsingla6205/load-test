@@ -16,3 +16,23 @@ type OperationGetV1Res interface {
 type PoolCreateV1Res interface {
 	poolCreateV1Res()
 }
+
+type V1CreateHostGroupRes interface {
+	v1CreateHostGroupRes()
+}
+
+type V1DeleteHostGroupRes interface {
+	v1DeleteHostGroupRes()
+}
+
+type V1DescribeHostGroupRes interface {
+	v1DescribeHostGroupRes()
+}
+
+type V1ListHostGroupsRes interface {
+	v1ListHostGroupsRes()
+}
+
+type V1UpdateHostGroupRes interface {
+	v1UpdateHostGroupRes()
+}

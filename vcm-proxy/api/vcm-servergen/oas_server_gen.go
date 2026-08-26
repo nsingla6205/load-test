@@ -55,6 +55,36 @@ type Handler interface {
 	//
 	// POST /v1/config
 	SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error
+	// V1CreateHostGroup implements v1_createHostGroup operation.
+	//
+	// Create a new HostGroup.
+	//
+	// POST /v1/hostGroups
+	V1CreateHostGroup(ctx context.Context, req *HostGroupCreateV1, params V1CreateHostGroupParams) (V1CreateHostGroupRes, error)
+	// V1DeleteHostGroup implements v1_deleteHostGroup operation.
+	//
+	// Warning! This operation will permanently delete the HostGroup.
+	//
+	// DELETE /v1/hostGroups/{name}
+	V1DeleteHostGroup(ctx context.Context, params V1DeleteHostGroupParams) (V1DeleteHostGroupRes, error)
+	// V1DescribeHostGroup implements v1_describeHostGroup operation.
+	//
+	// Returns the details of the specified HostGroup by name.
+	//
+	// GET /v1/hostGroups/{name}
+	V1DescribeHostGroup(ctx context.Context, params V1DescribeHostGroupParams) (V1DescribeHostGroupRes, error)
+	// V1ListHostGroups implements v1_listHostGroups operation.
+	//
+	// Returns details of all HostGroups owned by the caller.
+	//
+	// GET /v1/hostGroups
+	V1ListHostGroups(ctx context.Context, params V1ListHostGroupsParams) (V1ListHostGroupsRes, error)
+	// V1UpdateHostGroup implements v1_updateHostGroup operation.
+	//
+	// Update the specified HostGroup.
+	//
+	// PUT /v1/hostGroups/{name}
+	V1UpdateHostGroup(ctx context.Context, req *HostGroupUpdateV1, params V1UpdateHostGroupParams) (V1UpdateHostGroupRes, error)
 	// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
 	//
 	// Used for common default response.

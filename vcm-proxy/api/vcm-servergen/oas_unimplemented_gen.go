@@ -75,6 +75,51 @@ func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigReque
 	return ht.ErrNotImplemented
 }
 
+// V1CreateHostGroup implements v1_createHostGroup operation.
+//
+// Create a new HostGroup.
+//
+// POST /v1/hostGroups
+func (UnimplementedHandler) V1CreateHostGroup(ctx context.Context, req *HostGroupCreateV1, params V1CreateHostGroupParams) (r V1CreateHostGroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DeleteHostGroup implements v1_deleteHostGroup operation.
+//
+// Warning! This operation will permanently delete the HostGroup.
+//
+// DELETE /v1/hostGroups/{name}
+func (UnimplementedHandler) V1DeleteHostGroup(ctx context.Context, params V1DeleteHostGroupParams) (r V1DeleteHostGroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DescribeHostGroup implements v1_describeHostGroup operation.
+//
+// Returns the details of the specified HostGroup by name.
+//
+// GET /v1/hostGroups/{name}
+func (UnimplementedHandler) V1DescribeHostGroup(ctx context.Context, params V1DescribeHostGroupParams) (r V1DescribeHostGroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ListHostGroups implements v1_listHostGroups operation.
+//
+// Returns details of all HostGroups owned by the caller.
+//
+// GET /v1/hostGroups
+func (UnimplementedHandler) V1ListHostGroups(ctx context.Context, params V1ListHostGroupsParams) (r V1ListHostGroupsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateHostGroup implements v1_updateHostGroup operation.
+//
+// Update the specified HostGroup.
+//
+// PUT /v1/hostGroups/{name}
+func (UnimplementedHandler) V1UpdateHostGroup(ctx context.Context, req *HostGroupUpdateV1, params V1UpdateHostGroupParams) (r V1UpdateHostGroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // NewError creates *ErrorResponseV1StatusCode from error returned by handler.
 //
 // Used for common default response.

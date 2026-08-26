@@ -156,6 +156,72 @@ func (s *HealthResponse) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *HostGroupCreateV1) SetFake() {
+	{
+		{
+			s.RequestId = "string"
+		}
+	}
+	{
+		{
+			s.Deadline = time.Now()
+		}
+	}
+	{
+		{
+			s.HostGroup.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *HostGroupUpdateV1) SetFake() {
+	{
+		{
+			s.Hosts = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.Hosts = append(s.Hosts, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *HostGroupV1) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.Hosts = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.Hosts = append(s.Hosts, elem)
+			}
+		}
+	}
+	{
+		{
+			s.OsType.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *HostGroupV1OsType) SetFake() {
+	*s = HostGroupV1OsTypeOSTYPEUNSPECIFIED
+}
+
+// SetFake set fake values.
 func (s *IpConfigV1) SetFake() {
 	{
 		{
@@ -836,6 +902,256 @@ func (s *SpConfigV1) SetFake() {
 			s.IsHeterogeneous.SetFake()
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostGroupBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostGroupBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostGroupConflict) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostGroupConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostGroupForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostGroupForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostGroupInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostGroupInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostGroupUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostGroupUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupConflict) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupNotFound) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostGroupUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostGroupUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostGroupBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostGroupBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostGroupForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostGroupForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostGroupInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostGroupInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostGroupNotFound) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostGroupNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostGroupUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostGroupUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostGroupsBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostGroupsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostGroupsForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostGroupsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostGroupsInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostGroupsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostGroupsOK) SetFake() {
+	{
+		{
+			s.HostGroups = nil
+			for i := 0; i < 0; i++ {
+				var elem HostGroupV1
+				{
+					elem.SetFake()
+				}
+				s.HostGroups = append(s.HostGroups, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *V1ListHostGroupsUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostGroupsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupConflict) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupNotFound) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostGroupUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostGroupUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.
