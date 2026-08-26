@@ -706,6 +706,10 @@ components:
           description: ONTAP credential sets (one per type - default, admin, ontap-mode).
           items:
             $ref: "#/components/schemas/OntapCredentials_v1"
+        caUri:
+          type: string
+          description: URI of the CA bundle used to verify ONTAP TLS connections.
+          example: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
         zone1:
           type: string
           description: The desired primary zone for the storage pool.
@@ -783,6 +787,7 @@ components:
           - type: ontap-mode
             certificateId: ""
             secretId: projects/237071556299/secrets/ontap-mode-password
+        caUri: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
         zone1: us-central1-a
         zone2: us-central1-c
         mediatorZone: us-central1-c

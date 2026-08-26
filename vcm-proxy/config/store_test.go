@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -84,18 +85,20 @@ func waitFor(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, 2*time.Second, 10*time.Millisecond)
 }
 
-func TestStore_Apply_MergesTopLevelFieldsFirstWriteWins(t *testing.T) {
+func TestStore_Apply_RebuildFieldsLastWriteWins(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-a"))
 	waitFor(t, func() bool { return store.Configured() })
 
+	// Rebuild-relevant fields (e.g. zone1) update when a later re-seed changes
+	// them so the VLM config can be rebuilt for the new inputs.
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-b"))
 
 	setConfig := store.CurrentSetConfig()
 	zone1, ok := setConfig.Zone1.Get()
 	require.True(t, ok)
-	assert.Equal(t, "us-central1-a", zone1)
+	assert.Equal(t, "us-central1-b", zone1)
 }
 
 func TestStore_Apply_BlankOptionalStringTreatedAsUnset(t *testing.T) {
@@ -504,4 +507,210 @@ func TestStore_Apply_PropagatesContextValuesAfterCallerCancel(t *testing.T) {
 
 	assert.Equal(t, "corr-123", gotCorrelationID)
 	assert.Equal(t, "trace-value", gotCustomValue)
+}
+
+// fakeRebuildStarter records StartRebuildVLMConfig calls and can inject an error.
+type fakeRebuildStarter struct {
+	mu     sync.Mutex
+	calls  int
+	params []*commonparams.GetVLMConfigParams
+	err    error
+}
+
+func (f *fakeRebuildStarter) StartRebuildVLMConfig(_ context.Context, p *commonparams.GetVLMConfigParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.params = append(f.params, p)
+	return f.err
+}
+
+func (f *fakeRebuildStarter) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func (f *fakeRebuildStarter) lastParams() *commonparams.GetVLMConfigParams {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.params) == 0 {
+		return nil
+	}
+	return f.params[len(f.params)-1]
+}
+
+func fetchingFlag(s *Store) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.vlmConfigFetching
+}
+
+// rebuildConfigRequest builds a SetConfig request with the fields the VLM config
+// rebuild needs.
+func rebuildConfigRequest(deploymentID string) *vcmserver.SetConfigRequestV1 {
+	req := &vcmserver.SetConfigRequestV1{DbConfig: testDBConfig()}
+	if deploymentID != "" {
+		req.DeploymentId.SetTo(deploymentID)
+	}
+	req.ServiceTenantProject.SetTo("tenant-1")
+	req.Zone1.SetTo("us-central1-a")
+	req.Zone2.SetTo("us-central1-b")
+	req.MediatorZone.SetTo("us-central1-c")
+	req.CaUri.SetTo("123456789012/pool/intermediate")
+	req.OntapCredentials = []vcmserver.OntapCredentialsV1{
+		{Type: vcmserver.OntapCredentialsV1TypeAdmin, SecretId: vcmserver.NewOptString("projects/p/secrets/s")},
+	}
+	return req
+}
+
+func TestStore_Apply_TriggersRebuildOnceWhenEmpty(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	require.True(t, fetchingFlag(store))
+
+	p := starter.lastParams()
+	require.NotNil(t, p)
+	assert.Equal(t, "dep-1", p.DeploymentID)
+	assert.Equal(t, "tenant-1", p.ServiceTenantProject)
+	assert.Equal(t, "us-central1-a", p.Zone1)
+	assert.Equal(t, "us-central1-b", p.Zone2)
+	assert.Equal(t, "us-central1-c", p.MediatorZone)
+	assert.Equal(t, "123456789012/pool/intermediate", p.CaURI)
+	require.Len(t, p.OntapCredentials, 1)
+	assert.Equal(t, "admin", p.OntapCredentials[0].Type)
+	assert.Equal(t, "projects/p/secrets/s", p.OntapCredentials[0].SecretID)
+}
+
+func TestStore_Apply_TriggersEvenWithoutDeploymentID(t *testing.T) {
+	// The store triggers purely on config state; input validation (including a
+	// missing deployment id) is the workflow's responsibility, so the rebuild is
+	// still dispatched with an empty deployment id.
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	store.Apply(context.Background(), rebuildConfigRequest(""))
+
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	p := starter.lastParams()
+	require.NotNil(t, p)
+	assert.Empty(t, p.DeploymentID)
+}
+
+func TestStore_Apply_NoRebuildWithoutStarter(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+
+	// No starter injected; Apply must not panic and must not set fetching.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	assert.False(t, fetchingFlag(store))
+}
+
+func TestStore_Apply_NoRebuildWhileFetching(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	// First apply starts a rebuild (fetching stays true, not yet finalized).
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	require.True(t, fetchingFlag(store))
+
+	// Re-applying the same config while the rebuild is in flight must not start
+	// a second one.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	require.Never(t, func() bool { return starter.callCount() > 1 }, 300*time.Millisecond, 20*time.Millisecond)
+}
+
+func TestStore_Apply_RetriggersStaleFetching(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	// Start an initial rebuild, then backdate it so the in-flight attempt looks
+	// like it never finalized (e.g. the worker died mid-flight).
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	store.mu.Lock()
+	store.vlmConfigFetchingSince = time.Now().Add(-2 * vlmConfigFetchStaleTimeout)
+	store.mu.Unlock()
+
+	// Re-applying the same config retriggers once the prior attempt is stale.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	waitFor(t, func() bool { return starter.callCount() == 2 })
+}
+
+func TestStore_Apply_NoRebuildWhenConfigUnchanged(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	// First apply triggers the rebuild; simulate its completion.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	require.NoError(t, store.SetVLMConfig(context.Background(), `{"vlm_config":{}}`))
+
+	// Re-applying the same config must not retrigger a rebuild.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	require.Never(t, func() bool { return starter.callCount() > 1 }, 300*time.Millisecond, 20*time.Millisecond)
+}
+
+func TestStore_Apply_RetriggersRebuildOnRebuildFieldChange(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	// Settle an initial config and simulate a completed rebuild.
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	require.NoError(t, store.SetVLMConfig(context.Background(), `{"vlm_config":{}}`))
+
+	// A changed rebuild-relevant field (zone2) invalidates the cached config and
+	// retriggers the rebuild with the new value.
+	changed := rebuildConfigRequest("dep-1")
+	changed.Zone2.SetTo("us-central1-f")
+	store.Apply(context.Background(), changed)
+
+	waitFor(t, func() bool { return starter.callCount() == 2 })
+	assert.Empty(t, store.VLMConfigJSON(), "stale config must be cleared on a rebuild-field change")
+	assert.Equal(t, "us-central1-f", starter.lastParams().Zone2)
+}
+
+func TestStore_Apply_StartErrorClearsFetching(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	starter := &fakeRebuildStarter{err: errors.New("dispatch failed")}
+	store.SetVLMConfigRebuildStarter(starter)
+
+	store.Apply(context.Background(), rebuildConfigRequest("dep-1"))
+
+	waitFor(t, func() bool { return starter.callCount() == 1 })
+	// The failed start must clear the fetching flag so a later request retries.
+	waitFor(t, func() bool { return !fetchingFlag(store) })
+}
+
+func TestStore_SetVLMConfig_And_Clear(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+
+	store.mu.Lock()
+	store.vlmConfigFetching = true
+	store.mu.Unlock()
+
+	require.NoError(t, store.SetVLMConfig(context.Background(), `{"a":1}`))
+	assert.Equal(t, `{"a":1}`, store.VLMConfigJSON())
+	assert.False(t, fetchingFlag(store))
+
+	store.mu.Lock()
+	store.vlmConfigFetching = true
+	store.mu.Unlock()
+	require.NoError(t, store.ClearVLMConfigFetching(context.Background()))
+	assert.False(t, fetchingFlag(store))
 }

@@ -213,5 +213,40 @@ func TestInvokeCreateSVM_ChildError_IsWrapped(t *testing.T) {
 	require.Error(t, err)
 }
 
+func parentInvokeGetCluster(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	return InvokeGetClusterDeployment(ctx, req)
+}
+
+func childGetClusterEcho(_ *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	cfg := vlm.VLMConfig{}
+	cfg.Deployment.DeploymentID = req.DeploymentID
+	return &vlm.GetVSAClusterDeploymentResponse{VLMConfig: cfg}, nil
+}
+
+func childGetClusterPermError(_ *orchestrator.Context, _ *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	return nil, orchestrator.NewNonRetryableApplicationError("boom get-cluster failure", "TEST", nil)
+}
+
+func TestInvokeGetClusterDeployment_Success(t *testing.T) {
+	var resp vlm.GetVSAClusterDeploymentResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeGetCluster)
+		r.RegisterWorkflowWithName(vlm.GetVSAClusterDeploymentWorkflowName, childGetClusterEcho)
+	}, parentInvokeGetCluster, &resp, &vlm.GetVSAClusterDeploymentRequest{DeploymentID: "dep-get"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "dep-get", resp.VLMConfig.Deployment.DeploymentID)
+}
+
+func TestInvokeGetClusterDeployment_ChildError_IsWrapped(t *testing.T) {
+	var resp vlm.GetVSAClusterDeploymentResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeGetCluster)
+		r.RegisterWorkflowWithName(vlm.GetVSAClusterDeploymentWorkflowName, childGetClusterPermError)
+	}, parentInvokeGetCluster, &resp, &vlm.GetVSAClusterDeploymentRequest{DeploymentID: "dep-1"})
+
+	require.Error(t, err)
+}
+
 // ensure vsaerrors stays referenced if future assertions need it.
 var _ = vsaerrors.ErrGCPResourceAlreadyExistsError

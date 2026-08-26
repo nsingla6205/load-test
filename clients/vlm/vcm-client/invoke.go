@@ -104,3 +104,32 @@ func InvokeCreateSVM(ctx *orchestrator.Context, req *vlm.CreateSVMRequest) (*vlm
 	}
 	return resp, nil
 }
+
+// InvokeGetClusterDeployment runs the VLM GetVSAClusterDeployment workflow as a
+// child workflow to resolve the current VLM configuration for a deployment.
+func InvokeGetClusterDeployment(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	retryPolicy, err := vlm.PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+
+	childCtx := ctx.WithChildWorkflowOptions(orchestrator.ChildWorkflowOptions{
+		WorkflowID:               req.DeploymentID + "-get-cluster",
+		WorkflowExecutionTimeout: vlm.GetVSAClusterDeploymentWorkflowExecutionTimeout,
+		RetryPolicy:              toRetryPolicy(retryPolicy),
+	})
+	childCtx = orchestrator.WithValue(childCtx, vlm.DeploymentIDKey, req.DeploymentID)
+
+	logger := wfLogger(childCtx)
+	logger.Info("dispatching VLM child workflow",
+		"workflowName", vlm.GetVSAClusterDeploymentWorkflowName,
+		"workflowID", req.DeploymentID+"-get-cluster")
+	resp := &vlm.GetVSAClusterDeploymentResponse{}
+	if err := orchestrator.ExecuteChildWorkflow(childCtx, vlm.GetVSAClusterDeploymentWorkflowName, req).Get(childCtx, resp); err != nil {
+		logger.Error("VLM get-cluster child workflow failed",
+			"workflowID", req.DeploymentID+"-get-cluster", "error", err.Error())
+		handledErr := vlm.NewVLMErrorHandler().HandleVLMError(err)
+		return nil, apperror.WrapAsAppError(handledErr, false)
+	}
+	return resp, nil
+}

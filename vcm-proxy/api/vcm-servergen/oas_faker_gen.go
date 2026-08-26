@@ -860,6 +860,11 @@ func (s *SetConfigRequestV1) SetFake() {
 	}
 	{
 		{
+			s.CaUri.SetFake()
+		}
+	}
+	{
+		{
 			s.Zone1.SetFake()
 		}
 	}

@@ -2471,6 +2471,8 @@ type SetConfigRequestV1 struct {
 	IpConfig OptIpConfigV1 `json:"ipConfig"`
 	// ONTAP credential sets (one per type - default, admin, ontap-mode).
 	OntapCredentials []OntapCredentialsV1 `json:"ontapCredentials"`
+	// URI of the CA bundle used to verify ONTAP TLS connections.
+	CaUri OptString `json:"caUri"`
 	// The desired primary zone for the storage pool.
 	Zone1 OptString `json:"zone1"`
 	// The desired secondary zone for the storage pool.
@@ -2504,6 +2506,11 @@ func (s *SetConfigRequestV1) GetIpConfig() OptIpConfigV1 {
 // GetOntapCredentials returns the value of OntapCredentials.
 func (s *SetConfigRequestV1) GetOntapCredentials() []OntapCredentialsV1 {
 	return s.OntapCredentials
+}
+
+// GetCaUri returns the value of CaUri.
+func (s *SetConfigRequestV1) GetCaUri() OptString {
+	return s.CaUri
 }
 
 // GetZone1 returns the value of Zone1.
@@ -2549,6 +2556,11 @@ func (s *SetConfigRequestV1) SetIpConfig(val OptIpConfigV1) {
 // SetOntapCredentials sets the value of OntapCredentials.
 func (s *SetConfigRequestV1) SetOntapCredentials(val []OntapCredentialsV1) {
 	s.OntapCredentials = val
+}
+
+// SetCaUri sets the value of CaUri.
+func (s *SetConfigRequestV1) SetCaUri(val OptString) {
+	s.CaUri = val
 }
 
 // SetZone1 sets the value of Zone1.

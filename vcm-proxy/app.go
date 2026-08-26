@@ -20,8 +20,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	vcmjob "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	vcm "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
 	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
-	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
@@ -96,6 +96,9 @@ func main() {
 	// the runner's workflow starter dispatches the VCM pool workflow.
 	orch := factory.GetVCMOrchestrator(configStore, workflowRunner.WorkflowStarter(), logger)
 
+	// Wire the VLM config rebuild dispatcher into the config store.
+	configStore.SetVLMConfigRebuildStarter(vcm.NewVLMConfigRebuildDispatcher(workflowRunner.WorkflowStarter()))
+
 	serverState := vcmapi.NewServerState()
 	handler := &vcmapi.Handler{
 		Orchestrator: orch,
@@ -163,9 +166,10 @@ func (h filteredBackendHandler) Handle(ctx context.Context, r slog.Record) error
 
 // setupWorkflowEngine creates the in-memory go-workflows engine and returns the
 // runner. The caller is responsible for Start/Stop and derives the workflow
-// starter from the runner. The jobStore is injected into the pool workflow's
-// job-progress activity so it can persist durable job state transitions.
-func setupWorkflowEngine(ctx context.Context, logger log.Logger, jobStore vcmdb.VCMDatastore) (*gowfbackend.Runner, error) {
+// starter from the runner. The store is injected into the pool workflow's
+// job-progress activity so it can persist durable job state transitions, and
+// into the VLM config rebuild activity for write-back.
+func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfig.Store) (*gowfbackend.Runner, error) {
 	// Build the in-memory backend with both context propagators installed: the
 	// VCP orchestrator's (PoolWorkflow/activities read deadline+correlation under
 	// its key) and the VLM/vsa-orchestrator's (VLM workflows/activities read them
@@ -187,7 +191,7 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, jobStore vcmdb.
 		return nil, err
 	}
 
-	registerWorkflows(runner, jobStore)
+	registerWorkflows(runner, store)
 	logger.InfoContext(ctx, "in-memory go-workflows engine created")
 
 	return runner, nil
@@ -196,7 +200,7 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, jobStore vcmdb.
 // registerWorkflows registers VCM's PoolWorkflow and its activities plus the
 // in-process VLM workflows/activities on the same worker, so PoolWorkflow's
 // child-workflow dispatch resolves locally.
-func registerWorkflows(runner *gowfbackend.Runner, jobStore vcmdb.VCMDatastore) {
+func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg := runner.Registrar()
 	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
 	reg.RegisterActivity((&activities.PoolActivity{}).IdentifyVMs)
@@ -204,9 +208,15 @@ func registerWorkflows(runner *gowfbackend.Runner, jobStore vcmdb.VCMDatastore) 
 	reg.RegisterActivity((&activities.VCMCredentialActivity{}).ResolveOntapCertificate)
 	reg.RegisterActivity((&activities.SvmActivity{}).CreateQoSPolicyAndApplyToSVM)
 	// Durable job state activity.
-	jobActivity := &vcmjob.JobActivity{Store: jobStore}
+	jobActivity := &vcmjob.JobActivity{Store: store}
 	reg.RegisterActivity(jobActivity.GetJob)
 	reg.RegisterActivity(jobActivity.UpdateJobProgress)
+
+	// VLM config rebuild workflow and its write-back activity.
+	reg.RegisterWorkflow(vcm_workflows.RebuildVLMConfigWorkflow)
+	configActivity := &activities.VLMConfigActivity{Store: store}
+	reg.RegisterActivity(configActivity.ValidateGetVLMConfigInputs)
+	reg.RegisterActivity(configActivity.FinalizeVLMConfig)
 
 	vlmReg := vlmgowf.NewRegistrar(runner.Worker())
 	vlmclient.RegisterWorkflows(vlmReg, vcmCloudProvider)

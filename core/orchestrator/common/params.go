@@ -168,6 +168,17 @@ type VCMNetConfig struct {
 	Subnet string
 }
 
+// GetVLMConfigParams is the input to the VLM config rebuild workflow.
+type GetVLMConfigParams struct {
+	DeploymentID         string
+	ServiceTenantProject string
+	Zone1                string
+	Zone2                string
+	MediatorZone         string
+	CaURI                string
+	OntapCredentials     []VCMOntapCredential
+}
+
 // vcmPoolModeOntap is the request Mode value that selects ONTAP mode.
 const vcmPoolModeOntap = "ONTAP"
 
@@ -226,7 +237,7 @@ func (p *VCMCreatePoolParams) DeriveInputs() *VCMDerivedPoolInputs {
 		IsOntapMode:          strings.EqualFold(p.Mode, vcmPoolModeOntap),
 		IsLargeCapacityPool:  false,
 		DesiredCapacityInGiB: p.SizeInBytes / vcmBytesPerGiB,
-		OntapCredentials:     deriveOntapCredentials(p),
+		OntapCredentials:     DeriveOntapCredentials(p.OntapCredentials, p.CaURI),
 	}
 }
 
@@ -263,25 +274,24 @@ func SelectOntapCredential(creds []VCMOntapCredential) VCMOntapCredential {
 	}
 }
 
-// deriveOntapCredentials maps the request's ONTAP credentials into
-// datamodel.PoolCredentials (identifiers only), selecting the auth type from the
-// material present.
-func deriveOntapCredentials(p *VCMCreatePoolParams) *datamodel.PoolCredentials {
-	cred := SelectOntapCredential(p.OntapCredentials)
-	creds := &datamodel.PoolCredentials{
+// DeriveOntapCredentials maps ONTAP credentials into datamodel.PoolCredentials
+// (identifiers only), selecting the auth type from the material present.
+func DeriveOntapCredentials(creds []VCMOntapCredential, caURI string) *datamodel.PoolCredentials {
+	cred := SelectOntapCredential(creds)
+	poolCreds := &datamodel.PoolCredentials{
 		SecretID:      cred.SecretID,
 		CertificateID: cred.CertificateID,
-		CaURI:         p.CaURI,
+		CaURI:         caURI,
 	}
 	switch {
-	case creds.CertificateID != "":
-		creds.AuthType = env.USER_CERTIFICATE
-	case creds.SecretID != "":
-		creds.AuthType = env.USERNAME_PWD_SEC_MGR
+	case poolCreds.CertificateID != "":
+		poolCreds.AuthType = env.USER_CERTIFICATE
+	case poolCreds.SecretID != "":
+		poolCreds.AuthType = env.USERNAME_PWD_SEC_MGR
 	default:
-		creds.AuthType = env.USERNAME_PWD
+		poolCreds.AuthType = env.USERNAME_PWD
 	}
-	return creds
+	return poolCreds
 }
 
 // VCMOntapCredential is a VCM ONTAP credential entry (type is admin/default).

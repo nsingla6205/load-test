@@ -170,7 +170,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		return err
 	}
 
-	ontapCreds, err := wf.resolveOntapCredentials(ctx)
+	ontapCreds, err := resolveOntapCredentials(ctx, wf.inputs.OntapCredentials)
 	if err != nil {
 		logger.Error("workflow: resolve ONTAP admin password failed",
 			"deploymentName", deploymentID, "error", err)
@@ -380,29 +380,29 @@ func (wf *createPoolWorkflow) checkDeadline(_ *orchestrator.Context, _ string) e
 }
 
 // resolveOntapCredentials returns the ONTAP admin credentials for the VLM child
-// workflows: from env locally, else via a Secret Manager activity. The
-// credentials are carried as vlm.OntapCredentials so the resolved password is
-// encrypted in the workflow history (see the activity doc). Never logged.
-func (wf *createPoolWorkflow) resolveOntapCredentials(ctx *orchestrator.Context) (vlm.OntapCredentials, error) {
+// workflows: from env locally, else via a Secret Manager activity keyed on the
+// credential's auth type. The credentials are carried as vlm.OntapCredentials so
+// the resolved material is encrypted in the workflow history (see the activity
+// doc). Never logged.
+//
+// Certificate-auth path resolves the cert material (signed cert, key, chain, CN)
+// plus the bootstrap admin password. VLM's CreateVSAClustersWorkflow runs
+// CheckAndEnableCertAuthWorkflow whenever OntapCredentials.Certificate is set:
+// it installs the server cert, installs the issuing CA as client-ca (so ONTAP
+// trusts our client cert), and creates the cert-mapped ONTAP user. Its live
+// ONTAP calls (e.g. GetVSAClusterDeployment) authenticate with the cert too, so
+// a cert-auth cluster must resolve the certificate rather than a password.
+func resolveOntapCredentials(ctx *orchestrator.Context, poolCreds *datamodel.PoolCredentials) (vlm.OntapCredentials, error) {
 	if isLocalEnv() {
 		return vlm.OntapCredentials{AdminPassword: localOntapPassword}, nil
 	}
 
 	var ca *activities.VCMCredentialActivity
 
-	// Certificate-auth path. Resolve the cert material (signed cert, key, chain,
-	// CN) plus the bootstrap admin password and hand both to VLM on the
-	// create-cluster request. VLM's CreateVSAClustersWorkflow runs
-	// CheckAndEnableCertAuthWorkflow whenever OntapCredentials.Certificate is set:
-	// it installs the server cert, installs the issuing CA as client-ca (so ONTAP
-	// trusts our client cert), and creates the cert-mapped ONTAP user during
-	// bring-up. Without this the cert-auth pool would come up with no client-CA
-	// trust and no cert user, so every later cert-auth ONTAP call (e.g. the QoS
-	// activity) would fail client authentication.
-	if pc := wf.inputs.OntapCredentials; pc != nil && pc.AuthType == env.USER_CERTIFICATE && pc.CertificateID != "" {
+	if poolCreds != nil && poolCreds.AuthType == env.USER_CERTIFICATE && poolCreds.CertificateID != "" {
 		var creds vlm.OntapCredentials
 		if err := orchestrator.ExecuteActivity(ctx, ca.ResolveOntapCertificate, activities.ResolveOntapCertificateRequest{
-			PoolCredentials: pc,
+			PoolCredentials: poolCreds,
 		}).Get(ctx, &creds); err != nil {
 			return vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP certificate: %w", err)
 		}
@@ -412,15 +412,13 @@ func (wf *createPoolWorkflow) resolveOntapCredentials(ctx *orchestrator.Context)
 		return creds, nil
 	}
 
-	// Password path (default / Secret Manager admin password).
-	cred := commonparams.SelectOntapCredential(wf.req.OntapCredentials)
-	if cred.SecretID == "" {
+	if poolCreds == nil || poolCreds.SecretID == "" {
 		return vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP admin password: request has no admin credential secret id")
 	}
 
 	var creds vlm.OntapCredentials
 	if err := orchestrator.ExecuteActivity(ctx, ca.ResolveOntapAdminPassword, activities.ResolveOntapAdminPasswordRequest{
-		SecretResourceName: cred.SecretID,
+		SecretResourceName: poolCreds.SecretID,
 	}).Get(ctx, &creds); err != nil {
 		return vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP admin password: %w", err)
 	}

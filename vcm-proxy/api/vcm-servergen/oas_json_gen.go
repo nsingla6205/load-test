@@ -4055,6 +4055,12 @@ func (s *SetConfigRequestV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.CaUri.Set {
+			e.FieldStart("caUri")
+			s.CaUri.Encode(e)
+		}
+	}
+	{
 		if s.Zone1.Set {
 			e.FieldStart("zone1")
 			s.Zone1.Encode(e)
@@ -4080,16 +4086,17 @@ func (s *SetConfigRequestV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfSetConfigRequestV1 = [9]string{
+var jsonFieldsNameOfSetConfigRequestV1 = [10]string{
 	0: "dbConfig",
 	1: "serviceTenantProject",
 	2: "netConfig",
 	3: "ipConfig",
 	4: "ontapCredentials",
-	5: "zone1",
-	6: "zone2",
-	7: "mediatorZone",
-	8: "deploymentId",
+	5: "caUri",
+	6: "zone1",
+	7: "zone2",
+	8: "mediatorZone",
+	9: "deploymentId",
 }
 
 // Decode decodes SetConfigRequestV1 from json.
@@ -4157,6 +4164,16 @@ func (s *SetConfigRequestV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"ontapCredentials\"")
+			}
+		case "caUri":
+			if err := func() error {
+				s.CaUri.Reset()
+				if err := s.CaUri.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"caUri\"")
 			}
 		case "zone1":
 			if err := func() error {
