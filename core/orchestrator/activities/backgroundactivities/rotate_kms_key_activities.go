@@ -62,6 +62,8 @@ const (
 
 	// KMS rotation lock - per service account to avoid concurrent key creation for shared-SA configs.
 	kmsRotationLockNamePrefix = "vcp-kms-"
+
+	modifyGcpKmsInvalidGrantAttempts = 3
 )
 
 // KMS rotation lock timing. Configurable via env (e.g. "2s", "30s", "10m").
@@ -69,6 +71,7 @@ var (
 	kmsRotationLockMaxAcquireWait = env.GetDuration("KMS_ROTATION_LOCK_MAX_ACQUIRE_WAIT", 10*time.Minute)
 	kmsRotationLockRetryWait      = env.GetDuration("KMS_ROTATION_LOCK_RETRY_WAIT", 2*time.Second)
 	kmsRotationLockTTL            = env.GetDuration("KMS_ROTATION_LOCK_TTL", 30*time.Second)
+	modifyGcpKmsInvalidGrantWait  = 5 * time.Second
 )
 
 // isLocalSetup returns true when LOCAL_SETUP env is true (default false). When true, acquire/release/renew lock are no-ops.
@@ -941,6 +944,43 @@ func ListPoolsByKmsConfigIds(ctx context.Context, kmsConfigIds []int64, se datab
 	return poolViews, nil
 }
 
+func isInvalidGrantErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "invalid_grant") || strings.Contains(msg, "auth_failed")
+}
+
+func modifyGcpKmsWithInvalidGrantRetry(ctx context.Context, provider vsa.Provider, externalUUID string, credentials *log.Secret) error {
+	logger := util.GetLogger(ctx)
+	var err error
+	for attempt := 1; attempt <= modifyGcpKmsInvalidGrantAttempts; attempt++ {
+		_, _, err = provider.ModifyGcpKms(externalUUID, credentials)
+		if err == nil {
+			if attempt > 1 {
+				logger.Infof("KMS_KEY_ROTATION: ONTAP GCP KMS update succeeded on retry attempt %d/%d",
+					attempt, modifyGcpKmsInvalidGrantAttempts)
+			}
+			return nil
+		}
+		if !isInvalidGrantErr(err) {
+			return err
+		}
+		if attempt == modifyGcpKmsInvalidGrantAttempts {
+			return err
+		}
+		logger.Warnf("KMS_KEY_ROTATION: ONTAP GCP KMS update returned invalid_grant, retrying (%d/%d): %v",
+			attempt, modifyGcpKmsInvalidGrantAttempts, err)
+		select {
+		case <-time.After(modifyGcpKmsInvalidGrantWait):
+		case <-ctx.Done():
+			return fmt.Errorf("KMS retry cancelled: %w", ctx.Err())
+		}
+	}
+	return err
+}
+
 func _syncKeyWithOntap(ctx context.Context, se database.Storage, newServiceAccountKey string, oldServiceAccountKey string, pool *datamodel.Pool) error {
 	logger := util.GetLogger(ctx)
 
@@ -964,7 +1004,7 @@ func _syncKeyWithOntap(ctx context.Context, se database.Storage, newServiceAccou
 	serviceAccountKeySecret := log.Secret(sa)
 
 	// Update ONTAP with new service account key
-	_, _, err = provider.ModifyGcpKms(svm.SvmDetails.ExternalKmsConfigUUID, &serviceAccountKeySecret)
+	err = modifyGcpKmsWithInvalidGrantRetry(ctx, provider, svm.SvmDetails.ExternalKmsConfigUUID, &serviceAccountKeySecret)
 	if err != nil {
 		return err
 	}

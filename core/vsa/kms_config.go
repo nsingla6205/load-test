@@ -1,6 +1,7 @@
 package vsa
 
 import (
+	"fmt"
 	"strings"
 
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
@@ -97,7 +98,7 @@ func (rc *OntapRestProvider) ModifyGcpKms(externalUUID string, credentials *log.
 
 	gcpKms, ontapJob, err := client.Security().GcpKmsModify(gcpKmsModifyParams)
 	if err != nil {
-		return nil, nil, errors.New("Failed to establish connectivity with the cloud key management service while updating GCP KMS")
+		return nil, nil, fmt.Errorf("Failed to establish connectivity with the cloud key management service while updating GCP KMS: %w", err)
 	}
 	if gcpKms != nil {
 		return gcpKms, nil, nil

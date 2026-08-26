@@ -308,6 +308,82 @@ func Test_syncKeyWithOntap(t *testing.T) {
 		mockSE.AssertExpectations(tt)
 		mockProvider.AssertExpectations(tt)
 	})
+
+	t.Run("SyncKeyWithOntapRetriesInvalidGrantThenSucceeds", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}}
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid"},
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalKmsConfigUUID: "kms-config-uuid",
+			},
+		}
+		validPrivateKeyData := base64.StdEncoding.EncodeToString([]byte("test-private-key-content"))
+
+		mockSE.On("GetSvmForPoolID", ctx, pool.ID).Return(svm, nil)
+		originalGetOntapRestProviderForPool := GetOntapRestProviderForPool
+		defer func() { GetOntapRestProviderForPool = originalGetOntapRestProviderForPool }()
+		mockProvider := vsa.NewMockProvider(tt)
+		GetOntapRestProviderForPool = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		origWait := modifyGcpKmsInvalidGrantWait
+		defer func() { modifyGcpKmsInvalidGrantWait = origWait }()
+		modifyGcpKmsInvalidGrantWait = 0
+
+		invalidGrantErr := errors.New("Failed to establish connectivity with the cloud key management service while updating GCP KMS: invalid_grant")
+		mockProvider.On("ModifyGcpKms", "kms-config-uuid", mock.AnythingOfType("*log.Secret")).Return(nil, nil, invalidGrantErr).Once()
+		mockProvider.On("ModifyGcpKms", "kms-config-uuid", mock.AnythingOfType("*log.Secret")).Return(nil, nil, nil).Once()
+		mockProvider.On("IsGcpKmsReachable", vsa.GetKmsConfigParams{
+			ExternalKmsConfigID: "kms-config-uuid",
+		}).Return(true, nil)
+
+		err := _syncKeyWithOntap(ctx, mockSE, validPrivateKeyData, "old-key-data", pool)
+
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("SyncKeyWithOntapFailsAfterInvalidGrantRetriesExhausted", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}}
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid"},
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalKmsConfigUUID: "kms-config-uuid",
+			},
+		}
+		validPrivateKeyData := base64.StdEncoding.EncodeToString([]byte("test-private-key-content"))
+
+		mockSE.On("GetSvmForPoolID", ctx, pool.ID).Return(svm, nil)
+		originalGetOntapRestProviderForPool := GetOntapRestProviderForPool
+		defer func() { GetOntapRestProviderForPool = originalGetOntapRestProviderForPool }()
+		mockProvider := vsa.NewMockProvider(tt)
+		GetOntapRestProviderForPool = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		origWait := modifyGcpKmsInvalidGrantWait
+		defer func() { modifyGcpKmsInvalidGrantWait = origWait }()
+		modifyGcpKmsInvalidGrantWait = 0
+
+		invalidGrantErr := errors.New("AUTH_FAILED: invalid_grant")
+		mockProvider.On("ModifyGcpKms", "kms-config-uuid", mock.AnythingOfType("*log.Secret")).Return(nil, nil, invalidGrantErr).Times(modifyGcpKmsInvalidGrantAttempts)
+
+		err := _syncKeyWithOntap(ctx, mockSE, validPrivateKeyData, "old-key-data", pool)
+
+		assert.Error(tt, err)
+		assert.Equal(tt, invalidGrantErr, err)
+		mockProvider.AssertExpectations(tt)
+	})
+}
+
+func TestIsInvalidGrantErr(t *testing.T) {
+	assert.False(t, isInvalidGrantErr(nil))
+	assert.False(t, isInvalidGrantErr(errors.New("failed to modify GCP KMS")))
+	assert.True(t, isInvalidGrantErr(errors.New("invalid_grant")))
+	assert.True(t, isInvalidGrantErr(errors.New("Failed to establish connectivity: AUTH_FAILED")))
 }
 
 func TestListPoolsByKmsConfigId(t *testing.T) {

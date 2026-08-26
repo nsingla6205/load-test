@@ -300,8 +300,9 @@ func TestModifyGcpKms(t *testing.T) {
 		}
 		defer func() { getOntapClientFunc = origGetClient }()
 
+		modifyErr := errors.New("modify failed")
 		mockClient.On("Security").Return(mockSecurity)
-		mockSecurity.On("GcpKmsModify", mock.Anything).Return(nil, nil, errors.New("modify failed"))
+		mockSecurity.On("GcpKmsModify", mock.Anything).Return(nil, nil, modifyErr)
 
 		provider := &OntapRestProvider{}
 		credentials := (*log.Secret)(nillable.ToPointer(strfmt.Password("new-credentials")))
@@ -309,6 +310,8 @@ func TestModifyGcpKms(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Failed to establish connectivity with the cloud key management service while updating GCP KMS")
+		assert.ErrorIs(t, err, modifyErr)
+		assert.Contains(t, err.Error(), "modify failed")
 		assert.Nil(t, result)
 		assert.Nil(t, jobUUID)
 	})
