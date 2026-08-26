@@ -3,6 +3,7 @@
 package vcm_workflows
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -105,7 +106,7 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 	// Move the job to PROCESSING before doing any work.
 	wf.Status = workflowStatusRunning
 	wf.currentStep = jobStepStarting
-	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, jobStepStarting, nil); err != nil {
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, jobStepStarting, nil, nil); err != nil {
 		logger.Error("workflow: failed to mark job PROCESSING",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
 		return nil, err
@@ -116,7 +117,7 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
 		wf.Status = workflowStatusFailed
 		// Record the terminal ERROR state.
-		if uerr := wf.UpdateJobStatus(ctx, vcmdb.JobStateError, wf.currentStep, err); uerr != nil {
+		if uerr := wf.UpdateJobStatus(ctx, vcmdb.JobStateError, wf.currentStep, err, nil); uerr != nil {
 			logger.Error("workflow: failed to mark job ERROR",
 				"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", uerr)
 			return nil, uerr
@@ -124,9 +125,14 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 		return nil, err
 	}
 
-	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateDone, jobStepCompleted, nil); err != nil {
-		logger.Error("workflow: failed to mark job DONE",
-			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
+	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID)
+	if marshalErr != nil {
+		logger.Warn("workflow: failed to marshal pool operation response; marking job DONE without response payload",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", marshalErr)
+		donePayload = nil
+	}
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateDone, jobStepCompleted, nil, donePayload); err != nil {
+		logger.Error("workflow: failed to mark job DONE", "deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
 		return nil, err
 	}
 	wf.Status = workflowStatusCompleted
@@ -136,6 +142,18 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 		Status:       "READY",
 		Message:      "pool workflow completed",
 	}, nil
+}
+
+// poolCreateOperationResponsePayloadFn marshals the pool-create operation response JSON.
+var poolCreateOperationResponsePayloadFn = func(deploymentID string) (*string, error) {
+	payload, err := json.Marshal(map[string]any{
+		"pool": map[string]string{"deploymentId": deploymentID},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal pool operation response: %w", err)
+	}
+	result := string(payload)
+	return &result, nil
 }
 
 // provision runs the activities and child workflows in order, recording each
@@ -306,7 +324,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 // is logged but does not abort provisioning).
 func (wf *createPoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
 	wf.currentStep = step
-	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil); err != nil {
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, nil); err != nil {
 		wfLogger(ctx).Warn("workflow: failed to update job step",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
 	}

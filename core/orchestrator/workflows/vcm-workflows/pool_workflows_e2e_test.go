@@ -3,6 +3,7 @@ package vcm_workflows
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -67,6 +68,9 @@ func (s *e2eJobStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJo
 	if job, ok := s.jobs[params.JobID]; ok {
 		job.State = params.State
 		job.CurrentStep = params.Step
+		if vcmdb.HasPersistableResponsePayload(params.ResponsePayload) {
+			job.ResponsePayload = params.ResponsePayload
+		}
 	}
 	return nil
 }
@@ -195,6 +199,42 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, vcmdb.JobStateDone, last.State, "a successful provision must leave the job DONE")
 	assert.Equal(t, jobStepCompleted, last.Step)
+	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-e2e"}}`, last.ResponsePayload)
+}
+
+func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+
+	origEnv, origPw := runningEnv, localOntapPassword
+	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+
+	origPayloadFn := poolCreateOperationResponsePayloadFn
+	poolCreateOperationResponsePayloadFn = func(string) (*string, error) {
+		return nil, errors.New("marshal failed")
+	}
+	t.Cleanup(func() { poolCreateOperationResponsePayloadFn = origPayloadFn })
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+
+	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(fakePoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+	require.NoError(t, err, "marshal failure must not fail the workflow after successful provision")
+
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State, "provision success must leave the job DONE even when payload marshal fails")
+	assert.Equal(t, jobStepCompleted, last.Step)
+
+	job, _ := store.GetJob(context.Background(), reqID)
+	require.NotNil(t, job)
+	assert.Equal(t, vcmdb.JobStateDone, job.State)
+	assert.Empty(t, job.ResponsePayload)
 }
 
 func newPoolParams(requestID string) *commonparams.CreatePoolParams {

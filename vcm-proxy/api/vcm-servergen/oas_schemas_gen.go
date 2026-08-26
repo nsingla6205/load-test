@@ -954,7 +954,9 @@ type OperationV1 struct {
 	Done bool `json:"done"`
 	// Failure details set when the operation completes unsuccessfully.
 	Error OptErrorResponseV1 `json:"error"`
-	// Success result set when the operation completes; empty when there is no result body.
+	// Success result when the operation completes with a stored terminal payload.
+	// Omitted when the job is still running, failed, or completed without a valid
+	// stored payload (not an empty object).
 	Response OptOperationV1Response `json:"response"`
 }
 
@@ -1014,7 +1016,9 @@ func (*OperationV1) v1CreateHostGroupRes() {}
 func (*OperationV1) v1DeleteHostGroupRes() {}
 func (*OperationV1) v1UpdateHostGroupRes() {}
 
-// Success result set when the operation completes; empty when there is no result body.
+// Success result when the operation completes with a stored terminal payload.
+// Omitted when the job is still running, failed, or completed without a valid
+// stored payload (not an empty object).
 type OperationV1Response map[string]jx.Raw
 
 func (s *OperationV1Response) init() OperationV1Response {

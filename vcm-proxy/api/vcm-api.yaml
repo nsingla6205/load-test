@@ -645,7 +645,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/ErrorResponse_v1"
         response:
-          description: Success result set when the operation completes; empty when there is no result body.
+          description: |
+            Success result when the operation completes with a stored terminal payload.
+            Omitted when the job is still running, failed, or completed without a valid
+            stored payload (not an empty object).
           type: object
           additionalProperties: true
 

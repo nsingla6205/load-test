@@ -53,9 +53,8 @@ func (bw *baseWorkflow) EnsureJobState(ctx *orchestrator.Context, expected vcmdb
 	return nil
 }
 
-// UpdateJobStatus persists the job's state, current step, and (on failure)
-// error metadata through the VCM job activity.
-func (bw *baseWorkflow) UpdateJobStatus(ctx *orchestrator.Context, state vcmdb.JobState, step string, cause error) error {
+// UpdateJobStatus persists job state, step, error details, and an optional terminal response payload.
+func (bw *baseWorkflow) UpdateJobStatus(ctx *orchestrator.Context, state vcmdb.JobState, step string, cause error, responsePayload *string) error {
 	if bw.ID == "" {
 		return vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError,
 			errors.New("job id cannot be empty"))
@@ -65,6 +64,9 @@ func (bw *baseWorkflow) UpdateJobStatus(ctx *orchestrator.Context, state vcmdb.J
 		JobID: bw.ID,
 		Step:  step,
 		State: state,
+	}
+	if responsePayload != nil && vcmdb.HasPersistableResponsePayload(*responsePayload) {
+		params.ResponsePayload = *responsePayload
 	}
 	if cause != nil {
 		params.TrackingID, params.ErrorMessage, params.Retriable = jobErrorFields(cause)

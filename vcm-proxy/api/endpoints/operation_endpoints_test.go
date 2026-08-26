@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
@@ -35,17 +35,46 @@ func configuredOperationHandler(t *testing.T) (*Handler, *vcmconfig.Store) {
 
 func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 	tests := []struct {
-		name        string
-		state       vcmdb.JobState
-		done        bool
-		wantError   bool
-		trackingID  int
-		wantCode    int
-		wantMessage string
+		name                 string
+		state                vcmdb.JobState
+		done                 bool
+		wantError            bool
+		wantResponse         bool
+		responsePayload      string
+		trackingID           int
+		wantCode             int
+		wantMessage          string
+		wantResponseDeploymentID string
 	}{
 		{name: "new", state: vcmdb.JobStateNew, done: false},
 		{name: "processing", state: vcmdb.JobStateProcessing, done: false},
-		{name: "done", state: vcmdb.JobStateDone, done: true},
+		{name: "done without response payload", state: vcmdb.JobStateDone, done: true},
+		{
+			name:                 "done with response payload",
+			state:                vcmdb.JobStateDone,
+			done:                 true,
+			wantResponse:         true,
+			responsePayload:          `{"pool":{"deploymentId":"gcnv-test"}}`,
+			wantResponseDeploymentID: "gcnv-test",
+		},
+		{
+			name:            "done with invalid response payload omits response",
+			state:           vcmdb.JobStateDone,
+			done:            true,
+			responsePayload: `not-json`,
+		},
+		{
+			name:            "done with json null payload omits response",
+			state:           vcmdb.JobStateDone,
+			done:            true,
+			responsePayload: "null",
+		},
+		{
+			name:            "done with empty object payload omits response",
+			state:           vcmdb.JobStateDone,
+			done:            true,
+			responsePayload: "{}",
+		},
 		{
 			name:        "allow-listed error surfaces stored debug message",
 			state:       vcmdb.JobStateError,
@@ -79,13 +108,14 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			handler, store := configuredOperationHandler(t)
 			operationID := uuid.NewString()
 			require.NoError(t, store.CreateJob(context.Background(), &vcmdb.Job{
-				ID:           operationID,
-				ResourceID:   "gcnv-test",
-				Type:         string(datamodel.JobTypeCreatePool),
-				State:        tt.state,
-				TrackingID:   tt.trackingID,
-				ErrorMessage: "pool create failed",
-				Retriable:    tt.wantError,
+				ID:              operationID,
+				ResourceID:      "gcnv-test",
+				Type:            string(datamodel.JobTypeCreatePool),
+				State:           tt.state,
+				TrackingID:      tt.trackingID,
+				ErrorMessage:    "pool create failed",
+				ResponsePayload: tt.responsePayload,
+				Retriable:       tt.wantError,
 			}))
 
 			result, err := handler.OperationGetV1(context.Background(), vcmserver.OperationGetV1Params{
@@ -99,7 +129,14 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			assert.Equal(t, tt.done, response.Done)
 			assert.True(t, response.Metadata.IsSet())
 			assert.Equal(t, tt.wantError, response.Error.IsSet())
-			assert.Equal(t, tt.state == vcmdb.JobStateDone, response.Response.IsSet())
+			assert.Equal(t, tt.wantResponse, response.Response.IsSet())
+			if tt.wantResponse {
+				opResponse, ok := response.Response.Get()
+				require.True(t, ok)
+				poolRaw, ok := opResponse["pool"]
+				require.True(t, ok)
+				assert.Contains(t, string(poolRaw), tt.wantResponseDeploymentID)
+			}
 			if tt.wantError {
 				operationError, ok := response.Error.Get()
 				require.True(t, ok)

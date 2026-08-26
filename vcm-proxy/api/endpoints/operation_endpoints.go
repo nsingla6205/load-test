@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
+	weutil "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
 // describeVCMOperationSurfaceJobErrorDetails reports whether the public operation GET
@@ -68,7 +70,15 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 	case vcmdb.JobStateNew, vcmdb.JobStateProcessing:
 		return response, nil
 	case vcmdb.JobStateDone:
-		response.Response = vcmserver.NewOptOperationV1Response(vcmserver.OperationV1Response{})
+		if vcmdb.HasPersistableResponsePayload(job.ResponsePayload) {
+			opResponse := make(vcmserver.OperationV1Response)
+			if err := json.Unmarshal([]byte(job.ResponsePayload), &opResponse); err != nil {
+				weutil.GetLogger(ctx).WarnContext(ctx, "operation GET: invalid response payload",
+					"operationId", job.ID, "jobType", job.Type, "error", err)
+			} else if len(opResponse) > 0 {
+				response.Response = vcmserver.NewOptOperationV1Response(opResponse)
+			}
+		}
 		return response, nil
 	case vcmdb.JobStateError:
 		errMsg := vsaerrors.GetErrorMessageByTrackingID(job.TrackingID)

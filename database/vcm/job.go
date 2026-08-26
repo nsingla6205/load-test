@@ -25,17 +25,18 @@ const (
 
 // Job stores workflow progress for status reporting and restart recovery.
 type Job struct {
-	ID           string    `gorm:"column:id;primaryKey;size:36"`
-	ResourceID   string    `gorm:"column:resource_id;index;size:128;not null"`
-	Type         string    `gorm:"column:type;size:64;not null"`
-	State        JobState  `gorm:"column:state;index;size:16;not null"`
-	CurrentStep  string    `gorm:"column:current_step;size:128;not null"`
-	TrackingID   int       `gorm:"column:tracking_id;not null;default:0"`
-	ErrorMessage string    `gorm:"column:error_message;size:65536;not null"`
-	Retriable    bool      `gorm:"column:retriable;not null;default:false"`
-	DeadlineAt   time.Time `gorm:"column:deadline_at;not null"`
-	CreatedAt    time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;not null"`
+	ID              string         `gorm:"column:id;primaryKey;size:36"`
+	ResourceID      string         `gorm:"column:resource_id;index;size:128;not null"`
+	Type            string         `gorm:"column:type;size:64;not null"`
+	State           JobState       `gorm:"column:state;index;size:16;not null"`
+	CurrentStep     string         `gorm:"column:current_step;size:128;not null"`
+	TrackingID      int            `gorm:"column:tracking_id;not null;default:0"`
+	ErrorMessage    string `gorm:"column:error_message;size:65536;not null"`
+	ResponsePayload string `gorm:"column:response_payload;size:2621440;not null;default:''"`
+	Retriable       bool   `gorm:"column:retriable;not null;default:false"`
+	DeadlineAt      time.Time      `gorm:"column:deadline_at;not null"`
+	CreatedAt       time.Time      `gorm:"column:created_at;not null"`
+	UpdatedAt       time.Time      `gorm:"column:updated_at;not null"`
 }
 
 // CreateJob inserts the initial durable state before workflow execution starts.
@@ -119,12 +120,18 @@ func (s *gormStore) ListOngoingJobs(ctx context.Context) ([]Job, error) {
 
 // UpdateJobProgressParams holds the fields written by UpdateJobProgress.
 type UpdateJobProgressParams struct {
-	JobID        string
-	Step         string
-	State        JobState
-	TrackingID   int
-	ErrorMessage string
-	Retriable    bool
+	JobID           string
+	Step            string
+	State           JobState
+	TrackingID      int
+	ErrorMessage    string
+	ResponsePayload string
+	Retriable       bool
+}
+
+// HasPersistableResponsePayload reports whether payload is non-empty and not the JSON literal "null".
+func HasPersistableResponsePayload(payload string) bool {
+	return payload != "" && payload != "null"
 }
 
 // UpdateJobProgress persists step, state, and error details after workflow progress.
@@ -137,17 +144,22 @@ func (s *gormStore) UpdateJobProgress(ctx context.Context, params UpdateJobProgr
 	if err != nil {
 		return err
 	}
+	updates := map[string]any{
+		"current_step":  params.Step,
+		"state":         params.State,
+		"tracking_id":   params.TrackingID,
+		"error_message": params.ErrorMessage,
+		"retriable":     params.Retriable,
+		"updated_at":    time.Now().UTC(),
+	}
+	if HasPersistableResponsePayload(params.ResponsePayload) {
+		updates["response_payload"] = params.ResponsePayload
+	}
+
 	result := db.WithContext(ctx).
 		Model(&Job{}).
 		Where("id = ?", params.JobID).
-		Updates(map[string]any{
-			"current_step":  params.Step,
-			"state":         params.State,
-			"tracking_id":   params.TrackingID,
-			"error_message": params.ErrorMessage,
-			"retriable":     params.Retriable,
-			"updated_at":    time.Now().UTC(),
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("vcm: update job %q: %w", params.JobID, result.Error)
 	}

@@ -72,10 +72,54 @@ func TestJobLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, completed.IsTerminal())
 	assert.False(t, completed.Retriable)
+	assert.Empty(t, completed.ResponsePayload)
+
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:           job.ID,
+		Step:            "COMPLETED",
+		State:           JobStateDone,
+		ResponsePayload: "null",
+	}))
+	afterNullPayload, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Empty(t, afterNullPayload.ResponsePayload)
+
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:           job.ID,
+		Step:            "COMPLETED",
+		State:           JobStateDone,
+		ResponsePayload: `{"pool":{"deploymentId":"gcnv-test"}}`,
+	}))
+	withResponse, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-test"}}`, withResponse.ResponsePayload)
 
 	ongoing, err = store.ListOngoingJobs(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, ongoing)
+}
+
+func TestUpdateJobProgressIgnoresSemanticNullPayload(t *testing.T) {
+	ctx := context.Background()
+	store := openJobTestStore(t)
+	job := &Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440002",
+		ResourceID: "550e8400-e29b-41d4-a716-446655440003",
+		Type:       string(datamodel.JobTypeCreatePool),
+		DeadlineAt: time.Now().UTC().Add(time.Hour),
+	}
+	require.NoError(t, store.CreateJob(ctx, job))
+
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:           job.ID,
+		Step:            "COMPLETED",
+		State:           JobStateDone,
+		ResponsePayload: "null",
+	}))
+
+	got, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.ResponsePayload)
 }
 
 func TestJobPersistsFailureDetails(t *testing.T) {

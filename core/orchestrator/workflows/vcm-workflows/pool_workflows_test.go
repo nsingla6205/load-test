@@ -126,6 +126,13 @@ func TestSvmUUIDFromVLMConfig(t *testing.T) {
 	})
 }
 
+func TestPoolCreateOperationResponsePayloadFn(t *testing.T) {
+	payload, err := poolCreateOperationResponsePayloadFn("gcnv-test")
+	require.NoError(t, err)
+	require.NotNil(t, payload)
+	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-test"}}`, *payload)
+}
+
 func TestPoolWorkflow_MissingParams_ReturnsError(t *testing.T) {
 	tests := []struct {
 		name   string
