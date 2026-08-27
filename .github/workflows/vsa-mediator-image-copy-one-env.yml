@@ -15,9 +15,14 @@ on:
         required: true
         type: string
       version:
-        description: 'Version (e.g. 9.18.1X26, 9.18.1)'
+        description: 'Source COT version (e.g. 9.18.1X26, 9.18.1)'
         required: true
         type: string
+      bucket_name:
+        description: 'Destination folder identifier; defaults to version'
+        required: false
+        type: string
+        default: ''
       image_name:
         description: 'Image name (e.g. x-9-18-1x26, cvo-mediator-x-9-18-1)'
         required: true
@@ -69,6 +74,7 @@ jobs:
       guest_os_features: ${{ steps.parse.outputs.guest_os_features }}
       is_autopush: ${{ steps.parse.outputs.is_autopush }}
       version: ${{ steps.parse.outputs.version }}
+      bucket_name: ${{ steps.parse.outputs.bucket_name }}
       image_type_path: ${{ steps.parse.outputs.image_type_path }}
       image_type: ${{ steps.parse.outputs.image_type }}
     
@@ -82,7 +88,9 @@ jobs:
           ENVIRONMENT="${{ inputs.environment }}"
           IMAGE_NAME="${{ inputs.image_name }}"
           VERSION="${{ inputs.version }}"
+          BUCKET_NAME="${{ inputs.bucket_name }}"
           BUNDLE_NAME="${{ inputs.bundle_name }}"
+          [ -z "$BUCKET_NAME" ] && BUCKET_NAME="$VERSION"
           
           case "$ENVIRONMENT" in
             autopush|staging|prod) ;;
@@ -107,7 +115,7 @@ jobs:
             mediator) IMAGE_TYPE_PATH_SEGMENT="Mediator" ;;
             *) echo "❌ Invalid image_type: $IMAGE_TYPE"; exit 1 ;;
           esac
-          IMAGE_TYPE_PATH="GCNV/${VERSION}/${IMAGE_TYPE_PATH_SEGMENT}"
+          IMAGE_TYPE_PATH="GCNV/${BUCKET_NAME}/${IMAGE_TYPE_PATH_SEGMENT}"
           
           # Build SIG_FILE_PATH: gs://cot-releases-public/GCNV_released_bundle/<bundle_name>/<GCNV|Mediator>/<VERSION>/IMAGE_SIG_TGZ
           if [ "$IMAGE_TYPE" = "mediator" ]; then
@@ -176,6 +184,7 @@ jobs:
           
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
           echo "image_type_path=$IMAGE_TYPE_PATH" >> $GITHUB_OUTPUT
           echo "image_type=$IMAGE_TYPE" >> $GITHUB_OUTPUT
           echo "sig_file_path=$SIG_FILE_PATH" >> $GITHUB_OUTPUT
@@ -253,9 +262,7 @@ jobs:
     name: Create and Export Image (Autopush Only)
     runs-on: ubuntu-latest
     needs: [parse-version-file, pre-check-image]
-    if: |
-      needs.parse-version-file.outputs.is_autopush == 'true' &&
-      needs.pre-check-image.outputs.image_exists == 'false'
+    if: needs.parse-version-file.outputs.is_autopush == 'true'
     
     permissions:
       contents: read
@@ -454,10 +461,9 @@ jobs:
     needs: [parse-version-file, pre-check-image, create-and-export-image]
     if: |
       needs.parse-version-file.outputs.is_autopush == 'true' &&
-      needs.pre-check-image.outputs.image_exists == 'false' &&
       (needs.create-and-export-image.result == 'success' || needs.create-and-export-image.result == 'skipped') &&
-      needs.parse-version-file.outputs.sig_file_path != '' &&
-      needs.parse-version-file.outputs.sig_file_path != 'null'
+      inputs.bundle_name != '' &&
+      inputs.bundle_name != 'null'
     
     permissions:
       contents: read
@@ -478,8 +484,6 @@ jobs:
       
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          export_default_credentials: true
 
       - name: Set GCP project
         run: |
@@ -492,61 +496,12 @@ jobs:
           gcloud config set core/disable_prompts true
           # gcloud will automatically manage SSH keys when using compute ssh/scp commands
 
-      - name: Copy script files to Pull VM
-        run: |
-          # First, create the directory on the VM if it doesn't exist
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="sudo mkdir -p /opt/vsa-pull-image && sudo chmod 755 /opt/vsa-pull-image" || true
-          
-          # Copy script to a temporary location first
-          gcloud compute scp \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            .github/scripts/signature-file-copy.sh ${PULL_VM_NAME}:~/signature-file-copy.sh
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to copy script files to Pull VM"
-            exit 1
-          fi
-          
-          # Verify file was copied to home directory, then move to final location
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="ls -la ~/signature-file-copy.sh && echo 'File exists in home directory'"
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Script file not found in home directory after copy"
-            exit 1
-          fi
-          
-          # Move the script to the final location with sudo and verify it exists
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="sudo mv ~/signature-file-copy.sh /opt/vsa-pull-image/signature-file-copy.sh && sudo chmod +x /opt/vsa-pull-image/signature-file-copy.sh && sudo ls -la /opt/vsa-pull-image/signature-file-copy.sh"
-          
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to move script to final location or verify file"
-            exit 1
-          fi
-          echo "✅ Script files copied to Pull VM and verified"
-      
       - name: Execute signature file copy on Pull VM
         id: pull
         run: |
           set -euo pipefail
           
-          VERSION="${{ needs.parse-version-file.outputs.version }}"
+          BUCKET_NAME="${{ needs.parse-version-file.outputs.bucket_name }}"
           IMAGE_TYPE="${{ needs.parse-version-file.outputs.image_type }}"
           IMAGE_TYPE_PATH_SEGMENT="${{ needs.parse-version-file.outputs.image_type_path }}"
           IMAGE_TYPE_PATH_SEGMENT=$(echo "$IMAGE_TYPE_PATH_SEGMENT" | rev | cut -d'/' -f1 | rev)
@@ -555,41 +510,24 @@ jobs:
           
           echo "🔽 Copying signature file to source bucket"
           echo "Signature File Path: $SIG_FILE_PATH"
-          echo "Version: $VERSION"
+          echo "Bucket name: $BUCKET_NAME"
           echo "Image Type: $IMAGE_TYPE_PATH_SEGMENT"
           echo "Source Bucket: $SOURCE_BUCKET"
           echo "Project: ${PULL_VM_PROJECT}"
           echo "VM: ${PULL_VM_NAME}"
           echo ""
           
-          # Execute the copy command on the Pull VM
-          # First verify the script exists before executing
-          SCRIPT_EXISTS=false
+          LOCAL_SCRIPT=".github/scripts/signature-file-copy.sh"
+          test -f "$LOCAL_SCRIPT"
+          SCRIPT_B64=$(base64 -w0 "$LOCAL_SCRIPT")
+          printf -v REMOTE_ARGS ' %q' "$BUCKET_NAME" "$IMAGE_TYPE_PATH_SEGMENT" "$SIG_FILE_PATH" "$SOURCE_BUCKET"
+
           gcloud compute ssh ${PULL_VM_NAME} \
             --zone=${GCP_ZONE} \
             --project=${PULL_VM_PROJECT} \
             --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
             --quiet \
-            --command="sudo test -f /opt/vsa-pull-image/signature-file-copy.sh && echo 'Script file exists'" 2>/dev/null || true
-          
-          EXIT_CODE=${PIPESTATUS[0]}
-          if [ $EXIT_CODE -eq 0 ]; then
-            SCRIPT_EXISTS=true
-          fi
-          
-          if [ "$SCRIPT_EXISTS" != "true" ]; then
-            echo "❌ Script file not found on VM before execution"
-            exit 1
-          fi
-          
-          # Execute signature file copy script
-          # Parameters: version, image_type, sig_file_path, source_bucket
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="sudo bash /opt/vsa-pull-image/signature-file-copy.sh '$VERSION' '$IMAGE_TYPE_PATH_SEGMENT' '$SIG_FILE_PATH' '$SOURCE_BUCKET'" \
+            --command="echo '$SCRIPT_B64' | base64 -d | sudo bash -s --${REMOTE_ARGS}" \
             2>&1 | tee pull-execution.log
           
           EXIT_CODE=${PIPESTATUS[0]}
@@ -611,15 +549,11 @@ jobs:
     needs: [parse-version-file, pre-check-image, create-and-export-image, copy-signature-file-to-vsa-compute-images]
     if: |
       always() &&
-      needs.pre-check-image.outputs.image_exists == 'false' &&
       (
         (needs.parse-version-file.outputs.is_autopush == 'true' && needs.create-and-export-image.result != 'failure') ||
         (needs.parse-version-file.outputs.is_autopush == 'false')
       ) &&
-      (
-        (needs.parse-version-file.outputs.sig_file_path == '' || needs.parse-version-file.outputs.sig_file_path == 'null') ||
-        (needs.copy-signature-file-to-vsa-compute-images.result == 'success' || needs.copy-signature-file-to-vsa-compute-images.result == 'skipped')
-      )
+      (needs.copy-signature-file-to-vsa-compute-images.result == 'success' || needs.copy-signature-file-to-vsa-compute-images.result == 'skipped')
     
     permissions:
       contents: read
@@ -642,8 +576,6 @@ jobs:
       
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          export_default_credentials: true
       
       - name: Configure gcloud
         run: |
@@ -812,6 +744,7 @@ jobs:
           COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
           
           VERSION="${{ needs.parse-version-file.outputs.version }}"
+          BUCKET_NAME="${{ needs.parse-version-file.outputs.bucket_name }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
@@ -822,7 +755,7 @@ jobs:
           # Basename and directory of upgrade file (e.g. cot.image.ONTAP-9.18.1D1.tgz, GCNV/9.18.1D1)
           FILENAME="${UPGRADE_FILE_PATH##*/}"
           UPGRADE_DIR="${UPGRADE_FILE_PATH%/*}"
-          DEST_UPGRADE_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/upgrade"
+          DEST_UPGRADE_PREFIX="gs://$DEST_BUCKET/GCNV/$BUCKET_NAME/upgrade"
           DEST_URI="$DEST_UPGRADE_PREFIX/$FILENAME"
           COT_URI="gs://cot-releases-public/$UPGRADE_RELEASE_BUNDLE/$UPGRADE_FILE_PATH"
           COT_CHECKSUM_URI="gs://cot-releases-public/$UPGRADE_RELEASE_BUNDLE/$UPGRADE_DIR/cot.checksum.ONTAP-$VERSION.txt"
@@ -830,7 +763,7 @@ jobs:
           if [ "$IS_AUTOPUSH" = "true" ]; then
             SOURCE_URI="$COT_URI"
           else
-            SOURCE_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME"
+            SOURCE_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade/$FILENAME"
           fi
           
           echo "📋 Copying upgrade file to destination"
@@ -865,12 +798,12 @@ jobs:
               echo "⚠️ Upgrade file not found at COT source (autopush has no upstream). Skipping without retry."
             else
               echo "⚠️ Upgrade file not found at source bucket. Attempting to populate source from COT and retry..."
-              SOURCE_UPGRADE_PREFIX="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade"
+              SOURCE_UPGRADE_PREFIX="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade"
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
                 echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true
               fi
               if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then
-                bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
+                bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
               else
                 cot_stat_rc=$?
               fi
@@ -911,7 +844,7 @@ jobs:
               echo "  For **$ENVIRONMENT**, the source is the upstream bucket ($SOURCE_BUCKET)."
               echo "  Either the file was missing there, or COT did not have it to populate the source:"
               echo "    COT: $COT_URI"
-              echo "    Upstream bucket path: gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME"
+              echo "    Upstream bucket path: gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade/$FILENAME"
               echo "  Ensure the upgrade file exists in COT for the given release bundle, or that a previous environment (e.g. autopush) has already copied it."
             fi
             echo ""
@@ -968,6 +901,7 @@ jobs:
           set -uo pipefail
           COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
           VERSION="${{ needs.parse-version-file.outputs.version }}"
+          BUCKET_NAME="${{ needs.parse-version-file.outputs.bucket_name }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
@@ -976,13 +910,13 @@ jobs:
           RBAC_FOLDER="${{ inputs.rbac_folder_path }}"
           RBAC_CLI="gcnvadmin_create_cli"
           RBAC_SHA="gcnvadmin_create_cli.sha256.b64"
-          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/RBAC"
+          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$BUCKET_NAME/RBAC"
           DEST_CLI_URI="$DEST_RBAC_PREFIX/$RBAC_CLI"
           DEST_SHA_URI="$DEST_RBAC_PREFIX/$RBAC_SHA"
           COT_CLI_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_CLI"
           COT_SHA_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_SHA"
-          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_CLI"
-          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_SHA"
+          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/RBAC/$RBAC_CLI"
+          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/RBAC/$RBAC_SHA"
           echo "📋 Copying RBAC files to destination"
           echo "Destination: $DEST_RBAC_PREFIX/"
           if ! gsutil ls "$DEST_RBAC_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
@@ -1082,8 +1016,6 @@ jobs:
           service_account: ${{ needs.parse-version-file.outputs.destination_bucket == 'gcnv-prod-images-bucket' && secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA_PROD || secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          export_default_credentials: true
       - name: Configure gcloud
         run: |
           gcloud config set compute/region ${GCP_REGION}
@@ -1095,6 +1027,7 @@ jobs:
           set -uo pipefail
           COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
           VERSION="${{ needs.parse-version-file.outputs.version }}"
+          BUCKET_NAME="${{ needs.parse-version-file.outputs.bucket_name }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
@@ -1103,14 +1036,14 @@ jobs:
           ENVIRONMENT="${{ inputs.environment }}"
           FILENAME="${UPGRADE_FILE_PATH##*/}"
           UPGRADE_DIR="${UPGRADE_FILE_PATH%/*}"
-          DEST_UPGRADE_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/upgrade"
+          DEST_UPGRADE_PREFIX="gs://$DEST_BUCKET/GCNV/$BUCKET_NAME/upgrade"
           DEST_URI="$DEST_UPGRADE_PREFIX/$FILENAME"
           COT_URI="gs://cot-releases-public/$UPGRADE_RELEASE_BUNDLE/$UPGRADE_FILE_PATH"
           COT_CHECKSUM_URI="gs://cot-releases-public/$UPGRADE_RELEASE_BUNDLE/$UPGRADE_DIR/cot.checksum.ONTAP-$VERSION.txt"
           if [ "$IS_AUTOPUSH" = "true" ]; then
             SOURCE_URI="$COT_URI"
           else
-            SOURCE_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME"
+            SOURCE_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade/$FILENAME"
           fi
           echo "🔍 VSA image already present in destination; ensuring upgrade file (copy & replace)"
           echo "Destination upgrade path: $DEST_URI"
@@ -1132,12 +1065,12 @@ jobs:
               copy_success=true
             fi
             if [ "$copy_success" != "true" ]; then
-              SOURCE_UPGRADE_PREFIX="gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade"
+              SOURCE_UPGRADE_PREFIX="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade"
               if ! gsutil ls "$SOURCE_UPGRADE_PREFIX/" 2>/dev/null | head -1 | grep -q .; then
                 echo -n | gsutil cp - "$SOURCE_UPGRADE_PREFIX/.keep" 2>/dev/null || true
               fi
               if cot_stat_out=$(bash "$COT_SH" stat "$COT_URI" 2>&1); then
-                bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$VERSION/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
+                bash "$COT_SH" cp "$COT_URI" "gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/upgrade/$FILENAME" && echo "✅ Populated source bucket from COT"
               else
                 cot_stat_rc=$?
               fi
@@ -1212,8 +1145,6 @@ jobs:
           service_account: ${{ needs.parse-version-file.outputs.destination_bucket == 'gcnv-prod-images-bucket' && secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA_PROD || secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          export_default_credentials: true
       - name: Configure gcloud
         run: |
           gcloud config set compute/region ${GCP_REGION}
@@ -1225,6 +1156,7 @@ jobs:
           set -uo pipefail
           COT_SH="$GITHUB_WORKSPACE/.github/scripts/cot-gcs-via-pull-vm.sh"
           VERSION="${{ needs.parse-version-file.outputs.version }}"
+          BUCKET_NAME="${{ needs.parse-version-file.outputs.bucket_name }}"
           DEST_BUCKET="${{ needs.parse-version-file.outputs.destination_bucket }}"
           SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
           IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
@@ -1233,13 +1165,13 @@ jobs:
           RBAC_FOLDER="${{ inputs.rbac_folder_path }}"
           RBAC_CLI="gcnvadmin_create_cli"
           RBAC_SHA="gcnvadmin_create_cli.sha256.b64"
-          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$VERSION/RBAC"
+          DEST_RBAC_PREFIX="gs://$DEST_BUCKET/GCNV/$BUCKET_NAME/RBAC"
           DEST_CLI_URI="$DEST_RBAC_PREFIX/$RBAC_CLI"
           DEST_SHA_URI="$DEST_RBAC_PREFIX/$RBAC_SHA"
           COT_CLI_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_CLI"
           COT_SHA_URI="gs://cot-releases-public/$UPGRADE_BUNDLE/$RBAC_FOLDER/$RBAC_SHA"
-          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_CLI"
-          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$VERSION/RBAC/$RBAC_SHA"
+          SOURCE_CLI_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/RBAC/$RBAC_CLI"
+          SOURCE_SHA_URI="gs://$SOURCE_BUCKET/GCNV/$BUCKET_NAME/RBAC/$RBAC_SHA"
           echo "🔍 VSA image already present in destination; ensuring RBAC files (copy & replace)"
           echo "Destination RBAC path: $DEST_RBAC_PREFIX/"
           if gsutil -q stat "$DEST_CLI_URI" 2>/dev/null && gsutil -q stat "$DEST_SHA_URI" 2>/dev/null; then
@@ -1306,20 +1238,14 @@ jobs:
     needs: [parse-version-file, pre-check-image, create-and-export-image, copy-signature-file-to-vsa-compute-images, copy-to-destination]
     if: |
       always() &&
-      needs.pre-check-image.outputs.image_exists == 'false' &&
       needs.copy-to-destination.result != 'failure' &&
       (
         (needs.parse-version-file.outputs.is_autopush == 'true' && 
          needs.create-and-export-image.result != 'failure' &&
          needs.copy-to-destination.result != 'failure' &&
          (needs.copy-to-destination.outputs.copy_status == 'success' || needs.copy-to-destination.outputs.copy_status == 'exists') &&
-         (
-           (needs.parse-version-file.outputs.sig_file_path == '' || needs.parse-version-file.outputs.sig_file_path == 'null') ||
-           (
-             (needs.copy-signature-file-to-vsa-compute-images.result == 'success' || needs.copy-signature-file-to-vsa-compute-images.result == 'skipped') &&
-             (needs.copy-to-destination.outputs.sig_copy_status == '' || needs.copy-to-destination.outputs.sig_copy_status == 'success' || needs.copy-to-destination.outputs.sig_copy_status == 'exists' || needs.copy-to-destination.outputs.sig_copy_status == 'not_found')
-           )
-         )) ||
+         (needs.copy-signature-file-to-vsa-compute-images.result == 'success' || needs.copy-signature-file-to-vsa-compute-images.result == 'skipped') &&
+         (needs.copy-to-destination.outputs.sig_copy_status == '' || needs.copy-to-destination.outputs.sig_copy_status == 'success' || needs.copy-to-destination.outputs.sig_copy_status == 'exists' || needs.copy-to-destination.outputs.sig_copy_status == 'not_found')) ||
         (needs.parse-version-file.outputs.is_autopush == 'false')
       )
     
@@ -1344,10 +1270,19 @@ jobs:
         run: |
           gcloud config set compute/region ${GCP_REGION}
           gcloud config set core/disable_prompts true
+
+      - name: Free up disk space for image extraction
+        run: |
+          echo "Before cleanup:"; df -h /
+          sudo rm -rf /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /usr/local/share/powershell /usr/share/swift "${AGENT_TOOLSDIRECTORY:-}" 2>/dev/null || true
+          sudo docker image prune -af 2>/dev/null || true
+          echo "After cleanup:"; df -h /
       
       - name: Verify image digest signature
         id: verify-digest
-        if: needs.parse-version-file.outputs.sig_file_path != '' && needs.parse-version-file.outputs.sig_file_path != 'null'
+        if: inputs.bundle_name != '' && inputs.bundle_name != 'null'
         run: |
           set -euo pipefail
           
