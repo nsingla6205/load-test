@@ -121,7 +121,7 @@ workerConfig:
   vlmMaintenanceTimeoutMinutes: ""
   vlmMediatorMaintenanceRebootMigrateTimeoutMinutes: ""
   vlmMediatorMaintenanceRecreateTimeoutMinutes: ""
-  ontapVersionDetails: "9.19.1P2X7"
+  ontapVersionDetails: "9.19.1P2"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 
@@ -145,7 +145,7 @@ workerConfig:
   ociVmrsEnabled: true
   ociMediatorInstanceType: "VM.Standard3.Flex"
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa2delfglt4txfjbxoy7ez2hyvngnfbr3uq5p3ruoorsclelpyzfoa"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaauvhttnd6rsbsgpx5jkh5e332ftqqu2bdftwixnn2547c3sfun2ga"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaakb25z6jkkwj7skh2pcibv4n2ug2w4oo2qdqhe64y4ig5iwilvirq"
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqawdbcztrssymfs5ecji762wkgoszv5ugygyosujgbdawq"
   smcLicenseSecretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqadvwtqfikv7sm2n22kzwsxqvnh2oebchvwdmktee3jlca"
   ociResourcePrincipalRegion: "us-ashburn-1"

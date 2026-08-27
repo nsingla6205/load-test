@@ -326,6 +326,12 @@ Key placeholder reference:
 | `<VSA_DEPLOYED_DNS_NAME>`   | DNS suffix for deployed VSA hosts (e.g. `iad.vsa`)                                 |
 | `<OCI_VSA_DNS_ZONE_OCID>`   | OCI DNS zone OCID for VSA hostnames                                                |
 | `<OCI_USE_TLS_SNI_OVERRIDE>` | Replace with unquoted `true` or `false` — enable TLS SNI override for VSA          |
+| `<OCI_CLIENT_ISSUER_CA_OCID>` | OCI Certificate Authority OCID for mTLS client certs (vcp-worker)                |
+| `<ENABLE_ADMIN_TEMP_PASSWORD>` | `true` or `false` (vcp-worker) — enable admin temp password. oci-proxy defaults to `"true"` in values.yaml. |
+| `<ENABLE_OCI_TEMP_PASSWORD_RESET_CRON>` | `true` or `false` (vcp-worker) — enable scheduled temp-password reset. oci-proxy defaults to `"true"` in values.yaml. |
+| `<OCI_TEMP_PASSWORD_RESET_MINUTES>` | Minutes before temp password reset (e.g. `1440` for 24 hours, vcp-worker only) |
+| `<ENABLE_OCI_VSA_CERTIFICATE_ROTATION>` | `"true"` or `"false"` (vcp-worker) — enable VSA certificate rotation. oci-proxy defaults to `"true"` in values.yaml. |
+| `<OCI_CERTIFICATE_ROTATION_CRON>` | Cron schedule for certificate rotation (e.g. `"0 0 * * *"`, vcp-worker only). oci-proxy defaults in values.yaml. |
 | `<ONTAP_VERSION>`           | Same as `$ONTAP_VERSION` — `jq -r '.vsaArtifacts.versions[0].ontapVersion' "$MANIFEST"` |
 | `<VSA_VLM_ENCRYPTION_KEY>`  | 32-byte AES-256 key — **must be identical** in vcp-worker and vlm-worker overrides |
 

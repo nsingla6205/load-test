@@ -21,7 +21,7 @@ workerConfig:
   database:
     host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa2delfglt4txfjbxoy7ez2hyvngnfbr3uq5p3ruoorsclelpyzfoa"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaauvhttnd6rsbsgpx5jkh5e332ftqqu2bdftwixnn2547c3sfun2ga"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaakb25z6jkkwj7skh2pcibv4n2ug2w4oo2qdqhe64y4ig5iwilvirq"
   ociVaultOcid: "ocid1.vault.oc1.iad.eju42binaahsi.abuwcljtha5cq66ha3q6lb6di7wn3ttuz542asib3oag27k7dljv3cjpnjta"
   ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
   ociVaultCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"

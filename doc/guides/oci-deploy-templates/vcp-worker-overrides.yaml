@@ -30,6 +30,8 @@ workerConfig:
   enableOciTempPasswordResetCron: <ENABLE_OCI_TEMP_PASSWORD_RESET_CRON>  # true or false
   ociTempPasswordResetAfterMinutes: <OCI_TEMP_PASSWORD_RESET_MINUTES>    # e.g. 1440 (24 hours)
   ociVsaUserBootargs: ""                              # Optional: custom VSA bootargs (e.g. "bootarg.oci.cloud_proxy_lb_endpoint=http://<IP>")
+  enableOciVsaCertificateRotation: "<ENABLE_OCI_VSA_CERTIFICATE_ROTATION>"  # "true" or "false"
+  ociCertificateRotationCronExpression: "<OCI_CERTIFICATE_ROTATION_CRON>"    # e.g. "0 0 * * *"
 
 # Multi-version worker support. One Deployment + ConfigMap is rendered per entry
 # so in-flight workflows keep their versioned task queue (customer-workflows-<version>)
