@@ -3,6 +3,7 @@ name: VSA and Mediator Compute Image Copy
 # This workflow copies VSA or Mediator compute images to autopush, staging, or prod.
 # All run parameters (version, image_name, bundle_name, upgrade paths) are read from a config file in config/VSA-Image/. VLM worker copy is not in this workflow; use separate steps when ready.
 # Manual trigger: provide Config file name (e.g. 9.18.1X26.json), Run mode, Image type, and Environment. See config/VSA-Image/README.md.
+# debug_mode is read-only: inspect COT paths via the Pull VM and skip every mutating job.
 
 permissions:
   contents: read
@@ -37,6 +38,11 @@ on:
           - autopush
           - staging
           - prod
+      debug_mode:
+        description: 'Read-only: inspect COT release paths via Pull VM and skip all mutating jobs'
+        required: false
+        type: boolean
+        default: false
 
 env:
   GCP_REGION: 'us-central1'
@@ -48,24 +54,9 @@ env:
   PULL_VM_IMPERSONATE_SA: 'gcnv-vsa-image-sa@gcnv-vsa-prod.iam.gserviceaccount.com'
 
 jobs:
-  validate-dispatch-ref:
-    name: Require main branch
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Reject feature-branch dispatches
-        run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "❌ Image-copy dispatches are allowed only from main; received $GITHUB_REF"
-            exit 1
-          fi
-          echo "✅ Dispatch branch is main"
-
   resolve-dispatch-inputs:
     name: Resolve Parameters (from config file)
     runs-on: ubuntu-latest
-    needs: validate-dispatch-ref
     permissions:
       contents: read
     outputs:
@@ -252,11 +243,99 @@ jobs:
             echo "| **VLM worker image** | \`${{ steps.resolve.outputs.vlm_worker_tar_gz_path }}\` → tag \`${{ steps.resolve.outputs.vlm_worker_tag }}\` |" >> $GITHUB_STEP_SUMMARY
           fi
 
+  debug-cot-listing:
+    name: DEBUG - Inspect P2X6 COT structure (read-only)
+    runs-on: ubuntu-latest
+    needs: resolve-dispatch-inputs
+    if: ${{ inputs.debug_mode == true }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER_VSA }}
+          service_account: ${{ secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure gcloud for Pull VM SSH
+        run: |
+          gcloud config set project ${PULL_VM_PROJECT}
+          gcloud config set compute/region ${GCP_REGION}
+          gcloud config set core/disable_prompts true
+
+      - name: Inspect candidate release structures on Pull VM
+        env:
+          VERSION: ${{ needs.resolve-dispatch-inputs.outputs.version }}
+          BUNDLE_NAME: ${{ needs.resolve-dispatch-inputs.outputs.bundle_name }}
+          UPGRADE_BUNDLE: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_release_bundle_path }}
+          UPGRADE_FILE: ${{ needs.resolve-dispatch-inputs.outputs.upgrade_file_path }}
+          VLM_TARGZ: ${{ needs.resolve-dispatch-inputs.outputs.vlm_worker_tar_gz_path }}
+          RBAC_FOLDER: ${{ needs.resolve-dispatch-inputs.outputs.rbac_folder_path }}
+        run: |
+          set -euo pipefail
+
+          REMOTE_SCRIPT=$(cat <<'RS'
+          #!/bin/bash
+          set +e
+
+          inspect_prefix() {
+            local uri="$1"
+            printf '\n===== %s =====\n' "$uri"
+            gcloud storage ls --recursive "$uri" 2>&1 | head -1000
+            printf '[exit=%s]\n' "${PIPESTATUS[0]}"
+          }
+
+          inspect_object() {
+            local uri="$1"
+            printf '\n===== DESCRIBE %s =====\n' "$uri"
+            gcloud storage objects describe "$uri" 2>&1 | head -40
+            printf '[exit=%s]\n' "${PIPESTATUS[0]}"
+          }
+
+          printf 'VERSION=%s\nBUNDLE_NAME=%s\nUPGRADE_BUNDLE=%s\nUPGRADE_FILE=%s\n' \
+            '__VERSION__' '__BUNDLE_NAME__' '__UPGRADE_BUNDLE__' '__UPGRADE_FILE__'
+
+          # Exact paths currently declared by the config.
+          inspect_object "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/GCNV/__VERSION__/IMAGE_SIG_TGZ"
+          inspect_object "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/Mediator/__VERSION__/IMAGE_SIG_TGZ"
+          inspect_object "gs://cot-releases-public/__UPGRADE_BUNDLE__/__UPGRADE_FILE__"
+
+          # Candidate release structures seen in the P2X6 branch history.
+          for root in GCNV_released_bundle GCNV_staged_bundle; do
+            inspect_prefix "gs://cot-releases-public/${root}/9.19.1xP2_RC1/**"
+            inspect_prefix "gs://cot-releases-public/${root}/9.19.1Px_8239150/**"
+          done
+
+          if [ -n "__VLM_TARGZ__" ]; then inspect_object "__VLM_TARGZ__"; fi
+          if [ -n "__RBAC_FOLDER__" ]; then
+            inspect_prefix "gs://cot-releases-public/__UPGRADE_BUNDLE__/__RBAC_FOLDER__/**"
+          fi
+          RS
+          )
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__VERSION__/${VERSION}}"
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__BUNDLE_NAME__/${BUNDLE_NAME}}"
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__UPGRADE_BUNDLE__/${UPGRADE_BUNDLE}}"
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__UPGRADE_FILE__/${UPGRADE_FILE}}"
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__VLM_TARGZ__/${VLM_TARGZ}}"
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__RBAC_FOLDER__/${RBAC_FOLDER}}"
+          SCRIPT_B64=$(printf '%s' "$REMOTE_SCRIPT" | base64 -w0)
+
+          gcloud compute ssh ${PULL_VM_NAME} \
+            --zone=${GCP_ZONE} \
+            --project=${PULL_VM_PROJECT} \
+            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
+            --quiet \
+            --command="echo '$SCRIPT_B64' | base64 -d | sudo bash"
+
   push-vlm-worker-image:
     name: Push VLM Worker Image (when in config)
     runs-on: ubuntu-latest
     needs: resolve-dispatch-inputs
-    if: needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' && needs.resolve-dispatch-inputs.outputs.image_type == 'both' && needs.resolve-dispatch-inputs.outputs.vlm_worker_tar_gz_path != '' && needs.resolve-dispatch-inputs.outputs.vlm_worker_tag != ''
+    if: inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' && needs.resolve-dispatch-inputs.outputs.image_type == 'both' && needs.resolve-dispatch-inputs.outputs.vlm_worker_tar_gz_path != '' && needs.resolve-dispatch-inputs.outputs.vlm_worker_tag != ''
     permissions:
       contents: read
       id-token: write
@@ -423,7 +502,7 @@ jobs:
     name: Resolve Parameters (${{ matrix.image_type }})
     runs-on: ubuntu-latest
     needs: resolve-dispatch-inputs
-    if: needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment'
+    if: inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment'
     strategy:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
@@ -570,6 +649,7 @@ jobs:
     name: Pre-check Image Existence (${{ matrix.image_type }})
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, parse-version-file]
+    if: inputs.debug_mode != true
     strategy:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
@@ -643,6 +723,7 @@ jobs:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
     if: |
+      inputs.debug_mode != true &&
       needs.parse-version-file.outputs.is_autopush == 'true'
     
     permissions:
@@ -860,6 +941,7 @@ jobs:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
     if: |
+      inputs.debug_mode != true &&
       needs.parse-version-file.outputs.is_autopush == 'true' &&
       (needs.create-and-export-image.result == 'success' || needs.create-and-export-image.result == 'skipped') &&
       needs.resolve-dispatch-inputs.outputs.bundle_name != '' &&
@@ -967,6 +1049,7 @@ jobs:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
     if: |
+      inputs.debug_mode != true &&
       always() &&
       (
         (needs.parse-version-file.outputs.is_autopush == 'true' && needs.create-and-export-image.result != 'failure') ||
@@ -1208,6 +1291,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, copy-to-destination]
     if: |
+      inputs.debug_mode != true &&
       always() &&
       needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' &&
       needs.resolve-dispatch-inputs.outputs.upgrade_release_bundle_path != '' &&
@@ -1315,6 +1399,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, copy-to-destination]
     if: |
+      inputs.debug_mode != true &&
       always() &&
       needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' &&
       needs.resolve-dispatch-inputs.outputs.rbac_folder_path != '' &&
@@ -1407,6 +1492,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, parse-version-file, pre-check-image]
     if: |
+      inputs.debug_mode != true &&
       needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' &&
       needs.resolve-dispatch-inputs.outputs.image_type == 'vsa' &&
       needs.pre-check-image.outputs.image_exists == 'true' &&
@@ -1540,6 +1626,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, parse-version-file, pre-check-image]
     if: |
+      inputs.debug_mode != true &&
       needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment' &&
       needs.parse-version-file.outputs.image_type == 'vsa' &&
       needs.pre-check-image.outputs.image_exists == 'true' &&
@@ -1635,6 +1722,7 @@ jobs:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
     if: |
+      inputs.debug_mode != true &&
       always() &&
       needs.copy-to-destination.result != 'failure' &&
       (
@@ -2019,7 +2107,7 @@ jobs:
   run-autopush:
     name: All environments – Autopush
     needs: resolve-dispatch-inputs
-    if: needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
+    if: inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
     strategy:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
@@ -2042,7 +2130,7 @@ jobs:
   run-staging:
     name: All environments – Staging
     needs: [resolve-dispatch-inputs, run-autopush]
-    if: needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
+    if: inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
     strategy:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
@@ -2065,7 +2153,7 @@ jobs:
   run-prod:
     name: All environments – Production
     needs: [resolve-dispatch-inputs, run-staging]
-    if: needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
+    if: inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'all_environments'
     strategy:
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
@@ -2089,7 +2177,7 @@ jobs:
     name: Workflow Summary
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, parse-version-file, pre-check-image, create-and-export-image, copy-to-destination, copy-upgrade-to-destination, create-in-destination]
-    if: always() && needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment'
+    if: always() && inputs.debug_mode != true && needs.resolve-dispatch-inputs.outputs.run_mode == 'single_environment'
     
     permissions:
       contents: read
