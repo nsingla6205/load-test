@@ -25,8 +25,7 @@ import (
 )
 
 var (
-	extractOntapPath              = utils.ExtractOntapPathRaw
-	testOntapEndpointReachability = _testOntapEndpointReachability
+	extractOntapPath = utils.ExtractOntapPathRaw
 
 	// Environment variable values
 	ontapMaxIdleConns                 = env.GetInt("ONTAP_MAX_IDLE_CONNS", 200)
@@ -51,12 +50,36 @@ var (
 
 const localEnv = "local"
 
+type connectionPoolDependencies struct {
+	testEndpointReachability func(context.Context, string, *models.AuthData, *http.Transport) error
+}
+
+func defaultConnectionPoolDependencies() connectionPoolDependencies {
+	return connectionPoolDependencies{
+		testEndpointReachability: func(ctx context.Context, endpoint string, authData *models.AuthData, transport *http.Transport) error {
+			return _testOntapEndpointReachability(endpoint, authData, ctx, transport)
+		},
+	}
+}
+
+type clientCreationResult struct {
+	client   *http.Client
+	endpoint string
+}
+
 // ConnectionPool manages HTTP clients for different ONTAP clusters and auth types
 type ConnectionPool struct {
 	clients          map[string]*http.Client
 	clientEndpoints  map[string]string    // Maps pool key to selected endpoint
 	clientTimestamps map[string]time.Time // Track last used time
-	mutex            sync.RWMutex
+	mutex            sync.RWMutex         // Protects the maps above only; never held during ONTAP probes
+	keyMutex         sync.Mutex           // Protects keyLocks
+	// keyLocks holds one mutex per account and pool, independent of credentials.
+	// With ~5,000 pools per region this is ~5,000 entries (about 1-2 MB). Entries
+	// need not be pruned because weekly/monthly rollouts restart ontap-proxy and
+	// clear the map.
+	keyLocks     map[string]*sync.Mutex
+	dependencies connectionPoolDependencies
 
 	// Configuration
 	maxIdleConns        int
@@ -86,10 +109,16 @@ func GetGlobalConnectionPool() *ConnectionPool {
 
 // NewConnectionPool creates a new connection pool with optimized settings
 func NewConnectionPool() *ConnectionPool {
+	return newConnectionPoolWithDependencies(defaultConnectionPoolDependencies())
+}
+
+func newConnectionPoolWithDependencies(dependencies connectionPoolDependencies) *ConnectionPool {
 	pool := &ConnectionPool{
 		clients:          make(map[string]*http.Client),
 		clientEndpoints:  make(map[string]string),
 		clientTimestamps: make(map[string]time.Time),
+		keyLocks:         make(map[string]*sync.Mutex),
+		dependencies:     dependencies,
 
 		// Configuration from environment variables with defaults
 		maxIdleConns:        ontapMaxIdleConns,
@@ -107,41 +136,74 @@ func NewConnectionPool() *ConnectionPool {
 	return pool
 }
 
-// GetClient returns a pooled HTTP client for the given auth data
+// GetClient returns a pooled HTTP client for the given auth data.
+// Map access uses the shared mutex. Client creation and ONTAP reachability
+// tests use a per-key lock so a slow or failing pool does not block others.
 func (p *ConnectionPool) GetClient(ctx context.Context, authData *models.AuthData) (*http.Client, string, error) {
 	key := p.generatePoolKey(authData)
 
-	// Try to get existing client (fast path with read lock)
-	p.mutex.RLock()
-	if client, exists := p.clients[key]; exists {
-		p.mutex.RUnlock()
-		// Update last used timestamp
-		p.mutex.Lock()
-		p.clientTimestamps[key] = time.Now()
-		selectedEndpoint := p.clientEndpoints[key]
-		p.mutex.Unlock()
-		return client, selectedEndpoint, nil
+	if result, exists := p.getCachedClient(key); exists {
+		return result.client, result.endpoint, nil
 	}
-	p.mutex.RUnlock()
 
-	// Create new client (slow path with write lock)
+	keyLock := p.lockForKey(p.generatePoolLockKey(authData))
+	defer keyLock.Unlock()
+
+	return p.createAndCacheClient(ctx, key, authData)
+}
+
+func (p *ConnectionPool) generatePoolLockKey(authData *models.AuthData) string {
+	return fmt.Sprintf("%s:%s", authData.AccountName, authData.PoolID)
+}
+
+func (p *ConnectionPool) lockForKey(key string) *sync.Mutex {
+	p.keyMutex.Lock()
+	keyLock, exists := p.keyLocks[key]
+	if !exists {
+		keyLock = &sync.Mutex{}
+		p.keyLocks[key] = keyLock
+	}
+	p.keyMutex.Unlock()
+
+	keyLock.Lock()
+	return keyLock
+}
+
+func (p *ConnectionPool) getCachedClient(key string) (clientCreationResult, bool) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	// Double-check after acquiring write lock (prevents race condition)
-	if client, exists := p.clients[key]; exists {
-		p.clientTimestamps[key] = time.Now()
-		selectedEndpoint := p.clientEndpoints[key]
-		return client, selectedEndpoint, nil
+	client, exists := p.clients[key]
+	if !exists {
+		return clientCreationResult{}, false
 	}
 
-	// Create new client
+	p.clientTimestamps[key] = time.Now()
+	return clientCreationResult{
+		client:   client,
+		endpoint: p.clientEndpoints[key],
+	}, true
+}
+
+func (p *ConnectionPool) createAndCacheClient(ctx context.Context, key string, authData *models.AuthData) (*http.Client, string, error) {
+	if result, exists := p.getCachedClient(key); exists {
+		return result.client, result.endpoint, nil
+	}
+
 	client, selectedEndpoint, err := p.createClient(ctx, authData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create client: %w", err)
 	}
 
-	// Store client and the endpoint it's using
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if existingClient, exists := p.clients[key]; exists {
+		closeIdleConnections(client)
+		p.clientTimestamps[key] = time.Now()
+		return existingClient, p.clientEndpoints[key], nil
+	}
+
 	p.clients[key] = client
 	p.clientEndpoints[key] = selectedEndpoint
 	p.clientTimestamps[key] = time.Now()
@@ -195,7 +257,7 @@ func (p *ConnectionPool) createClient(ctx context.Context, authData *models.Auth
 	var lastErr error
 	for _, endpoint := range authData.OntapEndpoints {
 		testAddress := endpoint.DNS
-		err = testOntapEndpointReachability(testAddress, authData, ctx, transport)
+		err = p.dependencies.testEndpointReachability(ctx, testAddress, authData, transport)
 
 		if err != nil {
 			logger.WarnContext(ctx, "ONTAP endpoint not reachable, trying next endpoint",
@@ -476,8 +538,12 @@ type PooledAuthTransport struct {
 
 // NewPooledAuthTransport creates a new pooled auth transport
 func NewPooledAuthTransport() *PooledAuthTransport {
+	return newPooledAuthTransportWithPool(globalConnectionPool)
+}
+
+func newPooledAuthTransportWithPool(pool *ConnectionPool) *PooledAuthTransport {
 	return &PooledAuthTransport{
-		pool: globalConnectionPool,
+		pool: pool,
 	}
 }
 

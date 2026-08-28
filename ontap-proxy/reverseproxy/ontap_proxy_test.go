@@ -12,7 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -81,17 +81,16 @@ func generateTestCertificates(t *testing.T) ([]byte, []byte, []byte) {
 	return clientCertPEM, clientKeyPEM, caCertPEM
 }
 
-// Mock endpoint reachability for all tests
-func TestMain(m *testing.M) {
-	// Mock the endpoint reachability check to always succeed
-	testOntapEndpointReachability = func(endpoint string, authData *models.AuthData, ctx context.Context, transport *http.Transport) error {
-		return nil
-	}
-	os.Exit(m.Run())
+func newTestConnectionPool() *ConnectionPool {
+	return newConnectionPoolWithDependencies(connectionPoolDependencies{
+		testEndpointReachability: func(context.Context, string, *models.AuthData, *http.Transport) error {
+			return nil
+		},
+	})
 }
 
 func TestConnectionPool_GetClient(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -123,8 +122,239 @@ func TestConnectionPool_GetClient(t *testing.T) {
 	assert.Equal(t, 1, stats["total_connections"])
 }
 
+func TestConnectionPool_GetClient_DifferentKeysCreateConcurrently(t *testing.T) {
+	slowProbeStarted := make(chan struct{})
+	releaseSlowProbe := make(chan struct{})
+	var slowProbeCount atomic.Int32
+	t.Cleanup(func() {
+		select {
+		case <-releaseSlowProbe:
+		default:
+			close(releaseSlowProbe)
+		}
+	})
+
+	pool := newConnectionPoolWithDependencies(connectionPoolDependencies{
+		testEndpointReachability: func(_ context.Context, endpoint string, _ *models.AuthData, _ *http.Transport) error {
+			if endpoint == "slow.example.com" {
+				if slowProbeCount.Add(1) == 1 {
+					close(slowProbeStarted)
+				}
+				<-releaseSlowProbe
+			}
+			return nil
+		},
+	})
+	defer pool.Close()
+
+	slowAuthData := &models.AuthData{
+		PoolID:   "slow-pool",
+		Username: "testuser",
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "slow.example.com"},
+		},
+	}
+	fastAuthData := &models.AuthData{
+		PoolID:   "fast-pool",
+		Username: "testuser",
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "fast.example.com"},
+		},
+	}
+
+	slowResult := make(chan error, 1)
+	go func() {
+		_, _, err := pool.GetClient(context.Background(), slowAuthData)
+		slowResult <- err
+	}()
+
+	select {
+	case <-slowProbeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("slow endpoint probe did not start")
+	}
+
+	fastResult := make(chan error, 1)
+	go func() {
+		_, _, err := pool.GetClient(context.Background(), fastAuthData)
+		fastResult <- err
+	}()
+
+	select {
+	case err := <-fastResult:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("client creation for a different key was blocked by the slow endpoint")
+	}
+
+	close(releaseSlowProbe)
+	require.NoError(t, <-slowResult)
+}
+
+func TestConnectionPool_GetClient_CacheHitNotBlockedByOtherKey(t *testing.T) {
+	slowProbeStarted := make(chan struct{})
+	releaseSlowProbe := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseSlowProbe:
+		default:
+			close(releaseSlowProbe)
+		}
+	})
+
+	pool := newConnectionPoolWithDependencies(connectionPoolDependencies{
+		testEndpointReachability: func(_ context.Context, endpoint string, _ *models.AuthData, _ *http.Transport) error {
+			if endpoint == "slow.example.com" {
+				close(slowProbeStarted)
+				<-releaseSlowProbe
+			}
+			return nil
+		},
+	})
+	defer pool.Close()
+
+	cachedAuthData := &models.AuthData{
+		PoolID:   "cached-pool",
+		Username: "testuser",
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "cached.example.com"},
+		},
+	}
+	_, _, err := pool.GetClient(context.Background(), cachedAuthData)
+	require.NoError(t, err)
+
+	slowAuthData := &models.AuthData{
+		PoolID:   "slow-pool",
+		Username: "testuser",
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "slow.example.com"},
+		},
+	}
+	slowResult := make(chan error, 1)
+	go func() {
+		_, _, slowErr := pool.GetClient(context.Background(), slowAuthData)
+		slowResult <- slowErr
+	}()
+
+	select {
+	case <-slowProbeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("slow endpoint probe did not start")
+	}
+
+	cachedResult := make(chan error, 1)
+	go func() {
+		_, _, cachedErr := pool.GetClient(context.Background(), cachedAuthData)
+		cachedResult <- cachedErr
+	}()
+
+	select {
+	case cachedErr := <-cachedResult:
+		require.NoError(t, cachedErr)
+	case <-time.After(time.Second):
+		t.Fatal("cached client lookup was blocked by another pool's probe")
+	}
+
+	close(releaseSlowProbe)
+	require.NoError(t, <-slowResult)
+}
+
+func TestConnectionPool_GetClient_SameKeyCreatesOnce(t *testing.T) {
+	const requestCount = 10
+
+	probeStarted := make(chan struct{})
+	releaseProbe := make(chan struct{})
+	var probeCount atomic.Int32
+	t.Cleanup(func() {
+		select {
+		case <-releaseProbe:
+		default:
+			close(releaseProbe)
+		}
+	})
+
+	pool := newConnectionPoolWithDependencies(connectionPoolDependencies{
+		testEndpointReachability: func(context.Context, string, *models.AuthData, *http.Transport) error {
+			if probeCount.Add(1) == 1 {
+				close(probeStarted)
+			}
+			<-releaseProbe
+			return nil
+		},
+	})
+	defer pool.Close()
+
+	authData := &models.AuthData{
+		PoolID:   "shared-pool",
+		Username: "testuser",
+		OntapEndpoints: []models.OntapEndpoint{
+			{DNS: "shared.example.com"},
+		},
+	}
+
+	type getClientResult struct {
+		client *http.Client
+		err    error
+	}
+	results := make(chan getClientResult, requestCount)
+	for range requestCount {
+		go func() {
+			client, _, err := pool.GetClient(context.Background(), authData)
+			results <- getClientResult{client: client, err: err}
+		}()
+	}
+
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("endpoint probe did not start")
+	}
+	close(releaseProbe)
+
+	var expectedClient *http.Client
+	for range requestCount {
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			require.NotNil(t, result.client)
+			if expectedClient == nil {
+				expectedClient = result.client
+			} else {
+				assert.Same(t, expectedClient, result.client)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for client result")
+		}
+	}
+	assert.Equal(t, int32(1), probeCount.Load())
+}
+
+func TestConnectionPool_GetClient_UsesOneLockPerPool(t *testing.T) {
+	pool := newTestConnectionPool()
+	defer pool.Close()
+
+	for _, username := range []string{"user-1", "user-2"} {
+		authData := &models.AuthData{
+			AccountName: "account-1",
+			PoolID:      "pool-1",
+			Username:    username,
+			OntapEndpoints: []models.OntapEndpoint{
+				{DNS: "host.example.com"},
+			},
+		}
+		_, _, err := pool.GetClient(context.Background(), authData)
+		require.NoError(t, err)
+	}
+
+	assert.Len(t, pool.clients, 2, "credentials should still produce distinct cached clients")
+
+	pool.keyMutex.Lock()
+	defer pool.keyMutex.Unlock()
+	assert.Len(t, pool.keyLocks, 1, "credentials for the same pool should share one creation lock")
+}
+
 func TestConnectionPool_GetClientCacheStatus(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -176,7 +406,7 @@ func TestConnectionPool_GetClientCacheStatus(t *testing.T) {
 	})
 
 	t.Run("StatusShouldContainCorrectCacheKey", func(t *testing.T) {
-		newPool := NewConnectionPool()
+		newPool := newTestConnectionPool()
 		defer newPool.Close()
 
 		authData := &models.AuthData{
@@ -216,7 +446,7 @@ func TestGetGlobalClientCacheStatus(t *testing.T) {
 }
 
 func TestConnectionPool_GeneratePoolKey(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	t.Run("DifferentUsernamesShouldProduceDifferentKeys", func(t *testing.T) {
@@ -334,12 +564,12 @@ func TestConnectionPool_GeneratePoolKey(t *testing.T) {
 
 	t.Run("DedicatedCapacityWithEndpoint_IncludesClusterAndEndpoint", func(t *testing.T) {
 		authData := &models.AuthData{
-			AuthType:     models.USERNAME_PWD_SEC_MGR,
-			PoolID:       "pool-123",
-			AccountName:  "account-456",
-			Username:     "gadmin",
-			ServiceLevel: "STANDARD",
-			ClusterName:  "cluster-a",
+			AuthType:       models.USERNAME_PWD_SEC_MGR,
+			PoolID:         "pool-123",
+			AccountName:    "account-456",
+			Username:       "gadmin",
+			ServiceLevel:   "STANDARD",
+			ClusterName:    "cluster-a",
 			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
 		}
 
@@ -368,11 +598,11 @@ func TestConnectionPool_GeneratePoolKey(t *testing.T) {
 
 	t.Run("DedicatedCapacityDifferentClusters_ProduceDifferentKeys", func(t *testing.T) {
 		base := &models.AuthData{
-			AuthType:     models.USERNAME_PWD_SEC_MGR,
-			PoolID:       "pool-123",
-			AccountName:  "account-456",
-			Username:     "gadmin",
-			ServiceLevel: "STANDARD",
+			AuthType:       models.USERNAME_PWD_SEC_MGR,
+			PoolID:         "pool-123",
+			AccountName:    "account-456",
+			Username:       "gadmin",
+			ServiceLevel:   "STANDARD",
 			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
 		}
 		authA := *base
@@ -411,7 +641,7 @@ func TestConnectionPool_GeneratePoolKey(t *testing.T) {
 }
 
 func TestConnectionPool_DifferentAuthTypes(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -468,7 +698,7 @@ func TestConnectionPool_DifferentAuthTypes(t *testing.T) {
 }
 
 func TestConnectionPool_DifferentPools(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -514,7 +744,7 @@ func TestConnectionPool_DifferentPools(t *testing.T) {
 }
 
 func TestConnectionPool_DifferentUsersOnSamePool(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -600,7 +830,9 @@ func TestPooledAuthTransport_RoundTrip(t *testing.T) {
 	cache.AddToAuthDataCache(cacheKey, authData)
 
 	// Create transport
-	transport := NewPooledAuthTransport()
+	pool := newTestConnectionPool()
+	defer pool.Close()
+	transport := newPooledAuthTransportWithPool(pool)
 
 	// Create request with context
 	req, err := http.NewRequest("GET", "https://"+serverHost+"/test", nil)
@@ -632,9 +864,6 @@ func TestPooledAuthTransport_RoundTrip_RecordsBackendMetrics(t *testing.T) {
 	defer server.Close()
 	serverHost := server.URL[8:]
 
-	// Use a unique PoolID per test run so the global connection pool does not return a cached
-	// client for a different endpoint (pool key does not include endpoint, so same PoolID/username
-	// would reuse a stale client from another test).
 	authData := &models.AuthData{
 		AuthType: models.USERNAME_PWD,
 		PoolID:   "backend-metrics-" + serverHost,
@@ -647,7 +876,9 @@ func TestPooledAuthTransport_RoundTrip_RecordsBackendMetrics(t *testing.T) {
 	cacheKey := "backend-metrics-cache-key"
 	cache.AddToAuthDataCache(cacheKey, authData)
 
-	transport := NewPooledAuthTransport()
+	pool := newTestConnectionPool()
+	defer pool.Close()
+	transport := newPooledAuthTransportWithPool(pool)
 	req, err := http.NewRequest("GET", "https://"+serverHost+"/api/storage/volumes", nil)
 	require.NoError(t, err)
 	ctx := context.WithValue(req.Context(), models.AuthDataKey, cacheKey)
@@ -679,7 +910,11 @@ func TestPooledAuthTransport_RoundTrip_RecordsBackendMetricsOnTransportError(t *
 	cacheKey := "transport-err-cache-key"
 	cache.AddToAuthDataCache(cacheKey, authData)
 
-	transport := NewPooledAuthTransport()
+	// The pool stubs reachability so client creation succeeds and the request reaches
+	// client.Do, which is the only path that records the status_code=0 metrics.
+	pool := newTestConnectionPool()
+	defer pool.Close()
+	transport := newPooledAuthTransportWithPool(pool)
 	req, err := http.NewRequest("GET", "https://invalid-hostname-does-not-resolve.invalid/api/test", nil)
 	require.NoError(t, err)
 	ctx := context.WithValue(req.Context(), models.AuthDataKey, cacheKey)
@@ -689,6 +924,7 @@ func TestPooledAuthTransport_RoundTrip_RecordsBackendMetricsOnTransportError(t *
 	resp, err := transport.RoundTrip(req)
 	assert.Error(t, err)
 	assert.Nil(t, resp)
+	assert.NotContains(t, err.Error(), "failed to get pool client")
 }
 
 func setupTestContextWithAuthData(req *http.Request, username, password string) {
@@ -1120,7 +1356,7 @@ func TestErrorHandlerResponses(t *testing.T) {
 }
 
 func TestConnectionPool_Cleanup(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 	ctx := context.Background()
 	// Create multiple clients
@@ -1154,7 +1390,7 @@ func TestConnectionPool_Cleanup(t *testing.T) {
 }
 
 func TestBuildCertificateTransport_WithInvalidCerts(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	// This will fail due to invalid cert, but we can test the path
@@ -1175,7 +1411,7 @@ func TestBuildCertificateTransport_WithInvalidCerts(t *testing.T) {
 }
 
 func TestBuildCertificateTransport_WithValidCerts(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	// Generate a self-signed certificate for testing
@@ -1201,7 +1437,7 @@ func TestBuildCertificateTransport_WithValidCerts(t *testing.T) {
 }
 
 func TestConnectionPool_Cleanup_OldConnections(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	// Set a very short cleanup threshold
@@ -1242,7 +1478,7 @@ func TestConnectionPool_Cleanup_OldConnections(t *testing.T) {
 
 func TestConnectionPool_CleanupRoutine_Runs(t *testing.T) {
 	// Create a new pool to test the cleanup routine
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	// Set a very short cleanup threshold so connections are considered old quickly
@@ -1286,7 +1522,7 @@ func TestConnectionPool_CleanupRoutine_Runs(t *testing.T) {
 }
 
 func TestConnectionPool_Cleanup_OverLimit(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	// Set a low max connections limit to trigger over-limit cleanup
@@ -1347,7 +1583,7 @@ func TestConnectionPool_Cleanup_OverLimit_RemovesOldest(t *testing.T) {
 		// Verify the variable is set correctly
 		assert.Equal(t, 3, ontapMaxTotalConnections, "ontapMaxTotalConnections should be set to 3")
 
-		pool := NewConnectionPool()
+		pool := newTestConnectionPool()
 		defer pool.Close()
 		ctx := context.Background()
 
@@ -1461,7 +1697,7 @@ func TestConnectionPool_Cleanup_OverLimit_RemovesOldest(t *testing.T) {
 		// Verify the variable is set correctly
 		assert.Equal(t, 2, ontapMaxTotalConnections, "ontapMaxTotalConnections should be set to 2")
 
-		pool := NewConnectionPool()
+		pool := newTestConnectionPool()
 		defer pool.Close()
 		ctx := context.Background()
 
@@ -1529,7 +1765,7 @@ func TestConnectionPool_Cleanup_OverLimit_RemovesOldest(t *testing.T) {
 		// Verify the variable is set correctly
 		assert.Equal(t, 1, ontapMaxTotalConnections, "ontapMaxTotalConnections should be set to 1")
 
-		pool := NewConnectionPool()
+		pool := newTestConnectionPool()
 		defer pool.Close()
 		ctx := context.Background()
 
@@ -1598,7 +1834,7 @@ func TestPooledAuthTransport_RoundTrip_NoAuthData(t *testing.T) {
 }
 
 func TestPooledAuthTransport_RoundTrip_GetClientError(t *testing.T) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 
 	ctx := context.Background()
@@ -1669,7 +1905,9 @@ func TestPooledAuthTransport_RoundTrip_ConfigureAuthError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	transport := NewPooledAuthTransport()
+	pool := newTestConnectionPool()
+	defer pool.Close()
+	transport := newPooledAuthTransportWithPool(pool)
 
 	authData := &models.AuthData{
 		AuthType: models.USERNAME_PWD,
@@ -1698,7 +1936,7 @@ func TestPooledAuthTransport_RoundTrip_ConfigureAuthError(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkConnectionPool_GetClient(b *testing.B) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 	ctx := context.Background()
 	authData := &models.AuthData{
@@ -1725,7 +1963,7 @@ func BenchmarkConnectionPool_GetClient(b *testing.B) {
 }
 
 func BenchmarkConnectionPool_ConcurrentAccess(b *testing.B) {
-	pool := NewConnectionPool()
+	pool := newTestConnectionPool()
 	defer pool.Close()
 	ctx := context.Background()
 	authData := &models.AuthData{
