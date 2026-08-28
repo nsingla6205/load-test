@@ -708,7 +708,8 @@ jobs:
           fi
           
           if [ "$IMAGE_EXISTS" = "true" ]; then
-            echo "✅ Image $IMAGE_NAME already exists in $DEST_PROJECT - will skip copy for this image"
+            echo "✅ Image $IMAGE_NAME already exists in $DEST_PROJECT"
+            echo "   Compute image will not be overwritten. GCS copy still compares source vs destination hashes."
             echo "image_exists=true" >> $GITHUB_OUTPUT
           else
             echo "ℹ️ Image $IMAGE_NAME does not exist in $DEST_PROJECT - will copy"
@@ -1100,21 +1101,18 @@ jobs:
             IMAGE_NAME="${{ needs.resolve-dispatch-inputs.outputs.image_name }}"
             IMAGE_TYPE_PATH_SEGMENT="VSA"
           fi
-          IS_AUTOPUSH="${{ needs.parse-version-file.outputs.is_autopush }}"
           VERSION="${{ needs.resolve-dispatch-inputs.outputs.version }}"
           BUCKET_NAME="${{ needs.resolve-dispatch-inputs.outputs.bucket_name }}"
           [ -z "$BUCKET_NAME" ] && BUCKET_NAME="$VERSION"
           # Downstream/destination folder uses BUCKET_NAME (patch identifier).
           IMAGE_TYPE_PATH="GCNV/${BUCKET_NAME}/${IMAGE_TYPE_PATH_SEGMENT}"
           
-          if [ "$IS_AUTOPUSH" == "true" ]; then
-            # For autopush, use the exported image URI
-            SOURCE_URI="${{ needs.create-and-export-image.outputs.image_uri }}"
-          else
-            # For staging/prod, use the source bucket directly with version/image_type path
-            SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
-            SOURCE_URI="gs://$SOURCE_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
-          fi
+          # VSCP-7086: derive the source URI locally for every environment.
+          # create-and-export-image is a matrix job, so its outputs collapse to a
+          # single leg and reading image_uri here handed the mediator leg the VSA
+          # export. This rebuilds the exact URI the export step wrote, per leg.
+          SOURCE_BUCKET="${{ needs.parse-version-file.outputs.source_bucket }}"
+          SOURCE_URI="gs://$SOURCE_BUCKET/$IMAGE_TYPE_PATH/$IMAGE_NAME.tar.gz"
           
           echo "source_uri=$SOURCE_URI" >> $GITHUB_OUTPUT
           echo "Source URI: $SOURCE_URI"
@@ -1145,32 +1143,8 @@ jobs:
           echo "Source: $SOURCE_URI"
           echo "Destination: $DEST_URI"
           echo ""
-          
-          # Check if already exists in destination
-          DEST_EXISTS=false
-          if gsutil -q stat "$DEST_URI" 2>/dev/null; then
-            DEST_EXISTS=true
-          fi
-          
-          if [ "$DEST_EXISTS" = "true" ]; then
-            echo "⚠️ Image already exists in destination bucket: $DEST_URI"
-            echo "status=exists" >> $GITHUB_OUTPUT
-            echo "source_uri=$SOURCE_URI" >> $GITHUB_OUTPUT
-          else
-            # Copy image
-            gsutil cp "$SOURCE_URI" "$DEST_URI"
-            
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 0 ]; then
-              echo "✅ Image copied successfully to $DEST_URI"
-              echo "status=success" >> $GITHUB_OUTPUT
-              echo "source_uri=$SOURCE_URI" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Failed to copy image"
-              echo "status=failed" >> $GITHUB_OUTPUT
-              exit 1
-            fi
-          fi
+          echo "source_uri=$SOURCE_URI" >> $GITHUB_OUTPUT
+          bash "$GITHUB_WORKSPACE/.github/scripts/gcs-copy-if-different.sh" "$SOURCE_URI" "$DEST_URI"
       
       - name: Copy signature file to destination bucket
         id: copy-sig
@@ -1245,31 +1219,8 @@ jobs:
             exit 1
           fi
           
-          # Check if destination signature file already exists
-          DEST_EXISTS=false
-          if gsutil -q stat "$DEST_SIG_URI" 2>/dev/null; then
-            DEST_EXISTS=true
-          fi
-          
-          if [ "$DEST_EXISTS" = "true" ]; then
-            echo "⚠️ Signature file already exists in destination bucket: $DEST_SIG_URI"
-            echo "status=exists" >> $GITHUB_OUTPUT
-            echo "dest_sig_uri=$DEST_SIG_URI" >> $GITHUB_OUTPUT
-          else
-            # Copy signature file
-            gsutil cp "$SOURCE_SIG_URI" "$DEST_SIG_URI"
-            
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 0 ]; then
-              echo "✅ Signature file copied successfully to $DEST_SIG_URI"
-              echo "status=success" >> $GITHUB_OUTPUT
-              echo "dest_sig_uri=$DEST_SIG_URI" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Failed to copy signature file"
-              echo "status=failed" >> $GITHUB_OUTPUT
-              exit 1
-            fi
-          fi
+          echo "dest_sig_uri=$DEST_SIG_URI" >> $GITHUB_OUTPUT
+          bash "$GITHUB_WORKSPACE/.github/scripts/gcs-copy-if-different.sh" "$SOURCE_SIG_URI" "$DEST_SIG_URI"
       
       - name: Show copy summary
         if: always()
@@ -1729,9 +1680,9 @@ jobs:
         (needs.parse-version-file.outputs.is_autopush == 'true' && 
          needs.create-and-export-image.result != 'failure' &&
          needs.copy-to-destination.result != 'failure' &&
-         (needs.copy-to-destination.outputs.copy_status == 'success' || needs.copy-to-destination.outputs.copy_status == 'exists') &&
+         (needs.copy-to-destination.outputs.copy_status == 'success' || needs.copy-to-destination.outputs.copy_status == 'exists' || needs.copy-to-destination.outputs.copy_status == 'identical') &&
          (needs.copy-signature-file-to-vsa-compute-images.result == 'success' || needs.copy-signature-file-to-vsa-compute-images.result == 'skipped') &&
-         (needs.copy-to-destination.outputs.sig_copy_status == '' || needs.copy-to-destination.outputs.sig_copy_status == 'success' || needs.copy-to-destination.outputs.sig_copy_status == 'exists' || needs.copy-to-destination.outputs.sig_copy_status == 'not_found')) ||
+         (needs.copy-to-destination.outputs.sig_copy_status == '' || needs.copy-to-destination.outputs.sig_copy_status == 'success' || needs.copy-to-destination.outputs.sig_copy_status == 'exists' || needs.copy-to-destination.outputs.sig_copy_status == 'identical' || needs.copy-to-destination.outputs.sig_copy_status == 'not_found')) ||
         (needs.parse-version-file.outputs.is_autopush == 'false')
       )
     
@@ -1847,27 +1798,13 @@ jobs:
           echo "📦 Extracting signature file from IMAGE_SIG_TGZ..."
           tar -xzvf IMAGE_SIG_TGZ
           
-          # Find signature file with fallback patterns (old or new naming conventions)
+          # IMAGE_SIG_TGZ is shared per VSA/Mediator folder. Require the digest
+          # named for THIS image so a sibling (e.g. cvo-mediator-x-9-19-1_digest.sig
+          # for a d1 image) cannot be used.
           echo "🔍 Searching for signature file..."
-          SIG_FILE=$(ls -1 *_digest.sig 2>/dev/null | head -n 1)
-          
-          # Fallback: try other .sig files if *_digest.sig not found
-          if [ -z "$SIG_FILE" ]; then
-            SIG_FILE=$(ls -1 *.sig 2>/dev/null | head -n 1)
-          fi
-          
-          # Fallback: try any file with "digest" in name
-          if [ -z "$SIG_FILE" ]; then
-            SIG_FILE=$(find . -type f -name "*digest*" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
-          fi
-          
-          # Fallback: accept any .sig file as last resort
-          if [ -z "$SIG_FILE" ]; then
-            SIG_FILE=$(find . -type f -name "*.sig" 2>/dev/null | head -n 1 | xargs basename 2>/dev/null)
-          fi
-          
-          if [ -z "$SIG_FILE" ]; then
-            echo "❌ Error: No signature file found after extraction"
+          SIG_FILE="${IMAGE_NAME}_digest.sig"
+          if [ ! -f "$SIG_FILE" ]; then
+            echo "❌ Signature archive does not contain ${SIG_FILE}"
             echo "Available files:"
             ls -la
             exit 1
@@ -1964,11 +1901,7 @@ jobs:
             elif [ $GPG_EXIT_CODE -eq 124 ]; then
               echo "⏳ GPG verification TIMEOUT"
             else
-              echo "⚠️ GPG verification requires imported keys"
-              echo "The signature file contains the public key information"
-              echo "Verification will pass once keys are properly imported"
-              VERIFY_SUCCESS=true
-              VERIFY_METHOD="GPG (OpenPGP - keys pending import)"
+              echo "❌ GPG verification FAILED (exit code: $GPG_EXIT_CODE)"
             fi
             echo ""
           fi
@@ -2064,7 +1997,17 @@ jobs:
           fi
           
           if [ "$IMAGE_EXISTS" = "true" ]; then
-            echo "⚠️ Image $IMAGE_NAME already exists in $DEST_PROJECT"
+            EXISTING_C1=$(gcloud compute images describe "$IMAGE_NAME" --project="$DEST_PROJECT" --format='value(labels.checksum1)')
+            EXISTING_C2=$(gcloud compute images describe "$IMAGE_NAME" --project="$DEST_PROJECT" --format='value(labels.checksum2)')
+            echo "⚠️ Image $IMAGE_NAME already exists in $DEST_PROJECT — will not overwrite"
+            echo "Existing labels: checksum1=$EXISTING_C1 checksum2=$EXISTING_C2"
+            echo "Tarball SHA labels: checksum1=$CHECKSUM1 checksum2=$CHECKSUM2"
+            if [ "$EXISTING_C1" != "$CHECKSUM1" ] || [ "$EXISTING_C2" != "$CHECKSUM2" ]; then
+              echo "❌ Existing compute image checksum labels do not match the destination tarball."
+              echo "This workflow never overwrites a GCE image. Delete the image out-of-band if it must be replaced."
+              exit 1
+            fi
+            echo "✅ Existing image labels match destination tarball"
             echo "status=exists" >> $GITHUB_OUTPUT
           else
             # Create image from GCS with checksum labels (required)
@@ -2201,7 +2144,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "✅ **Pre-check Result**: Image **${{ needs.parse-version-file.outputs.image_name }}** already exists in **${{ needs.parse-version-file.outputs.destination_project }}**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "All subsequent workflow steps were skipped as the image is already present in the destination project." >> $GITHUB_STEP_SUMMARY
+            echo "GCE image already exists and will not be overwritten. GCS copy still compared source vs destination hashes." >> $GITHUB_STEP_SUMMARY
           else
             echo "### Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
