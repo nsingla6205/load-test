@@ -768,22 +768,22 @@ func (s *Server) handleSetConfigV1Request(args [0]string, argsEscaped bool, w ht
 	}
 }
 
-// handleV1CreateHostGroupRequest handles v1_createHostGroup operation.
+// handleV1CreateIgroupRequest handles v1_createIgroup operation.
 //
-// Create a new HostGroup.
+// Create a new igroup.
 //
-// POST /v1/hostGroups
-func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// POST /v1/igroups
+func (s *Server) handleV1CreateIgroupRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("v1_createHostGroup"),
+		otelogen.OperationID("v1_createIgroup"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/hostGroups"),
+		semconv.HTTPRouteKey.String("/v1/igroups"),
 	}
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), V1CreateHostGroupOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1CreateIgroupOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -838,11 +838,11 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: V1CreateHostGroupOperation,
-			ID:   "v1_createHostGroup",
+			Name: V1CreateIgroupOperation,
+			ID:   "v1_createIgroup",
 		}
 	)
-	params, err := decodeV1CreateHostGroupParams(args, argsEscaped, r)
+	params, err := decodeV1CreateIgroupParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -854,7 +854,7 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 	}
 
 	var rawBody []byte
-	request, rawBody, close, err := s.decodeV1CreateHostGroupRequest(r)
+	request, rawBody, close, err := s.decodeV1CreateIgroupRequest(r)
 	if err != nil {
 		err = &ogenerrors.DecodeRequestError{
 			OperationContext: opErrContext,
@@ -870,13 +870,13 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 		}
 	}()
 
-	var response V1CreateHostGroupRes
+	var response V1CreateIgroupRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    V1CreateHostGroupOperation,
-			OperationSummary: "Create a new HostGroup",
-			OperationID:      "v1_createHostGroup",
+			OperationName:    V1CreateIgroupOperation,
+			OperationSummary: "Create a new igroup",
+			OperationID:      "v1_createIgroup",
 			Body:             request,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -889,9 +889,9 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 		}
 
 		type (
-			Request  = *HostGroupCreateV1
-			Params   = V1CreateHostGroupParams
-			Response = V1CreateHostGroupRes
+			Request  = *IgroupV1
+			Params   = V1CreateIgroupParams
+			Response = V1CreateIgroupRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -900,14 +900,14 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 		](
 			m,
 			mreq,
-			unpackV1CreateHostGroupParams,
+			unpackV1CreateIgroupParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.V1CreateHostGroup(ctx, request, params)
+				response, err = s.h.V1CreateIgroup(ctx, request, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.V1CreateHostGroup(ctx, request, params)
+		response, err = s.h.V1CreateIgroup(ctx, request, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
@@ -926,7 +926,7 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 		return
 	}
 
-	if err := encodeV1CreateHostGroupResponse(response, w, span); err != nil {
+	if err := encodeV1CreateIgroupResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -935,22 +935,190 @@ func (s *Server) handleV1CreateHostGroupRequest(args [0]string, argsEscaped bool
 	}
 }
 
-// handleV1DeleteHostGroupRequest handles v1_deleteHostGroup operation.
+// handleV1CreateVolumeRequest handles v1_createVolume operation.
 //
-// Warning! This operation will permanently delete the HostGroup.
+// Create a new empty volume or a volume from a backup/snapshot if backup/snapshot config is in the
+// body parameters.
 //
-// DELETE /v1/hostGroups/{name}
-func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// POST /v1/volumes
+func (s *Server) handleV1CreateVolumeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("v1_deleteHostGroup"),
+		otelogen.OperationID("v1_createVolume"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/volumes"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1CreateVolumeOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1CreateVolumeOperation,
+			ID:   "v1_createVolume",
+		}
+	)
+	params, err := decodeV1CreateVolumeParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeV1CreateVolumeRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1CreateVolumeRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1CreateVolumeOperation,
+			OperationSummary: "Create a new volume",
+			OperationID:      "v1_createVolume",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *VolumeV1
+			Params   = V1CreateVolumeParams
+			Response = V1CreateVolumeRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1CreateVolumeParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1CreateVolume(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1CreateVolume(ctx, request, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1CreateVolumeResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleV1DeleteIgroupRequest handles v1_deleteIgroup operation.
+//
+// Warning! This operation will permanently delete the igroup.
+//
+// DELETE /v1/igroups/{name}
+func (s *Server) handleV1DeleteIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_deleteIgroup"),
 		semconv.HTTPRequestMethodKey.String("DELETE"),
-		semconv.HTTPRouteKey.String("/v1/hostGroups/{name}"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
 	}
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DeleteHostGroupOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DeleteIgroupOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -1005,11 +1173,11 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: V1DeleteHostGroupOperation,
-			ID:   "v1_deleteHostGroup",
+			Name: V1DeleteIgroupOperation,
+			ID:   "v1_deleteIgroup",
 		}
 	)
-	params, err := decodeV1DeleteHostGroupParams(args, argsEscaped, r)
+	params, err := decodeV1DeleteIgroupParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -1022,13 +1190,13 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 
 	var rawBody []byte
 
-	var response V1DeleteHostGroupRes
+	var response V1DeleteIgroupRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    V1DeleteHostGroupOperation,
-			OperationSummary: "Delete a HostGroup",
-			OperationID:      "v1_deleteHostGroup",
+			OperationName:    V1DeleteIgroupOperation,
+			OperationSummary: "Delete a igroup",
+			OperationID:      "v1_deleteIgroup",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -1046,8 +1214,8 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 
 		type (
 			Request  = struct{}
-			Params   = V1DeleteHostGroupParams
-			Response = V1DeleteHostGroupRes
+			Params   = V1DeleteIgroupParams
+			Response = V1DeleteIgroupRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -1056,14 +1224,14 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 		](
 			m,
 			mreq,
-			unpackV1DeleteHostGroupParams,
+			unpackV1DeleteIgroupParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.V1DeleteHostGroup(ctx, params)
+				response, err = s.h.V1DeleteIgroup(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.V1DeleteHostGroup(ctx, params)
+		response, err = s.h.V1DeleteIgroup(ctx, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
@@ -1082,7 +1250,7 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 		return
 	}
 
-	if err := encodeV1DeleteHostGroupResponse(response, w, span); err != nil {
+	if err := encodeV1DeleteIgroupResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -1091,22 +1259,24 @@ func (s *Server) handleV1DeleteHostGroupRequest(args [1]string, argsEscaped bool
 	}
 }
 
-// handleV1DescribeHostGroupRequest handles v1_describeHostGroup operation.
+// handleV1DeleteVolumeRequest handles v1_deleteVolume operation.
 //
-// Returns the details of the specified HostGroup by name.
+// Warning! This operation will permanently delete the volume. This operation will never return
+// resource not found, since that could be interpreted as resource already deleted, and therefore
+// will return operation done instead.
 //
-// GET /v1/hostGroups/{name}
-func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// DELETE /v1/volumes/{uuid}
+func (s *Server) handleV1DeleteVolumeRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("v1_describeHostGroup"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/v1/hostGroups/{name}"),
+		otelogen.OperationID("v1_deleteVolume"),
+		semconv.HTTPRequestMethodKey.String("DELETE"),
+		semconv.HTTPRouteKey.String("/v1/volumes/{uuid}"),
 	}
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DescribeHostGroupOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DeleteVolumeOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -1161,11 +1331,11 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: V1DescribeHostGroupOperation,
-			ID:   "v1_describeHostGroup",
+			Name: V1DeleteVolumeOperation,
+			ID:   "v1_deleteVolume",
 		}
 	)
-	params, err := decodeV1DescribeHostGroupParams(args, argsEscaped, r)
+	params, err := decodeV1DeleteVolumeParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -1178,20 +1348,20 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 
 	var rawBody []byte
 
-	var response V1DescribeHostGroupRes
+	var response V1DeleteVolumeRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    V1DescribeHostGroupOperation,
-			OperationSummary: "Describe a HostGroup",
-			OperationID:      "v1_describeHostGroup",
+			OperationName:    V1DeleteVolumeOperation,
+			OperationSummary: "Delete a volume",
+			OperationID:      "v1_deleteVolume",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
-					Name: "name",
+					Name: "uuid",
 					In:   "path",
-				}: params.Name,
+				}: params.UUID,
 				{
 					Name: "X-Correlation-ID",
 					In:   "header",
@@ -1202,8 +1372,8 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 
 		type (
 			Request  = struct{}
-			Params   = V1DescribeHostGroupParams
-			Response = V1DescribeHostGroupRes
+			Params   = V1DeleteVolumeParams
+			Response = V1DeleteVolumeRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -1212,14 +1382,14 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 		](
 			m,
 			mreq,
-			unpackV1DescribeHostGroupParams,
+			unpackV1DeleteVolumeParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.V1DescribeHostGroup(ctx, params)
+				response, err = s.h.V1DeleteVolume(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.V1DescribeHostGroup(ctx, params)
+		response, err = s.h.V1DeleteVolume(ctx, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
@@ -1238,7 +1408,7 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 		return
 	}
 
-	if err := encodeV1DescribeHostGroupResponse(response, w, span); err != nil {
+	if err := encodeV1DeleteVolumeResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -1247,22 +1417,22 @@ func (s *Server) handleV1DescribeHostGroupRequest(args [1]string, argsEscaped bo
 	}
 }
 
-// handleV1ListHostGroupsRequest handles v1_listHostGroups operation.
+// handleV1DescribeIgroupRequest handles v1_describeIgroup operation.
 //
-// Returns details of all HostGroups owned by the caller.
+// Returns the details of the specified igroup by name.
 //
-// GET /v1/hostGroups
-func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /v1/igroups/{name}
+func (s *Server) handleV1DescribeIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("v1_listHostGroups"),
+		otelogen.OperationID("v1_describeIgroup"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/v1/hostGroups"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
 	}
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), V1ListHostGroupsOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DescribeIgroupOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -1317,11 +1487,11 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: V1ListHostGroupsOperation,
-			ID:   "v1_listHostGroups",
+			Name: V1DescribeIgroupOperation,
+			ID:   "v1_describeIgroup",
 		}
 	)
-	params, err := decodeV1ListHostGroupsParams(args, argsEscaped, r)
+	params, err := decodeV1DescribeIgroupParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -1334,13 +1504,325 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 
 	var rawBody []byte
 
-	var response V1ListHostGroupsRes
+	var response V1DescribeIgroupRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    V1ListHostGroupsOperation,
+			OperationName:    V1DescribeIgroupOperation,
+			OperationSummary: "Describe a igroup",
+			OperationID:      "v1_describeIgroup",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "name",
+					In:   "path",
+				}: params.Name,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = V1DescribeIgroupParams
+			Response = V1DescribeIgroupRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1DescribeIgroupParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1DescribeIgroup(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1DescribeIgroup(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1DescribeIgroupResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleV1DescribeVolumeRequest handles v1_describeVolume operation.
+//
+// Returns the description of the specified volume by volume uuid.
+//
+// GET /v1/volumes/{uuid}
+func (s *Server) handleV1DescribeVolumeRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_describeVolume"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/v1/volumes/{uuid}"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1DescribeVolumeOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1DescribeVolumeOperation,
+			ID:   "v1_describeVolume",
+		}
+	)
+	params, err := decodeV1DescribeVolumeParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response V1DescribeVolumeRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1DescribeVolumeOperation,
+			OperationSummary: "Describe a volume",
+			OperationID:      "v1_describeVolume",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "uuid",
+					In:   "path",
+				}: params.UUID,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = V1DescribeVolumeParams
+			Response = V1DescribeVolumeRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1DescribeVolumeParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1DescribeVolume(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1DescribeVolume(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1DescribeVolumeResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleV1ListIgroupsRequest handles v1_listIgroups operation.
+//
+// Returns details of all igroups owned by the caller.
+//
+// GET /v1/igroups
+func (s *Server) handleV1ListIgroupsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_listIgroups"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/v1/igroups"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1ListIgroupsOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1ListIgroupsOperation,
+			ID:   "v1_listIgroups",
+		}
+	)
+	params, err := decodeV1ListIgroupsParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response V1ListIgroupsRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1ListIgroupsOperation,
 			OperationSummary: "",
-			OperationID:      "v1_listHostGroups",
+			OperationID:      "v1_listIgroups",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -1354,8 +1836,8 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 
 		type (
 			Request  = struct{}
-			Params   = V1ListHostGroupsParams
-			Response = V1ListHostGroupsRes
+			Params   = V1ListIgroupsParams
+			Response = V1ListIgroupsRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -1364,14 +1846,14 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 		](
 			m,
 			mreq,
-			unpackV1ListHostGroupsParams,
+			unpackV1ListIgroupsParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.V1ListHostGroups(ctx, params)
+				response, err = s.h.V1ListIgroups(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.V1ListHostGroups(ctx, params)
+		response, err = s.h.V1ListIgroups(ctx, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
@@ -1390,7 +1872,7 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 		return
 	}
 
-	if err := encodeV1ListHostGroupsResponse(response, w, span); err != nil {
+	if err := encodeV1ListIgroupsResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -1399,22 +1881,22 @@ func (s *Server) handleV1ListHostGroupsRequest(args [0]string, argsEscaped bool,
 	}
 }
 
-// handleV1UpdateHostGroupRequest handles v1_updateHostGroup operation.
+// handleV1UpdateIgroupRequest handles v1_updateIgroup operation.
 //
-// Update the specified HostGroup.
+// Update the specified igroup.
 //
-// PUT /v1/hostGroups/{name}
-func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// PUT /v1/igroups/{name}
+func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("v1_updateHostGroup"),
+		otelogen.OperationID("v1_updateIgroup"),
 		semconv.HTTPRequestMethodKey.String("PUT"),
-		semconv.HTTPRouteKey.String("/v1/hostGroups/{name}"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
 	}
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), V1UpdateHostGroupOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1UpdateIgroupOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -1469,11 +1951,11 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: V1UpdateHostGroupOperation,
-			ID:   "v1_updateHostGroup",
+			Name: V1UpdateIgroupOperation,
+			ID:   "v1_updateIgroup",
 		}
 	)
-	params, err := decodeV1UpdateHostGroupParams(args, argsEscaped, r)
+	params, err := decodeV1UpdateIgroupParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -1485,7 +1967,7 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 	}
 
 	var rawBody []byte
-	request, rawBody, close, err := s.decodeV1UpdateHostGroupRequest(r)
+	request, rawBody, close, err := s.decodeV1UpdateIgroupRequest(r)
 	if err != nil {
 		err = &ogenerrors.DecodeRequestError{
 			OperationContext: opErrContext,
@@ -1501,13 +1983,13 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 		}
 	}()
 
-	var response V1UpdateHostGroupRes
+	var response V1UpdateIgroupRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    V1UpdateHostGroupOperation,
-			OperationSummary: "Update a HostGroup",
-			OperationID:      "v1_updateHostGroup",
+			OperationName:    V1UpdateIgroupOperation,
+			OperationSummary: "Update a igroup",
+			OperationID:      "v1_updateIgroup",
 			Body:             request,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -1524,9 +2006,9 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 		}
 
 		type (
-			Request  = *HostGroupUpdateV1
-			Params   = V1UpdateHostGroupParams
-			Response = V1UpdateHostGroupRes
+			Request  = *IgroupUpdateV1
+			Params   = V1UpdateIgroupParams
+			Response = V1UpdateIgroupRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -1535,14 +2017,14 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 		](
 			m,
 			mreq,
-			unpackV1UpdateHostGroupParams,
+			unpackV1UpdateIgroupParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.V1UpdateHostGroup(ctx, request, params)
+				response, err = s.h.V1UpdateIgroup(ctx, request, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.V1UpdateHostGroup(ctx, request, params)
+		response, err = s.h.V1UpdateIgroup(ctx, request, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
@@ -1561,7 +2043,182 @@ func (s *Server) handleV1UpdateHostGroupRequest(args [1]string, argsEscaped bool
 		return
 	}
 
-	if err := encodeV1UpdateHostGroupResponse(response, w, span); err != nil {
+	if err := encodeV1UpdateIgroupResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleV1UpdateVolumeRequest handles v1_updateVolume operation.
+//
+// Updates specific fields of an existing volume using an update mask.
+//
+// PATCH /v1/volumes/{uuid}
+func (s *Server) handleV1UpdateVolumeRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_updateVolume"),
+		semconv.HTTPRequestMethodKey.String("PATCH"),
+		semconv.HTTPRouteKey.String("/v1/volumes/{uuid}"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1UpdateVolumeOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1UpdateVolumeOperation,
+			ID:   "v1_updateVolume",
+		}
+	)
+	params, err := decodeV1UpdateVolumeParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeV1UpdateVolumeRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1UpdateVolumeRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1UpdateVolumeOperation,
+			OperationSummary: "Update a volume",
+			OperationID:      "v1_updateVolume",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "uuid",
+					In:   "path",
+				}: params.UUID,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+				{
+					Name: "updateMask",
+					In:   "query",
+				}: params.UpdateMask,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *VolumeV1
+			Params   = V1UpdateVolumeParams
+			Response = V1UpdateVolumeRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1UpdateVolumeParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1UpdateVolume(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1UpdateVolume(ctx, request, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1UpdateVolumeResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)

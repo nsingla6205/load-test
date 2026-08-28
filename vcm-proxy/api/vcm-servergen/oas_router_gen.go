@@ -133,9 +133,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
-				case 'h': // Prefix: "hostGroups"
+				case 'i': // Prefix: "igroups"
 
-					if l := len("hostGroups"); len(elem) >= l && elem[0:l] == "hostGroups" {
+					if l := len("igroups"); len(elem) >= l && elem[0:l] == "igroups" {
 						elem = elem[l:]
 					} else {
 						break
@@ -144,9 +144,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if len(elem) == 0 {
 						switch r.Method {
 						case "GET":
-							s.handleV1ListHostGroupsRequest([0]string{}, elemIsEscaped, w, r)
+							s.handleV1ListIgroupsRequest([0]string{}, elemIsEscaped, w, r)
 						case "POST":
-							s.handleV1CreateHostGroupRequest([0]string{}, elemIsEscaped, w, r)
+							s.handleV1CreateIgroupRequest([0]string{}, elemIsEscaped, w, r)
 						default:
 							s.notAllowed(w, r, "GET,POST")
 						}
@@ -175,15 +175,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							// Leaf node.
 							switch r.Method {
 							case "DELETE":
-								s.handleV1DeleteHostGroupRequest([1]string{
+								s.handleV1DeleteIgroupRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
 							case "GET":
-								s.handleV1DescribeHostGroupRequest([1]string{
+								s.handleV1DescribeIgroupRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
 							case "PUT":
-								s.handleV1UpdateHostGroupRequest([1]string{
+								s.handleV1UpdateIgroupRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
 							default:
@@ -244,6 +244,66 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						}
 
 						return
+					}
+
+				case 'v': // Prefix: "volumes"
+
+					if l := len("volumes"); len(elem) >= l && elem[0:l] == "volumes" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "POST":
+							s.handleV1CreateVolumeRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "POST")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "DELETE":
+								s.handleV1DeleteVolumeRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "GET":
+								s.handleV1DescribeVolumeRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "PATCH":
+								s.handleV1UpdateVolumeRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "DELETE,GET,PATCH")
+							}
+
+							return
+						}
+
 					}
 
 				}
@@ -426,9 +486,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						}
 					}
 
-				case 'h': // Prefix: "hostGroups"
+				case 'i': // Prefix: "igroups"
 
-					if l := len("hostGroups"); len(elem) >= l && elem[0:l] == "hostGroups" {
+					if l := len("igroups"); len(elem) >= l && elem[0:l] == "igroups" {
 						elem = elem[l:]
 					} else {
 						break
@@ -437,18 +497,18 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 					if len(elem) == 0 {
 						switch method {
 						case "GET":
-							r.name = V1ListHostGroupsOperation
+							r.name = V1ListIgroupsOperation
 							r.summary = ""
-							r.operationID = "v1_listHostGroups"
-							r.pathPattern = "/v1/hostGroups"
+							r.operationID = "v1_listIgroups"
+							r.pathPattern = "/v1/igroups"
 							r.args = args
 							r.count = 0
 							return r, true
 						case "POST":
-							r.name = V1CreateHostGroupOperation
-							r.summary = "Create a new HostGroup"
-							r.operationID = "v1_createHostGroup"
-							r.pathPattern = "/v1/hostGroups"
+							r.name = V1CreateIgroupOperation
+							r.summary = "Create a new igroup"
+							r.operationID = "v1_createIgroup"
+							r.pathPattern = "/v1/igroups"
 							r.args = args
 							r.count = 0
 							return r, true
@@ -478,26 +538,26 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							// Leaf node.
 							switch method {
 							case "DELETE":
-								r.name = V1DeleteHostGroupOperation
-								r.summary = "Delete a HostGroup"
-								r.operationID = "v1_deleteHostGroup"
-								r.pathPattern = "/v1/hostGroups/{name}"
+								r.name = V1DeleteIgroupOperation
+								r.summary = "Delete a igroup"
+								r.operationID = "v1_deleteIgroup"
+								r.pathPattern = "/v1/igroups/{name}"
 								r.args = args
 								r.count = 1
 								return r, true
 							case "GET":
-								r.name = V1DescribeHostGroupOperation
-								r.summary = "Describe a HostGroup"
-								r.operationID = "v1_describeHostGroup"
-								r.pathPattern = "/v1/hostGroups/{name}"
+								r.name = V1DescribeIgroupOperation
+								r.summary = "Describe a igroup"
+								r.operationID = "v1_describeIgroup"
+								r.pathPattern = "/v1/igroups/{name}"
 								r.args = args
 								r.count = 1
 								return r, true
 							case "PUT":
-								r.name = V1UpdateHostGroupOperation
-								r.summary = "Update a HostGroup"
-								r.operationID = "v1_updateHostGroup"
-								r.pathPattern = "/v1/hostGroups/{name}"
+								r.name = V1UpdateIgroupOperation
+								r.summary = "Update a igroup"
+								r.operationID = "v1_updateIgroup"
+								r.pathPattern = "/v1/igroups/{name}"
 								r.args = args
 								r.count = 1
 								return r, true
@@ -563,6 +623,80 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						default:
 							return
 						}
+					}
+
+				case 'v': // Prefix: "volumes"
+
+					if l := len("volumes"); len(elem) >= l && elem[0:l] == "volumes" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "POST":
+							r.name = V1CreateVolumeOperation
+							r.summary = "Create a new volume"
+							r.operationID = "v1_createVolume"
+							r.pathPattern = "/v1/volumes"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "DELETE":
+								r.name = V1DeleteVolumeOperation
+								r.summary = "Delete a volume"
+								r.operationID = "v1_deleteVolume"
+								r.pathPattern = "/v1/volumes/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "GET":
+								r.name = V1DescribeVolumeOperation
+								r.summary = "Describe a volume"
+								r.operationID = "v1_describeVolume"
+								r.pathPattern = "/v1/volumes/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "PATCH":
+								r.name = V1UpdateVolumeOperation
+								r.summary = "Update a volume"
+								r.operationID = "v1_updateVolume"
+								r.pathPattern = "/v1/volumes/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+
 					}
 
 				}

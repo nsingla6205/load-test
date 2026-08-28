@@ -255,7 +255,7 @@ func encodeSetConfigV1Response(response *SetConfigV1OK, w http.ResponseWriter, s
 	return nil
 }
 
-func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.ResponseWriter, span trace.Span) error {
+func encodeV1CreateIgroupResponse(response V1CreateIgroupRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *OperationV1:
 		if err := func() error {
@@ -278,7 +278,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1CreateHostGroupBadRequest:
+	case *V1CreateIgroupBadRequest:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -299,7 +299,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1CreateHostGroupUnauthorized:
+	case *V1CreateIgroupUnauthorized:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -320,7 +320,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1CreateHostGroupForbidden:
+	case *V1CreateIgroupForbidden:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -341,7 +341,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1CreateHostGroupConflict:
+	case *V1CreateIgroupConflict:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -362,7 +362,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1CreateHostGroupInternalServerError:
+	case *V1CreateIgroupInternalServerError:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -388,7 +388,7 @@ func encodeV1CreateHostGroupResponse(response V1CreateHostGroupRes, w http.Respo
 	}
 }
 
-func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.ResponseWriter, span trace.Span) error {
+func encodeV1CreateVolumeResponse(response V1CreateVolumeRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *OperationV1:
 		if err := func() error {
@@ -411,7 +411,7 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupBadRequest:
+	case *V1CreateVolumeBadRequest:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -432,7 +432,7 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupUnauthorized:
+	case *V1CreateVolumeUnauthorized:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -453,7 +453,7 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupForbidden:
+	case *V1CreateVolumeForbidden:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -474,7 +474,119 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupNotFound:
+	case *V1CreateVolumeInternalServerError:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(500)
+		span.SetStatus(codes.Error, http.StatusText(500))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeV1DeleteIgroupResponse(response V1DeleteIgroupRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *OperationV1:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(202)
+		span.SetStatus(codes.Ok, http.StatusText(202))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteIgroupBadRequest:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+		span.SetStatus(codes.Error, http.StatusText(400))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteIgroupUnauthorized:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+		span.SetStatus(codes.Error, http.StatusText(401))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteIgroupForbidden:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(403)
+		span.SetStatus(codes.Error, http.StatusText(403))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteIgroupNotFound:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -495,7 +607,7 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupConflict:
+	case *V1DeleteIgroupConflict:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -516,7 +628,7 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1DeleteHostGroupInternalServerError:
+	case *V1DeleteIgroupInternalServerError:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -542,9 +654,121 @@ func encodeV1DeleteHostGroupResponse(response V1DeleteHostGroupRes, w http.Respo
 	}
 }
 
-func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.ResponseWriter, span trace.Span) error {
+func encodeV1DeleteVolumeResponse(response V1DeleteVolumeRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *HostGroupV1:
+	case *OperationV1:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(202)
+		span.SetStatus(codes.Ok, http.StatusText(202))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteVolumeBadRequest:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+		span.SetStatus(codes.Error, http.StatusText(400))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteVolumeUnauthorized:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+		span.SetStatus(codes.Error, http.StatusText(401))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteVolumeForbidden:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(403)
+		span.SetStatus(codes.Error, http.StatusText(403))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DeleteVolumeInternalServerError:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(500)
+		span.SetStatus(codes.Error, http.StatusText(500))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeV1DescribeIgroupResponse(response V1DescribeIgroupRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *IgroupV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -565,7 +789,7 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 
 		return nil
 
-	case *V1DescribeHostGroupBadRequest:
+	case *V1DescribeIgroupBadRequest:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -586,7 +810,7 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 
 		return nil
 
-	case *V1DescribeHostGroupUnauthorized:
+	case *V1DescribeIgroupUnauthorized:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -607,7 +831,7 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 
 		return nil
 
-	case *V1DescribeHostGroupForbidden:
+	case *V1DescribeIgroupForbidden:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -628,7 +852,7 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 
 		return nil
 
-	case *V1DescribeHostGroupNotFound:
+	case *V1DescribeIgroupNotFound:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -649,7 +873,7 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 
 		return nil
 
-	case *V1DescribeHostGroupInternalServerError:
+	case *V1DescribeIgroupInternalServerError:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -675,9 +899,9 @@ func encodeV1DescribeHostGroupResponse(response V1DescribeHostGroupRes, w http.R
 	}
 }
 
-func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.ResponseWriter, span trace.Span) error {
+func encodeV1DescribeVolumeResponse(response V1DescribeVolumeRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *V1ListHostGroupsOK:
+	case *VolumeV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -698,7 +922,7 @@ func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.Respons
 
 		return nil
 
-	case *V1ListHostGroupsBadRequest:
+	case *V1DescribeVolumeBadRequest:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -719,7 +943,7 @@ func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.Respons
 
 		return nil
 
-	case *V1ListHostGroupsUnauthorized:
+	case *V1DescribeVolumeUnauthorized:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -740,7 +964,7 @@ func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.Respons
 
 		return nil
 
-	case *V1ListHostGroupsForbidden:
+	case *V1DescribeVolumeForbidden:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -761,7 +985,28 @@ func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.Respons
 
 		return nil
 
-	case *V1ListHostGroupsInternalServerError:
+	case *V1DescribeVolumeNotFound:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+		span.SetStatus(codes.Error, http.StatusText(404))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1DescribeVolumeInternalServerError:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -787,7 +1032,119 @@ func encodeV1ListHostGroupsResponse(response V1ListHostGroupsRes, w http.Respons
 	}
 }
 
-func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.ResponseWriter, span trace.Span) error {
+func encodeV1ListIgroupsResponse(response V1ListIgroupsRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *V1ListIgroupsOK:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(200)
+		span.SetStatus(codes.Ok, http.StatusText(200))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1ListIgroupsBadRequest:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+		span.SetStatus(codes.Error, http.StatusText(400))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1ListIgroupsUnauthorized:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+		span.SetStatus(codes.Error, http.StatusText(401))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1ListIgroupsForbidden:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(403)
+		span.SetStatus(codes.Error, http.StatusText(403))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1ListIgroupsInternalServerError:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(500)
+		span.SetStatus(codes.Error, http.StatusText(500))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeV1UpdateIgroupResponse(response V1UpdateIgroupRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *OperationV1:
 		if err := func() error {
@@ -810,7 +1167,7 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupBadRequest:
+	case *V1UpdateIgroupBadRequest:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -831,7 +1188,7 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupUnauthorized:
+	case *V1UpdateIgroupUnauthorized:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -852,7 +1209,7 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupForbidden:
+	case *V1UpdateIgroupForbidden:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -873,7 +1230,7 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupNotFound:
+	case *V1UpdateIgroupNotFound:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -894,7 +1251,7 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupConflict:
+	case *V1UpdateIgroupConflict:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -915,7 +1272,140 @@ func encodeV1UpdateHostGroupResponse(response V1UpdateHostGroupRes, w http.Respo
 
 		return nil
 
-	case *V1UpdateHostGroupInternalServerError:
+	case *V1UpdateIgroupInternalServerError:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(500)
+		span.SetStatus(codes.Error, http.StatusText(500))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeV1UpdateVolumeResponse(response V1UpdateVolumeRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *OperationV1:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(202)
+		span.SetStatus(codes.Ok, http.StatusText(202))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1UpdateVolumeBadRequest:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+		span.SetStatus(codes.Error, http.StatusText(400))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1UpdateVolumeUnauthorized:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+		span.SetStatus(codes.Error, http.StatusText(401))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1UpdateVolumeForbidden:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(403)
+		span.SetStatus(codes.Error, http.StatusText(403))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1UpdateVolumeNotFound:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+		span.SetStatus(codes.Error, http.StatusText(404))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *V1UpdateVolumeInternalServerError:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err

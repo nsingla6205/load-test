@@ -96,13 +96,13 @@ func decodeOperationGetV1Params(args [1]string, argsEscaped bool, r *http.Reques
 	return params, nil
 }
 
-// V1CreateHostGroupParams is parameters of v1_createHostGroup operation.
-type V1CreateHostGroupParams struct {
+// V1CreateIgroupParams is parameters of v1_createIgroup operation.
+type V1CreateIgroupParams struct {
 	// Correlation identifier.
 	XCorrelationID OptString
 }
 
-func unpackV1CreateHostGroupParams(packed middleware.Parameters) (params V1CreateHostGroupParams) {
+func unpackV1CreateIgroupParams(packed middleware.Parameters) (params V1CreateIgroupParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "X-Correlation-ID",
@@ -115,7 +115,7 @@ func unpackV1CreateHostGroupParams(packed middleware.Parameters) (params V1Creat
 	return params
 }
 
-func decodeV1CreateHostGroupParams(args [0]string, argsEscaped bool, r *http.Request) (params V1CreateHostGroupParams, _ error) {
+func decodeV1CreateIgroupParams(args [0]string, argsEscaped bool, r *http.Request) (params V1CreateIgroupParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Correlation-ID.
 	if err := func() error {
@@ -159,15 +159,78 @@ func decodeV1CreateHostGroupParams(args [0]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
-// V1DeleteHostGroupParams is parameters of v1_deleteHostGroup operation.
-type V1DeleteHostGroupParams struct {
-	// A human readable label for the HostGroup. Used as the ONTAP iGroup name on this cluster.
+// V1CreateVolumeParams is parameters of v1_createVolume operation.
+type V1CreateVolumeParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+func unpackV1CreateVolumeParams(packed middleware.Parameters) (params V1CreateVolumeParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1CreateVolumeParams(args [0]string, argsEscaped bool, r *http.Request) (params V1CreateVolumeParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1DeleteIgroupParams is parameters of v1_deleteIgroup operation.
+type V1DeleteIgroupParams struct {
+	// A human readable label for the igroup. Used as the ONTAP igroup name on this cluster.
 	Name string
 	// Correlation identifier.
 	XCorrelationID OptString
 }
 
-func unpackV1DeleteHostGroupParams(packed middleware.Parameters) (params V1DeleteHostGroupParams) {
+func unpackV1DeleteIgroupParams(packed middleware.Parameters) (params V1DeleteIgroupParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "name",
@@ -187,7 +250,7 @@ func unpackV1DeleteHostGroupParams(packed middleware.Parameters) (params V1Delet
 	return params
 }
 
-func decodeV1DeleteHostGroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DeleteHostGroupParams, _ error) {
+func decodeV1DeleteIgroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DeleteIgroupParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: name.
 	if err := func() error {
@@ -292,15 +355,148 @@ func decodeV1DeleteHostGroupParams(args [1]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
-// V1DescribeHostGroupParams is parameters of v1_describeHostGroup operation.
-type V1DescribeHostGroupParams struct {
-	// A human readable label for the HostGroup. Used as the ONTAP iGroup name on this cluster.
+// V1DeleteVolumeParams is parameters of v1_deleteVolume operation.
+type V1DeleteVolumeParams struct {
+	// UUID of the volume.
+	UUID string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+func unpackV1DeleteVolumeParams(packed middleware.Parameters) (params V1DeleteVolumeParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "uuid",
+			In:   "path",
+		}
+		params.UUID = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1DeleteVolumeParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DeleteVolumeParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode path: uuid.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "uuid",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.UUID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(params.UUID)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "uuid",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1DescribeIgroupParams is parameters of v1_describeIgroup operation.
+type V1DescribeIgroupParams struct {
+	// A human readable label for the igroup. Used as the ONTAP igroup name on this cluster.
 	Name string
 	// Correlation identifier.
 	XCorrelationID OptString
 }
 
-func unpackV1DescribeHostGroupParams(packed middleware.Parameters) (params V1DescribeHostGroupParams) {
+func unpackV1DescribeIgroupParams(packed middleware.Parameters) (params V1DescribeIgroupParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "name",
@@ -320,7 +516,7 @@ func unpackV1DescribeHostGroupParams(packed middleware.Parameters) (params V1Des
 	return params
 }
 
-func decodeV1DescribeHostGroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DescribeHostGroupParams, _ error) {
+func decodeV1DescribeIgroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DescribeIgroupParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: name.
 	if err := func() error {
@@ -425,13 +621,22 @@ func decodeV1DescribeHostGroupParams(args [1]string, argsEscaped bool, r *http.R
 	return params, nil
 }
 
-// V1ListHostGroupsParams is parameters of v1_listHostGroups operation.
-type V1ListHostGroupsParams struct {
+// V1DescribeVolumeParams is parameters of v1_describeVolume operation.
+type V1DescribeVolumeParams struct {
+	// UUID of the volume.
+	UUID string
 	// Correlation identifier.
 	XCorrelationID OptString
 }
 
-func unpackV1ListHostGroupsParams(packed middleware.Parameters) (params V1ListHostGroupsParams) {
+func unpackV1DescribeVolumeParams(packed middleware.Parameters) (params V1DescribeVolumeParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "uuid",
+			In:   "path",
+		}
+		params.UUID = packed[key].(string)
+	}
 	{
 		key := middleware.ParameterKey{
 			Name: "X-Correlation-ID",
@@ -444,7 +649,131 @@ func unpackV1ListHostGroupsParams(packed middleware.Parameters) (params V1ListHo
 	return params
 }
 
-func decodeV1ListHostGroupsParams(args [0]string, argsEscaped bool, r *http.Request) (params V1ListHostGroupsParams, _ error) {
+func decodeV1DescribeVolumeParams(args [1]string, argsEscaped bool, r *http.Request) (params V1DescribeVolumeParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode path: uuid.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "uuid",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.UUID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(params.UUID)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "uuid",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1ListIgroupsParams is parameters of v1_listIgroups operation.
+type V1ListIgroupsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+func unpackV1ListIgroupsParams(packed middleware.Parameters) (params V1ListIgroupsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1ListIgroupsParams(args [0]string, argsEscaped bool, r *http.Request) (params V1ListIgroupsParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Correlation-ID.
 	if err := func() error {
@@ -488,15 +817,15 @@ func decodeV1ListHostGroupsParams(args [0]string, argsEscaped bool, r *http.Requ
 	return params, nil
 }
 
-// V1UpdateHostGroupParams is parameters of v1_updateHostGroup operation.
-type V1UpdateHostGroupParams struct {
-	// A human readable label for the HostGroup. Used as the ONTAP iGroup name on this cluster.
+// V1UpdateIgroupParams is parameters of v1_updateIgroup operation.
+type V1UpdateIgroupParams struct {
+	// A human readable label for the igroup. Used as the ONTAP igroup name on this cluster.
 	Name string
 	// Correlation identifier.
 	XCorrelationID OptString
 }
 
-func unpackV1UpdateHostGroupParams(packed middleware.Parameters) (params V1UpdateHostGroupParams) {
+func unpackV1UpdateIgroupParams(packed middleware.Parameters) (params V1UpdateIgroupParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "name",
@@ -516,7 +845,7 @@ func unpackV1UpdateHostGroupParams(packed middleware.Parameters) (params V1Updat
 	return params
 }
 
-func decodeV1UpdateHostGroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1UpdateHostGroupParams, _ error) {
+func decodeV1UpdateIgroupParams(args [1]string, argsEscaped bool, r *http.Request) (params V1UpdateIgroupParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: name.
 	if err := func() error {
@@ -615,6 +944,193 @@ func decodeV1UpdateHostGroupParams(args [1]string, argsEscaped bool, r *http.Req
 		return params, &ogenerrors.DecodeParamError{
 			Name: "X-Correlation-ID",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1UpdateVolumeParams is parameters of v1_updateVolume operation.
+type V1UpdateVolumeParams struct {
+	// UUID of the volume.
+	UUID string
+	// Correlation identifier.
+	XCorrelationID OptString
+	// The list of fields to update. Names are relative to the root `Volume_v1` resource. Multiple field
+	// paths can be specified as a comma-separated list.
+	UpdateMask OptString
+}
+
+func unpackV1UpdateVolumeParams(packed middleware.Parameters) (params V1UpdateVolumeParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "uuid",
+			In:   "path",
+		}
+		params.UUID = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "updateMask",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.UpdateMask = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1UpdateVolumeParams(args [1]string, argsEscaped bool, r *http.Request) (params V1UpdateVolumeParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode path: uuid.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "uuid",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.UUID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(params.UUID)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "uuid",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: updateMask.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "updateMask",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotUpdateMaskVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotUpdateMaskVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.UpdateMask.SetTo(paramsDotUpdateMaskVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "updateMask",
+			In:   "query",
 			Err:  err,
 		}
 	}

@@ -75,48 +75,87 @@ func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigReque
 	return ht.ErrNotImplemented
 }
 
-// V1CreateHostGroup implements v1_createHostGroup operation.
+// V1CreateIgroup implements v1_createIgroup operation.
 //
-// Create a new HostGroup.
+// Create a new igroup.
 //
-// POST /v1/hostGroups
-func (UnimplementedHandler) V1CreateHostGroup(ctx context.Context, req *HostGroupCreateV1, params V1CreateHostGroupParams) (r V1CreateHostGroupRes, _ error) {
+// POST /v1/igroups
+func (UnimplementedHandler) V1CreateIgroup(ctx context.Context, req *IgroupV1, params V1CreateIgroupParams) (r V1CreateIgroupRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// V1DeleteHostGroup implements v1_deleteHostGroup operation.
+// V1CreateVolume implements v1_createVolume operation.
 //
-// Warning! This operation will permanently delete the HostGroup.
+// Create a new empty volume or a volume from a backup/snapshot if backup/snapshot config is in the
+// body parameters.
 //
-// DELETE /v1/hostGroups/{name}
-func (UnimplementedHandler) V1DeleteHostGroup(ctx context.Context, params V1DeleteHostGroupParams) (r V1DeleteHostGroupRes, _ error) {
+// POST /v1/volumes
+func (UnimplementedHandler) V1CreateVolume(ctx context.Context, req *VolumeV1, params V1CreateVolumeParams) (r V1CreateVolumeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// V1DescribeHostGroup implements v1_describeHostGroup operation.
+// V1DeleteIgroup implements v1_deleteIgroup operation.
 //
-// Returns the details of the specified HostGroup by name.
+// Warning! This operation will permanently delete the igroup.
 //
-// GET /v1/hostGroups/{name}
-func (UnimplementedHandler) V1DescribeHostGroup(ctx context.Context, params V1DescribeHostGroupParams) (r V1DescribeHostGroupRes, _ error) {
+// DELETE /v1/igroups/{name}
+func (UnimplementedHandler) V1DeleteIgroup(ctx context.Context, params V1DeleteIgroupParams) (r V1DeleteIgroupRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// V1ListHostGroups implements v1_listHostGroups operation.
+// V1DeleteVolume implements v1_deleteVolume operation.
 //
-// Returns details of all HostGroups owned by the caller.
+// Warning! This operation will permanently delete the volume. This operation will never return
+// resource not found, since that could be interpreted as resource already deleted, and therefore
+// will return operation done instead.
 //
-// GET /v1/hostGroups
-func (UnimplementedHandler) V1ListHostGroups(ctx context.Context, params V1ListHostGroupsParams) (r V1ListHostGroupsRes, _ error) {
+// DELETE /v1/volumes/{uuid}
+func (UnimplementedHandler) V1DeleteVolume(ctx context.Context, params V1DeleteVolumeParams) (r V1DeleteVolumeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// V1UpdateHostGroup implements v1_updateHostGroup operation.
+// V1DescribeIgroup implements v1_describeIgroup operation.
 //
-// Update the specified HostGroup.
+// Returns the details of the specified igroup by name.
 //
-// PUT /v1/hostGroups/{name}
-func (UnimplementedHandler) V1UpdateHostGroup(ctx context.Context, req *HostGroupUpdateV1, params V1UpdateHostGroupParams) (r V1UpdateHostGroupRes, _ error) {
+// GET /v1/igroups/{name}
+func (UnimplementedHandler) V1DescribeIgroup(ctx context.Context, params V1DescribeIgroupParams) (r V1DescribeIgroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DescribeVolume implements v1_describeVolume operation.
+//
+// Returns the description of the specified volume by volume uuid.
+//
+// GET /v1/volumes/{uuid}
+func (UnimplementedHandler) V1DescribeVolume(ctx context.Context, params V1DescribeVolumeParams) (r V1DescribeVolumeRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ListIgroups implements v1_listIgroups operation.
+//
+// Returns details of all igroups owned by the caller.
+//
+// GET /v1/igroups
+func (UnimplementedHandler) V1ListIgroups(ctx context.Context, params V1ListIgroupsParams) (r V1ListIgroupsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateIgroup implements v1_updateIgroup operation.
+//
+// Update the specified igroup.
+//
+// PUT /v1/igroups/{name}
+func (UnimplementedHandler) V1UpdateIgroup(ctx context.Context, req *IgroupUpdateV1, params V1UpdateIgroupParams) (r V1UpdateIgroupRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateVolume implements v1_updateVolume operation.
+//
+// Updates specific fields of an existing volume using an update mask.
+//
+// PATCH /v1/volumes/{uuid}
+func (UnimplementedHandler) V1UpdateVolume(ctx context.Context, req *VolumeV1, params V1UpdateVolumeParams) (r V1UpdateVolumeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

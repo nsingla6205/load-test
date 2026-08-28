@@ -6,14 +6,18 @@ package vcmserver
 type OperationName = string
 
 const (
-	GetHealthOperation           OperationName = "GetHealth"
-	GetReadyOperation            OperationName = "GetReady"
-	OperationGetV1Operation      OperationName = "OperationGetV1"
-	PoolCreateV1Operation        OperationName = "PoolCreateV1"
-	SetConfigV1Operation         OperationName = "SetConfigV1"
-	V1CreateHostGroupOperation   OperationName = "V1CreateHostGroup"
-	V1DeleteHostGroupOperation   OperationName = "V1DeleteHostGroup"
-	V1DescribeHostGroupOperation OperationName = "V1DescribeHostGroup"
-	V1ListHostGroupsOperation    OperationName = "V1ListHostGroups"
-	V1UpdateHostGroupOperation   OperationName = "V1UpdateHostGroup"
+	GetHealthOperation        OperationName = "GetHealth"
+	GetReadyOperation         OperationName = "GetReady"
+	OperationGetV1Operation   OperationName = "OperationGetV1"
+	PoolCreateV1Operation     OperationName = "PoolCreateV1"
+	SetConfigV1Operation      OperationName = "SetConfigV1"
+	V1CreateIgroupOperation   OperationName = "V1CreateIgroup"
+	V1CreateVolumeOperation   OperationName = "V1CreateVolume"
+	V1DeleteIgroupOperation   OperationName = "V1DeleteIgroup"
+	V1DeleteVolumeOperation   OperationName = "V1DeleteVolume"
+	V1DescribeIgroupOperation OperationName = "V1DescribeIgroup"
+	V1DescribeVolumeOperation OperationName = "V1DescribeVolume"
+	V1ListIgroupsOperation    OperationName = "V1ListIgroups"
+	V1UpdateIgroupOperation   OperationName = "V1UpdateIgroup"
+	V1UpdateVolumeOperation   OperationName = "V1UpdateVolume"
 )

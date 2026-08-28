@@ -17,22 +17,38 @@ type PoolCreateV1Res interface {
 	poolCreateV1Res()
 }
 
-type V1CreateHostGroupRes interface {
-	v1CreateHostGroupRes()
+type V1CreateIgroupRes interface {
+	v1CreateIgroupRes()
 }
 
-type V1DeleteHostGroupRes interface {
-	v1DeleteHostGroupRes()
+type V1CreateVolumeRes interface {
+	v1CreateVolumeRes()
 }
 
-type V1DescribeHostGroupRes interface {
-	v1DescribeHostGroupRes()
+type V1DeleteIgroupRes interface {
+	v1DeleteIgroupRes()
 }
 
-type V1ListHostGroupsRes interface {
-	v1ListHostGroupsRes()
+type V1DeleteVolumeRes interface {
+	v1DeleteVolumeRes()
 }
 
-type V1UpdateHostGroupRes interface {
-	v1UpdateHostGroupRes()
+type V1DescribeIgroupRes interface {
+	v1DescribeIgroupRes()
+}
+
+type V1DescribeVolumeRes interface {
+	v1DescribeVolumeRes()
+}
+
+type V1ListIgroupsRes interface {
+	v1ListIgroupsRes()
+}
+
+type V1UpdateIgroupRes interface {
+	v1UpdateIgroupRes()
+}
+
+type V1UpdateVolumeRes interface {
+	v1UpdateVolumeRes()
 }

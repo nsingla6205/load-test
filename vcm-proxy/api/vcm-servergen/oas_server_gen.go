@@ -55,36 +55,63 @@ type Handler interface {
 	//
 	// POST /v1/config
 	SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error
-	// V1CreateHostGroup implements v1_createHostGroup operation.
+	// V1CreateIgroup implements v1_createIgroup operation.
 	//
-	// Create a new HostGroup.
+	// Create a new igroup.
 	//
-	// POST /v1/hostGroups
-	V1CreateHostGroup(ctx context.Context, req *HostGroupCreateV1, params V1CreateHostGroupParams) (V1CreateHostGroupRes, error)
-	// V1DeleteHostGroup implements v1_deleteHostGroup operation.
+	// POST /v1/igroups
+	V1CreateIgroup(ctx context.Context, req *IgroupV1, params V1CreateIgroupParams) (V1CreateIgroupRes, error)
+	// V1CreateVolume implements v1_createVolume operation.
 	//
-	// Warning! This operation will permanently delete the HostGroup.
+	// Create a new empty volume or a volume from a backup/snapshot if backup/snapshot config is in the
+	// body parameters.
 	//
-	// DELETE /v1/hostGroups/{name}
-	V1DeleteHostGroup(ctx context.Context, params V1DeleteHostGroupParams) (V1DeleteHostGroupRes, error)
-	// V1DescribeHostGroup implements v1_describeHostGroup operation.
+	// POST /v1/volumes
+	V1CreateVolume(ctx context.Context, req *VolumeV1, params V1CreateVolumeParams) (V1CreateVolumeRes, error)
+	// V1DeleteIgroup implements v1_deleteIgroup operation.
 	//
-	// Returns the details of the specified HostGroup by name.
+	// Warning! This operation will permanently delete the igroup.
 	//
-	// GET /v1/hostGroups/{name}
-	V1DescribeHostGroup(ctx context.Context, params V1DescribeHostGroupParams) (V1DescribeHostGroupRes, error)
-	// V1ListHostGroups implements v1_listHostGroups operation.
+	// DELETE /v1/igroups/{name}
+	V1DeleteIgroup(ctx context.Context, params V1DeleteIgroupParams) (V1DeleteIgroupRes, error)
+	// V1DeleteVolume implements v1_deleteVolume operation.
 	//
-	// Returns details of all HostGroups owned by the caller.
+	// Warning! This operation will permanently delete the volume. This operation will never return
+	// resource not found, since that could be interpreted as resource already deleted, and therefore
+	// will return operation done instead.
 	//
-	// GET /v1/hostGroups
-	V1ListHostGroups(ctx context.Context, params V1ListHostGroupsParams) (V1ListHostGroupsRes, error)
-	// V1UpdateHostGroup implements v1_updateHostGroup operation.
+	// DELETE /v1/volumes/{uuid}
+	V1DeleteVolume(ctx context.Context, params V1DeleteVolumeParams) (V1DeleteVolumeRes, error)
+	// V1DescribeIgroup implements v1_describeIgroup operation.
 	//
-	// Update the specified HostGroup.
+	// Returns the details of the specified igroup by name.
 	//
-	// PUT /v1/hostGroups/{name}
-	V1UpdateHostGroup(ctx context.Context, req *HostGroupUpdateV1, params V1UpdateHostGroupParams) (V1UpdateHostGroupRes, error)
+	// GET /v1/igroups/{name}
+	V1DescribeIgroup(ctx context.Context, params V1DescribeIgroupParams) (V1DescribeIgroupRes, error)
+	// V1DescribeVolume implements v1_describeVolume operation.
+	//
+	// Returns the description of the specified volume by volume uuid.
+	//
+	// GET /v1/volumes/{uuid}
+	V1DescribeVolume(ctx context.Context, params V1DescribeVolumeParams) (V1DescribeVolumeRes, error)
+	// V1ListIgroups implements v1_listIgroups operation.
+	//
+	// Returns details of all igroups owned by the caller.
+	//
+	// GET /v1/igroups
+	V1ListIgroups(ctx context.Context, params V1ListIgroupsParams) (V1ListIgroupsRes, error)
+	// V1UpdateIgroup implements v1_updateIgroup operation.
+	//
+	// Update the specified igroup.
+	//
+	// PUT /v1/igroups/{name}
+	V1UpdateIgroup(ctx context.Context, req *IgroupUpdateV1, params V1UpdateIgroupParams) (V1UpdateIgroupRes, error)
+	// V1UpdateVolume implements v1_updateVolume operation.
+	//
+	// Updates specific fields of an existing volume using an update mask.
+	//
+	// PATCH /v1/volumes/{uuid}
+	V1UpdateVolume(ctx context.Context, req *VolumeV1, params V1UpdateVolumeParams) (V1UpdateVolumeRes, error)
 	// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
 	//
 	// Used for common default response.

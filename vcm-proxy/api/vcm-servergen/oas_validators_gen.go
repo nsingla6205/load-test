@@ -9,6 +9,181 @@ import (
 	"github.com/ogen-go/ogen/validate"
 )
 
+func (s *BlockDeviceV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.OsType.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "osType",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if s.Igroups == nil {
+			return errors.New("nil is invalid value")
+		}
+		if err := (validate.Array{
+			MinLength:    1,
+			MinLengthSet: true,
+			MaxLength:    0,
+			MaxLengthSet: false,
+		}).ValidateLength(len(s.Igroups)); err != nil {
+			return errors.Wrap(err, "array")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.Igroups {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    1,
+					MinLengthSet: true,
+					MaxLength:    0,
+					MaxLengthSet: false,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(elem)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "igroups",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s BlockDeviceV1OsType) Validate() error {
+	switch s {
+	case "OS_TYPE_UNSPECIFIED":
+		return nil
+	case "LINUX":
+		return nil
+	case "WINDOWS":
+		return nil
+	case "ESXI":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DailyScheduleV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.SnapshotsToKeep.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1024,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapshotsToKeep",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Hour.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           23,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hour",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Minute.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           59,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "minute",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s *ErrorResponseV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -55,39 +230,34 @@ func (s *ErrorResponseV1StatusCode) Validate() error {
 	return nil
 }
 
-func (s *HostGroupCreateV1) Validate() error {
+func (s *ExportPolicyV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if err := (validate.String{
-			MinLength:    36,
-			MinLengthSet: true,
-			MaxLength:    36,
-			MaxLengthSet: true,
-			Email:        false,
-			Hostname:     false,
-			Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
-		}).Validate(string(s.RequestId)); err != nil {
-			return errors.Wrap(err, "string")
+		var failures []validate.FieldError
+		for i, elem := range s.Rules {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "requestId",
-			Error: err,
-		})
-	}
-	if err := func() error {
-		if err := s.HostGroup.Validate(); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		failures = append(failures, validate.FieldError{
-			Name:  "hostGroup",
+			Name:  "rules",
 			Error: err,
 		})
 	}
@@ -97,7 +267,73 @@ func (s *HostGroupCreateV1) Validate() error {
 	return nil
 }
 
-func (s *HostGroupUpdateV1) Validate() error {
+func (s *HourlyScheduleV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.SnapshotsToKeep.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1024,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapshotsToKeep",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Minute.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           59,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "minute",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *IgroupUpdateV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -120,7 +356,7 @@ func (s *HostGroupUpdateV1) Validate() error {
 	return nil
 }
 
-func (s *HostGroupV1) Validate() error {
+func (s *IgroupV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -173,7 +409,7 @@ func (s *HostGroupV1) Validate() error {
 	return nil
 }
 
-func (s HostGroupV1OsType) Validate() error {
+func (s IgroupV1OsType) Validate() error {
 	switch s {
 	case "OS_TYPE_UNSPECIFIED":
 		return nil
@@ -186,6 +422,155 @@ func (s HostGroupV1OsType) Validate() error {
 	default:
 		return errors.Errorf("invalid value: %v", s)
 	}
+}
+
+func (s *MonthlyScheduleV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.SnapshotsToKeep.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1024,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapshotsToKeep",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.DaysOfMonth.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    1,
+					MinLengthSet: true,
+					MaxLength:    113,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "daysOfMonth",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Hour.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           23,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hour",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Minute.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           59,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "minute",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *MountPointV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.Protocol.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "protocol",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
 }
 
 func (s *OntapCredentialsV1) Validate() error {
@@ -495,6 +880,56 @@ func (s PoolV1Mode) Validate() error {
 	}
 }
 
+func (s ProtocolsV1) Validate() error {
+	switch s {
+	case "PROTOCOL_UNSPECIFIED":
+		return nil
+	case "NFSV3":
+		return nil
+	case "NFSV4":
+		return nil
+	case "SMB":
+		return nil
+	case "ISCSI":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s RestrictedActionsV1) Validate() error {
+	alias := ([]RestrictedActionsV1Item)(s)
+	var failures []validate.FieldError
+	for i, elem := range alias {
+		if err := func() error {
+			if err := elem.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			failures = append(failures, validate.FieldError{
+				Name:  fmt.Sprintf("[%d]", i),
+				Error: err,
+			})
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s RestrictedActionsV1Item) Validate() error {
+	switch s {
+	case "DELETE":
+		return nil
+	case "RESTRICTED_ACTION_UNSPECIFIED":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *SetConfigRequestV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -532,7 +967,208 @@ func (s *SetConfigRequestV1) Validate() error {
 	return nil
 }
 
-func (s *V1CreateHostGroupBadRequest) Validate() error {
+func (s *SimpleExportPolicyRuleV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:    1,
+			MinLengthSet: true,
+			MaxLength:    4096,
+			MaxLengthSet: true,
+			Email:        false,
+			Hostname:     false,
+			Regex:        nil,
+		}).Validate(string(s.AllowedClients)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "allowedClients",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.HasRootAccess.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hasRootAccess",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.AccessType.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "accessType",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.AnonUid.Get(); ok {
+			if err := func() error {
+				if err := (validate.Int{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           4294967295,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    0,
+				}).Validate(int64(value)); err != nil {
+					return errors.Wrap(err, "int")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "anonUid",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s SimpleExportPolicyRuleV1AccessType) Validate() error {
+	switch s {
+	case "ACCESS_TYPE_UNSPECIFIED":
+		return nil
+	case "READ_NONE":
+		return nil
+	case "READ_ONLY":
+		return nil
+	case "READ_WRITE":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s SimpleExportPolicyRuleV1HasRootAccess) Validate() error {
+	switch s {
+	case "true":
+		return nil
+	case "false":
+		return nil
+	case "on":
+		return nil
+	case "off":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *SnapshotPolicyV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.HourlySchedule.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hourlySchedule",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.DailySchedule.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "dailySchedule",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.WeeklySchedule.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "weeklySchedule",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.MonthlySchedule.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "monthlySchedule",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *V1CreateIgroupBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -540,7 +1176,7 @@ func (s *V1CreateHostGroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1CreateHostGroupConflict) Validate() error {
+func (s *V1CreateIgroupConflict) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -548,7 +1184,7 @@ func (s *V1CreateHostGroupConflict) Validate() error {
 	return nil
 }
 
-func (s *V1CreateHostGroupForbidden) Validate() error {
+func (s *V1CreateIgroupForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -556,7 +1192,7 @@ func (s *V1CreateHostGroupForbidden) Validate() error {
 	return nil
 }
 
-func (s *V1CreateHostGroupInternalServerError) Validate() error {
+func (s *V1CreateIgroupInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -564,7 +1200,7 @@ func (s *V1CreateHostGroupInternalServerError) Validate() error {
 	return nil
 }
 
-func (s *V1CreateHostGroupUnauthorized) Validate() error {
+func (s *V1CreateIgroupUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -572,7 +1208,7 @@ func (s *V1CreateHostGroupUnauthorized) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupBadRequest) Validate() error {
+func (s *V1CreateVolumeBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -580,7 +1216,7 @@ func (s *V1DeleteHostGroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupConflict) Validate() error {
+func (s *V1CreateVolumeForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -588,7 +1224,7 @@ func (s *V1DeleteHostGroupConflict) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupForbidden) Validate() error {
+func (s *V1CreateVolumeInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -596,7 +1232,7 @@ func (s *V1DeleteHostGroupForbidden) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupInternalServerError) Validate() error {
+func (s *V1CreateVolumeUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -604,7 +1240,7 @@ func (s *V1DeleteHostGroupInternalServerError) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupNotFound) Validate() error {
+func (s *V1DeleteIgroupBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -612,7 +1248,7 @@ func (s *V1DeleteHostGroupNotFound) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteHostGroupUnauthorized) Validate() error {
+func (s *V1DeleteIgroupConflict) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -620,7 +1256,7 @@ func (s *V1DeleteHostGroupUnauthorized) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeHostGroupBadRequest) Validate() error {
+func (s *V1DeleteIgroupForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -628,7 +1264,7 @@ func (s *V1DescribeHostGroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeHostGroupForbidden) Validate() error {
+func (s *V1DeleteIgroupInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -636,7 +1272,7 @@ func (s *V1DescribeHostGroupForbidden) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeHostGroupInternalServerError) Validate() error {
+func (s *V1DeleteIgroupNotFound) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -644,7 +1280,7 @@ func (s *V1DescribeHostGroupInternalServerError) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeHostGroupNotFound) Validate() error {
+func (s *V1DeleteIgroupUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -652,7 +1288,7 @@ func (s *V1DescribeHostGroupNotFound) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeHostGroupUnauthorized) Validate() error {
+func (s *V1DeleteVolumeBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -660,7 +1296,7 @@ func (s *V1DescribeHostGroupUnauthorized) Validate() error {
 	return nil
 }
 
-func (s *V1ListHostGroupsBadRequest) Validate() error {
+func (s *V1DeleteVolumeForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -668,7 +1304,7 @@ func (s *V1ListHostGroupsBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1ListHostGroupsForbidden) Validate() error {
+func (s *V1DeleteVolumeInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -676,7 +1312,7 @@ func (s *V1ListHostGroupsForbidden) Validate() error {
 	return nil
 }
 
-func (s *V1ListHostGroupsInternalServerError) Validate() error {
+func (s *V1DeleteVolumeUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -684,7 +1320,111 @@ func (s *V1ListHostGroupsInternalServerError) Validate() error {
 	return nil
 }
 
-func (s *V1ListHostGroupsOK) Validate() error {
+func (s *V1DescribeIgroupBadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeIgroupForbidden) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeIgroupInternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeIgroupNotFound) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeIgroupUnauthorized) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeVolumeBadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeVolumeForbidden) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeVolumeInternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeVolumeNotFound) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1DescribeVolumeUnauthorized) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1ListIgroupsBadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1ListIgroupsForbidden) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1ListIgroupsInternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1ListIgroupsOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -692,7 +1432,7 @@ func (s *V1ListHostGroupsOK) Validate() error {
 	var failures []validate.FieldError
 	if err := func() error {
 		var failures []validate.FieldError
-		for i, elem := range s.HostGroups {
+		for i, elem := range s.Igroups {
 			if err := func() error {
 				if err := elem.Validate(); err != nil {
 					return err
@@ -711,7 +1451,7 @@ func (s *V1ListHostGroupsOK) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "hostGroups",
+			Name:  "igroups",
 			Error: err,
 		})
 	}
@@ -721,7 +1461,7 @@ func (s *V1ListHostGroupsOK) Validate() error {
 	return nil
 }
 
-func (s *V1ListHostGroupsUnauthorized) Validate() error {
+func (s *V1ListIgroupsUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -729,7 +1469,7 @@ func (s *V1ListHostGroupsUnauthorized) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupBadRequest) Validate() error {
+func (s *V1UpdateIgroupBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -737,7 +1477,7 @@ func (s *V1UpdateHostGroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupConflict) Validate() error {
+func (s *V1UpdateIgroupConflict) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -745,7 +1485,7 @@ func (s *V1UpdateHostGroupConflict) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupForbidden) Validate() error {
+func (s *V1UpdateIgroupForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -753,7 +1493,7 @@ func (s *V1UpdateHostGroupForbidden) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupInternalServerError) Validate() error {
+func (s *V1UpdateIgroupInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -761,7 +1501,7 @@ func (s *V1UpdateHostGroupInternalServerError) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupNotFound) Validate() error {
+func (s *V1UpdateIgroupNotFound) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -769,10 +1509,498 @@ func (s *V1UpdateHostGroupNotFound) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateHostGroupUnauthorized) Validate() error {
+func (s *V1UpdateIgroupUnauthorized) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *V1UpdateVolumeBadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1UpdateVolumeForbidden) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1UpdateVolumeInternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1UpdateVolumeNotFound) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *V1UpdateVolumeUnauthorized) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *VolumeV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.UUID.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "uuid",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:    0,
+			MinLengthSet: false,
+			MaxLength:    63,
+			MaxLengthSet: true,
+			Email:        false,
+			Hostname:     false,
+			Regex:        regexMap["^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$"],
+		}).Validate(string(s.Name)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "name",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.SizeInBytes.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "sizeInBytes",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.UsedBytes.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        false,
+					Max:           0,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "usedBytes",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.SecurityStyle.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "securityStyle",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.ThroughputMibps.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "throughputMibps",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.SnapReserve.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        false,
+					Max:           0,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapReserve",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.SnapshotPolicy.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapshotPolicy",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.ExportPolicy.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "exportPolicy",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		var failures []validate.FieldError
+		for i, elem := range s.BlockDevices {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "blockDevices",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if s.Protocols == nil {
+			return errors.New("nil is invalid value")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.Protocols {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "protocols",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.RestrictedActions.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "restrictedActions",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		var failures []validate.FieldError
+		for i, elem := range s.MountPoints {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "mountPoints",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.UnixPermissions.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    4,
+					MinLengthSet: true,
+					MaxLength:    4,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "unixPermissions",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s VolumeV1SecurityStyle) Validate() error {
+	switch s {
+	case "SECURITY_STYLE_UNSPECIFIED":
+		return nil
+	case "NTFS":
+		return nil
+	case "UNIX":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *WeeklyScheduleV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.SnapshotsToKeep.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1024,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "snapshotsToKeep",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Day.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    6,
+					MinLengthSet: true,
+					MaxLength:    62,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "day",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Hour.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           23,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hour",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Minute.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           59,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "minute",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
 	}
 	return nil
 }

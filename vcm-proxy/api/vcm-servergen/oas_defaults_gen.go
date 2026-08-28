@@ -3,6 +3,54 @@
 package vcmserver
 
 // setDefaults set default value of fields.
+func (s *DailyScheduleV1) setDefaults() {
+	{
+		val := float64(0)
+		s.SnapshotsToKeep.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Hour.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Minute.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *HourlyScheduleV1) setDefaults() {
+	{
+		val := float64(0)
+		s.SnapshotsToKeep.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Minute.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *MonthlyScheduleV1) setDefaults() {
+	{
+		val := float64(0)
+		s.SnapshotsToKeep.SetTo(val)
+	}
+	{
+		val := string("1")
+		s.DaysOfMonth.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Hour.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Minute.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *PoolV1) setDefaults() {
 	{
 		val := string("auto")
@@ -19,9 +67,97 @@ func (s *PoolV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *SimpleExportPolicyRuleV1) setDefaults() {
+	{
+		val := string("0.0.0.0/0")
+		s.AllowedClients = val
+	}
+	{
+		val := SimpleExportPolicyRuleV1HasRootAccess("true")
+		s.HasRootAccess.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5ReadOnly.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5ReadWrite.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5iReadOnly.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5iReadWrite.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5pReadOnly.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.Kerberos5pReadWrite.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.AllSquash.SetTo(val)
+	}
+	{
+		val := int64(0)
+		s.AnonUid.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *SnapshotPolicyV1) setDefaults() {
+	{
+		val := bool(false)
+		s.Enabled.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *SpConfigV1) setDefaults() {
 	{
 		val := bool(false)
 		s.IsHeterogeneous.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *VolumeV1) setDefaults() {
+	{
+		val := float64(0)
+		s.UsedBytes.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.SnapReserve.SetTo(val)
+	}
+	{
+		val := bool(true)
+		s.SnapshotDirectory.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *WeeklyScheduleV1) setDefaults() {
+	{
+		val := float64(0)
+		s.SnapshotsToKeep.SetTo(val)
+	}
+	{
+		val := string("Sunday")
+		s.Day.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Hour.SetTo(val)
+	}
+	{
+		val := float64(0)
+		s.Minute.SetTo(val)
 	}
 }

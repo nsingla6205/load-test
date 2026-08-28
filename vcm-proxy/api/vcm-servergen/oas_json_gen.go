@@ -14,6 +14,271 @@ import (
 )
 
 // Encode implements json.Marshaler.
+func (s *BlockDeviceV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *BlockDeviceV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("osType")
+		s.OsType.Encode(e)
+	}
+	{
+		e.FieldStart("igroups")
+		e.ArrStart()
+		for _, elem := range s.Igroups {
+			e.Str(elem)
+		}
+		e.ArrEnd()
+	}
+}
+
+var jsonFieldsNameOfBlockDeviceV1 = [2]string{
+	0: "osType",
+	1: "igroups",
+}
+
+// Decode decodes BlockDeviceV1 from json.
+func (s *BlockDeviceV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode BlockDeviceV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "osType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.OsType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"osType\"")
+			}
+		case "igroups":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				s.Igroups = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.Igroups = append(s.Igroups, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"igroups\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode BlockDeviceV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfBlockDeviceV1) {
+					name = jsonFieldsNameOfBlockDeviceV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *BlockDeviceV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *BlockDeviceV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes BlockDeviceV1OsType as json.
+func (s BlockDeviceV1OsType) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes BlockDeviceV1OsType from json.
+func (s *BlockDeviceV1OsType) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode BlockDeviceV1OsType to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch BlockDeviceV1OsType(v) {
+	case BlockDeviceV1OsTypeOSTYPEUNSPECIFIED:
+		*s = BlockDeviceV1OsTypeOSTYPEUNSPECIFIED
+	case BlockDeviceV1OsTypeLINUX:
+		*s = BlockDeviceV1OsTypeLINUX
+	case BlockDeviceV1OsTypeWINDOWS:
+		*s = BlockDeviceV1OsTypeWINDOWS
+	case BlockDeviceV1OsTypeESXI:
+		*s = BlockDeviceV1OsTypeESXI
+	default:
+		*s = BlockDeviceV1OsType(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s BlockDeviceV1OsType) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *BlockDeviceV1OsType) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *DailyScheduleV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *DailyScheduleV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.SnapshotsToKeep.Set {
+			e.FieldStart("snapshotsToKeep")
+			s.SnapshotsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.Hour.Set {
+			e.FieldStart("hour")
+			s.Hour.Encode(e)
+		}
+	}
+	{
+		if s.Minute.Set {
+			e.FieldStart("minute")
+			s.Minute.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfDailyScheduleV1 = [3]string{
+	0: "snapshotsToKeep",
+	1: "hour",
+	2: "minute",
+}
+
+// Decode decodes DailyScheduleV1 from json.
+func (s *DailyScheduleV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode DailyScheduleV1 to nil")
+	}
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "snapshotsToKeep":
+			if err := func() error {
+				s.SnapshotsToKeep.Reset()
+				if err := s.SnapshotsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotsToKeep\"")
+			}
+		case "hour":
+			if err := func() error {
+				s.Hour.Reset()
+				if err := s.Hour.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hour\"")
+			}
+		case "minute":
+			if err := func() error {
+				s.Minute.Reset()
+				if err := s.Minute.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"minute\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode DailyScheduleV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *DailyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *DailyScheduleV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *DataLifsV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -548,6 +813,80 @@ func (s *ErrorResponseV1) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *ExportPolicyV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *ExportPolicyV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.Rules != nil {
+			e.FieldStart("rules")
+			e.ArrStart()
+			for _, elem := range s.Rules {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfExportPolicyV1 = [1]string{
+	0: "rules",
+}
+
+// Decode decodes ExportPolicyV1 from json.
+func (s *ExportPolicyV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ExportPolicyV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "rules":
+			if err := func() error {
+				s.Rules = make([]SimpleExportPolicyRuleV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem SimpleExportPolicyRuleV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Rules = append(s.Rules, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rules\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode ExportPolicyV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ExportPolicyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ExportPolicyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *GatewaysV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -793,142 +1132,95 @@ func (s *HealthResponse) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *HostGroupCreateV1) Encode(e *jx.Encoder) {
+func (s *HourlyScheduleV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *HostGroupCreateV1) encodeFields(e *jx.Encoder) {
+func (s *HourlyScheduleV1) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("requestId")
-		e.Str(s.RequestId)
+		if s.SnapshotsToKeep.Set {
+			e.FieldStart("snapshotsToKeep")
+			s.SnapshotsToKeep.Encode(e)
+		}
 	}
 	{
-		e.FieldStart("deadline")
-		json.EncodeDateTime(e, s.Deadline)
-	}
-	{
-		e.FieldStart("hostGroup")
-		s.HostGroup.Encode(e)
+		if s.Minute.Set {
+			e.FieldStart("minute")
+			s.Minute.Encode(e)
+		}
 	}
 }
 
-var jsonFieldsNameOfHostGroupCreateV1 = [3]string{
-	0: "requestId",
-	1: "deadline",
-	2: "hostGroup",
+var jsonFieldsNameOfHourlyScheduleV1 = [2]string{
+	0: "snapshotsToKeep",
+	1: "minute",
 }
 
-// Decode decodes HostGroupCreateV1 from json.
-func (s *HostGroupCreateV1) Decode(d *jx.Decoder) error {
+// Decode decodes HourlyScheduleV1 from json.
+func (s *HourlyScheduleV1) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode HostGroupCreateV1 to nil")
+		return errors.New("invalid: unable to decode HourlyScheduleV1 to nil")
 	}
-	var requiredBitSet [1]uint8
+	s.setDefaults()
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "requestId":
-			requiredBitSet[0] |= 1 << 0
+		case "snapshotsToKeep":
 			if err := func() error {
-				v, err := d.Str()
-				s.RequestId = string(v)
-				if err != nil {
+				s.SnapshotsToKeep.Reset()
+				if err := s.SnapshotsToKeep.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"requestId\"")
+				return errors.Wrap(err, "decode field \"snapshotsToKeep\"")
 			}
-		case "deadline":
-			requiredBitSet[0] |= 1 << 1
+		case "minute":
 			if err := func() error {
-				v, err := json.DecodeDateTime(d)
-				s.Deadline = v
-				if err != nil {
+				s.Minute.Reset()
+				if err := s.Minute.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"deadline\"")
-			}
-		case "hostGroup":
-			requiredBitSet[0] |= 1 << 2
-			if err := func() error {
-				if err := s.HostGroup.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"hostGroup\"")
+				return errors.Wrap(err, "decode field \"minute\"")
 			}
 		default:
 			return d.Skip()
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode HostGroupCreateV1")
-	}
-	// Validate required fields.
-	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
-		0b00000111,
-	} {
-		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
-			// Mask only required fields and check equality to mask using XOR.
-			//
-			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
-			// Bits of fields which would be set are actually bits of missed fields.
-			missed := bits.OnesCount8(result)
-			for bitN := 0; bitN < missed; bitN++ {
-				bitIdx := bits.TrailingZeros8(result)
-				fieldIdx := i*8 + bitIdx
-				var name string
-				if fieldIdx < len(jsonFieldsNameOfHostGroupCreateV1) {
-					name = jsonFieldsNameOfHostGroupCreateV1[fieldIdx]
-				} else {
-					name = strconv.Itoa(fieldIdx)
-				}
-				failures = append(failures, validate.FieldError{
-					Name:  name,
-					Error: validate.ErrFieldRequired,
-				})
-				// Reset bit.
-				result &^= 1 << bitIdx
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
+		return errors.Wrap(err, "decode HourlyScheduleV1")
 	}
 
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *HostGroupCreateV1) MarshalJSON() ([]byte, error) {
+func (s *HourlyScheduleV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *HostGroupCreateV1) UnmarshalJSON(data []byte) error {
+func (s *HourlyScheduleV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
 // Encode implements json.Marshaler.
-func (s *HostGroupUpdateV1) Encode(e *jx.Encoder) {
+func (s *IgroupUpdateV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *HostGroupUpdateV1) encodeFields(e *jx.Encoder) {
+func (s *IgroupUpdateV1) encodeFields(e *jx.Encoder) {
 	{
 		e.FieldStart("hosts")
 		e.ArrStart()
@@ -939,14 +1231,14 @@ func (s *HostGroupUpdateV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfHostGroupUpdateV1 = [1]string{
+var jsonFieldsNameOfIgroupUpdateV1 = [1]string{
 	0: "hosts",
 }
 
-// Decode decodes HostGroupUpdateV1 from json.
-func (s *HostGroupUpdateV1) Decode(d *jx.Decoder) error {
+// Decode decodes IgroupUpdateV1 from json.
+func (s *IgroupUpdateV1) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode HostGroupUpdateV1 to nil")
+		return errors.New("invalid: unable to decode IgroupUpdateV1 to nil")
 	}
 	var requiredBitSet [1]uint8
 
@@ -977,7 +1269,7 @@ func (s *HostGroupUpdateV1) Decode(d *jx.Decoder) error {
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode HostGroupUpdateV1")
+		return errors.Wrap(err, "decode IgroupUpdateV1")
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
@@ -994,8 +1286,8 @@ func (s *HostGroupUpdateV1) Decode(d *jx.Decoder) error {
 				bitIdx := bits.TrailingZeros8(result)
 				fieldIdx := i*8 + bitIdx
 				var name string
-				if fieldIdx < len(jsonFieldsNameOfHostGroupUpdateV1) {
-					name = jsonFieldsNameOfHostGroupUpdateV1[fieldIdx]
+				if fieldIdx < len(jsonFieldsNameOfIgroupUpdateV1) {
+					name = jsonFieldsNameOfIgroupUpdateV1[fieldIdx]
 				} else {
 					name = strconv.Itoa(fieldIdx)
 				}
@@ -1016,27 +1308,27 @@ func (s *HostGroupUpdateV1) Decode(d *jx.Decoder) error {
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *HostGroupUpdateV1) MarshalJSON() ([]byte, error) {
+func (s *IgroupUpdateV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *HostGroupUpdateV1) UnmarshalJSON(data []byte) error {
+func (s *IgroupUpdateV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
 // Encode implements json.Marshaler.
-func (s *HostGroupV1) Encode(e *jx.Encoder) {
+func (s *IgroupV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *HostGroupV1) encodeFields(e *jx.Encoder) {
+func (s *IgroupV1) encodeFields(e *jx.Encoder) {
 	{
 		e.FieldStart("name")
 		e.Str(s.Name)
@@ -1055,16 +1347,16 @@ func (s *HostGroupV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfHostGroupV1 = [3]string{
+var jsonFieldsNameOfIgroupV1 = [3]string{
 	0: "name",
 	1: "hosts",
 	2: "osType",
 }
 
-// Decode decodes HostGroupV1 from json.
-func (s *HostGroupV1) Decode(d *jx.Decoder) error {
+// Decode decodes IgroupV1 from json.
+func (s *IgroupV1) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode HostGroupV1 to nil")
+		return errors.New("invalid: unable to decode IgroupV1 to nil")
 	}
 	var requiredBitSet [1]uint8
 
@@ -1117,7 +1409,7 @@ func (s *HostGroupV1) Decode(d *jx.Decoder) error {
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode HostGroupV1")
+		return errors.Wrap(err, "decode IgroupV1")
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
@@ -1134,8 +1426,8 @@ func (s *HostGroupV1) Decode(d *jx.Decoder) error {
 				bitIdx := bits.TrailingZeros8(result)
 				fieldIdx := i*8 + bitIdx
 				var name string
-				if fieldIdx < len(jsonFieldsNameOfHostGroupV1) {
-					name = jsonFieldsNameOfHostGroupV1[fieldIdx]
+				if fieldIdx < len(jsonFieldsNameOfIgroupV1) {
+					name = jsonFieldsNameOfIgroupV1[fieldIdx]
 				} else {
 					name = strconv.Itoa(fieldIdx)
 				}
@@ -1156,58 +1448,58 @@ func (s *HostGroupV1) Decode(d *jx.Decoder) error {
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *HostGroupV1) MarshalJSON() ([]byte, error) {
+func (s *IgroupV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *HostGroupV1) UnmarshalJSON(data []byte) error {
+func (s *IgroupV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes HostGroupV1OsType as json.
-func (s HostGroupV1OsType) Encode(e *jx.Encoder) {
+// Encode encodes IgroupV1OsType as json.
+func (s IgroupV1OsType) Encode(e *jx.Encoder) {
 	e.Str(string(s))
 }
 
-// Decode decodes HostGroupV1OsType from json.
-func (s *HostGroupV1OsType) Decode(d *jx.Decoder) error {
+// Decode decodes IgroupV1OsType from json.
+func (s *IgroupV1OsType) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode HostGroupV1OsType to nil")
+		return errors.New("invalid: unable to decode IgroupV1OsType to nil")
 	}
 	v, err := d.StrBytes()
 	if err != nil {
 		return err
 	}
 	// Try to use constant string.
-	switch HostGroupV1OsType(v) {
-	case HostGroupV1OsTypeOSTYPEUNSPECIFIED:
-		*s = HostGroupV1OsTypeOSTYPEUNSPECIFIED
-	case HostGroupV1OsTypeLINUX:
-		*s = HostGroupV1OsTypeLINUX
-	case HostGroupV1OsTypeWINDOWS:
-		*s = HostGroupV1OsTypeWINDOWS
-	case HostGroupV1OsTypeESXI:
-		*s = HostGroupV1OsTypeESXI
+	switch IgroupV1OsType(v) {
+	case IgroupV1OsTypeOSTYPEUNSPECIFIED:
+		*s = IgroupV1OsTypeOSTYPEUNSPECIFIED
+	case IgroupV1OsTypeLINUX:
+		*s = IgroupV1OsTypeLINUX
+	case IgroupV1OsTypeWINDOWS:
+		*s = IgroupV1OsTypeWINDOWS
+	case IgroupV1OsTypeESXI:
+		*s = IgroupV1OsTypeESXI
 	default:
-		*s = HostGroupV1OsType(v)
+		*s = IgroupV1OsType(v)
 	}
 
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s HostGroupV1OsType) MarshalJSON() ([]byte, error) {
+func (s IgroupV1OsType) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *HostGroupV1OsType) UnmarshalJSON(data []byte) error {
+func (s *IgroupV1OsType) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -1447,6 +1739,252 @@ func (s *KmsConfigV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *KmsConfigV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *MonthlyScheduleV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *MonthlyScheduleV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.SnapshotsToKeep.Set {
+			e.FieldStart("snapshotsToKeep")
+			s.SnapshotsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.DaysOfMonth.Set {
+			e.FieldStart("daysOfMonth")
+			s.DaysOfMonth.Encode(e)
+		}
+	}
+	{
+		if s.Hour.Set {
+			e.FieldStart("hour")
+			s.Hour.Encode(e)
+		}
+	}
+	{
+		if s.Minute.Set {
+			e.FieldStart("minute")
+			s.Minute.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfMonthlyScheduleV1 = [4]string{
+	0: "snapshotsToKeep",
+	1: "daysOfMonth",
+	2: "hour",
+	3: "minute",
+}
+
+// Decode decodes MonthlyScheduleV1 from json.
+func (s *MonthlyScheduleV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode MonthlyScheduleV1 to nil")
+	}
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "snapshotsToKeep":
+			if err := func() error {
+				s.SnapshotsToKeep.Reset()
+				if err := s.SnapshotsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotsToKeep\"")
+			}
+		case "daysOfMonth":
+			if err := func() error {
+				s.DaysOfMonth.Reset()
+				if err := s.DaysOfMonth.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"daysOfMonth\"")
+			}
+		case "hour":
+			if err := func() error {
+				s.Hour.Reset()
+				if err := s.Hour.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hour\"")
+			}
+		case "minute":
+			if err := func() error {
+				s.Minute.Reset()
+				if err := s.Minute.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"minute\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode MonthlyScheduleV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *MonthlyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *MonthlyScheduleV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *MountPointV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *MountPointV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.Export.Set {
+			e.FieldStart("export")
+			s.Export.Encode(e)
+		}
+	}
+	{
+		if s.ExportFull.Set {
+			e.FieldStart("exportFull")
+			s.ExportFull.Encode(e)
+		}
+	}
+	{
+		if s.IpAddress.Set {
+			e.FieldStart("ipAddress")
+			s.IpAddress.Encode(e)
+		}
+	}
+	{
+		if s.Protocol.Set {
+			e.FieldStart("protocol")
+			s.Protocol.Encode(e)
+		}
+	}
+	{
+		if s.Instructions.Set {
+			e.FieldStart("instructions")
+			s.Instructions.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfMountPointV1 = [5]string{
+	0: "export",
+	1: "exportFull",
+	2: "ipAddress",
+	3: "protocol",
+	4: "instructions",
+}
+
+// Decode decodes MountPointV1 from json.
+func (s *MountPointV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode MountPointV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "export":
+			if err := func() error {
+				s.Export.Reset()
+				if err := s.Export.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"export\"")
+			}
+		case "exportFull":
+			if err := func() error {
+				s.ExportFull.Reset()
+				if err := s.ExportFull.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"exportFull\"")
+			}
+		case "ipAddress":
+			if err := func() error {
+				s.IpAddress.Reset()
+				if err := s.IpAddress.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ipAddress\"")
+			}
+		case "protocol":
+			if err := func() error {
+				s.Protocol.Reset()
+				if err := s.Protocol.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"protocol\"")
+			}
+		case "instructions":
+			if err := func() error {
+				s.Instructions.Reset()
+				if err := s.Instructions.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"instructions\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode MountPointV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *MountPointV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *MountPointV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -2488,6 +3026,39 @@ func (s *OptBool) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes DailyScheduleV1 as json.
+func (o OptDailyScheduleV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes DailyScheduleV1 from json.
+func (o *OptDailyScheduleV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptDailyScheduleV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptDailyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptDailyScheduleV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes DataLifsV1 as json.
 func (o OptDataLifsV1) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -2622,6 +3193,74 @@ func (s *OptErrorResponseV1) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes ExportPolicyV1 as json.
+func (o OptExportPolicyV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes ExportPolicyV1 from json.
+func (o *OptExportPolicyV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptExportPolicyV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptExportPolicyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptExportPolicyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes float64 as json.
+func (o OptFloat64) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Float64(float64(o.Value))
+}
+
+// Decode decodes float64 from json.
+func (o *OptFloat64) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptFloat64 to nil")
+	}
+	o.Set = true
+	v, err := d.Float64()
+	if err != nil {
+		return err
+	}
+	o.Value = float64(v)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptFloat64) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptFloat64) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes GatewaysV1 as json.
 func (o OptGatewaysV1) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -2651,6 +3290,39 @@ func (s OptGatewaysV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptGatewaysV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes HourlyScheduleV1 as json.
+func (o OptHourlyScheduleV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes HourlyScheduleV1 from json.
+func (o *OptHourlyScheduleV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptHourlyScheduleV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptHourlyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptHourlyScheduleV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -2752,6 +3424,39 @@ func (s OptKmsConfigV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptKmsConfigV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes MonthlyScheduleV1 as json.
+func (o OptMonthlyScheduleV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes MonthlyScheduleV1 from json.
+func (o *OptMonthlyScheduleV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptMonthlyScheduleV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptMonthlyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptMonthlyScheduleV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -2920,6 +3625,106 @@ func (s OptNilFloat64) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptNilFloat64) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes int64 as json.
+func (o OptNilInt64) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	if o.Null {
+		e.Null()
+		return
+	}
+	e.Int64(int64(o.Value))
+}
+
+// Decode decodes int64 from json.
+func (o *OptNilInt64) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptNilInt64 to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v int64
+		o.Value = v
+		o.Set = true
+		o.Null = true
+		return nil
+	}
+	o.Set = true
+	o.Null = false
+	v, err := d.Int64()
+	if err != nil {
+		return err
+	}
+	o.Value = int64(v)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptNilInt64) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptNilInt64) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes SimpleExportPolicyRuleV1HasRootAccess as json.
+func (o OptNilSimpleExportPolicyRuleV1HasRootAccess) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	if o.Null {
+		e.Null()
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes SimpleExportPolicyRuleV1HasRootAccess from json.
+func (o *OptNilSimpleExportPolicyRuleV1HasRootAccess) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptNilSimpleExportPolicyRuleV1HasRootAccess to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v SimpleExportPolicyRuleV1HasRootAccess
+		o.Value = v
+		o.Set = true
+		o.Null = true
+		return nil
+	}
+	o.Set = true
+	o.Null = false
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptNilSimpleExportPolicyRuleV1HasRootAccess) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptNilSimpleExportPolicyRuleV1HasRootAccess) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -3108,6 +3913,72 @@ func (s *OptPoolV1Mode) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes ProtocolsV1 as json.
+func (o OptProtocolsV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes ProtocolsV1 from json.
+func (o *OptProtocolsV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptProtocolsV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptProtocolsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptProtocolsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes SnapshotPolicyV1 as json.
+func (o OptSnapshotPolicyV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes SnapshotPolicyV1 from json.
+func (o *OptSnapshotPolicyV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptSnapshotPolicyV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptSnapshotPolicyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptSnapshotPolicyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes SpConfigV1 as json.
 func (o OptSpConfigV1) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -3172,6 +4043,72 @@ func (s OptString) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptString) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes VolumeV1SecurityStyle as json.
+func (o OptVolumeV1SecurityStyle) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes VolumeV1SecurityStyle from json.
+func (o *OptVolumeV1SecurityStyle) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptVolumeV1SecurityStyle to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptVolumeV1SecurityStyle) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptVolumeV1SecurityStyle) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes WeeklyScheduleV1 as json.
+func (o OptWeeklyScheduleV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes WeeklyScheduleV1 from json.
+func (o *OptWeeklyScheduleV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptWeeklyScheduleV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptWeeklyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptWeeklyScheduleV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -4013,6 +4950,147 @@ func (s *PoolV1Mode) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes ProtocolsV1 as json.
+func (s ProtocolsV1) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes ProtocolsV1 from json.
+func (s *ProtocolsV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ProtocolsV1 to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch ProtocolsV1(v) {
+	case ProtocolsV1PROTOCOLUNSPECIFIED:
+		*s = ProtocolsV1PROTOCOLUNSPECIFIED
+	case ProtocolsV1NFSV3:
+		*s = ProtocolsV1NFSV3
+	case ProtocolsV1NFSV4:
+		*s = ProtocolsV1NFSV4
+	case ProtocolsV1SMB:
+		*s = ProtocolsV1SMB
+	case ProtocolsV1ISCSI:
+		*s = ProtocolsV1ISCSI
+	default:
+		*s = ProtocolsV1(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ProtocolsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ProtocolsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes RestrictedActionsV1 as json.
+func (s RestrictedActionsV1) Encode(e *jx.Encoder) {
+	unwrapped := []RestrictedActionsV1Item(s)
+	if unwrapped == nil {
+		e.ArrEmpty()
+		return
+	}
+	if unwrapped != nil {
+		e.ArrStart()
+		for _, elem := range unwrapped {
+			elem.Encode(e)
+		}
+		e.ArrEnd()
+	}
+}
+
+// Decode decodes RestrictedActionsV1 from json.
+func (s *RestrictedActionsV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode RestrictedActionsV1 to nil")
+	}
+	var unwrapped []RestrictedActionsV1Item
+	if err := func() error {
+		unwrapped = make([]RestrictedActionsV1Item, 0)
+		if err := d.Arr(func(d *jx.Decoder) error {
+			var elem RestrictedActionsV1Item
+			if err := elem.Decode(d); err != nil {
+				return err
+			}
+			unwrapped = append(unwrapped, elem)
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = RestrictedActionsV1(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s RestrictedActionsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *RestrictedActionsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes RestrictedActionsV1Item as json.
+func (s RestrictedActionsV1Item) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes RestrictedActionsV1Item from json.
+func (s *RestrictedActionsV1Item) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode RestrictedActionsV1Item to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch RestrictedActionsV1Item(v) {
+	case RestrictedActionsV1ItemDELETE:
+		*s = RestrictedActionsV1ItemDELETE
+	case RestrictedActionsV1ItemRESTRICTEDACTIONUNSPECIFIED:
+		*s = RestrictedActionsV1ItemRESTRICTEDACTIONUNSPECIFIED
+	default:
+		*s = RestrictedActionsV1Item(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s RestrictedActionsV1Item) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *RestrictedActionsV1Item) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode implements json.Marshaler.
 func (s *SetConfigRequestV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
@@ -4273,6 +5351,526 @@ func (s *SetConfigRequestV1) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *SimpleExportPolicyRuleV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *SimpleExportPolicyRuleV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("allowedClients")
+		e.Str(s.AllowedClients)
+	}
+	{
+		if s.HasRootAccess.Set {
+			e.FieldStart("hasRootAccess")
+			s.HasRootAccess.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("accessType")
+		s.AccessType.Encode(e)
+	}
+	{
+		if s.Nfsv3.Set {
+			e.FieldStart("nfsv3")
+			s.Nfsv3.Encode(e)
+		}
+	}
+	{
+		if s.Nfsv4.Set {
+			e.FieldStart("nfsv4")
+			s.Nfsv4.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5ReadOnly.Set {
+			e.FieldStart("kerberos5ReadOnly")
+			s.Kerberos5ReadOnly.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5ReadWrite.Set {
+			e.FieldStart("kerberos5ReadWrite")
+			s.Kerberos5ReadWrite.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5iReadOnly.Set {
+			e.FieldStart("kerberos5iReadOnly")
+			s.Kerberos5iReadOnly.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5iReadWrite.Set {
+			e.FieldStart("kerberos5iReadWrite")
+			s.Kerberos5iReadWrite.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5pReadOnly.Set {
+			e.FieldStart("kerberos5pReadOnly")
+			s.Kerberos5pReadOnly.Encode(e)
+		}
+	}
+	{
+		if s.Kerberos5pReadWrite.Set {
+			e.FieldStart("kerberos5pReadWrite")
+			s.Kerberos5pReadWrite.Encode(e)
+		}
+	}
+	{
+		if s.AllSquash.Set {
+			e.FieldStart("allSquash")
+			s.AllSquash.Encode(e)
+		}
+	}
+	{
+		if s.AnonUid.Set {
+			e.FieldStart("anonUid")
+			s.AnonUid.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfSimpleExportPolicyRuleV1 = [13]string{
+	0:  "allowedClients",
+	1:  "hasRootAccess",
+	2:  "accessType",
+	3:  "nfsv3",
+	4:  "nfsv4",
+	5:  "kerberos5ReadOnly",
+	6:  "kerberos5ReadWrite",
+	7:  "kerberos5iReadOnly",
+	8:  "kerberos5iReadWrite",
+	9:  "kerberos5pReadOnly",
+	10: "kerberos5pReadWrite",
+	11: "allSquash",
+	12: "anonUid",
+}
+
+// Decode decodes SimpleExportPolicyRuleV1 from json.
+func (s *SimpleExportPolicyRuleV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode SimpleExportPolicyRuleV1 to nil")
+	}
+	var requiredBitSet [2]uint8
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "allowedClients":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.AllowedClients = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"allowedClients\"")
+			}
+		case "hasRootAccess":
+			if err := func() error {
+				s.HasRootAccess.Reset()
+				if err := s.HasRootAccess.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hasRootAccess\"")
+			}
+		case "accessType":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				if err := s.AccessType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"accessType\"")
+			}
+		case "nfsv3":
+			if err := func() error {
+				s.Nfsv3.Reset()
+				if err := s.Nfsv3.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nfsv3\"")
+			}
+		case "nfsv4":
+			if err := func() error {
+				s.Nfsv4.Reset()
+				if err := s.Nfsv4.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nfsv4\"")
+			}
+		case "kerberos5ReadOnly":
+			if err := func() error {
+				s.Kerberos5ReadOnly.Reset()
+				if err := s.Kerberos5ReadOnly.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5ReadOnly\"")
+			}
+		case "kerberos5ReadWrite":
+			if err := func() error {
+				s.Kerberos5ReadWrite.Reset()
+				if err := s.Kerberos5ReadWrite.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5ReadWrite\"")
+			}
+		case "kerberos5iReadOnly":
+			if err := func() error {
+				s.Kerberos5iReadOnly.Reset()
+				if err := s.Kerberos5iReadOnly.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5iReadOnly\"")
+			}
+		case "kerberos5iReadWrite":
+			if err := func() error {
+				s.Kerberos5iReadWrite.Reset()
+				if err := s.Kerberos5iReadWrite.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5iReadWrite\"")
+			}
+		case "kerberos5pReadOnly":
+			if err := func() error {
+				s.Kerberos5pReadOnly.Reset()
+				if err := s.Kerberos5pReadOnly.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5pReadOnly\"")
+			}
+		case "kerberos5pReadWrite":
+			if err := func() error {
+				s.Kerberos5pReadWrite.Reset()
+				if err := s.Kerberos5pReadWrite.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberos5pReadWrite\"")
+			}
+		case "allSquash":
+			if err := func() error {
+				s.AllSquash.Reset()
+				if err := s.AllSquash.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"allSquash\"")
+			}
+		case "anonUid":
+			if err := func() error {
+				s.AnonUid.Reset()
+				if err := s.AnonUid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"anonUid\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode SimpleExportPolicyRuleV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [2]uint8{
+		0b00000101,
+		0b00000000,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfSimpleExportPolicyRuleV1) {
+					name = jsonFieldsNameOfSimpleExportPolicyRuleV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *SimpleExportPolicyRuleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *SimpleExportPolicyRuleV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes SimpleExportPolicyRuleV1AccessType as json.
+func (s SimpleExportPolicyRuleV1AccessType) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes SimpleExportPolicyRuleV1AccessType from json.
+func (s *SimpleExportPolicyRuleV1AccessType) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode SimpleExportPolicyRuleV1AccessType to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch SimpleExportPolicyRuleV1AccessType(v) {
+	case SimpleExportPolicyRuleV1AccessTypeACCESSTYPEUNSPECIFIED:
+		*s = SimpleExportPolicyRuleV1AccessTypeACCESSTYPEUNSPECIFIED
+	case SimpleExportPolicyRuleV1AccessTypeREADNONE:
+		*s = SimpleExportPolicyRuleV1AccessTypeREADNONE
+	case SimpleExportPolicyRuleV1AccessTypeREADONLY:
+		*s = SimpleExportPolicyRuleV1AccessTypeREADONLY
+	case SimpleExportPolicyRuleV1AccessTypeREADWRITE:
+		*s = SimpleExportPolicyRuleV1AccessTypeREADWRITE
+	default:
+		*s = SimpleExportPolicyRuleV1AccessType(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s SimpleExportPolicyRuleV1AccessType) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *SimpleExportPolicyRuleV1AccessType) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes SimpleExportPolicyRuleV1HasRootAccess as json.
+func (s SimpleExportPolicyRuleV1HasRootAccess) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes SimpleExportPolicyRuleV1HasRootAccess from json.
+func (s *SimpleExportPolicyRuleV1HasRootAccess) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode SimpleExportPolicyRuleV1HasRootAccess to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch SimpleExportPolicyRuleV1HasRootAccess(v) {
+	case SimpleExportPolicyRuleV1HasRootAccessTrue:
+		*s = SimpleExportPolicyRuleV1HasRootAccessTrue
+	case SimpleExportPolicyRuleV1HasRootAccessFalse:
+		*s = SimpleExportPolicyRuleV1HasRootAccessFalse
+	case SimpleExportPolicyRuleV1HasRootAccessOn:
+		*s = SimpleExportPolicyRuleV1HasRootAccessOn
+	case SimpleExportPolicyRuleV1HasRootAccessOff:
+		*s = SimpleExportPolicyRuleV1HasRootAccessOff
+	default:
+		*s = SimpleExportPolicyRuleV1HasRootAccess(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s SimpleExportPolicyRuleV1HasRootAccess) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *SimpleExportPolicyRuleV1HasRootAccess) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *SnapshotPolicyV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *SnapshotPolicyV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.Enabled.Set {
+			e.FieldStart("enabled")
+			s.Enabled.Encode(e)
+		}
+	}
+	{
+		if s.HourlySchedule.Set {
+			e.FieldStart("hourlySchedule")
+			s.HourlySchedule.Encode(e)
+		}
+	}
+	{
+		if s.DailySchedule.Set {
+			e.FieldStart("dailySchedule")
+			s.DailySchedule.Encode(e)
+		}
+	}
+	{
+		if s.WeeklySchedule.Set {
+			e.FieldStart("weeklySchedule")
+			s.WeeklySchedule.Encode(e)
+		}
+	}
+	{
+		if s.MonthlySchedule.Set {
+			e.FieldStart("monthlySchedule")
+			s.MonthlySchedule.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfSnapshotPolicyV1 = [5]string{
+	0: "enabled",
+	1: "hourlySchedule",
+	2: "dailySchedule",
+	3: "weeklySchedule",
+	4: "monthlySchedule",
+}
+
+// Decode decodes SnapshotPolicyV1 from json.
+func (s *SnapshotPolicyV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode SnapshotPolicyV1 to nil")
+	}
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "enabled":
+			if err := func() error {
+				s.Enabled.Reset()
+				if err := s.Enabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"enabled\"")
+			}
+		case "hourlySchedule":
+			if err := func() error {
+				s.HourlySchedule.Reset()
+				if err := s.HourlySchedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hourlySchedule\"")
+			}
+		case "dailySchedule":
+			if err := func() error {
+				s.DailySchedule.Reset()
+				if err := s.DailySchedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"dailySchedule\"")
+			}
+		case "weeklySchedule":
+			if err := func() error {
+				s.WeeklySchedule.Reset()
+				if err := s.WeeklySchedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"weeklySchedule\"")
+			}
+		case "monthlySchedule":
+			if err := func() error {
+				s.MonthlySchedule.Reset()
+				if err := s.MonthlySchedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"monthlySchedule\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode SnapshotPolicyV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *SnapshotPolicyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *SnapshotPolicyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *SpConfigV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -4387,17 +5985,17 @@ func (s *SpConfigV1) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes V1CreateHostGroupBadRequest as json.
-func (s *V1CreateHostGroupBadRequest) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateIgroupBadRequest as json.
+func (s *V1CreateIgroupBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1CreateHostGroupBadRequest from json.
-func (s *V1CreateHostGroupBadRequest) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateIgroupBadRequest from json.
+func (s *V1CreateIgroupBadRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1CreateHostGroupBadRequest to nil")
+		return errors.New("invalid: unable to decode V1CreateIgroupBadRequest to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4408,34 +6006,34 @@ func (s *V1CreateHostGroupBadRequest) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1CreateHostGroupBadRequest(unwrapped)
+	*s = V1CreateIgroupBadRequest(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1CreateHostGroupBadRequest) MarshalJSON() ([]byte, error) {
+func (s *V1CreateIgroupBadRequest) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1CreateHostGroupBadRequest) UnmarshalJSON(data []byte) error {
+func (s *V1CreateIgroupBadRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1CreateHostGroupConflict as json.
-func (s *V1CreateHostGroupConflict) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateIgroupConflict as json.
+func (s *V1CreateIgroupConflict) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1CreateHostGroupConflict from json.
-func (s *V1CreateHostGroupConflict) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateIgroupConflict from json.
+func (s *V1CreateIgroupConflict) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1CreateHostGroupConflict to nil")
+		return errors.New("invalid: unable to decode V1CreateIgroupConflict to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4446,34 +6044,34 @@ func (s *V1CreateHostGroupConflict) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1CreateHostGroupConflict(unwrapped)
+	*s = V1CreateIgroupConflict(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1CreateHostGroupConflict) MarshalJSON() ([]byte, error) {
+func (s *V1CreateIgroupConflict) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1CreateHostGroupConflict) UnmarshalJSON(data []byte) error {
+func (s *V1CreateIgroupConflict) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1CreateHostGroupForbidden as json.
-func (s *V1CreateHostGroupForbidden) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateIgroupForbidden as json.
+func (s *V1CreateIgroupForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1CreateHostGroupForbidden from json.
-func (s *V1CreateHostGroupForbidden) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateIgroupForbidden from json.
+func (s *V1CreateIgroupForbidden) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1CreateHostGroupForbidden to nil")
+		return errors.New("invalid: unable to decode V1CreateIgroupForbidden to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4484,34 +6082,34 @@ func (s *V1CreateHostGroupForbidden) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1CreateHostGroupForbidden(unwrapped)
+	*s = V1CreateIgroupForbidden(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1CreateHostGroupForbidden) MarshalJSON() ([]byte, error) {
+func (s *V1CreateIgroupForbidden) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1CreateHostGroupForbidden) UnmarshalJSON(data []byte) error {
+func (s *V1CreateIgroupForbidden) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1CreateHostGroupInternalServerError as json.
-func (s *V1CreateHostGroupInternalServerError) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateIgroupInternalServerError as json.
+func (s *V1CreateIgroupInternalServerError) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1CreateHostGroupInternalServerError from json.
-func (s *V1CreateHostGroupInternalServerError) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateIgroupInternalServerError from json.
+func (s *V1CreateIgroupInternalServerError) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1CreateHostGroupInternalServerError to nil")
+		return errors.New("invalid: unable to decode V1CreateIgroupInternalServerError to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4522,34 +6120,34 @@ func (s *V1CreateHostGroupInternalServerError) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1CreateHostGroupInternalServerError(unwrapped)
+	*s = V1CreateIgroupInternalServerError(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1CreateHostGroupInternalServerError) MarshalJSON() ([]byte, error) {
+func (s *V1CreateIgroupInternalServerError) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1CreateHostGroupInternalServerError) UnmarshalJSON(data []byte) error {
+func (s *V1CreateIgroupInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1CreateHostGroupUnauthorized as json.
-func (s *V1CreateHostGroupUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateIgroupUnauthorized as json.
+func (s *V1CreateIgroupUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1CreateHostGroupUnauthorized from json.
-func (s *V1CreateHostGroupUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateIgroupUnauthorized from json.
+func (s *V1CreateIgroupUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1CreateHostGroupUnauthorized to nil")
+		return errors.New("invalid: unable to decode V1CreateIgroupUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4560,34 +6158,34 @@ func (s *V1CreateHostGroupUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1CreateHostGroupUnauthorized(unwrapped)
+	*s = V1CreateIgroupUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1CreateHostGroupUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *V1CreateIgroupUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1CreateHostGroupUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *V1CreateIgroupUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupBadRequest as json.
-func (s *V1DeleteHostGroupBadRequest) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateVolumeBadRequest as json.
+func (s *V1CreateVolumeBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupBadRequest from json.
-func (s *V1DeleteHostGroupBadRequest) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateVolumeBadRequest from json.
+func (s *V1CreateVolumeBadRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupBadRequest to nil")
+		return errors.New("invalid: unable to decode V1CreateVolumeBadRequest to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4598,34 +6196,34 @@ func (s *V1DeleteHostGroupBadRequest) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupBadRequest(unwrapped)
+	*s = V1CreateVolumeBadRequest(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupBadRequest) MarshalJSON() ([]byte, error) {
+func (s *V1CreateVolumeBadRequest) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupBadRequest) UnmarshalJSON(data []byte) error {
+func (s *V1CreateVolumeBadRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupConflict as json.
-func (s *V1DeleteHostGroupConflict) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateVolumeForbidden as json.
+func (s *V1CreateVolumeForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupConflict from json.
-func (s *V1DeleteHostGroupConflict) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateVolumeForbidden from json.
+func (s *V1CreateVolumeForbidden) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupConflict to nil")
+		return errors.New("invalid: unable to decode V1CreateVolumeForbidden to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4636,34 +6234,34 @@ func (s *V1DeleteHostGroupConflict) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupConflict(unwrapped)
+	*s = V1CreateVolumeForbidden(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupConflict) MarshalJSON() ([]byte, error) {
+func (s *V1CreateVolumeForbidden) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupConflict) UnmarshalJSON(data []byte) error {
+func (s *V1CreateVolumeForbidden) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupForbidden as json.
-func (s *V1DeleteHostGroupForbidden) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateVolumeInternalServerError as json.
+func (s *V1CreateVolumeInternalServerError) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupForbidden from json.
-func (s *V1DeleteHostGroupForbidden) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateVolumeInternalServerError from json.
+func (s *V1CreateVolumeInternalServerError) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupForbidden to nil")
+		return errors.New("invalid: unable to decode V1CreateVolumeInternalServerError to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4674,34 +6272,34 @@ func (s *V1DeleteHostGroupForbidden) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupForbidden(unwrapped)
+	*s = V1CreateVolumeInternalServerError(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupForbidden) MarshalJSON() ([]byte, error) {
+func (s *V1CreateVolumeInternalServerError) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupForbidden) UnmarshalJSON(data []byte) error {
+func (s *V1CreateVolumeInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupInternalServerError as json.
-func (s *V1DeleteHostGroupInternalServerError) Encode(e *jx.Encoder) {
+// Encode encodes V1CreateVolumeUnauthorized as json.
+func (s *V1CreateVolumeUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupInternalServerError from json.
-func (s *V1DeleteHostGroupInternalServerError) Decode(d *jx.Decoder) error {
+// Decode decodes V1CreateVolumeUnauthorized from json.
+func (s *V1CreateVolumeUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupInternalServerError to nil")
+		return errors.New("invalid: unable to decode V1CreateVolumeUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4712,34 +6310,34 @@ func (s *V1DeleteHostGroupInternalServerError) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupInternalServerError(unwrapped)
+	*s = V1CreateVolumeUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupInternalServerError) MarshalJSON() ([]byte, error) {
+func (s *V1CreateVolumeUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupInternalServerError) UnmarshalJSON(data []byte) error {
+func (s *V1CreateVolumeUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupNotFound as json.
-func (s *V1DeleteHostGroupNotFound) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupBadRequest as json.
+func (s *V1DeleteIgroupBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupNotFound from json.
-func (s *V1DeleteHostGroupNotFound) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupBadRequest from json.
+func (s *V1DeleteIgroupBadRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupNotFound to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupBadRequest to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4750,34 +6348,34 @@ func (s *V1DeleteHostGroupNotFound) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupNotFound(unwrapped)
+	*s = V1DeleteIgroupBadRequest(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupNotFound) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupBadRequest) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupNotFound) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupBadRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DeleteHostGroupUnauthorized as json.
-func (s *V1DeleteHostGroupUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupConflict as json.
+func (s *V1DeleteIgroupConflict) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DeleteHostGroupUnauthorized from json.
-func (s *V1DeleteHostGroupUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupConflict from json.
+func (s *V1DeleteIgroupConflict) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DeleteHostGroupUnauthorized to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupConflict to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4788,34 +6386,34 @@ func (s *V1DeleteHostGroupUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DeleteHostGroupUnauthorized(unwrapped)
+	*s = V1DeleteIgroupConflict(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DeleteHostGroupUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupConflict) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DeleteHostGroupUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupConflict) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DescribeHostGroupBadRequest as json.
-func (s *V1DescribeHostGroupBadRequest) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupForbidden as json.
+func (s *V1DeleteIgroupForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DescribeHostGroupBadRequest from json.
-func (s *V1DescribeHostGroupBadRequest) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupForbidden from json.
+func (s *V1DeleteIgroupForbidden) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DescribeHostGroupBadRequest to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupForbidden to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4826,34 +6424,34 @@ func (s *V1DescribeHostGroupBadRequest) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DescribeHostGroupBadRequest(unwrapped)
+	*s = V1DeleteIgroupForbidden(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DescribeHostGroupBadRequest) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupForbidden) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DescribeHostGroupBadRequest) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupForbidden) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DescribeHostGroupForbidden as json.
-func (s *V1DescribeHostGroupForbidden) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupInternalServerError as json.
+func (s *V1DeleteIgroupInternalServerError) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DescribeHostGroupForbidden from json.
-func (s *V1DescribeHostGroupForbidden) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupInternalServerError from json.
+func (s *V1DeleteIgroupInternalServerError) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DescribeHostGroupForbidden to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupInternalServerError to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4864,34 +6462,34 @@ func (s *V1DescribeHostGroupForbidden) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DescribeHostGroupForbidden(unwrapped)
+	*s = V1DeleteIgroupInternalServerError(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DescribeHostGroupForbidden) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupInternalServerError) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DescribeHostGroupForbidden) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DescribeHostGroupInternalServerError as json.
-func (s *V1DescribeHostGroupInternalServerError) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupNotFound as json.
+func (s *V1DeleteIgroupNotFound) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DescribeHostGroupInternalServerError from json.
-func (s *V1DescribeHostGroupInternalServerError) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupNotFound from json.
+func (s *V1DeleteIgroupNotFound) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DescribeHostGroupInternalServerError to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupNotFound to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4902,34 +6500,34 @@ func (s *V1DescribeHostGroupInternalServerError) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DescribeHostGroupInternalServerError(unwrapped)
+	*s = V1DeleteIgroupNotFound(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DescribeHostGroupInternalServerError) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupNotFound) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DescribeHostGroupInternalServerError) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupNotFound) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DescribeHostGroupNotFound as json.
-func (s *V1DescribeHostGroupNotFound) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteIgroupUnauthorized as json.
+func (s *V1DeleteIgroupUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DescribeHostGroupNotFound from json.
-func (s *V1DescribeHostGroupNotFound) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteIgroupUnauthorized from json.
+func (s *V1DeleteIgroupUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DescribeHostGroupNotFound to nil")
+		return errors.New("invalid: unable to decode V1DeleteIgroupUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4940,34 +6538,34 @@ func (s *V1DescribeHostGroupNotFound) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DescribeHostGroupNotFound(unwrapped)
+	*s = V1DeleteIgroupUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DescribeHostGroupNotFound) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteIgroupUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DescribeHostGroupNotFound) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteIgroupUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1DescribeHostGroupUnauthorized as json.
-func (s *V1DescribeHostGroupUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteVolumeBadRequest as json.
+func (s *V1DeleteVolumeBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1DescribeHostGroupUnauthorized from json.
-func (s *V1DescribeHostGroupUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteVolumeBadRequest from json.
+func (s *V1DeleteVolumeBadRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1DescribeHostGroupUnauthorized to nil")
+		return errors.New("invalid: unable to decode V1DeleteVolumeBadRequest to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -4978,34 +6576,34 @@ func (s *V1DescribeHostGroupUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1DescribeHostGroupUnauthorized(unwrapped)
+	*s = V1DeleteVolumeBadRequest(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1DescribeHostGroupUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteVolumeBadRequest) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1DescribeHostGroupUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteVolumeBadRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1ListHostGroupsBadRequest as json.
-func (s *V1ListHostGroupsBadRequest) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteVolumeForbidden as json.
+func (s *V1DeleteVolumeForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1ListHostGroupsBadRequest from json.
-func (s *V1ListHostGroupsBadRequest) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteVolumeForbidden from json.
+func (s *V1DeleteVolumeForbidden) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1ListHostGroupsBadRequest to nil")
+		return errors.New("invalid: unable to decode V1DeleteVolumeForbidden to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5016,34 +6614,34 @@ func (s *V1ListHostGroupsBadRequest) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1ListHostGroupsBadRequest(unwrapped)
+	*s = V1DeleteVolumeForbidden(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1ListHostGroupsBadRequest) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteVolumeForbidden) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1ListHostGroupsBadRequest) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteVolumeForbidden) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1ListHostGroupsForbidden as json.
-func (s *V1ListHostGroupsForbidden) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteVolumeInternalServerError as json.
+func (s *V1DeleteVolumeInternalServerError) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1ListHostGroupsForbidden from json.
-func (s *V1ListHostGroupsForbidden) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteVolumeInternalServerError from json.
+func (s *V1DeleteVolumeInternalServerError) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1ListHostGroupsForbidden to nil")
+		return errors.New("invalid: unable to decode V1DeleteVolumeInternalServerError to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5054,34 +6652,34 @@ func (s *V1ListHostGroupsForbidden) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1ListHostGroupsForbidden(unwrapped)
+	*s = V1DeleteVolumeInternalServerError(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1ListHostGroupsForbidden) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteVolumeInternalServerError) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1ListHostGroupsForbidden) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteVolumeInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1ListHostGroupsInternalServerError as json.
-func (s *V1ListHostGroupsInternalServerError) Encode(e *jx.Encoder) {
+// Encode encodes V1DeleteVolumeUnauthorized as json.
+func (s *V1DeleteVolumeUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1ListHostGroupsInternalServerError from json.
-func (s *V1ListHostGroupsInternalServerError) Decode(d *jx.Decoder) error {
+// Decode decodes V1DeleteVolumeUnauthorized from json.
+func (s *V1DeleteVolumeUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1ListHostGroupsInternalServerError to nil")
+		return errors.New("invalid: unable to decode V1DeleteVolumeUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5092,37 +6690,531 @@ func (s *V1ListHostGroupsInternalServerError) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1ListHostGroupsInternalServerError(unwrapped)
+	*s = V1DeleteVolumeUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1ListHostGroupsInternalServerError) MarshalJSON() ([]byte, error) {
+func (s *V1DeleteVolumeUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1ListHostGroupsInternalServerError) UnmarshalJSON(data []byte) error {
+func (s *V1DeleteVolumeUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeIgroupBadRequest as json.
+func (s *V1DescribeIgroupBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeIgroupBadRequest from json.
+func (s *V1DescribeIgroupBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeIgroupBadRequest to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeIgroupBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeIgroupBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeIgroupBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeIgroupForbidden as json.
+func (s *V1DescribeIgroupForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeIgroupForbidden from json.
+func (s *V1DescribeIgroupForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeIgroupForbidden to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeIgroupForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeIgroupForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeIgroupForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeIgroupInternalServerError as json.
+func (s *V1DescribeIgroupInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeIgroupInternalServerError from json.
+func (s *V1DescribeIgroupInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeIgroupInternalServerError to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeIgroupInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeIgroupInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeIgroupInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeIgroupNotFound as json.
+func (s *V1DescribeIgroupNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeIgroupNotFound from json.
+func (s *V1DescribeIgroupNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeIgroupNotFound to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeIgroupNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeIgroupNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeIgroupNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeIgroupUnauthorized as json.
+func (s *V1DescribeIgroupUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeIgroupUnauthorized from json.
+func (s *V1DescribeIgroupUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeIgroupUnauthorized to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeIgroupUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeIgroupUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeIgroupUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeVolumeBadRequest as json.
+func (s *V1DescribeVolumeBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeVolumeBadRequest from json.
+func (s *V1DescribeVolumeBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeVolumeBadRequest to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeVolumeBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeVolumeBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeVolumeBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeVolumeForbidden as json.
+func (s *V1DescribeVolumeForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeVolumeForbidden from json.
+func (s *V1DescribeVolumeForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeVolumeForbidden to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeVolumeForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeVolumeForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeVolumeForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeVolumeInternalServerError as json.
+func (s *V1DescribeVolumeInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeVolumeInternalServerError from json.
+func (s *V1DescribeVolumeInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeVolumeInternalServerError to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeVolumeInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeVolumeInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeVolumeInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeVolumeNotFound as json.
+func (s *V1DescribeVolumeNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeVolumeNotFound from json.
+func (s *V1DescribeVolumeNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeVolumeNotFound to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeVolumeNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeVolumeNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeVolumeNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DescribeVolumeUnauthorized as json.
+func (s *V1DescribeVolumeUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DescribeVolumeUnauthorized from json.
+func (s *V1DescribeVolumeUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DescribeVolumeUnauthorized to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DescribeVolumeUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DescribeVolumeUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DescribeVolumeUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListIgroupsBadRequest as json.
+func (s *V1ListIgroupsBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListIgroupsBadRequest from json.
+func (s *V1ListIgroupsBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListIgroupsBadRequest to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListIgroupsBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListIgroupsBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListIgroupsBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListIgroupsForbidden as json.
+func (s *V1ListIgroupsForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListIgroupsForbidden from json.
+func (s *V1ListIgroupsForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListIgroupsForbidden to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListIgroupsForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListIgroupsForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListIgroupsForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListIgroupsInternalServerError as json.
+func (s *V1ListIgroupsInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListIgroupsInternalServerError from json.
+func (s *V1ListIgroupsInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListIgroupsInternalServerError to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListIgroupsInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListIgroupsInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListIgroupsInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
 // Encode implements json.Marshaler.
-func (s *V1ListHostGroupsOK) Encode(e *jx.Encoder) {
+func (s *V1ListIgroupsOK) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *V1ListHostGroupsOK) encodeFields(e *jx.Encoder) {
+func (s *V1ListIgroupsOK) encodeFields(e *jx.Encoder) {
 	{
-		if s.HostGroups != nil {
-			e.FieldStart("hostGroups")
+		if s.Igroups != nil {
+			e.FieldStart("igroups")
 			e.ArrStart()
-			for _, elem := range s.HostGroups {
+			for _, elem := range s.Igroups {
 				elem.Encode(e)
 			}
 			e.ArrEnd()
@@ -5130,70 +7222,70 @@ func (s *V1ListHostGroupsOK) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfV1ListHostGroupsOK = [1]string{
-	0: "hostGroups",
+var jsonFieldsNameOfV1ListIgroupsOK = [1]string{
+	0: "igroups",
 }
 
-// Decode decodes V1ListHostGroupsOK from json.
-func (s *V1ListHostGroupsOK) Decode(d *jx.Decoder) error {
+// Decode decodes V1ListIgroupsOK from json.
+func (s *V1ListIgroupsOK) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1ListHostGroupsOK to nil")
+		return errors.New("invalid: unable to decode V1ListIgroupsOK to nil")
 	}
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "hostGroups":
+		case "igroups":
 			if err := func() error {
-				s.HostGroups = make([]HostGroupV1, 0)
+				s.Igroups = make([]IgroupV1, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
-					var elem HostGroupV1
+					var elem IgroupV1
 					if err := elem.Decode(d); err != nil {
 						return err
 					}
-					s.HostGroups = append(s.HostGroups, elem)
+					s.Igroups = append(s.Igroups, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"hostGroups\"")
+				return errors.Wrap(err, "decode field \"igroups\"")
 			}
 		default:
 			return d.Skip()
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode V1ListHostGroupsOK")
+		return errors.Wrap(err, "decode V1ListIgroupsOK")
 	}
 
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1ListHostGroupsOK) MarshalJSON() ([]byte, error) {
+func (s *V1ListIgroupsOK) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1ListHostGroupsOK) UnmarshalJSON(data []byte) error {
+func (s *V1ListIgroupsOK) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1ListHostGroupsUnauthorized as json.
-func (s *V1ListHostGroupsUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes V1ListIgroupsUnauthorized as json.
+func (s *V1ListIgroupsUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1ListHostGroupsUnauthorized from json.
-func (s *V1ListHostGroupsUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes V1ListIgroupsUnauthorized from json.
+func (s *V1ListIgroupsUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1ListHostGroupsUnauthorized to nil")
+		return errors.New("invalid: unable to decode V1ListIgroupsUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5204,34 +7296,34 @@ func (s *V1ListHostGroupsUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1ListHostGroupsUnauthorized(unwrapped)
+	*s = V1ListIgroupsUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1ListHostGroupsUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *V1ListIgroupsUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1ListHostGroupsUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *V1ListIgroupsUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupBadRequest as json.
-func (s *V1UpdateHostGroupBadRequest) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupBadRequest as json.
+func (s *V1UpdateIgroupBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupBadRequest from json.
-func (s *V1UpdateHostGroupBadRequest) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupBadRequest from json.
+func (s *V1UpdateIgroupBadRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupBadRequest to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupBadRequest to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5242,34 +7334,34 @@ func (s *V1UpdateHostGroupBadRequest) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupBadRequest(unwrapped)
+	*s = V1UpdateIgroupBadRequest(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupBadRequest) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupBadRequest) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupBadRequest) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupBadRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupConflict as json.
-func (s *V1UpdateHostGroupConflict) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupConflict as json.
+func (s *V1UpdateIgroupConflict) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupConflict from json.
-func (s *V1UpdateHostGroupConflict) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupConflict from json.
+func (s *V1UpdateIgroupConflict) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupConflict to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupConflict to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5280,34 +7372,34 @@ func (s *V1UpdateHostGroupConflict) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupConflict(unwrapped)
+	*s = V1UpdateIgroupConflict(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupConflict) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupConflict) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupConflict) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupConflict) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupForbidden as json.
-func (s *V1UpdateHostGroupForbidden) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupForbidden as json.
+func (s *V1UpdateIgroupForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupForbidden from json.
-func (s *V1UpdateHostGroupForbidden) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupForbidden from json.
+func (s *V1UpdateIgroupForbidden) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupForbidden to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupForbidden to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5318,34 +7410,34 @@ func (s *V1UpdateHostGroupForbidden) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupForbidden(unwrapped)
+	*s = V1UpdateIgroupForbidden(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupForbidden) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupForbidden) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupForbidden) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupForbidden) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupInternalServerError as json.
-func (s *V1UpdateHostGroupInternalServerError) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupInternalServerError as json.
+func (s *V1UpdateIgroupInternalServerError) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupInternalServerError from json.
-func (s *V1UpdateHostGroupInternalServerError) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupInternalServerError from json.
+func (s *V1UpdateIgroupInternalServerError) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupInternalServerError to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupInternalServerError to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5356,34 +7448,34 @@ func (s *V1UpdateHostGroupInternalServerError) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupInternalServerError(unwrapped)
+	*s = V1UpdateIgroupInternalServerError(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupInternalServerError) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupInternalServerError) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupInternalServerError) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupInternalServerError) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupNotFound as json.
-func (s *V1UpdateHostGroupNotFound) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupNotFound as json.
+func (s *V1UpdateIgroupNotFound) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupNotFound from json.
-func (s *V1UpdateHostGroupNotFound) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupNotFound from json.
+func (s *V1UpdateIgroupNotFound) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupNotFound to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupNotFound to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5394,34 +7486,34 @@ func (s *V1UpdateHostGroupNotFound) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupNotFound(unwrapped)
+	*s = V1UpdateIgroupNotFound(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupNotFound) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupNotFound) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupNotFound) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupNotFound) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateHostGroupUnauthorized as json.
-func (s *V1UpdateHostGroupUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes V1UpdateIgroupUnauthorized as json.
+func (s *V1UpdateIgroupUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes V1UpdateHostGroupUnauthorized from json.
-func (s *V1UpdateHostGroupUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes V1UpdateIgroupUnauthorized from json.
+func (s *V1UpdateIgroupUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateHostGroupUnauthorized to nil")
+		return errors.New("invalid: unable to decode V1UpdateIgroupUnauthorized to nil")
 	}
 	var unwrapped ErrorResponseV1
 	if err := func() error {
@@ -5432,19 +7524,209 @@ func (s *V1UpdateHostGroupUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = V1UpdateHostGroupUnauthorized(unwrapped)
+	*s = V1UpdateIgroupUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateHostGroupUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *V1UpdateIgroupUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateHostGroupUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *V1UpdateIgroupUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeBadRequest as json.
+func (s *V1UpdateVolumeBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeBadRequest from json.
+func (s *V1UpdateVolumeBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeBadRequest to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeForbidden as json.
+func (s *V1UpdateVolumeForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeForbidden from json.
+func (s *V1UpdateVolumeForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeForbidden to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeInternalServerError as json.
+func (s *V1UpdateVolumeInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeInternalServerError from json.
+func (s *V1UpdateVolumeInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeInternalServerError to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeNotFound as json.
+func (s *V1UpdateVolumeNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeNotFound from json.
+func (s *V1UpdateVolumeNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeNotFound to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeUnauthorized as json.
+func (s *V1UpdateVolumeUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeUnauthorized from json.
+func (s *V1UpdateVolumeUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeUnauthorized to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -5610,6 +7892,565 @@ func (s *VmLifsV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *VmLifsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *VolumeV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *VolumeV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.UUID.Set {
+			e.FieldStart("uuid")
+			s.UUID.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("name")
+		e.Str(s.Name)
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("sizeInBytes")
+			s.SizeInBytes.Encode(e)
+		}
+	}
+	{
+		if s.UsedBytes.Set {
+			e.FieldStart("usedBytes")
+			s.UsedBytes.Encode(e)
+		}
+	}
+	{
+		if s.ShareName.Set {
+			e.FieldStart("shareName")
+			s.ShareName.Encode(e)
+		}
+	}
+	{
+		if s.SecurityStyle.Set {
+			e.FieldStart("securityStyle")
+			s.SecurityStyle.Encode(e)
+		}
+	}
+	{
+		if s.ThroughputMibps.Set {
+			e.FieldStart("throughputMibps")
+			s.ThroughputMibps.Encode(e)
+		}
+	}
+	{
+		if s.Iops.Set {
+			e.FieldStart("iops")
+			s.Iops.Encode(e)
+		}
+	}
+	{
+		if s.SnapReserve.Set {
+			e.FieldStart("snapReserve")
+			s.SnapReserve.Encode(e)
+		}
+	}
+	{
+		if s.SnapshotDirectory.Set {
+			e.FieldStart("snapshotDirectory")
+			s.SnapshotDirectory.Encode(e)
+		}
+	}
+	{
+		if s.SnapshotPolicy.Set {
+			e.FieldStart("snapshotPolicy")
+			s.SnapshotPolicy.Encode(e)
+		}
+	}
+	{
+		if s.ExportPolicy.Set {
+			e.FieldStart("exportPolicy")
+			s.ExportPolicy.Encode(e)
+		}
+	}
+	{
+		if s.BlockDevices != nil {
+			e.FieldStart("blockDevices")
+			e.ArrStart()
+			for _, elem := range s.BlockDevices {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		e.FieldStart("protocols")
+		e.ArrStart()
+		for _, elem := range s.Protocols {
+			elem.Encode(e)
+		}
+		e.ArrEnd()
+	}
+	{
+		if s.RestrictedActions != nil {
+			e.FieldStart("restrictedActions")
+			s.RestrictedActions.Encode(e)
+		}
+	}
+	{
+		if s.MountPoints != nil {
+			e.FieldStart("mountPoints")
+			e.ArrStart()
+			for _, elem := range s.MountPoints {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.UnixPermissions.Set {
+			e.FieldStart("unixPermissions")
+			s.UnixPermissions.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfVolumeV1 = [17]string{
+	0:  "uuid",
+	1:  "name",
+	2:  "sizeInBytes",
+	3:  "usedBytes",
+	4:  "shareName",
+	5:  "securityStyle",
+	6:  "throughputMibps",
+	7:  "iops",
+	8:  "snapReserve",
+	9:  "snapshotDirectory",
+	10: "snapshotPolicy",
+	11: "exportPolicy",
+	12: "blockDevices",
+	13: "protocols",
+	14: "restrictedActions",
+	15: "mountPoints",
+	16: "unixPermissions",
+}
+
+// Decode decodes VolumeV1 from json.
+func (s *VolumeV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode VolumeV1 to nil")
+	}
+	var requiredBitSet [3]uint8
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "uuid":
+			if err := func() error {
+				s.UUID.Reset()
+				if err := s.UUID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.Name = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "sizeInBytes":
+			if err := func() error {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sizeInBytes\"")
+			}
+		case "usedBytes":
+			if err := func() error {
+				s.UsedBytes.Reset()
+				if err := s.UsedBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"usedBytes\"")
+			}
+		case "shareName":
+			if err := func() error {
+				s.ShareName.Reset()
+				if err := s.ShareName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"shareName\"")
+			}
+		case "securityStyle":
+			if err := func() error {
+				s.SecurityStyle.Reset()
+				if err := s.SecurityStyle.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"securityStyle\"")
+			}
+		case "throughputMibps":
+			if err := func() error {
+				s.ThroughputMibps.Reset()
+				if err := s.ThroughputMibps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"throughputMibps\"")
+			}
+		case "iops":
+			if err := func() error {
+				s.Iops.Reset()
+				if err := s.Iops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"iops\"")
+			}
+		case "snapReserve":
+			if err := func() error {
+				s.SnapReserve.Reset()
+				if err := s.SnapReserve.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapReserve\"")
+			}
+		case "snapshotDirectory":
+			if err := func() error {
+				s.SnapshotDirectory.Reset()
+				if err := s.SnapshotDirectory.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotDirectory\"")
+			}
+		case "snapshotPolicy":
+			if err := func() error {
+				s.SnapshotPolicy.Reset()
+				if err := s.SnapshotPolicy.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotPolicy\"")
+			}
+		case "exportPolicy":
+			if err := func() error {
+				s.ExportPolicy.Reset()
+				if err := s.ExportPolicy.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"exportPolicy\"")
+			}
+		case "blockDevices":
+			if err := func() error {
+				s.BlockDevices = make([]BlockDeviceV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem BlockDeviceV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.BlockDevices = append(s.BlockDevices, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"blockDevices\"")
+			}
+		case "protocols":
+			requiredBitSet[1] |= 1 << 5
+			if err := func() error {
+				s.Protocols = make([]ProtocolsV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem ProtocolsV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Protocols = append(s.Protocols, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"protocols\"")
+			}
+		case "restrictedActions":
+			if err := func() error {
+				if err := s.RestrictedActions.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"restrictedActions\"")
+			}
+		case "mountPoints":
+			if err := func() error {
+				s.MountPoints = make([]MountPointV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem MountPointV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.MountPoints = append(s.MountPoints, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"mountPoints\"")
+			}
+		case "unixPermissions":
+			if err := func() error {
+				s.UnixPermissions.Reset()
+				if err := s.UnixPermissions.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"unixPermissions\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode VolumeV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [3]uint8{
+		0b00000010,
+		0b00100000,
+		0b00000000,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfVolumeV1) {
+					name = jsonFieldsNameOfVolumeV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *VolumeV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *VolumeV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes VolumeV1SecurityStyle as json.
+func (s VolumeV1SecurityStyle) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes VolumeV1SecurityStyle from json.
+func (s *VolumeV1SecurityStyle) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode VolumeV1SecurityStyle to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch VolumeV1SecurityStyle(v) {
+	case VolumeV1SecurityStyleSECURITYSTYLEUNSPECIFIED:
+		*s = VolumeV1SecurityStyleSECURITYSTYLEUNSPECIFIED
+	case VolumeV1SecurityStyleNTFS:
+		*s = VolumeV1SecurityStyleNTFS
+	case VolumeV1SecurityStyleUNIX:
+		*s = VolumeV1SecurityStyleUNIX
+	default:
+		*s = VolumeV1SecurityStyle(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s VolumeV1SecurityStyle) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *VolumeV1SecurityStyle) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *WeeklyScheduleV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *WeeklyScheduleV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.SnapshotsToKeep.Set {
+			e.FieldStart("snapshotsToKeep")
+			s.SnapshotsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.Day.Set {
+			e.FieldStart("day")
+			s.Day.Encode(e)
+		}
+	}
+	{
+		if s.Hour.Set {
+			e.FieldStart("hour")
+			s.Hour.Encode(e)
+		}
+	}
+	{
+		if s.Minute.Set {
+			e.FieldStart("minute")
+			s.Minute.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfWeeklyScheduleV1 = [4]string{
+	0: "snapshotsToKeep",
+	1: "day",
+	2: "hour",
+	3: "minute",
+}
+
+// Decode decodes WeeklyScheduleV1 from json.
+func (s *WeeklyScheduleV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode WeeklyScheduleV1 to nil")
+	}
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "snapshotsToKeep":
+			if err := func() error {
+				s.SnapshotsToKeep.Reset()
+				if err := s.SnapshotsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotsToKeep\"")
+			}
+		case "day":
+			if err := func() error {
+				s.Day.Reset()
+				if err := s.Day.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"day\"")
+			}
+		case "hour":
+			if err := func() error {
+				s.Hour.Reset()
+				if err := s.Hour.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hour\"")
+			}
+		case "minute":
+			if err := func() error {
+				s.Minute.Reset()
+				if err := s.Minute.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"minute\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode WeeklyScheduleV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *WeeklyScheduleV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *WeeklyScheduleV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
