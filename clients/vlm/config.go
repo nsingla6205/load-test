@@ -269,10 +269,12 @@ type OCIConfig struct {
 	FreeFormTags               map[string]string                 `json:"freeform_tags"`                    // Free form tags for OCI resources
 	DefinedTags                map[string]map[string]interface{} `json:"defined_tags"`                     // Defined tags for OCI resources
 	SubnetDomainName           string                            `json:"subnet_domain_name"`
-	CmekOcid                   string                            `json:"cmek_ocid,omitempty"`          // OCID for CMEK to encrypt data block volumes
-	CustomerNSGs               []string                          `json:"customer_nsgs"`                // Customer NSGs to be attached to the customer vnic
-	CustomerSecurityAttributes map[string]map[string]interface{} `json:"customer_security_attributes"` // Customer security attributes to be attached to the customer vnic
-	FabricPoolConfig           FabricPoolConfig                  `json:"fabric_pool_config"`           // Fabric pool configuration
+	CmekOcid                   string                            `json:"cmek_ocid,omitempty"`               // OCID for CMEK to encrypt data block volumes
+	RootBackupPolicyOcid       string                            `json:"root_backup_policy_ocid,omitempty"` // OCI Volume Backup Policy OCID for VSA root disks
+	BootBackupPolicyOcid       string                            `json:"boot_backup_policy_ocid,omitempty"` // OCI Volume Backup Policy OCID for VSA boot disks
+	CustomerNSGs               []string                          `json:"customer_nsgs"`                     // Customer NSGs to be attached to the customer vnic
+	CustomerSecurityAttributes map[string]map[string]interface{} `json:"customer_security_attributes"`      // Customer security attributes to be attached to the customer vnic
+	FabricPoolConfig           FabricPoolConfig                  `json:"fabric_pool_config"`                // Fabric pool configuration
 }
 
 // GCPNetworkConfig GCP-specific network config for a NIC.
@@ -282,7 +284,7 @@ type GCPNetworkConfig struct {
 	// SkipIPReservation When true, skip IP reservation for this NIC (used with secondary IP / dataprimary flows).
 	SkipIPReservation bool `json:"skip_ip_reservation,omitempty"`
 	// SubnetProjectID Project ID for the subnet.
-	SubnetProjectID string `json:"subnet_project_id,omitempty"`
+	SubnetProjectID string `json:"subnet_project_id"`
 }
 
 type OCINetworkConfig struct {
@@ -473,17 +475,19 @@ const (
 	LIFTypeMediator          VSALIFType = "mediator"
 	LIFTypeIlbNas            VSALIFType = "ilbnas"
 	LIFTypeRbac              VSALIFType = "rbac"
+	LIFTypeDataPrimary       VSALIFType = "dataprimary"
 )
 
 type LIFConfig struct {
-	Name          string        `json:"lif_name"`       // Name of the LIF
-	VSALIFType    VSALIFType    `json:"vsa_ip_type"`    // Type of VSA LIF
-	IP            string        `json:"ip"`             // IP for the LIF
-	Uuid          string        `json:"lif_uuid"`       // UUID of the LIF
-	NetworkConfig NetworkConfig `json:"network_config"` // Network configuration for the LIF
-	Region        string        `json:"region"`         // Region for the LIF
-	HomeNode      string        `json:"home_node"`      // Home node for the LIF
-	ProbePort     int32         `json:"probe_port"`     // NFS probe port for the LIF only used for nas lif
+	Name          string        `json:"lif_name"`           // Name of the LIF
+	VSALIFType    VSALIFType    `json:"vsa_ip_type"`        // Type of VSA LIF
+	IP            string        `json:"ip"`                 // IP for the LIF
+	Uuid          string        `json:"lif_uuid"`           // UUID of the LIF
+	NetworkConfig NetworkConfig `json:"network_config"`     // Network configuration for the LIF
+	Region        string        `json:"region"`             // Region for the LIF
+	HomeNode      string        `json:"home_node"`          // Home node for the LIF
+	ProbePort     int32         `json:"probe_port"`         // NFS probe port for the LIF only used for nas lif
+	Failover      string        `json:"failover,omitempty"` // Intended ONTAP LIF failover policy
 }
 
 type NetworkConfig struct {
@@ -554,6 +558,7 @@ type OCIDiskConfig struct {
 	DeviceName          string                            `json:"device_name,omitempty"` // Device name for the disk (only when attached)
 	AvailabilityDomain  string                            `json:"availability_domain"`   // Availability Domain for the disk
 	Vpus                int64                             `json:"vpus"`                  // Vpus for the disk
+	RequestedVpu        *int64                            `json:"requested_vpu,omitempty"`
 	DiskMinVPUMultiPath int64                             `json:"disk_min_vpu_multi_path"`
 	DevicePath          string                            `json:"device_path"`
 	DiskOciID           string                            `json:"disk_oci_id"`         // OCID for the disk
