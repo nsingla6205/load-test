@@ -1507,8 +1507,8 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 			return customerrors.NewUserInputValidationErr("Hybrid replication already exists for the given peer SVM and volume")
 		}
 
-		if params.SnapshotID != "" || params.BackupID != "" || params.AutoTieringPolicy != nil || params.SnapshotPolicy != nil || params.BackupPath != "" {
-			msg := "Restoring volume from snapshot, backup, or enabling auto-tiering/snapshot policy is not supported for Hybrid Replication volumes"
+		if params.SnapshotID != "" || params.BackupID != "" || params.SnapshotPolicy != nil || params.BackupPath != "" {
+			msg := "Restoring volume from snapshot, backup, or enabling snapshot policy is not supported for Hybrid Replication volumes"
 			return customerrors.NewUserInputValidationErr(msg)
 		}
 

@@ -2780,7 +2780,7 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		err = _validateCreateVolumeParams(ctx, store, params, poolView)
 		assert.NotNil(tt, err)
-		assert.Contains(tt, err.Error(), "Restoring volume from snapshot, backup, or enabling auto-tiering/snapshot policy is not supported for Hybrid Replication volumes")
+		assert.Contains(tt, err.Error(), "Restoring volume from snapshot, backup, or enabling snapshot policy is not supported for Hybrid Replication volumes")
 	})
 
 	t.Run("HybridReplication_ScheduledBackupNotAllowed", func(tt *testing.T) {
