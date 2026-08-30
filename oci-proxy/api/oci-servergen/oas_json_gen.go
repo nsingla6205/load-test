@@ -755,6 +755,12 @@ func (s *CreateSvmRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.SvmOCID)
 	}
 	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
 		if s.SvmAdminPassword.Set {
 			e.FieldStart("svmAdminPassword")
 			s.SvmAdminPassword.Encode(e)
@@ -772,10 +778,11 @@ func (s *CreateSvmRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreateSvmRequest = [3]string{
+var jsonFieldsNameOfCreateSvmRequest = [4]string{
 	0: "svmOCID",
-	1: "svmAdminPassword",
-	2: "Ips",
+	1: "name",
+	2: "svmAdminPassword",
+	3: "Ips",
 }
 
 // Decode decodes CreateSvmRequest from json.
@@ -798,6 +805,16 @@ func (s *CreateSvmRequest) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"svmOCID\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
 			}
 		case "svmAdminPassword":
 			if err := func() error {

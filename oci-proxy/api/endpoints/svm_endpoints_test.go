@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -17,8 +18,10 @@ import (
 )
 
 const (
-	testSvmOCID     = "ocid1.svm.oc1..svm"
-	testTenancyOCID = "ocid1.tenancy.oc1..tenancy"
+	testSvmOCID       = "ocid1.svm.oc1..svm"
+	testSvmInputName  = "oci-svm-testsvm1"
+	testSvmFullName   = testSvmInputName
+	testTenancyOCID   = "ocid1.tenancy.oc1..tenancy"
 )
 
 // validSvmAdminPassword returns a fixed valid OCIOCIDVersionRef for update-SVM tests.
@@ -31,19 +34,23 @@ func validSvmAdminPasswordOpt() ociserver.OptOCIOCIDVersionRef {
 	return ociserver.NewOptOCIOCIDVersionRef(validSvmAdminPassword())
 }
 
+func validSvmNameOpt() ociserver.OptString {
+	return ociserver.NewOptString(testSvmInputName)
+}
+
 // validCreateParams returns CreateSvmByPoolParams with valid OCID-format test values.
 func validCreateParams() ociserver.CreateSvmByPoolParams {
 	return ociserver.CreateSvmByPoolParams{PoolOCID: testPoolOCID, TenancyOcid: testTenancyOCID}
 }
 
 func TestCreateSvmByPool(t *testing.T) {
-	t.Run("returns 202 with workflowId and svmOCID and auto-generated name", func(tt *testing.T) {
+	t.Run("returns 202 with workflowId and svmOCID and provided name", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).RunAndReturn(
 			func(_ context.Context, p *commonparams.CreateSvmParams) (string, error) {
 				assert.Equal(tt, "ocid1.pool.oc1..pool", p.PoolOCID)
 				assert.Equal(tt, "ocid1.svm.oc1..svm", p.SvmExternalIdentifier)
-				assert.True(tt, strings.HasPrefix(p.Name, "oci-svm-"), "expected auto-generated name with prefix %q, got %q", "oci-svm-", p.Name)
+				assert.Equal(tt, testSvmFullName, p.Name)
 				assert.Equal(tt, []string{"10.0.0.10"}, p.Ips)
 				assert.Equal(tt, "ocid1.tenancy.oc1..tenancy", p.AccountName)
 				return "wf-123", nil
@@ -53,6 +60,7 @@ func TestCreateSvmByPool(t *testing.T) {
 
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          "ocid1.svm.oc1..svm",
+			Name:             validSvmNameOpt(),
 			Ips:              []string{"10.0.0.10"},
 			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..pwd", Version: "1"}),
 		}
@@ -72,7 +80,7 @@ func TestCreateSvmByPool(t *testing.T) {
 
 	t.Run("returns 400 when opc-request-id is missing", func(tt *testing.T) {
 		h := &Handler{}
-		req := &ociserver.CreateSvmRequest{SvmOCID: "svm"}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "svm", Name: validSvmNameOpt()}
 
 		res, err := h.CreateSvmByPool(context.Background(), req, ociserver.CreateSvmByPoolParams{PoolOCID: "pool"})
 		assert.NoError(tt, err)
@@ -87,6 +95,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
+			Name:    validSvmNameOpt(),
 			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "not-a-number",
@@ -104,6 +113,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
+			Name:    validSvmNameOpt(),
 			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "0",
@@ -119,7 +129,7 @@ func TestCreateSvmByPool(t *testing.T) {
 
 	t.Run("returns 400 when poolOCID is empty", func(tt *testing.T) {
 		h := &Handler{}
-		req := &ociserver.CreateSvmRequest{SvmOCID: "svm"}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "svm", Name: validSvmNameOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, ociserver.CreateSvmByPoolParams{PoolOCID: "  "})
 		assert.NoError(tt, err)
@@ -139,9 +149,120 @@ func TestCreateSvmByPool(t *testing.T) {
 		assert.Equal(tt, "svmOCID is required", badReq.Response.ErrorMessage)
 	})
 
+	t.Run("returns 202 with auto-generated name when name is omitted", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return strings.HasPrefix(p.Name, "oci-svm-") && len(p.Name) == 40
+		})).Return("wf-auto-name", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-auto-name", headers.Response.WorkflowId)
+	})
+
+	t.Run("returns 202 with auto-generated name when name is blank", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return strings.HasPrefix(p.Name, "oci-svm-") && len(p.Name) == 40
+		})).Return("wf-blank-name", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: ociserver.NewOptString("  "), SvmAdminPassword: validSvmAdminPasswordOpt()}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-blank-name", headers.Response.WorkflowId)
+	})
+
+	t.Run("returns 202 with auto-generated name when name is null", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return strings.HasPrefix(p.Name, "oci-svm-") && len(p.Name) == 40
+		})).Return("wf-null-name", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: ociserver.OptString{}, SvmAdminPassword: validSvmAdminPasswordOpt()}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-null-name", headers.Response.WorkflowId)
+	})
+
+	t.Run("returns 400 when name does not start with oci-svm-", func(tt *testing.T) {
+		h := &Handler{}
+		req := &ociserver.CreateSvmRequest{
+			SvmOCID:          testSvmOCID,
+			Name:             ociserver.NewOptString("my-svm"),
+			SvmAdminPassword: validSvmAdminPasswordOpt(),
+		}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), badReq.Response.ErrorMessage)
+	})
+
+	t.Run("returns 400 when name is prefix only", func(tt *testing.T) {
+		h := &Handler{}
+		req := &ociserver.CreateSvmRequest{
+			SvmOCID:          testSvmOCID,
+			Name:             ociserver.NewOptString("oci-svm-"),
+			SvmAdminPassword: validSvmAdminPasswordOpt(),
+		}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, errMsgSvmNameTooShort(ociSvmNamePrefix), badReq.Response.ErrorMessage)
+	})
+
+	t.Run("returns 400 when name exceeds max length", func(tt *testing.T) {
+		h := &Handler{}
+		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix)+1)
+		req := &ociserver.CreateSvmRequest{
+			SvmOCID:          testSvmOCID,
+			Name:             ociserver.NewOptString("oci-svm-" + suffix),
+			SvmAdminPassword: validSvmAdminPasswordOpt(),
+		}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxTotalLength), badReq.Response.ErrorMessage)
+	})
+
+	t.Run("returns 202 when name is at max length", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		maxName := ociSvmNamePrefix + strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix))
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return p.Name == maxName && len(p.Name) == ociSvmNameMaxTotalLength
+		})).Return("wf-max-name", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{
+			SvmOCID:          testSvmOCID,
+			Name:             ociserver.NewOptString(maxName),
+			SvmAdminPassword: validSvmAdminPasswordOpt(),
+		}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-max-name", headers.Response.WorkflowId)
+	})
+
 	t.Run("returns 400 when Tenancy-Ocid is empty", func(tt *testing.T) {
 		h := &Handler{}
-		req := &ociserver.CreateSvmRequest{SvmOCID: "svm"}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "svm", Name: validSvmNameOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, ociserver.CreateSvmByPoolParams{PoolOCID: "pool", TenancyOcid: "  "})
 		assert.NoError(tt, err)
@@ -153,7 +274,7 @@ func TestCreateSvmByPool(t *testing.T) {
 	t.Run("returns 202 with valid svmAdminPassword", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
-			return strings.HasPrefix(p.Name, "oci-svm-") &&
+			return p.Name == testSvmFullName &&
 				p.SvmAdminPassword != nil &&
 				p.SvmAdminPassword.Ocid == "ocid1.vaultsecret.oc1..abc" &&
 				p.SvmAdminPassword.Version == 3
@@ -161,6 +282,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
+			Name:    validSvmNameOpt(),
 			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "3",
@@ -193,11 +315,12 @@ func TestCreateSvmByPool(t *testing.T) {
 	t.Run("returns 202 when svmAdminPassword is present but ocid is blank", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
-			return strings.HasPrefix(p.Name, "oci-svm-") && p.SvmAdminPassword == nil
+			return p.Name == testSvmFullName && p.SvmAdminPassword == nil
 		})).Return("wf-blank-pwd", nil)
 		h := &Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          testSvmOCID,
+			Name:             validSvmNameOpt(),
 			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "  ", Version: "1"}),
 		}
 
@@ -212,7 +335,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewUserInputValidationErr("invalid root volume style"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -225,7 +348,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewBadRequestErr("too many IPs"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -240,7 +363,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", wrapped)
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -253,7 +376,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewNotFoundErr("pool", nil))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -266,7 +389,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewConflictErr("svmOCID already exists"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -279,7 +402,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", errors.New("boom"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, Name: validSvmNameOpt(), SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -649,5 +772,86 @@ func TestUpdateSvm(t *testing.T) {
 		serverErr, ok := res.(*ociserver.UpdateSvmInternalServerError)
 		assert.True(tt, ok)
 		assert.Equal(tt, "Internal server error", serverErr.Response.ErrorMessage)
+	})
+}
+
+func TestGenerateSvmResourceName(t *testing.T) {
+	uuidSuffix := regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+	t.Run("uses provided name as-is", func(tt *testing.T) {
+		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("oci-svm-my-svm"))
+	})
+
+	t.Run("trims provided name", func(tt *testing.T) {
+		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("  oci-svm-my-svm  "))
+	})
+
+	t.Run("generates uuid suffix when omitted", func(tt *testing.T) {
+		name := generateSvmResourceName("")
+		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
+		assert.True(tt, uuidSuffix.MatchString(name[len(ociSvmNamePrefix):]), "suffix %q", name[len(ociSvmNamePrefix):])
+	})
+
+	t.Run("generates uuid suffix when blank", func(tt *testing.T) {
+		name := generateSvmResourceName("   ")
+		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
+		assert.True(tt, uuidSuffix.MatchString(name[len(ociSvmNamePrefix):]), "suffix %q", name[len(ociSvmNamePrefix):])
+	})
+
+	t.Run("uuid suffix is unique per call", func(tt *testing.T) {
+		first := generateSvmResourceName("")
+		second := generateSvmResourceName("")
+		assert.NotEqual(tt, first, second)
+	})
+}
+
+func TestValidateSvmResourceName(t *testing.T) {
+	t.Run("allows empty name", func(tt *testing.T) {
+		assert.Empty(tt, validateSvmResourceName(""))
+	})
+
+	t.Run("allows blank name", func(tt *testing.T) {
+		assert.Empty(tt, validateSvmResourceName("   "))
+	})
+
+	t.Run("allows oci-svm- prefix", func(tt *testing.T) {
+		assert.Empty(tt, validateSvmResourceName("oci-svm-my-svm"))
+	})
+
+	t.Run("rejects mixed case prefix", func(tt *testing.T) {
+		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("OCI-SVM-my-svm"))
+	})
+
+	t.Run("rejects name without prefix", func(tt *testing.T) {
+		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("my-svm"))
+	})
+
+	t.Run("rejects oci-svm- prefix only without suffix", func(tt *testing.T) {
+		assert.Equal(tt, errMsgSvmNameTooShort(ociSvmNamePrefix), validateSvmResourceName("oci-svm-"))
+	})
+
+	t.Run("rejects oci-svm without trailing hyphen", func(tt *testing.T) {
+		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("oci-svm"))
+	})
+
+	t.Run("rejects mixed case prefix only", func(tt *testing.T) {
+		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("OCI-SVM-"))
+	})
+
+	t.Run("allows one character after prefix", func(tt *testing.T) {
+		assert.Empty(tt, validateSvmResourceName("oci-svm-a"))
+	})
+
+	t.Run("allows max length name", func(tt *testing.T) {
+		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix))
+		name := ociSvmNamePrefix + suffix
+		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
+		assert.Empty(tt, validateSvmResourceName(name))
+	})
+
+	t.Run("rejects name exceeding max length", func(tt *testing.T) {
+		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix)+1)
+		name := ociSvmNamePrefix + suffix
+		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxTotalLength), validateSvmResourceName(name))
 	})
 }

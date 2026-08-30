@@ -158,7 +158,7 @@ func TestCreateSvmRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"Ips\":[\"10.0.0.10\",\"10.0.0.11\"],\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
+		{Input: "{\"Ips\":[\"10.0.0.10\",\"10.0.0.11\"],\"name\":\"oci-svm-my-svm\",\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
 		{Input: "{\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
 	} {
 		tc := tc

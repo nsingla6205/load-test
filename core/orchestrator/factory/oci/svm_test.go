@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
-	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -22,6 +20,8 @@ import (
 	"go.temporal.io/api/serviceerror"
 	"gorm.io/gorm"
 )
+
+const testOciSvmName = "oci-svm-test1"
 
 func svmTestCtx() context.Context {
 	ctx := context.Background()
@@ -46,7 +46,7 @@ func TestCreateSvm_EmptyPoolOCID(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -62,7 +62,7 @@ func TestCreateSvm_EmptySvmOCID(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -94,7 +94,7 @@ func TestCreateSvm_EmptyAccountName(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "   ",
 	})
 	require.Error(t, err)
@@ -112,7 +112,7 @@ func TestCreateSvm_GetOrCreateAccountFails(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -129,7 +129,7 @@ func TestCreateSvm_DefaultProtocol(t *testing.T) {
 	params := &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	}
 	_, _ = orch.CreateSvm(svmTestCtx(), params)
@@ -149,7 +149,7 @@ func TestCreateSvm_PoolNotFound(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -167,7 +167,7 @@ func TestCreateSvm_GetPoolByNameGenericError(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -200,7 +200,7 @@ func TestCreateSvm_DuplicateSvmOCID(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -226,7 +226,7 @@ func TestCreateSvm_PreCheckLookupError(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 	})
 	require.Error(t, err)
@@ -253,7 +253,7 @@ func TestCreateSvm_NotFoundProceedsWithCreate(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -261,7 +261,7 @@ func TestCreateSvm_NotFoundProceedsWithCreate(t *testing.T) {
 	}, nil)
 	preallocatedSvm := &datamodel.Svm{
 		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		SvmExternalIdentifier: "ocid1.svm..a",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
@@ -274,7 +274,7 @@ func TestCreateSvm_NotFoundProceedsWithCreate(t *testing.T) {
 	wfID, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -308,7 +308,7 @@ func TestCreateSvm_RaceLosesAtPreallocationReturnsConflict(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -321,7 +321,7 @@ func TestCreateSvm_RaceLosesAtPreallocationReturnsConflict(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..race",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -354,14 +354,14 @@ func TestCreateSvm_NameAlreadyInUseInPool(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
-		Return(&datamodel.Svm{Name: "svm1", PoolID: 10, State: datamodel.LifeCycleStateREADY}, nil)
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
+		Return(&datamodel.Svm{Name: testOciSvmName, PoolID: 10, State: datamodel.LifeCycleStateREADY}, nil)
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -392,7 +392,7 @@ func TestCreateSvm_ValidationFails(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -421,7 +421,7 @@ func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -429,7 +429,7 @@ func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 	}, nil)
 	preallocatedSvm := &datamodel.Svm{
 		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		SvmExternalIdentifier: "ocid1.svm..new",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
@@ -449,7 +449,7 @@ func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -477,7 +477,7 @@ func TestCreateSvm_Success(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -485,7 +485,7 @@ func TestCreateSvm_Success(t *testing.T) {
 	}, nil)
 	preallocatedSvm := &datamodel.Svm{
 		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		SvmExternalIdentifier: "ocid1.svm..new",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
@@ -498,7 +498,7 @@ func TestCreateSvm_Success(t *testing.T) {
 	wfID, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -762,7 +762,7 @@ func TestDeleteSvm_RaceLosesAtTransitionReturnsConflict(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().TransitionSvmToDeleting(mock.Anything, svm).
@@ -795,7 +795,7 @@ func TestDeleteSvm_TransitionGenericError(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 
@@ -828,7 +828,7 @@ func TestDeleteSvm_WorkflowStartFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 
@@ -837,7 +837,7 @@ func TestDeleteSvm_WorkflowStartFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateDeleting),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().TransitionSvmToDeleting(mock.Anything, svm).Return(deletingSvm, nil)
 	// Workflow start failure must trigger compensation: the row was just
@@ -875,7 +875,7 @@ func TestDeleteSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 
@@ -884,7 +884,7 @@ func TestDeleteSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateDeleting),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().TransitionSvmToDeleting(mock.Anything, svm).Return(deletingSvm, nil)
 
@@ -930,7 +930,7 @@ func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -938,7 +938,7 @@ func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 	}, nil)
 	preallocatedSvm := &datamodel.Svm{
 		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		SvmExternalIdentifier: "ocid1.svm..new",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
@@ -954,7 +954,7 @@ func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -983,7 +983,7 @@ func TestCreateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
 		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "n2", State: datamodel.LifeCycleStateREADY},
 	}, nil)
-	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(10)).
+	mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(10)).
 		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 	mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.Anything).Return([]*datamodel.Node{
 		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "n1", State: datamodel.LifeCycleStateREADY},
@@ -991,7 +991,7 @@ func TestCreateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 	}, nil)
 	preallocatedSvm := &datamodel.Svm{
 		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		SvmExternalIdentifier: "ocid1.svm..new",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
@@ -1005,7 +1005,7 @@ func TestCreateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 	wfID, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 		WorkflowID:            testSuppliedWorkflowID,
@@ -1032,7 +1032,7 @@ func TestDeleteSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 
@@ -1041,7 +1041,7 @@ func TestDeleteSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateDeleting),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().TransitionSvmToDeleting(mock.Anything, svm).Return(deletingSvm, nil)
 	mockStorage.EXPECT().ErroredSVM(mock.Anything, deletingSvm, mock.Anything).
@@ -1074,7 +1074,7 @@ func TestDeleteSvm_Success(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(svm, nil)
 
@@ -1083,7 +1083,7 @@ func TestDeleteSvm_Success(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateDeleting),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().TransitionSvmToDeleting(mock.Anything, svm).Return(deletingSvm, nil)
 	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
@@ -1307,7 +1307,7 @@ func TestUpdateSvm_TransitionConflict(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
@@ -1333,7 +1333,7 @@ func TestUpdateSvm_TransitionGenericError(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 
@@ -1361,7 +1361,7 @@ func TestUpdateSvm_WorkflowStartFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
@@ -1398,7 +1398,7 @@ func TestUpdateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
@@ -1431,7 +1431,7 @@ func TestUpdateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
@@ -1464,7 +1464,7 @@ func TestUpdateSvm_CrashResume_SkipsValidationAndTransition(t *testing.T) {
 		PoolID:                10,
 		State:                 datamodel.LifeCycleStateUpdating,
 		WorkflowID:            testSuppliedWorkflowID,
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 
@@ -1494,7 +1494,7 @@ func TestUpdateSvm_Success(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
 	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
@@ -1509,45 +1509,6 @@ func TestUpdateSvm_Success(t *testing.T) {
 	wfID, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
 	assert.NoError(t, err)
 	assert.NotEmpty(t, wfID)
-}
-
-func TestGenerateResourceName_OciSvm(t *testing.T) {
-	const prefix = "oci-svm-"
-	gen := func() string { return commonfactory.GenerateSvmResourceName(prefix) }
-
-	t.Run("has oci-svm- prefix", func(tt *testing.T) {
-		name := gen()
-		assert.True(tt, strings.HasPrefix(name, prefix), "got %q", name)
-	})
-
-	t.Run("unique on successive calls", func(tt *testing.T) {
-		assert.NotEqual(tt, gen(), gen())
-	})
-
-	t.Run("passes ONTAP name validation", func(tt *testing.T) {
-		name := gen()
-		require.NoError(tt, validateSvmName(name),
-			"generated name %q must satisfy ONTAP naming constraints", name)
-	})
-
-	t.Run("length within VLM 40-char limit", func(tt *testing.T) {
-		name := gen()
-		assert.Equal(tt, 40, len(name),
-			"generated name %q should be exactly 40 chars (8 prefix + 32 hex)", name)
-	})
-
-	t.Run("starts with a letter", func(tt *testing.T) {
-		name := gen()
-		first := rune(name[0])
-		assert.True(tt, (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'),
-			"ONTAP SVM name must start with a letter or underscore, got %q", name)
-	})
-
-	t.Run("only contains ONTAP-valid characters", func(tt *testing.T) {
-		name := gen()
-		assert.True(tt, svmNameRegex.MatchString(name),
-			"generated name %q contains invalid ONTAP characters", name)
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1591,7 +1552,7 @@ func TestCreateSvm_RejectsNewCreateDuringActiveUpgrade(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..new",
-		Name:                  "svm-new",
+		Name:                  "oci-svm-new",
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 	})
@@ -1620,7 +1581,7 @@ func TestCreateSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateCreating),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		WorkflowID:            testSuppliedWorkflowID,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(existingSvm, nil)
@@ -1631,7 +1592,7 @@ func TestCreateSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 		WorkflowID:            testSuppliedWorkflowID,
@@ -1659,7 +1620,7 @@ func TestUpdateSvm_RejectsNewUpdateDuringActiveUpgrade(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..bbbbbbbb", int64(1)).Return(targetSvm, nil)
 	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
@@ -1694,7 +1655,7 @@ func TestUpdateSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateUpdating),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		WorkflowID:            testSuppliedWorkflowID,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..bbbbbbbb", int64(1)).Return(targetSvm, nil)
@@ -1731,7 +1692,7 @@ func TestDeleteSvm_RejectsNewDeleteDuringActiveUpgrade(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateREADY),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(targetSvm, nil)
 	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
@@ -1764,7 +1725,7 @@ func TestDeleteSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateDeleting),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		WorkflowID:            testSuppliedWorkflowID,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(targetSvm, nil)
@@ -1803,7 +1764,7 @@ func TestCreateSvm_CrashResumeDuringUpgrade_ErroredSVMFails_StillReturnsUpgradeE
 		SvmExternalIdentifier: "ocid1.svm..a",
 		PoolID:                10,
 		State:                 string(datamodel.LifeCycleStateCreating),
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		WorkflowID:            testSuppliedWorkflowID,
 	}
 	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(existingSvm, nil)
@@ -1815,7 +1776,7 @@ func TestCreateSvm_CrashResumeDuringUpgrade_ErroredSVMFails_StillReturnsUpgradeE
 	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
 		PoolOCID:              "ocid1.pool..a",
 		SvmExternalIdentifier: "ocid1.svm..a",
-		Name:                  "svm1",
+		Name:                  testOciSvmName,
 		AccountName:           "tenancy",
 		EnableIscsi:           true,
 		WorkflowID:            testSuppliedWorkflowID,

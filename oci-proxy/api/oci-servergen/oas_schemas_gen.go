@@ -576,6 +576,12 @@ func (*CreateSvmDefaultErrorStatusCodeWithHeaders) createSvmByPoolRes() {}
 type CreateSvmRequest struct {
 	// OCI SVM resource OCID for the SVM being created.
 	SvmOCID string `json:"svmOCID"`
+	// Optional ONTAP SVM resource name. When provided, must start with
+	// `oci-svm-` (for example, `oci-svm-my-svm`) and be at most 40
+	// characters total (the `oci-svm-` prefix plus up to 32 characters).
+	// When omitted, a unique name is generated automatically with the
+	// `oci-svm-` prefix (40 characters total).
+	Name OptString `json:"name"`
 	// OCI secret reference for the SVM admin password.
 	SvmAdminPassword OptOCIOCIDVersionRef `json:"svmAdminPassword"`
 	// Optional list of IP addresses for the SVM.
@@ -585,6 +591,11 @@ type CreateSvmRequest struct {
 // GetSvmOCID returns the value of SvmOCID.
 func (s *CreateSvmRequest) GetSvmOCID() string {
 	return s.SvmOCID
+}
+
+// GetName returns the value of Name.
+func (s *CreateSvmRequest) GetName() OptString {
+	return s.Name
 }
 
 // GetSvmAdminPassword returns the value of SvmAdminPassword.
@@ -600,6 +611,11 @@ func (s *CreateSvmRequest) GetIps() []string {
 // SetSvmOCID sets the value of SvmOCID.
 func (s *CreateSvmRequest) SetSvmOCID(val string) {
 	s.SvmOCID = val
+}
+
+// SetName sets the value of Name.
+func (s *CreateSvmRequest) SetName(val OptString) {
+	s.Name = val
 }
 
 // SetSvmAdminPassword sets the value of SvmAdminPassword.

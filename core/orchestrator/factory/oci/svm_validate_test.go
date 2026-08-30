@@ -51,32 +51,26 @@ func TestValidateSvmName(t *testing.T) {
 		assert.Contains(tt, err.Error(), "SVM name is required")
 	})
 
-	t.Run("TooLong_ReturnsError", func(tt *testing.T) {
-		longName := strings.Repeat("a", svmNameMaxLength+1)
-		err := validateSvmName(longName)
-		require.Error(tt, err)
-		assert.Contains(tt, err.Error(), fmt.Sprintf("at most %d characters", svmNameMaxLength))
-	})
-
 	t.Run("InvalidChars_ReturnsError", func(tt *testing.T) {
-		err := validateSvmName("svm name!")
+		err := validateSvmName("oci-svm-bad$name")
 		require.Error(tt, err)
 		assert.Contains(tt, err.Error(), "letters, numbers, hyphens, and underscores")
 	})
 
 	t.Run("ValidName_NoError", func(tt *testing.T) {
-		err := validateSvmName("my-svm_1")
+		err := validateSvmName("oci-svm-my_svm1")
 		assert.NoError(tt, err)
 	})
 
 	t.Run("MaxLengthName_NoError", func(tt *testing.T) {
-		maxName := strings.Repeat("x", svmNameMaxLength)
+		prefix := "oci-svm-"
+		maxName := prefix + strings.Repeat("x", 40-len(prefix))
 		err := validateSvmName(maxName)
 		assert.NoError(tt, err)
 	})
 
-	t.Run("SingleChar_NoError", func(tt *testing.T) {
-		err := validateSvmName("a")
+	t.Run("SingleCharSuffix_NoError", func(tt *testing.T) {
+		err := validateSvmName("oci-svm-a")
 		assert.NoError(tt, err)
 	})
 }
@@ -137,7 +131,7 @@ func TestValidateCreateSvm(t *testing.T) {
 			VLMConfig: "cfg",
 		}
 		mockStorage := database.NewMockStorage(tt)
-		err := validateCreateSvm(ctx, mockStorage, makeValidParams("svm1"), pool)
+		err := validateCreateSvm(ctx, mockStorage, makeValidParams(testOciSvmName), pool)
 		require.Error(tt, err)
 		assert.True(tt, utilserrors.IsConflictErr(err))
 	})
@@ -146,7 +140,7 @@ func TestValidateCreateSvm(t *testing.T) {
 		pool := makeReadyPool(1)
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(1)).Return(readyNodes, nil)
-		err := validateCreateSvm(ctx, mockStorage, makeValidParams("bad name!"), pool)
+		err := validateCreateSvm(ctx, mockStorage, makeValidParams("oci-svm-bad$name"), pool)
 		require.Error(tt, err)
 		assert.Contains(tt, err.Error(), "letters, numbers, hyphens")
 	})
@@ -155,9 +149,9 @@ func TestValidateCreateSvm(t *testing.T) {
 		pool := makeReadyPool(1)
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(1)).Return(readyNodes, nil)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(1)).
-			Return(&datamodel.Svm{Name: "svm1", PoolID: 1, State: datamodel.LifeCycleStateREADY}, nil)
-		err := validateCreateSvm(ctx, mockStorage, makeValidParams("svm1"), pool)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(1)).
+			Return(&datamodel.Svm{Name: testOciSvmName, PoolID: 1, State: datamodel.LifeCycleStateREADY}, nil)
+		err := validateCreateSvm(ctx, mockStorage, makeValidParams(testOciSvmName), pool)
 		require.Error(tt, err)
 		assert.True(tt, utilserrors.IsConflictErr(err))
 	})
@@ -166,10 +160,10 @@ func TestValidateCreateSvm(t *testing.T) {
 		pool := makeReadyPool(1)
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(1)).Return(readyNodes, nil)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(1)).
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(1)).
 			Return(nil, utilserrors.NewNotFoundErr("svm", nil))
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(1)).Return(readyNodes, nil)
-		err := validateCreateSvm(ctx, mockStorage, makeValidParams("svm1"), pool)
+		err := validateCreateSvm(ctx, mockStorage, makeValidParams(testOciSvmName), pool)
 		assert.NoError(tt, err)
 	})
 }
@@ -179,17 +173,17 @@ func TestValidateSvmNameNotInUseInPool(t *testing.T) {
 
 	t.Run("NoExisting_NoError", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(7)).
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(7)).
 			Return(nil, utilserrors.NewNotFoundErr("svm", nil))
-		err := validateSvmNameNotInUseInPool(ctx, mockStorage, "svm1", 7)
+		err := validateSvmNameNotInUseInPool(ctx, mockStorage, testOciSvmName, 7)
 		assert.NoError(tt, err)
 	})
 
 	t.Run("LiveSvmFound_ReturnsConflict", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(7)).
-			Return(&datamodel.Svm{Name: "svm1", PoolID: 7, State: datamodel.LifeCycleStateREADY}, nil)
-		err := validateSvmNameNotInUseInPool(ctx, mockStorage, "svm1", 7)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(7)).
+			Return(&datamodel.Svm{Name: testOciSvmName, PoolID: 7, State: datamodel.LifeCycleStateREADY}, nil)
+		err := validateSvmNameNotInUseInPool(ctx, mockStorage, testOciSvmName, 7)
 		require.Error(tt, err)
 		assert.True(tt, utilserrors.IsConflictErr(err))
 		assert.Contains(tt, err.Error(), "already exists in this pool")
@@ -200,9 +194,9 @@ func TestValidateSvmNameNotInUseInPool(t *testing.T) {
 	// second request must be rejected.
 	t.Run("CreatingSvmFound_ReturnsConflict", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(7)).
-			Return(&datamodel.Svm{Name: "svm1", PoolID: 7, State: datamodel.LifeCycleStateCreating}, nil)
-		err := validateSvmNameNotInUseInPool(ctx, mockStorage, "svm1", 7)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(7)).
+			Return(&datamodel.Svm{Name: testOciSvmName, PoolID: 7, State: datamodel.LifeCycleStateCreating}, nil)
+		err := validateSvmNameNotInUseInPool(ctx, mockStorage, testOciSvmName, 7)
 		require.Error(tt, err)
 		assert.True(tt, utilserrors.IsConflictErr(err))
 	})
@@ -212,17 +206,17 @@ func TestValidateSvmNameNotInUseInPool(t *testing.T) {
 	// treated as free and creation must be allowed.
 	t.Run("DeletedSvmFound_NoError", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(7)).
-			Return(&datamodel.Svm{Name: "svm1", PoolID: 7, State: datamodel.LifeCycleStateDeleted}, nil)
-		err := validateSvmNameNotInUseInPool(ctx, mockStorage, "svm1", 7)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(7)).
+			Return(&datamodel.Svm{Name: testOciSvmName, PoolID: 7, State: datamodel.LifeCycleStateDeleted}, nil)
+		err := validateSvmNameNotInUseInPool(ctx, mockStorage, testOciSvmName, 7)
 		assert.NoError(tt, err)
 	})
 
 	t.Run("DBError_PropagatesError", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
-		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, "svm1", int64(7)).
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(mock.Anything, testOciSvmName, int64(7)).
 			Return(nil, fmt.Errorf("db boom"))
-		err := validateSvmNameNotInUseInPool(ctx, mockStorage, "svm1", 7)
+		err := validateSvmNameNotInUseInPool(ctx, mockStorage, testOciSvmName, 7)
 		require.Error(tt, err)
 		assert.Contains(tt, err.Error(), "db boom")
 		assert.False(tt, utilserrors.IsConflictErr(err))

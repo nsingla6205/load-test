@@ -643,7 +643,7 @@ func (v *VolumeAttributes) Value() (driver.Value, error) {
 
 type Svm struct {
 	BaseModel
-	Name                  string           `gorm:"column:name"`
+	Name                  string           `gorm:"column:name;uniqueIndex:idx_svms_pool_id_name_active,priority:2,where:deleted_at IS NULL AND state <> 'DELETED'"`
 	SvmExternalIdentifier string           `gorm:"column:svm_external_identifier;type:text;uniqueIndex:idx_svms_svm_external_identifier_unique,where:svm_external_identifier <> ''"`
 	Description           string           `gorm:"column:description"`
 	State                 string           `gorm:"column:state"`
@@ -652,7 +652,7 @@ type Svm struct {
 	SvmDetails            *SvmDetails      `gorm:"column:svm_details;type:jsonb"`
 	AccountID             int64            `gorm:"column:account_id"`
 	Account               *Account         `gorm:"ForeignKey:AccountID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
-	PoolID                int64            `gorm:"column:pool_id"`
+	PoolID                int64            `gorm:"column:pool_id;uniqueIndex:idx_svms_pool_id_name_active,priority:1"`
 	Pool                  *Pool            `gorm:"ForeignKey:PoolID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
 	KmsConfigID           sql.NullInt64    `json:"kmsConfigID" gorm:"index"`
 	KmsConfig             *KmsConfig       `json:"-" gorm:"ForeignKey:KmsConfigID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`

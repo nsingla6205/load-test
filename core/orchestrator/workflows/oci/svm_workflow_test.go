@@ -1294,7 +1294,7 @@ func TestBuildCreateSVMResult_SvmNotInVlmConfig(t *testing.T) {
 	svm := &datamodel.Svm{Name: "missing-svm"}
 	vlmCfg := &vlm.VLMConfig{Svm: map[string]vlm.SvmConfig{}}
 
-	result := buildCreateSVMResult(params, svm, vlmCfg, nil)
+	result := buildCreateSVMResult(params, svm, vlmCfg, nil, svm.Name)
 
 	assert.Equal(t, "missing-svm", result.Name)
 	assert.Equal(t, "ocid1.svm..x", result.SvmOCID)
@@ -1331,7 +1331,7 @@ func TestBuildCreateSVMResult_MultipleLifTypes(t *testing.T) {
 	result := buildCreateSVMResult(params, svm, vlmCfg, map[string]string{
 		"node1": "db-node-uuid-1",
 		"node2": "db-node-uuid-2",
-	})
+	}, svm.Name)
 
 	assert.Equal(t, "svm1", result.Name)
 	// Only SAN and NAS LIF types are externally exposed; ILB NAS is intentionally

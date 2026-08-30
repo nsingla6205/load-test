@@ -36,6 +36,21 @@ func TestIsSvmExternalIdentifierUniqueViolation(t *testing.T) {
 	})
 }
 
+func TestIsSvmPoolNameUniqueViolation(t *testing.T) {
+	t.Run("NamedIndex", func(tt *testing.T) {
+		assert.True(tt, isSvmPoolNameUniqueViolation(errors.New(`pq: duplicate key value violates unique constraint "idx_svms_pool_id_name_active"`)))
+	})
+	t.Run("SqliteComposite", func(tt *testing.T) {
+		assert.True(tt, isSvmPoolNameUniqueViolation(errors.New("UNIQUE constraint failed: svms.pool_id, svms.name")))
+	})
+	t.Run("ExternalIdentifierIndex", func(tt *testing.T) {
+		assert.False(tt, isSvmPoolNameUniqueViolation(errors.New("UNIQUE constraint failed: svms.svm_external_identifier")))
+	})
+	t.Run("OtherError", func(tt *testing.T) {
+		assert.False(tt, isSvmPoolNameUniqueViolation(errors.New("connection refused")))
+	})
+}
+
 // CreateSvmInCreatingState must reject a nil svm with BadRequestErr so the API
 // layer can return 400 instead of allowing a nil-deref through the transaction
 // path.
@@ -529,14 +544,7 @@ func TestCreateSVM(t *testing.T) {
 		assert.Equal(tt, first.UUID, second.UUID, "retry should return the same row")
 	})
 
-	// Regression: under OCI semantics, name is not unique within (account_id,
-	// pool_id) — only svm_external_identifier is. If a stale row (from a
-	// previous successful create with the same name) coexists with the new
-	// pre-allocated CREATING row, finalize must target the CREATING row by
-	// OCID, not blindly pick the first row matching (account_id, name, pool_id)
-	// — which would silently no-op via the "already READY" branch and leave
-	// the new row stuck in CREATING forever.
-	t.Run("FinalizesByOCIDWhenStaleRowSharesNameAndPool", func(tt *testing.T) {
+	t.Run("ReturnsConflictWhenReadyRowAlreadyOwnsNameInPool", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		if err != nil {
 			tt.Fatalf("Failed to set up test database: %v", err)
@@ -550,53 +558,26 @@ func TestCreateSVM(t *testing.T) {
 		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}, Name: "pool", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
 		assert.NoError(tt, store.db.Create(pool).Error())
 
-		// Stale survivor from a previous successful create with the same name,
-		// different OCID. Same (account_id, name, pool_id) as the new attempt.
-		stale := &datamodel.Svm{
-			BaseModel:             datamodel.BaseModel{UUID: "stale-uuid"},
+		existing := &datamodel.Svm{
+			BaseModel:             datamodel.BaseModel{UUID: "existing-uuid"},
 			Name:                  "svm-1",
 			AccountID:             account.ID,
 			PoolID:                pool.ID,
-			SvmExternalIdentifier: "ocid1.svm..stale",
+			SvmExternalIdentifier: "ocid1.svm..existing",
 			State:                 datamodel.LifeCycleStateREADY,
 			StateDetails:          datamodel.LifeCycleStateAvailableDetails,
 		}
-		assert.NoError(tt, store.db.Create(stale).Error())
+		assert.NoError(tt, store.db.Create(existing).Error())
 
-		// Pre-allocate the new CREATING row with a distinct OCID (mirrors
-		// CreateSvmInCreatingState in the orchestrator factory).
-		preallocated, err := store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+		_, err = store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
 			Name:                  "svm-1",
 			AccountID:             account.ID,
 			PoolID:                pool.ID,
 			SvmExternalIdentifier: "ocid1.svm..fresh",
 		})
-		assert.NoError(tt, err)
-		assert.Equal(tt, datamodel.LifeCycleStateCreating, preallocated.State)
-		assert.NotEqual(tt, stale.UUID, preallocated.UUID)
-
-		// Finalize: must target the pre-allocated row by OCID, not the stale
-		// READY row that shares (account_id, name, pool_id).
-		finalized, err := store.CreateSVM(context.Background(), &datamodel.Svm{
-			Name:                  "svm-1",
-			AccountID:             account.ID,
-			PoolID:                pool.ID,
-			SvmExternalIdentifier: "ocid1.svm..fresh",
-			SvmDetails:            &datamodel.SvmDetails{ExternalUUID: "fresh-ext", IPSpace: "Default"},
-		})
-		assert.NoError(tt, err)
-		assert.Equal(tt, preallocated.UUID, finalized.UUID, "finalize must target the pre-allocated row, not the stale one")
-		assert.Equal(tt, datamodel.LifeCycleStateREADY, finalized.State)
-		assert.Equal(tt, "ocid1.svm..fresh", finalized.SvmExternalIdentifier)
-		if assert.NotNil(tt, finalized.SvmDetails) {
-			assert.Equal(tt, "fresh-ext", finalized.SvmDetails.ExternalUUID)
-		}
-
-		// Stale row must be untouched.
-		var staleAfter datamodel.Svm
-		assert.NoError(tt, store.db.GORM().Where("uuid = ?", stale.UUID).First(&staleAfter).Error)
-		assert.Equal(tt, datamodel.LifeCycleStateREADY, staleAfter.State)
-		assert.Equal(tt, "ocid1.svm..stale", staleAfter.SvmExternalIdentifier)
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err), "expected ConflictErr, got %T: %v", err, err)
+		assert.Contains(tt, err.Error(), `svm with name "svm-1" already exists in this pool`)
 	})
 }
 
@@ -713,6 +694,60 @@ func TestCreateSvmInCreatingState(t *testing.T) {
 		})
 		assert.Error(tt, err)
 		assert.True(tt, customerrors.IsConflictErr(err), "expected ConflictErr, got %T: %v", err, err)
+	})
+
+	t.Run("ReturnsConflictWhenNameTakenByDifferentOCIDInSamePool", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+		assert.NoError(tt, store.db.Create(account).Error())
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}, Name: "pool", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
+		assert.NoError(tt, store.db.Create(pool).Error())
+
+		_, err = store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+			Name: "svm-1", AccountID: account.ID, PoolID: pool.ID, SvmExternalIdentifier: "ocid1.svm..a",
+		})
+		assert.NoError(tt, err)
+
+		_, err = store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+			Name: "svm-1", AccountID: account.ID, PoolID: pool.ID, SvmExternalIdentifier: "ocid1.svm..b",
+		})
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err), "expected ConflictErr, got %T: %v", err, err)
+		assert.Contains(tt, err.Error(), `svm with name "svm-1" already exists in this pool`)
+	})
+
+	t.Run("AllowsSameNameInDifferentPools", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+		assert.NoError(tt, store.db.Create(account).Error())
+		poolA := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7, UUID: "pool-a-uuid"}, Name: "pool-a", DeploymentName: "dep-a", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
+		poolB := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 8, UUID: "pool-b-uuid"}, Name: "pool-b", DeploymentName: "dep-b", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
+		assert.NoError(tt, store.db.Create(poolA).Error())
+		assert.NoError(tt, store.db.Create(poolB).Error())
+
+		first, err := store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+			Name: "svm-1", AccountID: account.ID, PoolID: poolA.ID, SvmExternalIdentifier: "ocid1.svm..a",
+		})
+		assert.NoError(tt, err)
+		second, err := store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+			Name: "svm-1", AccountID: account.ID, PoolID: poolB.ID, SvmExternalIdentifier: "ocid1.svm..b",
+		})
+		assert.NoError(tt, err)
+		assert.NotEqual(tt, first.UUID, second.UUID)
 	})
 
 	// Tombstones (soft-deleted rows) still occupy the partial unique index
@@ -1001,6 +1036,68 @@ func TestCreateSvmInCreatingState_ParallelSameOCID(t *testing.T) {
 		Where("svm_external_identifier = ?", sharedOCID).
 		Count(&count).Error)
 	assert.Equal(t, int64(1), count, "exactly one row should exist for the shared OCID")
+}
+
+func TestCreateSvmInCreatingState_ParallelSameNameDifferentOCID(t *testing.T) {
+	db, fileName, err := SetupTestFileDB()
+	assert.NoError(t, err, "Failed to set up file-based test database")
+	defer cleanupTestDBFile(db, fileName)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	assert.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+	assert.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}, Name: "pool", AccountID: account.ID, State: datamodel.LifeCycleStateREADY}
+	assert.NoError(t, store.db.Create(pool).Error())
+
+	const sharedName = "svm-race-name"
+	ocids := []string{"ocid1.svm..race-0", "ocid1.svm..race-1"}
+	const numParallel = 2
+	var wg sync.WaitGroup
+	errs := make([]error, numParallel)
+	results := make([]*datamodel.Svm, numParallel)
+	start := make(chan struct{})
+
+	for i := 0; i < numParallel; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			<-start
+			svm, e := store.CreateSvmInCreatingState(context.Background(), &datamodel.Svm{
+				Name:                  sharedName,
+				AccountID:             account.ID,
+				PoolID:                pool.ID,
+				SvmExternalIdentifier: ocids[idx],
+			})
+			results[idx] = svm
+			errs[idx] = e
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	var successes, conflicts int
+	for i, e := range errs {
+		switch {
+		case e == nil:
+			successes++
+			assert.NotNil(t, results[i], "goroutine %d returned nil row on success", i)
+		case customerrors.IsConflictErr(e):
+			conflicts++
+		default:
+			t.Errorf("goroutine %d returned unexpected error type %T: %v", i, e, e)
+		}
+	}
+	assert.Equal(t, 1, successes, "exactly one goroutine should succeed")
+	assert.Equal(t, 1, conflicts, "exactly one goroutine should get ConflictErr")
+
+	var count int64
+	assert.NoError(t, store.db.GORM().
+		Model(&datamodel.Svm{}).
+		Where("pool_id = ? AND name = ?", pool.ID, sharedName).
+		Count(&count).Error)
+	assert.Equal(t, int64(1), count, "exactly one live row should exist for the shared name in the pool")
 }
 
 func TestSvmExistsByExternalIdentifier(t *testing.T) {

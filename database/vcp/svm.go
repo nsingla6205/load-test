@@ -17,13 +17,43 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// isSvmExternalIdentifierUniqueViolation reports whether err is a unique-index
-// violation from the partial unique index on svm_external_identifier.
-func isSvmExternalIdentifierUniqueViolation(err error) bool {
+func isSvmUniqueConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return true
 	}
 	return strings.Contains(strings.ToLower(err.Error()), "unique constraint")
+}
+
+func isSvmExternalIdentifierUniqueViolation(err error) bool {
+	return isSvmUniqueConstraintViolation(err)
+}
+
+func isSvmPoolNameUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "svm_external_identifier") {
+		return false
+	}
+	if strings.Contains(msg, "idx_svms_pool_id_name_active") {
+		return true
+	}
+	return strings.Contains(msg, "svms.name") ||
+		(strings.Contains(msg, "pool_id") && strings.Contains(msg, "name"))
+}
+
+func svmUniqueInsertConflict(err error, svm *datamodel.Svm) error {
+	if !isSvmUniqueConstraintViolation(err) {
+		return nil
+	}
+	if isSvmPoolNameUniqueViolation(err) {
+		return customerrors.NewConflictErr(fmt.Sprintf("svm with name %q already exists in this pool", svm.Name))
+	}
+	return customerrors.NewConflictErr("svm already exists")
 }
 
 var (
@@ -143,8 +173,8 @@ func (d *DataStoreRepository) CreateSVM(ctx context.Context, svm *datamodel.Svm)
 
 		err = tx.Create(svm).Error
 		if err != nil {
-			if svm.SvmExternalIdentifier != "" && isSvmExternalIdentifierUniqueViolation(err) {
-				return nil, customerrors.NewConflictErr("svm already exists")
+			if conflict := svmUniqueInsertConflict(err, svm); conflict != nil {
+				return nil, conflict
 			}
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 		}
@@ -210,6 +240,13 @@ func (d *DataStoreRepository) CreateSvmInCreatingState(ctx context.Context, svm 
 			}
 			return nil, customerrors.NewConflictErr("svm already exists")
 		}
+		existingByName, nameErr := findLiveSvmByNameAndPool(tx, svm.Name, svm.PoolID)
+		if nameErr != nil {
+			return nil, nameErr
+		}
+		if existingByName != nil {
+			return nil, customerrors.NewConflictErr(fmt.Sprintf("svm with name %q already exists in this pool", svm.Name))
+		}
 	} else {
 		var dbSvm datamodel.Svm
 		res := tx.Where("account_id = ?", svm.AccountID).
@@ -237,8 +274,8 @@ func (d *DataStoreRepository) CreateSvmInCreatingState(ctx context.Context, svm 
 	svm.StateDetails = datamodel.LifeCycleStateCreatingDetails
 
 	if err = tx.Create(svm).Error; err != nil {
-		if svm.SvmExternalIdentifier != "" && isSvmExternalIdentifierUniqueViolation(err) {
-			return nil, customerrors.NewConflictErr("svm already exists")
+		if conflict := svmUniqueInsertConflict(err, svm); conflict != nil {
+			return nil, conflict
 		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 	}
@@ -248,6 +285,18 @@ func (d *DataStoreRepository) CreateSvmInCreatingState(ctx context.Context, svm 
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 	return &fresh, nil
+}
+
+func findLiveSvmByNameAndPool(tx *gorm.DB, name string, poolID int64) (*datamodel.Svm, error) {
+	var existing datamodel.Svm
+	res := tx.Where("pool_id = ? AND name = ? AND state <> ?", poolID, name, datamodel.LifeCycleStateDeleted).Limit(1).Find(&existing)
+	if res.Error != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &existing, nil
 }
 
 // isIdempotentCreatingRetry reports whether `existing` represents the same

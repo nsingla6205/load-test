@@ -146,7 +146,8 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	svmActivity := &activities.SvmActivity{}
 
 	rollbackManager.AddActivity(svmActivity.MarkSvmAsErroredForCreation, svm)
-	logger.Infof("Resuming SVM create on pre-allocated row: svmName=%s, svmUUID=%s", svm.Name, svm.UUID)
+	svmName := strings.TrimSpace(params.Name)
+	logger.Infof("Starting SVM create workflow steps: svmName=%s, svmUUID=%s", svmName, svm.UUID)
 
 	var vlmConfig *vlm.VLMConfig
 	err = workflow.ExecuteActivity(ctx, poolActivity.ParseVlmConfig, pool).Get(ctx, &vlmConfig)
@@ -194,7 +195,7 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	}
 
 	createSVMRequest := &vlm.CreateSVMRequest{
-		Name:             params.Name,
+		Name:             svmName,
 		VLMConfig:        *vlmConfig,
 		OntapCredentials: credConfig,
 		SvmAdminPassword: svmAdminPassword,
@@ -205,7 +206,7 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		err = vlmErr
 		logger.Errorf("Failed to create SVM via VLM child workflow: %v", vlmErr)
 		emitStage(ctx, wfCreateSVM, queueCustomer, stageVLMCreateSVM, resultFailure)
-		return nil, handleActivityError(logger, vlmErr, "CreateVSASVM", params.Name)
+		return nil, handleActivityError(logger, vlmErr, "CreateVSASVM", svmName)
 	}
 	if createSVMResponse == nil {
 		err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("CreateVSASVM returned nil response"))
@@ -213,20 +214,17 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	emitStage(ctx, wfCreateSVM, queueCustomer, stageVLMCreateSVM, resultSuccess)
-	logger.Infof("SVM created successfully via VLM: %s", params.Name)
+	logger.Infof("SVM created successfully via VLM: %s", svmName)
 
-	// Register rollback: tear down the SVM we just created on the ONTAP cluster via
-	// the VLM delete child workflow so a later DB-persistence failure does not leave
-	// orphaned cluster state.
 	deleteSVMRequest := &vlm.DeleteSVMRequest{
-		Name:             params.Name,
+		Name:             svmName,
 		VLMConfig:        createSVMResponse.VLMConfig,
 		OntapCredentials: credConfig,
 	}
 	vlmWorkerQueue := vlm.GetVLMWorkerQueue(logger, pool.Account.Name)
 	rollbackManager.AddWorkflow(vlmWorkerQueue, vlm.DeleteVSASVMWorkflowName, deleteSVMRequest)
 
-	err = workflow.ExecuteActivity(dbHbCtx, svmActivity.SaveSVMAndLifDataWithOCID, pool, createSVMResponse.VLMConfig, params.Name, params.SvmExternalIdentifier).Get(dbHbCtx, svm)
+	err = workflow.ExecuteActivity(dbHbCtx, svmActivity.SaveSVMAndLifDataWithOCID, pool, createSVMResponse.VLMConfig, svmName, params.SvmExternalIdentifier).Get(dbHbCtx, svm)
 	if err != nil {
 		logger.Errorf("Failed to save SVM and LIF data: %v", err)
 		emitStage(ctx, wfCreateSVM, queueCustomer, stageSaveSVMLif, resultFailure)
@@ -256,17 +254,17 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		logger.Warnf("Failed to enrich SVM response with node UUIDs from DB: %v", lookupErr)
 	}
 
-	result := buildCreateSVMResult(params, svm, &createSVMResponse.VLMConfig, nodeUUIDsByName)
+	result := buildCreateSVMResult(params, svm, &createSVMResponse.VLMConfig, nodeUUIDsByName, svmName)
 	return result, nil
 }
 
-func buildCreateSVMResult(params *common.CreateSvmParams, svm *datamodel.Svm, vlmCfg *vlm.VLMConfig, nodeUUIDsByName map[string]string) *OCICreateSVMResult {
+func buildCreateSVMResult(params *common.CreateSvmParams, svm *datamodel.Svm, vlmCfg *vlm.VLMConfig, nodeUUIDsByName map[string]string, svmName string) *OCICreateSVMResult {
 	res := &OCICreateSVMResult{
 		Name:    svm.Name,
 		SvmOCID: params.SvmExternalIdentifier,
 	}
 
-	svmCfg, ok := vlmCfg.Svm[params.Name]
+	svmCfg, ok := vlmCfg.Svm[svmName]
 	if !ok {
 		return res
 	}

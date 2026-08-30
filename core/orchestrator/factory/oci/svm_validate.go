@@ -13,12 +13,7 @@ import (
 )
 
 const (
-	// minNodesForSVM is the minimum number of cluster nodes required to create an SVM (needed for HA LIF placement).
 	minNodesForSVM = 2
-	// svmNameMaxLength is the ONTAP maximum length for an SVM name.
-	svmNameMaxLength = 47
-	// svmNameMinLength is the minimum length for an SVM name.
-	svmNameMinLength = 1
 )
 
 // SvmNameRegex: alphanumeric, hyphen, underscore only (ONTAP-compatible).
@@ -183,16 +178,9 @@ func validateCreateSvmClusterStateAndCapacity(ctx context.Context, se database.S
 	return nil
 }
 
-// validateSvmName checks naming convention: length and allowed characters.
 func validateSvmName(name string) error {
 	if name == "" {
 		return customerrors.NewUserInputValidationErr("SVM name is required")
-	}
-	if len(name) < svmNameMinLength {
-		return customerrors.NewUserInputValidationErr("SVM name is too short")
-	}
-	if len(name) > svmNameMaxLength {
-		return customerrors.NewUserInputValidationErr(fmt.Sprintf("SVM name must be at most %d characters", svmNameMaxLength))
 	}
 	if !svmNameRegex.MatchString(name) {
 		return customerrors.NewUserInputValidationErr("SVM name must contain only letters, numbers, hyphens, and underscores")

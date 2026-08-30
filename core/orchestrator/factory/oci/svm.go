@@ -75,6 +75,7 @@ func (o *OCIOrchestrator) CreateSvm(ctx context.Context, params *commonparams.Cr
 			return "", customerrors.NewConflictErr("svmOCID already exists")
 		}
 		preallocatedSvm = existingSvm
+		params.Name = preallocatedSvm.Name
 
 		if upgradeErr := o.validatePoolNotUnderUpgrade(ctx, pool.UUID, params.PoolOCID, "SVM creation"); upgradeErr != nil {
 			_ = se.ErroredSVM(ctx, preallocatedSvm, datamodel.LifeCycleStateCreationErrorDetails)
@@ -106,8 +107,10 @@ func (o *OCIOrchestrator) CreateSvm(ctx context.Context, params *commonparams.Cr
 			logger.Error("Failed to pre-allocate SVM in CREATING state", "svmOCID", params.SvmExternalIdentifier, "error", err)
 			return "", err
 		}
-		logger.Info("SVM pre-allocated in CREATING state", "svmUUID", preallocatedSvm.UUID, "svmOCID", preallocatedSvm.SvmExternalIdentifier)
+		logger.Info("SVM pre-allocated in CREATING state", "svmUUID", preallocatedSvm.UUID, "svmOCID", preallocatedSvm.SvmExternalIdentifier, "svmName", preallocatedSvm.Name)
 	}
+
+	logger.Info("Starting CreateSVM workflow", "workflowID", workflowID, "svmOCID", params.SvmExternalIdentifier, "svmName", params.Name)
 
 	defer func() {
 		if err != nil && preallocatedSvm != nil {

@@ -3,19 +3,63 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
-	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-const ociSvmNamePrefix = "oci-svm-"
+const (
+	ociSvmNamePrefix         = "oci-svm-"
+	ociSvmNameMaxTotalLength = 40
+)
+
+func ociSvmNameMaxSuffixLength(prefix string) int {
+	return ociSvmNameMaxTotalLength - len(prefix)
+}
+
+func errMsgSvmNamePrefix(prefix string) string {
+	return fmt.Sprintf("name must start with %s", prefix)
+}
+
+func errMsgSvmNameTooShort(prefix string) string {
+	return fmt.Sprintf("name must be longer than the %s prefix", prefix)
+}
+
+func errMsgSvmNameTooLong(maxTotal int) string {
+	return fmt.Sprintf("name must be at most %d characters", maxTotal)
+}
+
+func generateSvmResourceName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ociSvmNamePrefix + strings.ReplaceAll(uuid.NewString(), "-", "")
+	}
+	return trimmed
+}
+
+func validateSvmResourceName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, ociSvmNamePrefix) {
+		return errMsgSvmNamePrefix(ociSvmNamePrefix)
+	}
+	if len(trimmed) <= len(ociSvmNamePrefix) {
+		return errMsgSvmNameTooShort(ociSvmNamePrefix)
+	}
+	if len(trimmed) > ociSvmNameMaxTotalLength {
+		return errMsgSvmNameTooLong(ociSvmNameMaxTotalLength)
+	}
+	return ""
+}
 
 // validateRequiredOCIDs checks that none of the provided name/value pairs are empty.
 // Returns the error message for the first empty value, or "" if all are present.
@@ -133,9 +177,12 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		}, nil
 	}
 
-	name := commonfactory.GenerateSvmResourceName(ociSvmNamePrefix)
 	poolOCID := strings.TrimSpace(params.PoolOCID)
 	svmOCID := strings.TrimSpace(req.SvmOCID)
+	svmName := ""
+	if name, ok := req.Name.Get(); ok {
+		svmName = strings.TrimSpace(name)
+	}
 	tenancyOCID := strings.TrimSpace(params.TenancyOcid)
 
 	if msg := validateRequiredOCIDs(
@@ -159,6 +206,16 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 			Response:         svmErrorResponse(svmOCID, msg),
 		}, nil
 	}
+
+	if msg := validateSvmResourceName(svmName); msg != "" {
+		return &ociserver.CreateSvmByPoolBadRequest{
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, msg),
+		}, nil
+	}
+
+	name := generateSvmResourceName(svmName)
+	logger.Info("Resolved SVM resource name for create", "svmOCID", svmOCID, "inputName", svmName, "svmName", name)
 
 	createSvmParams := &commonparams.CreateSvmParams{
 		AccountName:           tenancyOCID,

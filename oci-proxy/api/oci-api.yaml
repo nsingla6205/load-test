@@ -1207,6 +1207,7 @@ paths:
                 summary: Create SVM with admin password secret and data IPs
                 value:
                   svmOCID: "ocid1.svm.oc1..example"
+                  name: "oci-svm-my-svm"
                   svmAdminPassword:
                     ocid: "ocid1.secret.oc1..example"
                     version: "1"
@@ -2399,6 +2400,15 @@ components:
         svmOCID:
           type: string
           description: OCI SVM resource OCID for the SVM being created.
+        name:
+          type: string
+          maxLength: 40
+          description: |
+            Optional ONTAP SVM resource name. When provided, must start with
+            `oci-svm-` (for example, `oci-svm-my-svm`) and be at most 40
+            characters total (the `oci-svm-` prefix plus up to 32 characters).
+            When omitted, a unique name is generated automatically with the
+            `oci-svm-` prefix (40 characters total).
         svmAdminPassword:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
           description: OCI secret reference for the SVM admin password.

@@ -175,6 +175,11 @@ func (s *CreateSvmRequest) SetFake() {
 	}
 	{
 		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
 			s.SvmAdminPassword.SetFake()
 		}
 	}
