@@ -7,6 +7,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	sdklog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -33,10 +34,11 @@ import (
 
 const ociCertificateRotationFailureType = "oci_certificate_rotation"
 
-// ociUnknownPoolName labels the rotation-failure metric when the pool name has not
-// been resolved yet (e.g. GetPoolContext failed). The poolUUID is always known, so
+// ociUnknownPoolExternalIdentifier labels the OCI rotation-failure metric's
+// pool_external_identifier when the pool has not been resolved yet (e.g. GetPoolContext
+// failed, so the pool row and its OCID are unknown). The poolUUID is always known, so
 // the metric remains attributable to a specific pool.
-const ociUnknownPoolName = "unknown"
+const ociUnknownPoolExternalIdentifier = "unknown"
 
 // Bounded error_type label values for the rotation-failure metric. Using the
 // failing phase (a small fixed set) instead of the raw error string keeps the
@@ -57,6 +59,21 @@ const (
 	ociRotationCategoryServiceStaging = "service_staging"
 	ociRotationCategoryServicePromote = "service_promote_commit"
 	ociRotationCategoryServiceVerify  = "service_verify"
+)
+
+// ociCertType is the bounded set of cert_type label values for the rotation-success
+// metric. Using a named type (rather than a bare string) makes the compiler enforce
+// the bounded set at every call site.
+type ociCertType string
+
+// Bounded cert_type label values for the rotation-success metric. Emitted only on
+// an actual completed rotation (never on "not due"/skipped paths), so the success
+// counter reflects real rotations. The set is small and fixed, keeping the
+// Prometheus series count bounded.
+const (
+	ociCertTypeServer  ociCertType = "server"
+	ociCertTypeClient  ociCertType = "client"
+	ociCertTypeService ociCertType = "service"
 )
 
 // ociRotationActivityCount is the number of sequential activities in the per-pool
@@ -163,16 +180,18 @@ func RotateOciCertificatesWorkflow(ctx workflow.Context) error {
 			// batch size.
 			var batchFutures []workflow.Future
 			var batchPoolUUIDs []string
+			var batchPoolExternalIDs []string
 			for _, pool := range pools {
 				future := workflow.ExecuteActivity(ctx, rotateActivity.DispatchOciPoolCertificateRotation,
 					pool.UUID, childWorkflowTimeout)
 				batchFutures = append(batchFutures, future)
 				batchPoolUUIDs = append(batchPoolUUIDs, pool.UUID)
+				batchPoolExternalIDs = append(batchPoolExternalIDs, pool.PoolExternalIdentifier)
 			}
 			for batchIndex, future := range batchFutures {
 				if err := future.Get(ctx, nil); err != nil {
 					dispatchFailed = true
-					logger.Error("Failed to dispatch OCI certificate rotation for pool", "poolUUID", batchPoolUUIDs[batchIndex], "error", err)
+					logger.Error("Failed to dispatch OCI certificate rotation for pool", "poolUUID", batchPoolUUIDs[batchIndex], "poolExternalIdentifier", batchPoolExternalIDs[batchIndex], "error", err)
 				}
 			}
 			totalPoolsProcessed += len(pools)
@@ -273,17 +292,20 @@ func RotateOciPoolClientCertificateWorkflow(ctx workflow.Context, poolUUID strin
 
 	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
-	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	poolContext, poolName, poolExternalID, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
 	if err != nil {
 		return err
 	}
+	// Bind the pool external identifier (OCID) to the logger so every subsequent line
+	// in this workflow carries it alongside poolUUID/poolName.
+	logger = sdklog.With(logger, "poolExternalIdentifier", poolExternalID)
 
 	// Step 1: is the client cert due for rotation? (also reconciles a stale persisted
 	// version left by a prior promote that failed before persisting).
 	var needsRotation bool
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciVCPClientCertificateNeedsRotation, poolContext).Get(ctx, &needsRotation); err != nil {
 		logger.Error("OCI client certificate rotation check failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientCheck)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryClientCheck)
 		return err
 	}
 	if !needsRotation {
@@ -295,7 +317,7 @@ func RotateOciPoolClientCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	var stagedVersion int64
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciVCPClientCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
 		logger.Error("OCI client certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientStaging)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryClientStaging)
 		return err
 	}
 	logger.Info("OCI client certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
@@ -304,18 +326,19 @@ func RotateOciPoolClientCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	// failure the version stays PENDING and the old CURRENT client cert keeps serving.
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.VerifyOciVCPClientCertificatePending, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI client certificate verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientVerify)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryClientVerify)
 		return err
 	}
 
 	// Step 4: only after a successful verify, promote to CURRENT, commit (persist), and refresh the cache.
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciVCPClientCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI client certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientPromote)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryClientPromote)
 		return err
 	}
 
 	logger.Info("OCI client certificate rotation completed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	emitOciCertificateRotationSuccess(ctx, poolUUID, poolExternalID, ociCertTypeClient)
 	return nil
 }
 
@@ -336,17 +359,20 @@ func RotateOciPoolServiceCertificateWorkflow(ctx workflow.Context, poolUUID stri
 
 	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
-	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	poolContext, poolName, poolExternalID, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
 	if err != nil {
 		return err
 	}
+	// Bind the pool external identifier (OCID) to the logger so every subsequent line
+	// in this workflow carries it alongside poolUUID/poolName.
+	logger = sdklog.With(logger, "poolExternalIdentifier", poolExternalID)
 
 	// Step 1: is the service cert due for rotation? (also reconciles a stale
 	// persisted version left by a prior promote that failed before persisting).
 	var needsRotation bool
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciServiceCertificateNeedsRotation, poolContext).Get(ctx, &needsRotation); err != nil {
 		logger.Error("OCI service certificate rotation check failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceCheck)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryServiceCheck)
 		return err
 	}
 	if !needsRotation {
@@ -358,7 +384,7 @@ func RotateOciPoolServiceCertificateWorkflow(ctx workflow.Context, poolUUID stri
 	var stagedVersion int64
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciServiceCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
 		logger.Error("OCI service certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceStaging)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryServiceStaging)
 		return err
 	}
 	logger.Info("OCI service certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
@@ -367,18 +393,19 @@ func RotateOciPoolServiceCertificateWorkflow(ctx workflow.Context, poolUUID stri
 	// failure the version stays PENDING and the old CURRENT service cert keeps serving.
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.VerifyOciServiceCertificatePending, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI service certificate verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceVerify)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryServiceVerify)
 		return err
 	}
 
 	// Step 4: only after a successful verify, promote to CURRENT and commit (persist).
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciServiceCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI service certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServicePromote)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryServicePromote)
 		return err
 	}
 
 	logger.Info("OCI service certificate rotation completed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	emitOciCertificateRotationSuccess(ctx, poolUUID, poolExternalID, ociCertTypeService)
 	return nil
 }
 
@@ -399,10 +426,13 @@ func RotateOciPoolServerCertificateWorkflow(ctx workflow.Context, poolUUID strin
 
 	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
-	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	poolContext, poolName, poolExternalID, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
 	if err != nil {
 		return err
 	}
+	// Bind the pool external identifier (OCID) to the logger so every subsequent line
+	// in this workflow carries it alongside poolUUID/poolName.
+	logger = sdklog.With(logger, "poolExternalIdentifier", poolExternalID)
 
 	// Step 1: skip pools whose active certificate version is not yet due. A failure
 	// here (vs. a clean "not due" result) is a genuine pre-rotation failure, so emit
@@ -410,7 +440,7 @@ func RotateOciPoolServerCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	var needsRotation bool
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciONTAPCertificateNeedsRotation, poolUUID).Get(ctx, &needsRotation); err != nil {
 		logger.Error("OciONTAPCertificateNeedsRotation activity failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryRotationCheck)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryRotationCheck)
 		return err
 	}
 	if !needsRotation {
@@ -426,7 +456,7 @@ func RotateOciPoolServerCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	var stagedVersion int64
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciONTAPCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
 		logger.Error("OCI certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryStaging)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryStaging)
 		return err
 	}
 	logger.Info("OCI certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
@@ -434,39 +464,42 @@ func RotateOciPoolServerCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	// Step 3: install the staged version on ONTAP and verify it via an mTLS round-trip.
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.InstallAndVerifyOciONTAPCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI certificate install/verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryInstallVerify)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryInstallVerify)
 		return err
 	}
 
 	// Step 4: promote the verified version to CURRENT, commit it, and refresh the cache.
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciONTAPCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryPromoteCommit)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolExternalID, ociRotationCategoryPromoteCommit)
 		return err
 	}
 
 	logger.Info("OCI server certificate rotation completed successfully", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	emitOciCertificateRotationSuccess(ctx, poolUUID, poolExternalID, ociCertTypeServer)
 	return nil
 }
 
 // resolveOciPoolContext resolves the pool context for a per-pool rotation workflow.
-// On failure it emits the pool-lookup failure metric (with an "unknown" pool name,
-// since the name is not yet resolved) and returns the error.
-func resolveOciPoolContext(ctx workflow.Context, rotateActivity *backgroundactivities.OciCertificateRotationActivity, poolUUID string) (*backgroundactivities.PoolContext, string, error) {
+// It returns the pool context, the pool name (for logs), and the pool external
+// identifier / OCID (for the metric label). On failure it emits the pool-lookup
+// failure metric with the ociUnknownPoolExternalIdentifier sentinel, since the pool
+// row (and its OCID) is not yet resolved, and returns the error.
+func resolveOciPoolContext(ctx workflow.Context, rotateActivity *backgroundactivities.OciCertificateRotationActivity, poolUUID string) (*backgroundactivities.PoolContext, string, string, error) {
 	logger := workflow.GetLogger(ctx)
 
 	var poolContext *backgroundactivities.PoolContext
 	if err := workflow.ExecuteActivity(ctx, rotateActivity.GetPoolContext, poolUUID).Get(ctx, &poolContext); err != nil {
 		logger.Error("GetPoolContext activity failed", "poolUUID", poolUUID, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
-		return nil, "", err
+		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolExternalIdentifier, ociRotationCategoryPoolLookup)
+		return nil, "", "", err
 	}
 	if poolContext == nil || poolContext.Pool == nil {
 		logger.Error("PoolContext or Pool is nil after GetPoolContext", "poolUUID", poolUUID)
-		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
-		return nil, "", fmt.Errorf("pool context or pool is nil for pool UUID: %s", poolUUID)
+		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolExternalIdentifier, ociRotationCategoryPoolLookup)
+		return nil, "", "", fmt.Errorf("pool context or pool is nil for pool UUID: %s", poolUUID)
 	}
-	return poolContext, poolContext.Pool.Name, nil
+	return poolContext, poolContext.Pool.Name, poolContext.Pool.PoolExternalIdentifier, nil
 }
 
 // emitOciCertificateRotationFailure emits the rotation failure metric exactly once
@@ -477,7 +510,31 @@ func resolveOciPoolContext(ctx workflow.Context, rotateActivity *backgroundactiv
 // string: the error_type label feeds a Prometheus counter, and OCI/ONTAP errors
 // embed OCIDs / version numbers / serials, so passing cause.Error() would spawn a
 // new time series per distinct message. The full error is logged at the call site.
-func emitOciCertificateRotationFailure(ctx workflow.Context, poolUUID, poolName, errorCategory string) {
-	_ = workflow.ExecuteActivity(ctx, backgroundactivities.EmitCertificateRotationFailureMetric,
-		poolUUID, poolName, ociCertificateRotationFailureType, errorCategory).Get(ctx, nil)
+// poolExternalIdentifier is the OCI-native pool identifier (OCID), or the
+// ociUnknownPoolExternalIdentifier sentinel when the pool has not been resolved.
+//
+// This writes to the OCI-specific failure counter (EmitOciCertificateRotationFailureMetric),
+// which is separate from the shared GCP counter so it can carry the external-identifier
+// label without affecting GCP series.
+//
+// The activity error is intentionally ignored (best-effort metric): a failure to
+// emit the metric must not mask or alter the rotation failure the caller is already
+// handling and returning.
+func emitOciCertificateRotationFailure(ctx workflow.Context, poolUUID, poolExternalIdentifier, errorCategory string) {
+	_ = workflow.ExecuteActivity(ctx, backgroundactivities.EmitOciCertificateRotationFailureMetric,
+		poolUUID, poolExternalIdentifier, ociCertificateRotationFailureType, errorCategory).Get(ctx, nil)
+}
+
+// emitOciCertificateRotationSuccess emits the rotation success metric exactly once
+// when a certificate has actually completed rotation (promote+commit succeeded).
+// It is NOT emitted on "not due"/skipped paths. certType MUST come from the bounded
+// ociCertType* set (server | client | service) to keep the metric's cert_type label
+// cardinality low. poolExternalIdentifier is the OCI-native pool identifier (OCID),
+// carried so OCI operators can correlate the metric with their tooling.
+//
+// The activity error is intentionally ignored (best-effort metric): a failure to
+// emit the metric must not fail a rotation that has already completed successfully.
+func emitOciCertificateRotationSuccess(ctx workflow.Context, poolUUID, poolExternalIdentifier string, certType ociCertType) {
+	_ = workflow.ExecuteActivity(ctx, backgroundactivities.EmitOciCertificateRotationSuccessMetric,
+		poolUUID, poolExternalIdentifier, string(certType)).Get(ctx, nil)
 }

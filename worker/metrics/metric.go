@@ -42,6 +42,30 @@ var CertificateRotationFailureCounter = prometheus.NewCounterVec(
 	[]string{"pool_uuid", "pool_name", "failure_type", "error_type"},
 )
 
+// OciCertificateRotationSuccessCounter counts successful OCI certificate rotations.
+// cert_type is a bounded label (server | client | service) identifying which
+// certificate completed rotation. pool_external_identifier is the OCI-native pool
+// identifier (OCID) and it lets OCI operators correlate the metric with their own tooling.
+// pool_name is intentionally omitted (mutable/redundant); it lives in the "rotation completed" logs.
+var OciCertificateRotationSuccessCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "vcp_oci_certificate_rotation_successes_total",
+		Help: "Total number of successful OCI certificate rotations",
+	},
+	[]string{"pool_uuid", "pool_external_identifier", "cert_type"},
+)
+
+// OciCertificateRotationFailureCounter counts OCI certificate-rotation failures. It is
+// kept separate from the shared CertificateRotationFailureCounter (used by GCP) so the
+// OCI metric can carry pool_external_identifier without altering the GCP series.
+var OciCertificateRotationFailureCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "vcp_oci_certificate_rotation_failures_total",
+		Help: "Total number of OCI certificate rotation failures",
+	},
+	[]string{"pool_uuid", "pool_external_identifier", "failure_type", "error_type"},
+)
+
 // Counter for password rotation failures
 var PasswordRotationFailureCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
@@ -242,6 +266,28 @@ func RegisterCertificateRotationFailureCounter() {
 	}
 }
 
+func RegisterOciCertificateRotationSuccessCounter() {
+	err := prometheus.Register(OciCertificateRotationSuccessCounter)
+	if err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			OciCertificateRotationSuccessCounter = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			log.Printf("Failed to register OciCertificateRotationSuccessCounter: %v", err)
+		}
+	}
+}
+
+func RegisterOciCertificateRotationFailureCounter() {
+	err := prometheus.Register(OciCertificateRotationFailureCounter)
+	if err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			OciCertificateRotationFailureCounter = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			log.Printf("Failed to register OciCertificateRotationFailureCounter: %v", err)
+		}
+	}
+}
+
 func RegisterPasswordRotationFailureCounter() {
 	err := prometheus.Register(PasswordRotationFailureCounter)
 	if err != nil {
@@ -273,6 +319,34 @@ func EmitCertificateRotationFailure(poolUUID, poolName, failureType, errorType s
 	CertificateRotationFailureCounter.WithLabelValues(
 		poolUUID,
 		poolName,
+		failureType,
+		errorType,
+	).Inc()
+}
+
+// EmitOciCertificateRotationSuccess emits a metric when an OCI certificate rotation
+// completes successfully. certType is a bounded label (server | client | service)
+// identifying which certificate was rotated. poolExternalIdentifier is the OCI-native
+// pool identifier (OCID).
+func EmitOciCertificateRotationSuccess(poolUUID, poolExternalIdentifier, certType string) {
+	OciCertificateRotationSuccessCounter.WithLabelValues(
+		poolUUID,
+		poolExternalIdentifier,
+		certType,
+	).Inc()
+}
+
+// EmitOciCertificateRotationFailure emits a metric when an OCI certificate rotation
+// fails. failureType should be a bounded value (e.g. "oci_certificate_rotation") and
+// errorType is a bounded phase category. poolExternalIdentifier is the OCI-native pool identifier (OCID).
+func EmitOciCertificateRotationFailure(poolUUID, poolExternalIdentifier, failureType, errorType string) {
+	// Truncate error type if too long to avoid label cardinality issues
+	if len(errorType) > 200 {
+		errorType = errorType[:200] + "..."
+	}
+	OciCertificateRotationFailureCounter.WithLabelValues(
+		poolUUID,
+		poolExternalIdentifier,
 		failureType,
 		errorType,
 	).Inc()

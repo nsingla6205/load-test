@@ -143,6 +143,14 @@ func main() {
 		metrics.RegisterKmsKeyLimitReachedCounter()
 		metrics.RegisterKmsRotationFailureCounter()
 		metrics.RegisterCmekBackupRewriteErrorGauge()
+	} else {
+		// OCI worker: register the OCI-specific certificate-rotation counters emitted by
+		// the OCI rotation workflows so they are exported at /metrics. The GCP block above
+		// is skipped on OCI. These are dedicated OCI counters (separate from the shared
+		// GCP CertificateRotationFailureCounter) so they can carry the pool_external_identifier
+		// (OCID) label; OCI no longer emits into the shared failure counter.
+		metrics.RegisterOciCertificateRotationFailureCounter()
+		metrics.RegisterOciCertificateRotationSuccessCounter()
 	}
 
 	// Start metrics HTTP server
@@ -371,7 +379,8 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolServiceCertificateWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolServerCertificateWorkflow)
 	worker.RegisterActivity(&backgroundactivities.OciCertificateRotationActivity{SE: dbcon})
-	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
+	worker.RegisterActivity(backgroundactivities.EmitOciCertificateRotationFailureMetric)
+	worker.RegisterActivity(backgroundactivities.EmitOciCertificateRotationSuccessMetric)
 
 	worker.RegisterWorkflow(backgroundworkflows.VerifyOciTempPasswordsWorkflow)
 	worker.RegisterActivity(&backgroundactivities.OciTempPasswordVerificationActivity{SE: dbcon})

@@ -92,6 +92,126 @@ func TestEmitCertificateRotationFailureMetric_WithEmptyValues(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestEmitOciCertificateRotationSuccessMetric(t *testing.T) {
+	// Register the metric first
+	metrics.RegisterOciCertificateRotationSuccessCounter()
+	// Clean up after test
+	defer prometheus.Unregister(metrics.OciCertificateRotationSuccessCounter)
+
+	ctx := context.Background()
+	poolUUID := "test-pool-uuid-cert-success"
+	poolExternalIdentifier := "ocid1.pool.oc1..cert-success"
+	certType := "server"
+
+	// Execute the activity
+	err := EmitOciCertificateRotationSuccessMetric(ctx, poolUUID, poolExternalIdentifier, certType)
+
+	// Verify no error
+	assert.NoError(t, err)
+
+	// Gather metrics and verify
+	metricsCollected, err := prometheus.DefaultGatherer.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	for _, mf := range metricsCollected {
+		if *mf.Name == "vcp_oci_certificate_rotation_successes_total" {
+			for _, m := range mf.Metric {
+				expected := map[string]string{
+					"pool_uuid":                poolUUID,
+					"pool_external_identifier": poolExternalIdentifier,
+					"cert_type":                certType,
+				}
+				if metricHasLabels(m.Label, expected) {
+					found = true
+					// Verify counter value is incremented
+					if m.Counter != nil && *m.Counter.Value >= 1.0 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	assert.True(t, found, "OciCertificateRotationSuccessCounter metric should be emitted with correct labels")
+}
+
+func TestEmitOciCertificateRotationSuccessMetric_WithEmptyValues(t *testing.T) {
+	// Register the metric first
+	metrics.RegisterOciCertificateRotationSuccessCounter()
+	// Clean up after test
+	defer prometheus.Unregister(metrics.OciCertificateRotationSuccessCounter)
+
+	ctx := context.Background()
+
+	// Execute the activity - should not panic
+	err := EmitOciCertificateRotationSuccessMetric(ctx, "", "", "")
+
+	// Verify no error
+	assert.NoError(t, err)
+}
+
+func TestEmitOciCertificateRotationFailureMetric(t *testing.T) {
+	// Register the metric first
+	metrics.RegisterOciCertificateRotationFailureCounter()
+	// Clean up after test
+	defer prometheus.Unregister(metrics.OciCertificateRotationFailureCounter)
+
+	ctx := context.Background()
+	poolUUID := "test-pool-uuid-cert-failure"
+	poolExternalIdentifier := "ocid1.pool.oc1..cert-failure"
+	failureType := "oci_certificate_rotation"
+	errorType := "staging"
+
+	// Execute the activity
+	err := EmitOciCertificateRotationFailureMetric(ctx, poolUUID, poolExternalIdentifier, failureType, errorType)
+
+	// Verify no error
+	assert.NoError(t, err)
+
+	// Gather metrics and verify
+	metricsCollected, err := prometheus.DefaultGatherer.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	for _, mf := range metricsCollected {
+		if *mf.Name == "vcp_oci_certificate_rotation_failures_total" {
+			for _, m := range mf.Metric {
+				expected := map[string]string{
+					"pool_uuid":                poolUUID,
+					"pool_external_identifier": poolExternalIdentifier,
+					"failure_type":             failureType,
+					"error_type":               errorType,
+				}
+				if metricHasLabels(m.Label, expected) {
+					found = true
+					// Verify counter value is incremented
+					if m.Counter != nil && *m.Counter.Value >= 1.0 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	assert.True(t, found, "OciCertificateRotationFailureCounter metric should be emitted with correct labels")
+}
+
+func TestEmitOciCertificateRotationFailureMetric_WithEmptyValues(t *testing.T) {
+	// Register the metric first
+	metrics.RegisterOciCertificateRotationFailureCounter()
+	// Clean up after test
+	defer prometheus.Unregister(metrics.OciCertificateRotationFailureCounter)
+
+	ctx := context.Background()
+
+	// Execute the activity - should not panic
+	err := EmitOciCertificateRotationFailureMetric(ctx, "", "", "", "")
+
+	// Verify no error
+	assert.NoError(t, err)
+}
+
 func TestEmitPasswordRotationFailureMetric(t *testing.T) {
 	// Register the metric first
 	metrics.RegisterPasswordRotationFailureCounter()

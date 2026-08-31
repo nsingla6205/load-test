@@ -431,6 +431,36 @@ func TestRegisterCertificateRotationFailureCounter(t *testing.T) {
 	}
 }
 
+func TestRegisterOciCertificateRotationSuccessCounter(t *testing.T) {
+	// Unregister first to ensure clean state
+	prometheus.Unregister(OciCertificateRotationSuccessCounter)
+
+	// Should register without error
+	RegisterOciCertificateRotationSuccessCounter()
+	// Register again to trigger AlreadyRegisteredError
+	RegisterOciCertificateRotationSuccessCounter()
+
+	// Check that the collector is still a CounterVec
+	if OciCertificateRotationSuccessCounter == nil {
+		t.Error("OciCertificateRotationSuccessCounter is nil after registration")
+	}
+}
+
+func TestRegisterOciCertificateRotationFailureCounter(t *testing.T) {
+	// Unregister first to ensure clean state
+	prometheus.Unregister(OciCertificateRotationFailureCounter)
+
+	// Should register without error
+	RegisterOciCertificateRotationFailureCounter()
+	// Register again to trigger AlreadyRegisteredError
+	RegisterOciCertificateRotationFailureCounter()
+
+	// Check that the collector is still a CounterVec
+	if OciCertificateRotationFailureCounter == nil {
+		t.Error("OciCertificateRotationFailureCounter is nil after registration")
+	}
+}
+
 func TestRegisterPasswordRotationFailureCounter(t *testing.T) {
 	// Unregister first to ensure clean state
 	prometheus.Unregister(PasswordRotationFailureCounter)
@@ -487,6 +517,100 @@ func TestEmitCertificateRotationFailure(t *testing.T) {
 
 	if !found {
 		t.Error("CertificateRotationFailureCounter metric not found with expected labels")
+	}
+}
+
+func TestEmitOciCertificateRotationSuccess(t *testing.T) {
+	// Unregister first to ensure clean state, and clean up after to avoid
+	// polluting the shared default registry for other tests.
+	prometheus.Unregister(OciCertificateRotationSuccessCounter)
+	RegisterOciCertificateRotationSuccessCounter()
+	defer prometheus.Unregister(OciCertificateRotationSuccessCounter)
+
+	poolUUID := "test-pool-uuid-success-123"
+	poolExternalIdentifier := "ocid1.pool.oc1..success"
+	certType := "server"
+
+	// Emit the metric
+	EmitOciCertificateRotationSuccess(poolUUID, poolExternalIdentifier, certType)
+
+	// Gather metrics and verify
+	metrics, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Errorf("Failed to gather metrics: %v", err)
+		return
+	}
+
+	found := false
+	for _, mf := range metrics {
+		if *mf.Name == "vcp_oci_certificate_rotation_successes_total" {
+			for _, m := range mf.Metric {
+				expected := map[string]string{
+					"pool_uuid":                poolUUID,
+					"pool_external_identifier": poolExternalIdentifier,
+					"cert_type":                certType,
+				}
+				if metricHasLabels(m.Label, expected) {
+					found = true
+					// Verify counter value is incremented
+					if m.Counter != nil && *m.Counter.Value >= 1.0 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !found {
+		t.Error("OciCertificateRotationSuccessCounter metric not found with expected labels")
+	}
+}
+
+func TestEmitOciCertificateRotationFailure(t *testing.T) {
+	// Unregister first to ensure clean state, and clean up after to avoid
+	// polluting the shared default registry for other tests.
+	prometheus.Unregister(OciCertificateRotationFailureCounter)
+	RegisterOciCertificateRotationFailureCounter()
+	defer prometheus.Unregister(OciCertificateRotationFailureCounter)
+
+	poolUUID := "test-pool-uuid-failure-123"
+	poolExternalIdentifier := "ocid1.pool.oc1..failure"
+	failureType := "oci_certificate_rotation"
+	errorType := "staging"
+
+	// Emit the metric
+	EmitOciCertificateRotationFailure(poolUUID, poolExternalIdentifier, failureType, errorType)
+
+	// Gather metrics and verify
+	metrics, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Errorf("Failed to gather metrics: %v", err)
+		return
+	}
+
+	found := false
+	for _, mf := range metrics {
+		if *mf.Name == "vcp_oci_certificate_rotation_failures_total" {
+			for _, m := range mf.Metric {
+				expected := map[string]string{
+					"pool_uuid":                poolUUID,
+					"pool_external_identifier": poolExternalIdentifier,
+					"failure_type":             failureType,
+					"error_type":               errorType,
+				}
+				if metricHasLabels(m.Label, expected) {
+					found = true
+					// Verify counter value is incremented
+					if m.Counter != nil && *m.Counter.Value >= 1.0 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !found {
+		t.Error("OciCertificateRotationFailureCounter metric not found with expected labels")
 	}
 }
 

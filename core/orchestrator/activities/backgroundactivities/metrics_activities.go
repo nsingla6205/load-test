@@ -15,6 +15,24 @@ func EmitCertificateRotationFailureMetric(ctx context.Context, poolUUID, poolNam
 	return nil
 }
 
+// EmitOciCertificateRotationSuccessMetric emits a Prometheus metric for a successful OCI certificate rotation
+func EmitOciCertificateRotationSuccessMetric(ctx context.Context, poolUUID, poolExternalIdentifier, certType string) error {
+	logger := util.GetLogger(ctx)
+	logger.Debugf("Emitting OCI certificate rotation success metric: poolUUID=%s, poolExternalIdentifier=%s, certType=%s", poolUUID, poolExternalIdentifier, certType)
+	metrics.EmitOciCertificateRotationSuccess(poolUUID, poolExternalIdentifier, certType)
+	return nil
+}
+
+// EmitOciCertificateRotationFailureMetric emits a Prometheus metric for an OCI certificate rotation failure.
+// It writes to the OCI-specific counter (separate from the shared GCP counter) so it can carry the pool
+// external identifier (OCID) label.
+func EmitOciCertificateRotationFailureMetric(ctx context.Context, poolUUID, poolExternalIdentifier, failureType, errorType string) error {
+	logger := util.GetLogger(ctx)
+	logger.Debugf("Emitting OCI certificate rotation failure metric: poolUUID=%s, poolExternalIdentifier=%s, failureType=%s, errorType=%s", poolUUID, poolExternalIdentifier, failureType, errorType)
+	metrics.EmitOciCertificateRotationFailure(poolUUID, poolExternalIdentifier, failureType, errorType)
+	return nil
+}
+
 // EmitPasswordRotationFailureMetric emits a Prometheus metric for password rotation failures
 func EmitPasswordRotationFailureMetric(ctx context.Context, poolUUID, poolName, failureType, errorType string) error {
 	logger := util.GetLogger(ctx)

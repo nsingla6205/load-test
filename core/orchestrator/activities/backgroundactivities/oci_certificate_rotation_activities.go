@@ -17,6 +17,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/oci"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	log "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	enums "go.temporal.io/api/enums/v1"
@@ -87,6 +88,7 @@ func (a *OciCertificateRotationActivity) GetPoolContext(ctx context.Context, poo
 	}
 
 	pool := ConvertPoolViewToPool(poolViews[0])
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 	logger.Infof("OCI pool details - UUID: %s, ID: %d, State: %s, DeploymentName: %s",
 		pool.UUID, pool.ID, pool.State, pool.DeploymentName)
 
@@ -189,6 +191,7 @@ func (a *OciCertificateRotationActivity) OciONTAPCertificateNeedsRotation(ctx co
 	}
 
 	pool := ConvertPoolViewToPool(poolViews[0])
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 	if !ociPoolEligibleForRotation(pool) {
 		logger.Warnf("Pool %s is not eligible for OCI certificate rotation", poolUUID)
 		return false, nil
@@ -217,6 +220,7 @@ func (a *OciCertificateRotationActivity) CleanupAndStageOciONTAPCertificateVersi
 	if err != nil {
 		return 0, err
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	// Supply the proxy X-Proxy-Request-Id for the background rotation.
 	ctx, err = a.ctxWithOCIProxyRequestID(ctx, poolContext)
@@ -258,6 +262,7 @@ func (a *OciCertificateRotationActivity) InstallAndVerifyOciONTAPCertificateVers
 	if err != nil {
 		return err
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
@@ -308,6 +313,7 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciONTAPCertificateVers
 	if err != nil {
 		return err
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	// Capture the currently-active version before updateOciCertificateVersion
 	// overwrites it in place. After the promote succeeds this is the version we
@@ -403,6 +409,7 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciONTAPCertificateVers
 // entry is simply retried on the next rotation.
 func (a *OciCertificateRotationActivity) cleanupPreviousOntapCertificateVersion(ctx context.Context, pool *datamodel.Pool, certOCID string, previousVersion, currentVersion int64) {
 	logger := util.GetLogger(ctx)
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	// Nothing to prune on the first rotation (no prior version), and never delete
 	// the version we just promoted to CURRENT.
@@ -567,6 +574,7 @@ func (a *OciCertificateRotationActivity) poolStillEligibleForPromote(ctx context
 	}
 
 	pool := ConvertPoolViewToPool(poolViews[0])
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 	if !ociPoolEligibleForRotation(pool) {
 		logger.Warnf("Pool %s is no longer eligible for rotation (state=%s) during pre-promote re-check; aborting promote to avoid racing a lifecycle op",
 			poolUUID, pool.State)
@@ -704,6 +712,7 @@ func (a *OciCertificateRotationActivity) CleanupAndStageOciVCPClientCertificateV
 		return 0, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("pool is not eligible for OCI client certificate rotation"))
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	// Supply the proxy X-Proxy-Request-Id for the background rotation
 	ctx, err := a.ctxWithOCIProxyRequestID(ctx, poolContext)
@@ -738,6 +747,7 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciVCPClientCertificate
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("pool is not eligible for OCI client certificate rotation"))
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	// Supply the proxy X-Proxy-Request-Id for the background rotation
 	ctx, err := a.ctxWithOCIProxyRequestID(ctx, poolContext)
@@ -821,6 +831,7 @@ func (a *OciCertificateRotationActivity) verifyOciClientCertificateOnVSA(ctx con
 		return a.verifyOciClientCertFunc(ctx, pool, dbNodes, certResp)
 	}
 	logger := util.GetLogger(ctx)
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	provider, err := a.buildOciClientVerifyProvider(ctx, pool, dbNodes, certResp)
 	if err != nil {
@@ -901,7 +912,8 @@ func (a *OciCertificateRotationActivity) reconcileVCPCertificateVersion(ctx cont
 	if cert == nil || cert.VersionNumber == ref.Version {
 		return nil
 	}
-	util.GetLogger(ctx).Infof("Reconciling stale client cert version for pool %s: db=%d current=%d",
+	logger := util.GetLogger(ctx).With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
+	logger.Infof("Reconciling stale client cert version for pool %s: db=%d current=%d",
 		pool.UUID, ref.Version, cert.VersionNumber)
 	removeFromCertAuthCache(ref.Name)
 	return a.persistOciCertificateVersion(ctx, pool, ref, cert.VersionNumber)
@@ -966,6 +978,7 @@ func (a *OciCertificateRotationActivity) CleanupAndStageOciServiceCertificateVer
 		return 0, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("pool is not eligible for OCI service certificate rotation"))
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
@@ -1034,6 +1047,7 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciServiceCertificateVe
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("pool is not eligible for OCI service certificate rotation"))
 	}
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
@@ -1078,7 +1092,8 @@ func (a *OciCertificateRotationActivity) reconcileServiceCertificateVersion(ctx 
 	if cert == nil || cert.VersionNumber == ref.Version {
 		return nil
 	}
-	util.GetLogger(ctx).Infof("Reconciling stale service cert version for pool %s: db=%d current=%d",
+	logger := util.GetLogger(ctx).With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
+	logger.Infof("Reconciling stale service cert version for pool %s: db=%d current=%d",
 		pool.UUID, ref.Version, cert.VersionNumber)
 	return a.persistOciCertificateVersion(ctx, pool, ref, cert.VersionNumber)
 }
@@ -1092,6 +1107,7 @@ func (a *OciCertificateRotationActivity) installOciCertificateOnVSA(ctx context.
 		return a.installOciCertFunc(ctx, pool, dbNodes, certResp)
 	}
 	logger := util.GetLogger(ctx)
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	if len(dbNodes) == 0 {
 		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
@@ -1211,6 +1227,7 @@ func (a *OciCertificateRotationActivity) verifyOciCertificateOnVSA(ctx context.C
 		return a.verifyOciCertFunc(ctx, pool, dbNodes, certResp)
 	}
 	logger := util.GetLogger(ctx)
+	logger = logger.With(log.Fields{"poolExternalIdentifier": pool.PoolExternalIdentifier})
 
 	provider, err := a.buildOciVerifyProvider(ctx, pool, dbNodes, certResp)
 	if err != nil {
