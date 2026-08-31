@@ -1092,6 +1092,33 @@ func TestGenerateStrongPassword(t *testing.T) {
 	}
 }
 
+func TestValidateStrongPassword(t *testing.T) {
+	t.Run("accepts generated password", func(t *testing.T) {
+		password, err := GenerateStrongPassword(12)
+		require.NoError(t, err)
+		require.NoError(t, ValidateStrongPassword(password))
+	})
+
+	tests := []struct {
+		name     string
+		password string
+		wantErr  string
+	}{
+		{name: "too short", password: "Ab1", wantErr: "at least"},
+		{name: "missing uppercase", password: "abcd1234", wantErr: "uppercase"},
+		{name: "missing lowercase", password: "ABCD1234", wantErr: "lowercase"},
+		{name: "missing digit", password: "Abcdefgh", wantErr: "digit"},
+		{name: "special character", password: "Abcd123!", wantErr: "letters and digits"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateStrongPassword(tc.password)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
 func TestRetrierOnCodes(t *testing.T) {
 	mockLogger := log.NewLogger()
 	httpCode := 429

@@ -10,6 +10,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	hyperscaler "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 )
@@ -76,6 +77,10 @@ func (a *VCMCredentialActivity) ResolveOntapAdminPassword(ctx context.Context, r
 		return nil, apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
 				fmt.Errorf("secret %q in project %q has no accessible latest version", secretID, projectID)), true)
+	}
+	if err := utils.ValidateStrongPassword(secret.SecretVersion.Value); err != nil {
+		return nil, apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("ONTAP admin password in secret %q is invalid: %w", secretID, err)), true)
 	}
 
 	return &vlm.OntapCredentials{AdminPassword: secret.SecretVersion.Value}, nil
@@ -147,6 +152,10 @@ func (a *VCMCredentialActivity) ResolveOntapCertificate(ctx context.Context, req
 		if err != nil {
 			return nil, apperror.WrapAsAppError(
 				vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err), false)
+		}
+		if err := utils.ValidateStrongPassword(password); err != nil {
+			return nil, apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("ONTAP admin password in secret %q is invalid: %w", req.PoolCredentials.SecretID, err)), true)
 		}
 		creds.AdminPassword = password
 	}

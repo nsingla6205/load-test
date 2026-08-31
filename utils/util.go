@@ -103,6 +103,7 @@ var (
 	GetSourceVolumePathFromBackup    = _getSourceVolumePathFromBackup
 	GetSourceSnapshotPathFromBackup  = _getSourceSnapshotPathFromBackup
 	GenerateStrongPassword           = _generateStrongPassword
+	ValidateStrongPassword           = _validateStrongPassword
 	ParsePEMCertificate              = _parsePEMCertificate
 	CalculateRequiredVolumeSize      = _calculateRequiredVolumeSize
 	// FileProtocolSupported controls whether file-based protocols (NFS/CIFS) are allowed
@@ -155,7 +156,9 @@ const (
 	lowercaseLetters           = "abcdefghijklmnopqrstuvwxyz"
 	uppercaseLetters           = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digits                     = "0123456789"
+	strongPasswordAllChars     = lowercaseLetters + uppercaseLetters + digits
 	specialChars               = "!@#$%^&*()-_=+[]{}|;:,.<>?/`~"
+	MinStrongPasswordLength    = 8
 	QosTypeAuto                = "auto"
 	QosTypeManual              = "manual"
 	GiBInBytes                 = 1073741824
@@ -187,6 +190,8 @@ const (
 	wildCardForAllowlist               = "*"
 	UnixSecurityStyle                  = "unix"
 )
+
+var strongPasswordCharCategories = []string{lowercaseLetters, uppercaseLetters, digits}
 
 func ValidateIPv4Address(ipAddr string) bool {
 	parsedIP := net.ParseIP(ipAddr)
@@ -713,18 +718,43 @@ func GetCoRelationIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-func _generateStrongPassword(length int) (string, error) {
-	if length < 8 {
-		return "", fmt.Errorf("password length should be at least 8 characters")
+// _validateStrongPassword checks that password satisfies the same complexity policy as GenerateStrongPassword:
+// minimum length, letters+digits only, and at least one lowercase, uppercase, and digit.
+func _validateStrongPassword(password string) error {
+	if len(password) < MinStrongPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinStrongPasswordLength)
 	}
 
-	allChars := lowercaseLetters + uppercaseLetters + digits
+	var hasLower, hasUpper, hasDigit bool
+	for i := 0; i < len(password); i++ {
+		c := password[i]
+		switch {
+		case c >= 'a' && c <= 'z':
+			hasLower = true
+		case c >= 'A' && c <= 'Z':
+			hasUpper = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		default:
+			return fmt.Errorf("password must contain only letters and digits")
+		}
+	}
+	if !hasLower || !hasUpper || !hasDigit {
+		return fmt.Errorf("password must contain at least one lowercase letter, one uppercase letter, and one digit")
+	}
+	return nil
+}
+
+func _generateStrongPassword(length int) (string, error) {
+	if length < MinStrongPasswordLength {
+		return "", fmt.Errorf("password length should be at least %d characters", MinStrongPasswordLength)
+	}
+
 	password := make([]byte, length)
 
 	// Ensure the password contains at least one character from each category
-	charCategories := []string{lowercaseLetters, uppercaseLetters, digits}
-	for i := 0; i < len(charCategories); i++ {
-		char, err := randomCharFrom(charCategories[i])
+	for i := 0; i < len(strongPasswordCharCategories); i++ {
+		char, err := randomCharFrom(strongPasswordCharCategories[i])
 		if err != nil {
 			return "", err
 		}
@@ -732,8 +762,8 @@ func _generateStrongPassword(length int) (string, error) {
 	}
 
 	// Fill the remaining characters randomly
-	for i := len(charCategories); i < length; i++ {
-		char, err := randomCharFrom(allChars)
+	for i := len(strongPasswordCharCategories); i < length; i++ {
+		char, err := randomCharFrom(strongPasswordAllChars)
 		if err != nil {
 			return "", err
 		}

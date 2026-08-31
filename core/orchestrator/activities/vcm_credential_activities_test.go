@@ -120,7 +120,7 @@ func TestResolveOntapCertificate_Success_WithPassword(t *testing.T) {
 	var gotSecretID string
 	vsa.GetPasswordFromCacheOrSecretManager = func(_ context.Context, secretID string) (string, error) {
 		gotSecretID = secretID
-		return "admin-pass", nil
+		return "AdminPass1", nil
 	}
 
 	act := &VCMCredentialActivity{}
@@ -138,7 +138,7 @@ func TestResolveOntapCertificate_Success_WithPassword(t *testing.T) {
 	assert.Equal(t, "private-key", creds.Certificate.PrivateKey)
 	assert.Equal(t, "cn.example.com", creds.Certificate.CommonName)
 	assert.Equal(t, []string{"intermediate"}, creds.Certificate.InterMediateCertificate)
-	assert.Equal(t, "admin-pass", creds.AdminPassword)
+	assert.Equal(t, "AdminPass1", creds.AdminPassword)
 	assert.Equal(t, "admin-secret", gotSecretID)
 	assert.Equal(t, "cert-1", gotCredsPtr.CertificateID)
 }
@@ -259,7 +259,7 @@ func TestResolveOntapCertificate_PasswordFetchError(t *testing.T) {
 
 func TestResolveOntapAdminPassword_Success(t *testing.T) {
 	fake := &fakeCloudService{
-		secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: "s3cr3t"}},
+		secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: "S3cr3tPw1"}},
 	}
 	act := &VCMCredentialActivity{
 		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
@@ -271,10 +271,49 @@ func TestResolveOntapAdminPassword_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, creds)
-	assert.Equal(t, "s3cr3t", creds.AdminPassword)
+	assert.Equal(t, "S3cr3tPw1", creds.AdminPassword)
 	// The bare project/secret identifiers must be passed through unmodified.
 	assert.Equal(t, "237071556299", fake.gotProject)
 	assert.Equal(t, "ontap-admin-password", fake.gotSecret)
+}
+
+func TestResolveOntapAdminPassword_InvalidPasswordComplexity(t *testing.T) {
+	fake := &fakeCloudService{
+		secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: "weak"}},
+	}
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
+	}
+
+	_, err := act.ResolveOntapAdminPassword(context.Background(), ResolveOntapAdminPasswordRequest{
+		SecretResourceName: "projects/p/secrets/s",
+	})
+
+	require.Error(t, err)
+	assertNonRetryable(t, err, true)
+}
+
+func TestResolveOntapCertificate_InvalidPasswordComplexity(t *testing.T) {
+	origCert := vsa.GetCertificateFromCacheOrSecretManager
+	origPwd := vsa.GetPasswordFromCacheOrSecretManager
+	t.Cleanup(func() {
+		vsa.GetCertificateFromCacheOrSecretManager = origCert
+		vsa.GetPasswordFromCacheOrSecretManager = origPwd
+	})
+	vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+		return &coremodels.Certificate{SignedCertificate: "signed", PrivateKey: "key"}, nil
+	}
+	vsa.GetPasswordFromCacheOrSecretManager = func(context.Context, string) (string, error) {
+		return "invalid", nil
+	}
+
+	act := &VCMCredentialActivity{}
+	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
+		PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1", SecretID: "admin-secret"},
+	})
+
+	require.Error(t, err)
+	assertNonRetryable(t, err, true)
 }
 
 func TestResolveOntapAdminPassword_InvalidResourceName(t *testing.T) {
