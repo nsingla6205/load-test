@@ -18,7 +18,7 @@ import (
 
 type testDBOpener struct{}
 
-func (testDBOpener) Open(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+func (testDBOpener) Open(ctx context.Context, _ vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 	return vcmdb.Open(ctx, vcmdb.Config{
 		Driver: vcmdb.DriverSQLite,
 		SQLite: vcmdb.SQLConfig{DSN: "file:vcm-endpoints-test?mode=memory&cache=shared"},
@@ -30,7 +30,7 @@ func configuredStore(t *testing.T) *vcmconfig.Store {
 
 	store := vcmconfig.NewStoreWithOpener(log.NewLogger(), testDBOpener{})
 	store.Apply(context.Background(), &vcmserver.SetConfigRequestV1{
-		DbConfig: vcmserver.DbConfigV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{
 			Project:  "project",
 			Instance: "instance",
 			Database: "database",

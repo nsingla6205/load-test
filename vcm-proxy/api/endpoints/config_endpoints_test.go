@@ -17,7 +17,7 @@ func TestSetConfigV1_ReturnsNilError(t *testing.T) {
 	}
 
 	err := handler.SetConfigV1(context.Background(), &vcmserver.SetConfigRequestV1{
-		DbConfig: vcmserver.DbConfigV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{
 			Project:  "p",
 			Instance: "i",
 			Database: "d",
@@ -29,7 +29,7 @@ func TestSetConfigV1_ReturnsNilError(t *testing.T) {
 func TestSetConfigV1_NilConfigStoreStillSucceeds(t *testing.T) {
 	handler := Handler{}
 	err := handler.SetConfigV1(context.Background(), &vcmserver.SetConfigRequestV1{
-		DbConfig: vcmserver.DbConfigV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{
 			Project:  "p",
 			Instance: "i",
 			Database: "d",

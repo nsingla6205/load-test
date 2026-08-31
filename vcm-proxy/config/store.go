@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,14 +26,14 @@ var ErrDatabaseNotConfigured = errors.New("VCM database is not configured")
 
 // DBOpener opens a persistence store for the given Spanner dbConfig.
 type DBOpener interface {
-	Open(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error)
+	Open(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error)
 }
 
 type spannerDBOpener struct {
 	logger log.Logger
 }
 
-func (o spannerDBOpener) Open(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+func (o spannerDBOpener) Open(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 	cfg := vcmdb.Config{
 		Driver: vcmdb.DriverSpanner,
 		Spanner: vcmdb.SpannerConfig{
@@ -64,7 +65,7 @@ type Store struct {
 	logger          log.Logger
 	opener          DBOpener
 	validateTimeout time.Duration
-	validateDBFunc  func(ctx context.Context, gen uint64, db vcmserver.DbConfigV1)
+	validateDBFunc  func(ctx context.Context, gen uint64, db vcmserver.StateDbConfigV1)
 }
 
 // NewStore creates an in-memory configuration store backed by Cloud Spanner.
@@ -163,13 +164,13 @@ func (s *Store) Apply(ctx context.Context, req *vcmserver.SetConfigRequestV1) {
 	trimSetConfigRequest(req)
 
 	s.mu.Lock()
-	oldDB := s.config.DbConfig
+	oldDB := s.config.StateDbConfig
 	oldRebuildSig := s.rebuildSignatureLocked()
 	s.mergeLocked(req)
-	s.config.DbConfig = req.DbConfig
-	dbChanged := !s.hasConfig || !dbConfigEqual(oldDB, req.DbConfig)
+	s.config.StateDbConfig = req.StateDbConfig
+	dbChanged := !s.hasConfig || !dbConfigEqual(oldDB, req.StateDbConfig)
 	s.hasConfig = true
-	newDB := s.config.DbConfig
+	newDB := s.config.StateDbConfig
 
 	// A change to any rebuild input invalidates the cached VLM config so no
 	// reader sees stale data and a fresh rebuild is dispatched below.
@@ -201,21 +202,76 @@ func (s *Store) Apply(ctx context.Context, req *vcmserver.SetConfigRequestV1) {
 // semantics: an unset field is filled from the payload, and a changed value in a
 // later re-seed from CLH is honored rather than rejected.
 func (s *Store) mergeLocked(req *vcmserver.SetConfigRequestV1) {
-	overwriteOptNetConfigIfSet(&s.config.NetConfig, req.NetConfig)
-	replaceOptIpConfig(&s.config.IpConfig, req.IpConfig)
-	overwriteOptStringIfSet(&s.config.ServiceTenantProject, req.ServiceTenantProject)
-	overwriteOptStringIfSet(&s.config.CaUri, req.CaUri)
-	overwriteOptStringIfSet(&s.config.DeploymentId, req.DeploymentId)
-	overwriteOptStringIfSet(&s.config.Zone1, req.Zone1)
-	overwriteOptStringIfSet(&s.config.Zone2, req.Zone2)
-	overwriteOptStringIfSet(&s.config.MediatorZone, req.MediatorZone)
-	if len(req.OntapCredentials) > 0 {
-		s.config.OntapCredentials = append([]vcmserver.OntapCredentialsV1(nil), req.OntapCredentials...)
+	if !req.ClusterConfig.IsSet() {
+		return
 	}
+
+	incoming := req.ClusterConfig.Value
+	var stored vcmserver.ClusterConfigV1
+	if s.config.ClusterConfig.IsSet() {
+		stored = s.config.ClusterConfig.Value
+	}
+	overwriteSeedConfigIfSet(&stored.SeedConfig, incoming.SeedConfig)
+	if incoming.RequiredShape.IsSet() {
+		stored.RequiredShape.SetTo(incoming.RequiredShape.Value)
+	}
+	overwriteActualLayoutIfSet(&stored.ActualLayout, incoming.ActualLayout)
+	s.config.ClusterConfig.SetTo(stored)
+}
+
+func overwriteSeedConfigIfSet(dst *vcmserver.OptSeedConfigV1, src vcmserver.OptSeedConfigV1) {
+	if !src.IsSet() {
+		return
+	}
+	incoming := src.Value
+	var stored vcmserver.SeedConfigV1
+	if dst.IsSet() {
+		stored = dst.Value
+	}
+	overwriteOptStringIfSet(&stored.DeploymentId, incoming.DeploymentId)
+	overwriteOptStringIfSet(&stored.Zone1, incoming.Zone1)
+	overwriteOptStringIfSet(&stored.Zone2, incoming.Zone2)
+	overwriteOptStringIfSet(&stored.MediatorZone, incoming.MediatorZone)
+	overwriteOptStringIfSet(&stored.CaUri, incoming.CaUri)
+	overwriteOptStringIfSet(&stored.OntapLicenseSecretUri, incoming.OntapLicenseSecretUri)
+	overwriteOptStringIfSet(&stored.ServiceAccountEmail, incoming.ServiceAccountEmail)
+	overwriteOptInt64IfSet(&stored.ConsumerProjectNum, incoming.ConsumerProjectNum)
+	overwriteOptInt64IfSet(&stored.ServiceTenantProjectNum, incoming.ServiceTenantProjectNum)
+	overwriteOptInt64IfSet(&stored.SnHostProjectNum, incoming.SnHostProjectNum)
+	overwriteOptNetConfigIfSet(&stored.NetConfig, incoming.NetConfig)
+	if len(incoming.OntapCredentials) > 0 {
+		stored.OntapCredentials = cloneOntapCredentials(incoming.OntapCredentials)
+	}
+	dst.SetTo(stored)
+}
+
+func overwriteActualLayoutIfSet(dst *vcmserver.OptClusterLayoutV1, src vcmserver.OptClusterLayoutV1) {
+	if !src.IsSet() {
+		return
+	}
+	incoming := src.Value
+	var stored vcmserver.ClusterLayoutV1
+	if dst.IsSet() {
+		stored = dst.Value
+	}
+	if incoming.Nodes != nil {
+		stored.Nodes = cloneVSANodes(incoming.Nodes)
+	}
+	replaceOptIpConfig(&stored.IpConfig, incoming.IpConfig)
+	overwriteOptStringIfSet(&stored.ActiveZone, incoming.ActiveZone)
+	overwriteOptStringIfSet(&stored.StandbyZone, incoming.StandbyZone)
+	overwriteOptStringIfSet(&stored.ForwardingRuleIp, incoming.ForwardingRuleIp)
+	dst.SetTo(stored)
 }
 
 // overwriteOptStringIfSet replaces dst with src whenever src is set (last-write-wins).
 func overwriteOptStringIfSet(dst *vcmserver.OptString, src vcmserver.OptString) {
+	if src.IsSet() {
+		dst.SetTo(src.Value)
+	}
+}
+
+func overwriteOptInt64IfSet(dst *vcmserver.OptInt64, src vcmserver.OptInt64) {
 	if src.IsSet() {
 		dst.SetTo(src.Value)
 	}
@@ -236,19 +292,35 @@ func replaceOptIpConfig(dst *vcmserver.OptIpConfigV1, src vcmserver.OptIpConfigV
 }
 
 func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
-	trimOptString(&req.ServiceTenantProject)
-	trimOptString(&req.DeploymentId)
-	trimOptString(&req.CaUri)
-	trimOptString(&req.Zone1)
-	trimOptString(&req.Zone2)
-	trimOptString(&req.MediatorZone)
-	if req.IpConfig.IsSet() {
-		trimIpConfig(&req.IpConfig.Value)
+	if !req.ClusterConfig.IsSet() {
+		return
 	}
-	for i := range req.OntapCredentials {
-		trimOptString(&req.OntapCredentials[i].SecretId)
-		trimOptString(&req.OntapCredentials[i].CertificateId)
+	clusterConfig := req.ClusterConfig.Value
+	if clusterConfig.SeedConfig.IsSet() {
+		seed := clusterConfig.SeedConfig.Value
+		trimOptString(&seed.DeploymentId)
+		trimOptString(&seed.Zone1)
+		trimOptString(&seed.Zone2)
+		trimOptString(&seed.MediatorZone)
+		trimOptString(&seed.CaUri)
+		trimOptString(&seed.OntapLicenseSecretUri)
+		trimOptString(&seed.ServiceAccountEmail)
+		for i := range seed.OntapCredentials {
+			trimOntapCredential(&seed.OntapCredentials[i])
+		}
+		clusterConfig.SeedConfig.SetTo(seed)
 	}
+	if clusterConfig.ActualLayout.IsSet() {
+		layout := clusterConfig.ActualLayout.Value
+		if layout.IpConfig.IsSet() {
+			trimIpConfig(&layout.IpConfig.Value)
+		}
+		trimOptString(&layout.ActiveZone)
+		trimOptString(&layout.StandbyZone)
+		trimOptString(&layout.ForwardingRuleIp)
+		clusterConfig.ActualLayout.SetTo(layout)
+	}
+	req.ClusterConfig.SetTo(clusterConfig)
 }
 
 func trimOptString(opt *vcmserver.OptString) {
@@ -264,20 +336,33 @@ func trimOptString(opt *vcmserver.OptString) {
 	opt.SetTo(trimmed)
 }
 
-func trimIpConfig(cfg *vcmserver.IpConfigV1) {
-	for i := range cfg.Lifs {
-		trimOptString(&cfg.Lifs[i].Name)
-		trimOptString(&cfg.Lifs[i].Nodemgmt)
+func trimOntapCredential(cred *vcmserver.OntapCredentialV1) {
+	if cert, ok := cred.CertificateAuthCreds.Get(); ok {
+		trimOptString(&cert.CertSecretId)
+		trimOptString(&cert.CertPrivateKeySecretId)
+		cred.CertificateAuthCreds.SetTo(cert)
+	}
+	if pwd, ok := cred.PasswordAuthCreds.Get(); ok {
+		trimOptString(&pwd.Username)
+		trimOptString(&pwd.PasswordSecretId)
+		cred.PasswordAuthCreds.SetTo(pwd)
 	}
 }
 
-func dbConfigEqual(a, b vcmserver.DbConfigV1) bool {
+func trimIpConfig(cfg *vcmserver.IpConfigV1) {
+	for i := range cfg.VmLifs {
+		trimOptString(&cfg.VmLifs[i].Name)
+		trimOptString(&cfg.VmLifs[i].Nodemgmt)
+	}
+}
+
+func dbConfigEqual(a, b vcmserver.StateDbConfigV1) bool {
 	return a.GetProject() == b.GetProject() &&
 		a.GetInstance() == b.GetInstance() &&
 		a.GetDatabase() == b.GetDatabase()
 }
 
-func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbConfigV1) {
+func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.StateDbConfigV1) {
 	defer func() {
 		s.mu.Lock()
 		if s.reconnectGen.Load() == gen {
@@ -365,13 +450,23 @@ func (s *Store) ClearVLMConfigFetching(_ context.Context) error {
 // id, tenant project, CA URI) are intentionally excluded. The caller must hold
 // s.mu.
 func (s *Store) rebuildSignatureLocked() string {
+	seed := currentSeedConfig(s.config)
 	parts := []string{
-		s.config.Zone1.Value,
-		s.config.Zone2.Value,
-		s.config.MediatorZone.Value,
+		seed.Zone1.Value,
+		seed.Zone2.Value,
+		seed.MediatorZone.Value,
 	}
-	for _, c := range s.config.OntapCredentials {
-		parts = append(parts, string(c.Type), c.SecretId.Value, c.CertificateId.Value)
+	for _, credential := range seed.OntapCredentials {
+		cert := credential.CertificateAuthCreds.Value
+		pwd := credential.PasswordAuthCreds.Value
+		parts = append(parts,
+			string(credential.Role),
+			string(credential.ActiveAuthType.Value),
+			cert.CertSecretId.Value,
+			cert.CertPrivateKeySecretId.Value,
+			pwd.Username.Value,
+			pwd.PasswordSecretId.Value,
+		)
 	}
 	return strings.Join(parts, "\x00")
 }
@@ -396,14 +491,15 @@ func (s *Store) startVlmConfigRebuild() *commonparams.GetVLMConfigParams {
 	if s.vlmConfigFetching && time.Since(s.vlmConfigFetchingSince) < vlmConfigFetchStaleTimeout {
 		return nil
 	}
+	seed := currentSeedConfig(s.config)
 	params := &commonparams.GetVLMConfigParams{
-		DeploymentID:         s.config.DeploymentId.Value,
-		ServiceTenantProject: s.config.ServiceTenantProject.Value,
-		Zone1:                s.config.Zone1.Value,
-		Zone2:                s.config.Zone2.Value,
-		MediatorZone:         s.config.MediatorZone.Value,
-		CaURI:                s.config.CaUri.Value,
-		OntapCredentials:     toVCMOntapCredentials(s.config.OntapCredentials),
+		DeploymentID:         seed.DeploymentId.Value,
+		ServiceTenantProject: optionalInt64String(seed.ServiceTenantProjectNum),
+		Zone1:                seed.Zone1.Value,
+		Zone2:                seed.Zone2.Value,
+		MediatorZone:         seed.MediatorZone.Value,
+		CaURI:                seed.CaUri.Value,
+		OntapCredentials:     ToVCMOntapCredentials(seed.OntapCredentials),
 	}
 	s.vlmConfigFetching = true
 	s.vlmConfigFetchingSince = time.Now()
@@ -432,30 +528,59 @@ func (s *Store) dispatchVLMConfigRebuild(ctx context.Context, params *commonpara
 	}()
 }
 
-func toVCMOntapCredentials(creds []vcmserver.OntapCredentialsV1) []commonparams.VCMOntapCredential {
-	if len(creds) == 0 {
-		return nil
+func currentSeedConfig(config vcmserver.SetConfigRequestV1) vcmserver.SeedConfigV1 {
+	if !config.ClusterConfig.IsSet() || !config.ClusterConfig.Value.SeedConfig.IsSet() {
+		return vcmserver.SeedConfigV1{}
 	}
-	out := make([]commonparams.VCMOntapCredential, 0, len(creds))
-	for _, c := range creds {
-		out = append(out, commonparams.VCMOntapCredential{
-			Type:          string(c.Type),
-			SecretID:      c.SecretId.Value,
-			CertificateID: c.CertificateId.Value,
-		})
+	return config.ClusterConfig.Value.SeedConfig.Value
+}
+
+func optionalInt64String(value vcmserver.OptInt64) string {
+	if !value.IsSet() {
+		return ""
 	}
-	return out
+	return strconv.FormatInt(value.Value, 10)
 }
 
 func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConfigRequestV1 {
 	dst := src
-	dst.OntapCredentials = cloneOntapCredentials(src.OntapCredentials)
+	if !src.ClusterConfig.IsSet() {
+		return dst
+	}
+	clusterConfig := src.ClusterConfig.Value
+	if clusterConfig.SeedConfig.IsSet() {
+		seed := clusterConfig.SeedConfig.Value
+		seed.OntapCredentials = cloneOntapCredentials(seed.OntapCredentials)
+		clusterConfig.SeedConfig.SetTo(seed)
+	}
+	if clusterConfig.ActualLayout.IsSet() {
+		layout := clusterConfig.ActualLayout.Value
+		layout.Nodes = cloneVSANodes(layout.Nodes)
+		clusterConfig.ActualLayout.SetTo(layout)
+	}
+	dst.ClusterConfig.SetTo(clusterConfig)
 	return dst
 }
 
-func cloneOntapCredentials(src []vcmserver.OntapCredentialsV1) []vcmserver.OntapCredentialsV1 {
+func cloneOntapCredentials(src []vcmserver.OntapCredentialV1) []vcmserver.OntapCredentialV1 {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]vcmserver.OntapCredentialsV1(nil), src...)
+	return append([]vcmserver.OntapCredentialV1(nil), src...)
+}
+
+func cloneVSANodes(src []vcmserver.VsaNodeV1) []vcmserver.VsaNodeV1 {
+	if src == nil {
+		return nil
+	}
+	nodes := make([]vcmserver.VsaNodeV1, len(src))
+	copy(nodes, src)
+	for i := range nodes {
+		if nodes[i].Disks != nil {
+			disks := make([]vcmserver.AttachedDiskV1, len(nodes[i].Disks))
+			copy(disks, nodes[i].Disks)
+			nodes[i].Disks = disks
+		}
+	}
+	return nodes
 }

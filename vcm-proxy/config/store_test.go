@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
-	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -24,10 +24,10 @@ type stubDBOpener struct {
 	calls  int
 	delay  time.Duration
 	err    error
-	onOpen func(context.Context, vcmserver.DbConfigV1) (vcmdb.Storage, error)
+	onOpen func(context.Context, vcmserver.StateDbConfigV1) (vcmdb.Storage, error)
 }
 
-func (s *stubDBOpener) Open(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+func (s *stubDBOpener) Open(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 	s.mu.Lock()
 	s.calls++
 	delay := s.delay
@@ -64,20 +64,58 @@ func openSQLiteStore(ctx context.Context) (vcmdb.Storage, error) {
 	}, log.NewLogger(), true)
 }
 
-func testDBConfig() vcmserver.DbConfigV1 {
-	return vcmserver.DbConfigV1{
+func testDBConfig() vcmserver.StateDbConfigV1 {
+	return vcmserver.StateDbConfigV1{
 		Project:  "test-project",
 		Instance: "test-instance",
 		Database: "test-db",
 	}
 }
 
-func testSetConfigRequest(db vcmserver.DbConfigV1, zone1 string) *vcmserver.SetConfigRequestV1 {
-	req := &vcmserver.SetConfigRequestV1{DbConfig: db}
+func testSetConfigRequest(db vcmserver.StateDbConfigV1, zone1 string) *vcmserver.SetConfigRequestV1 {
+	req := &vcmserver.SetConfigRequestV1{StateDbConfig: db}
 	if zone1 != "" {
-		req.Zone1.SetTo(zone1)
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.Zone1.SetTo(zone1)
+		})
 	}
 	return req
+}
+
+func mutateSeed(req *vcmserver.SetConfigRequestV1, mutate func(*vcmserver.SeedConfigV1)) {
+	var clusterConfig vcmserver.ClusterConfigV1
+	if req.ClusterConfig.IsSet() {
+		clusterConfig = req.ClusterConfig.Value
+	}
+	var seed vcmserver.SeedConfigV1
+	if clusterConfig.SeedConfig.IsSet() {
+		seed = clusterConfig.SeedConfig.Value
+	}
+	mutate(&seed)
+	clusterConfig.SeedConfig.SetTo(seed)
+	req.ClusterConfig.SetTo(clusterConfig)
+}
+
+func mutateLayout(req *vcmserver.SetConfigRequestV1, mutate func(*vcmserver.ClusterLayoutV1)) {
+	var clusterConfig vcmserver.ClusterConfigV1
+	if req.ClusterConfig.IsSet() {
+		clusterConfig = req.ClusterConfig.Value
+	}
+	var layout vcmserver.ClusterLayoutV1
+	if clusterConfig.ActualLayout.IsSet() {
+		layout = clusterConfig.ActualLayout.Value
+	}
+	mutate(&layout)
+	clusterConfig.ActualLayout.SetTo(layout)
+	req.ClusterConfig.SetTo(clusterConfig)
+}
+
+func seedOf(config vcmserver.SetConfigRequestV1) vcmserver.SeedConfigV1 {
+	return config.ClusterConfig.Value.SeedConfig.Value
+}
+
+func layoutOf(config vcmserver.SetConfigRequestV1) vcmserver.ClusterLayoutV1 {
+	return config.ClusterConfig.Value.ActualLayout.Value
 }
 
 func waitFor(t *testing.T, condition func() bool) {
@@ -96,7 +134,7 @@ func TestStore_Apply_RebuildFieldsLastWriteWins(t *testing.T) {
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-b"))
 
 	setConfig := store.CurrentSetConfig()
-	zone1, ok := setConfig.Zone1.Get()
+	zone1, ok := seedOf(setConfig).Zone1.Get()
 	require.True(t, ok)
 	assert.Equal(t, "us-central1-b", zone1)
 }
@@ -105,16 +143,18 @@ func TestStore_Apply_BlankOptionalStringTreatedAsUnset(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 
 	blankZoneReq := testSetConfigRequest(testDBConfig(), "")
-	blankZoneReq.Zone1.SetTo("   ")
+	mutateSeed(blankZoneReq, func(seed *vcmserver.SeedConfigV1) {
+		seed.Zone1.SetTo("   ")
+	})
 	store.Apply(context.Background(), blankZoneReq)
 	waitFor(t, func() bool { return store.Configured() })
 
 	setConfig := store.CurrentSetConfig()
-	assert.False(t, setConfig.Zone1.IsSet())
+	assert.False(t, seedOf(setConfig).Zone1.IsSet())
 
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-b"))
 	setConfig = store.CurrentSetConfig()
-	zone1, ok := setConfig.Zone1.Get()
+	zone1, ok := seedOf(setConfig).Zone1.Get()
 	require.True(t, ok)
 	assert.Equal(t, "us-central1-b", zone1)
 }
@@ -127,7 +167,7 @@ func TestStore_Apply_ReplacesDbConfig(t *testing.T) {
 	store.Apply(context.Background(), testSetConfigRequest(first, ""))
 	waitFor(t, func() bool { return store.Configured() })
 
-	second := vcmserver.DbConfigV1{
+	second := vcmserver.StateDbConfigV1{
 		Project:  "other-project",
 		Instance: "other-instance",
 		Database: "other-db",
@@ -135,13 +175,13 @@ func TestStore_Apply_ReplacesDbConfig(t *testing.T) {
 	store.Apply(context.Background(), testSetConfigRequest(second, ""))
 	waitFor(t, func() bool {
 		setConfig := store.CurrentSetConfig()
-		return setConfig.DbConfig.GetProject() == "other-project" && store.Configured()
+		return setConfig.StateDbConfig.GetProject() == "other-project" && store.Configured()
 	})
 
 	setConfig := store.CurrentSetConfig()
-	assert.Equal(t, "other-project", setConfig.DbConfig.GetProject())
-	assert.Equal(t, "other-instance", setConfig.DbConfig.GetInstance())
-	assert.Equal(t, "other-db", setConfig.DbConfig.GetDatabase())
+	assert.Equal(t, "other-project", setConfig.StateDbConfig.GetProject())
+	assert.Equal(t, "other-instance", setConfig.StateDbConfig.GetInstance())
+	assert.Equal(t, "other-db", setConfig.StateDbConfig.GetDatabase())
 }
 
 func TestStore_Apply_SameDbConfigDoesNotRevalidate(t *testing.T) {
@@ -169,7 +209,7 @@ func TestStore_Apply_SameDbConfigDoesNotStartConcurrentValidation(t *testing.T) 
 	t.Cleanup(releaseValidation)
 
 	opener := &stubDBOpener{
-		onOpen: func(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			startedOnce.Do(func() { close(started) })
 			select {
 			case <-ctx.Done():
@@ -197,7 +237,7 @@ func TestStore_Apply_SameDbConfigDoesNotStartConcurrentValidation(t *testing.T) 
 func TestStore_Apply_SameDbConfigRetriesAfterValidationFailure(t *testing.T) {
 	var attempts atomic.Int32
 	opener := &stubDBOpener{
-		onOpen: func(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			if attempts.Add(1) == 1 {
 				return nil, errors.New("connection refused")
 			}
@@ -225,7 +265,7 @@ func TestStore_Apply_DbConfigChangeSetsConfiguredFalseUntilValidationCompletes(t
 	started := make(chan struct{})
 	opener := &stubDBOpener{
 		delay: 200 * time.Millisecond,
-		onOpen: func(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			startedOnce.Do(func() { close(started) })
 			return openSQLiteStore(ctx)
 		},
@@ -235,7 +275,7 @@ func TestStore_Apply_DbConfigChangeSetsConfiguredFalseUntilValidationCompletes(t
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), ""))
 	waitFor(t, func() bool { return store.Configured() })
 
-	store.Apply(context.Background(), testSetConfigRequest(vcmserver.DbConfigV1{
+	store.Apply(context.Background(), testSetConfigRequest(vcmserver.StateDbConfigV1{
 		Project:  "changed-project",
 		Instance: "changed-instance",
 		Database: "changed-db",
@@ -271,7 +311,7 @@ func TestStore_Apply_ValidateTimeoutIsHonored(t *testing.T) {
 	const validateTimeout = 25 * time.Millisecond
 	openResult := make(chan error, 1)
 	opener := &stubDBOpener{
-		onOpen: func(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(ctx context.Context, _ vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			<-ctx.Done()
 			openResult <- ctx.Err()
 			return nil, ctx.Err()
@@ -342,45 +382,54 @@ func TestStore_CurrentSetConfig_DeepCopyIsolatedFromStore(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
-	req.OntapCredentials = []vcmserver.OntapCredentialsV1{
-		{Type: vcmserver.OntapCredentialsV1TypeDefault, SecretId: vcmserver.NewOptString("secret-a")},
-	}
+	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
+		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+			PasswordSecretId: vcmserver.NewOptString("secret-a"),
+		})
+		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
 	setConfig := store.CurrentSetConfig()
-	require.Len(t, setConfig.OntapCredentials, 1)
+	require.Len(t, seedOf(setConfig).OntapCredentials, 1)
 
-	setConfig.OntapCredentials[0].SecretId.SetTo("mutated-secret")
+	setConfig.ClusterConfig.Value.SeedConfig.Value.OntapCredentials[0].PasswordAuthCreds.Value.PasswordSecretId.SetTo("mutated-secret")
 
 	internal := store.CurrentSetConfig()
-	require.Len(t, internal.OntapCredentials, 1)
-	secretID, ok := internal.OntapCredentials[0].SecretId.Get()
+	require.Len(t, seedOf(internal).OntapCredentials, 1)
+	secretID, ok := seedOf(internal).OntapCredentials[0].PasswordAuthCreds.Value.PasswordSecretId.Get()
 	require.True(t, ok)
 	assert.Equal(t, "secret-a", secretID)
 }
 
 func TestStore_NodeProviderInput(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
-	req.DeploymentId = vcmserver.NewOptString("gcnv-test")
-	req.OntapCredentials = []vcmserver.OntapCredentialsV1{
-		{
-			Type:          vcmserver.OntapCredentialsV1TypeDefault,
-			SecretId:      vcmserver.NewOptString("secret-a"),
-			CertificateId: vcmserver.NewOptString("cert-a"),
-		},
-	}
-	req.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{
-			{
-				Name:     vcmserver.NewOptString("vm1"),
-				Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+		seed.DeploymentId = vcmserver.NewOptString("gcnv-test")
+		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
+		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+			PasswordSecretId: vcmserver.NewOptString("secret-a"),
+		})
+		entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+			CertSecretId: vcmserver.NewOptString("cert-a"),
+		})
+		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+	})
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{
+					Name:     vcmserver.NewOptString("vm1"),
+					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+				},
 			},
-		},
+		})
 	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
@@ -390,7 +439,7 @@ func TestStore_NodeProviderInput(t *testing.T) {
 	assert.Equal(t, "gcnv-test", input.DeploymentName)
 	require.NotNil(t, input.OntapCredentials)
 	assert.Equal(t, "secret-a", input.OntapCredentials.SecretID)
-	assert.Equal(t, "", input.OntapCredentials.CertificateID) // ignored for secret-manager auth
+	assert.Equal(t, "", input.OntapCredentials.CertificateID) // ignored for password auth
 	assert.Equal(t, env.USERNAME_PWD_SEC_MGR, input.OntapCredentials.AuthType)
 	require.Len(t, input.Nodes, 1)
 	assert.Equal(t, "vm1", input.Nodes[0].Name)
@@ -400,31 +449,35 @@ func TestStore_NodeProviderInput(t *testing.T) {
 func TestStore_Apply_ReplacesIpConfigWhenPresent(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
-	req.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{
-			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
-		},
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
+			},
+		})
 	})
 
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
 	setConfig := store.CurrentSetConfig()
-	require.True(t, setConfig.IpConfig.IsSet())
-	require.Len(t, setConfig.IpConfig.Value.Lifs, 1)
-	ip, ok := setConfig.IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	require.True(t, layoutOf(setConfig).IpConfig.IsSet())
+	require.Len(t, layoutOf(setConfig).IpConfig.Value.VmLifs, 1)
+	ip, ok := layoutOf(setConfig).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.5", ip)
 
 	// Runtime LIF IPs can change; later SetConfig replaces ipConfig when present.
 	req2 := testSetConfigRequest(testDBConfig(), "")
-	req2.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{
-			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.99")},
-		},
+	mutateLayout(req2, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.99")},
+			},
+		})
 	})
 	store.Apply(context.Background(), req2)
-	ip, ok = store.CurrentSetConfig().IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	ip, ok = layoutOf(store.CurrentSetConfig()).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.99", ip)
 }
@@ -432,10 +485,12 @@ func TestStore_Apply_ReplacesIpConfigWhenPresent(t *testing.T) {
 func TestStore_Apply_PreservesIpConfigWhenOmitted(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
-	req.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{
-			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
-		},
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
+			},
+		})
 	})
 
 	store.Apply(context.Background(), req)
@@ -443,7 +498,7 @@ func TestStore_Apply_PreservesIpConfigWhenOmitted(t *testing.T) {
 
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-a"))
 
-	ip, ok := store.CurrentSetConfig().IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	ip, ok := layoutOf(store.CurrentSetConfig()).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.5", ip)
 }
@@ -454,7 +509,7 @@ func TestStore_Apply_StaleValidationDoesNotUnsetConfigured(t *testing.T) {
 	releaseFirst := make(chan struct{})
 
 	opener := &stubDBOpener{
-		onOpen: func(ctx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(ctx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			if db.GetProject() == "slow-project" {
 				startedOnce.Do(func() { close(firstStarted) })
 				<-releaseFirst
@@ -464,14 +519,14 @@ func TestStore_Apply_StaleValidationDoesNotUnsetConfigured(t *testing.T) {
 	}
 	store := NewStoreWithOpener(log.NewLogger(), opener)
 
-	store.Apply(context.Background(), testSetConfigRequest(vcmserver.DbConfigV1{
+	store.Apply(context.Background(), testSetConfigRequest(vcmserver.StateDbConfigV1{
 		Project:  "slow-project",
 		Instance: "slow-instance",
 		Database: "slow-db",
 	}, ""))
 	<-firstStarted
 
-	store.Apply(context.Background(), testSetConfigRequest(vcmserver.DbConfigV1{
+	store.Apply(context.Background(), testSetConfigRequest(vcmserver.StateDbConfigV1{
 		Project:  "fast-project",
 		Instance: "fast-instance",
 		Database: "fast-db",
@@ -494,7 +549,7 @@ func TestStore_Apply_PropagatesContextValuesAfterCallerCancel(t *testing.T) {
 	var gotCorrelationID string
 	var gotCustomValue string
 	opener := &stubDBOpener{
-		onOpen: func(openCtx context.Context, db vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+		onOpen: func(openCtx context.Context, db vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 			gotCorrelationID, _ = openCtx.Value(utilsmiddleware.CorrelationContextKey).(string)
 			gotCustomValue, _ = openCtx.Value(ctxKey{}).(string)
 			return openSQLiteStore(openCtx)
@@ -549,18 +604,23 @@ func fetchingFlag(s *Store) bool {
 // rebuildConfigRequest builds a SetConfig request with the fields the VLM config
 // rebuild needs.
 func rebuildConfigRequest(deploymentID string) *vcmserver.SetConfigRequestV1 {
-	req := &vcmserver.SetConfigRequestV1{DbConfig: testDBConfig()}
-	if deploymentID != "" {
-		req.DeploymentId.SetTo(deploymentID)
-	}
-	req.ServiceTenantProject.SetTo("tenant-1")
-	req.Zone1.SetTo("us-central1-a")
-	req.Zone2.SetTo("us-central1-b")
-	req.MediatorZone.SetTo("us-central1-c")
-	req.CaUri.SetTo("123456789012/pool/intermediate")
-	req.OntapCredentials = []vcmserver.OntapCredentialsV1{
-		{Type: vcmserver.OntapCredentialsV1TypeAdmin, SecretId: vcmserver.NewOptString("projects/p/secrets/s")},
-	}
+	req := &vcmserver.SetConfigRequestV1{StateDbConfig: testDBConfig()}
+	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+		if deploymentID != "" {
+			seed.DeploymentId.SetTo(deploymentID)
+		}
+		seed.ServiceTenantProjectNum.SetTo(123)
+		seed.Zone1.SetTo("us-central1-a")
+		seed.Zone2.SetTo("us-central1-b")
+		seed.MediatorZone.SetTo("us-central1-c")
+		seed.CaUri.SetTo("123456789012/pool/intermediate")
+		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
+		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
+		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+			PasswordSecretId: vcmserver.NewOptString("projects/p/secrets/s"),
+		})
+		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+	})
 	return req
 }
 
@@ -577,13 +637,13 @@ func TestStore_Apply_TriggersRebuildOnceWhenEmpty(t *testing.T) {
 	p := starter.lastParams()
 	require.NotNil(t, p)
 	assert.Equal(t, "dep-1", p.DeploymentID)
-	assert.Equal(t, "tenant-1", p.ServiceTenantProject)
+	assert.Equal(t, "123", p.ServiceTenantProject)
 	assert.Equal(t, "us-central1-a", p.Zone1)
 	assert.Equal(t, "us-central1-b", p.Zone2)
 	assert.Equal(t, "us-central1-c", p.MediatorZone)
 	assert.Equal(t, "123456789012/pool/intermediate", p.CaURI)
 	require.Len(t, p.OntapCredentials, 1)
-	assert.Equal(t, "admin", p.OntapCredentials[0].Type)
+	assert.Equal(t, "default", p.OntapCredentials[0].Type)
 	assert.Equal(t, "projects/p/secrets/s", p.OntapCredentials[0].SecretID)
 }
 
@@ -677,7 +737,9 @@ func TestStore_Apply_RetriggersRebuildOnRebuildFieldChange(t *testing.T) {
 	// A changed rebuild-relevant field (zone2) invalidates the cached config and
 	// retriggers the rebuild with the new value.
 	changed := rebuildConfigRequest("dep-1")
-	changed.Zone2.SetTo("us-central1-f")
+	mutateSeed(changed, func(seed *vcmserver.SeedConfigV1) {
+		seed.Zone2.SetTo("us-central1-f")
+	})
 	store.Apply(context.Background(), changed)
 
 	waitFor(t, func() bool { return starter.callCount() == 2 })
@@ -713,4 +775,97 @@ func TestStore_SetVLMConfig_And_Clear(t *testing.T) {
 	store.mu.Unlock()
 	require.NoError(t, store.ClearVLMConfigFetching(context.Background()))
 	assert.False(t, fetchingFlag(store))
+}
+
+func TestCloneVSANodes_PreservesEmptySlice(t *testing.T) {
+	assert.Nil(t, cloneVSANodes(nil))
+
+	empty := []vcmserver.VsaNodeV1{}
+	cloned := cloneVSANodes(empty)
+	require.NotNil(t, cloned)
+	assert.Empty(t, cloned)
+
+	src := []vcmserver.VsaNodeV1{{
+		VmName: vcmserver.NewOptString("vm1"),
+		Disks:  []vcmserver.AttachedDiskV1{},
+	}}
+	cloned = cloneVSANodes(src)
+	require.Len(t, cloned, 1)
+	require.NotNil(t, cloned[0].Disks)
+	assert.Empty(t, cloned[0].Disks)
+	cloned[0].VmName.SetTo("mutated")
+	name, ok := src[0].VmName.Get()
+	require.True(t, ok)
+	assert.Equal(t, "vm1", name)
+}
+
+func TestToVCMOntapCredentials_PasswordAuthUsesPasswordSecret(t *testing.T) {
+	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
+	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+		Username:         vcmserver.NewOptString("root"),
+		PasswordSecretId: vcmserver.NewOptString("admin-1"),
+	})
+	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+		CertSecretId:           vcmserver.NewOptString("cert-1"),
+		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
+	})
+
+	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
+	require.Len(t, creds, 1)
+	assert.Equal(t, "admin", creds[0].Type)
+	assert.Empty(t, creds[0].CertificateID)
+	assert.Equal(t, "admin-1", creds[0].SecretID)
+	assert.Equal(t, "root", creds[0].Username)
+}
+
+func TestToVCMOntapCredentials_CertificateAuthUsesPrivateKey(t *testing.T) {
+	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
+	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+		CertSecretId:           vcmserver.NewOptString("cert-1"),
+		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
+	})
+	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+		PasswordSecretId: vcmserver.NewOptString("admin-1"),
+	})
+
+	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
+	require.Len(t, creds, 1)
+	assert.Equal(t, "cert-1", creds[0].CertificateID)
+	assert.Equal(t, "key-1", creds[0].SecretID)
+	assert.Empty(t, creds[0].Username)
+}
+
+func TestToVCMOntapCredentials_DefaultsToCertificateWhenAuthTypeUnset(t *testing.T) {
+	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+		CertSecretId:           vcmserver.NewOptString("cert-1"),
+		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
+	})
+
+	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
+	require.Len(t, creds, 1)
+	assert.Equal(t, "cert-1", creds[0].CertificateID)
+	assert.Equal(t, "key-1", creds[0].SecretID)
+}
+
+func TestStore_Apply_EmptyNodesClearsStoredNodes(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
+	req := testSetConfigRequest(testDBConfig(), "")
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.Nodes = []vcmserver.VsaNodeV1{{VmName: vcmserver.NewOptString("vm1")}}
+	})
+	store.Apply(context.Background(), req)
+	waitFor(t, func() bool { return store.Configured() })
+	require.Len(t, layoutOf(store.CurrentSetConfig()).Nodes, 1)
+
+	clear := testSetConfigRequest(testDBConfig(), "")
+	mutateLayout(clear, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.Nodes = []vcmserver.VsaNodeV1{}
+	})
+	store.Apply(context.Background(), clear)
+	nodes := layoutOf(store.CurrentSetConfig()).Nodes
+	require.NotNil(t, nodes)
+	assert.Empty(t, nodes)
 }

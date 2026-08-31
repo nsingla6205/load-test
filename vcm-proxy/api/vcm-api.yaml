@@ -80,13 +80,13 @@ paths:
       description: |
         Pushes the common configuration required for VCM to operate.  The
         request carries the durable workflow-backend database configuration and,
-        on re-seed, the deployment configuration (identity, zones, network and
-        ONTAP credentials).  VCM stores the configuration in memory and
-        returns 200 immediately once the payload is accepted.  Database
-        reachability is validated asynchronously; an internal readiness flag
-        reflects connectivity and is not exposed on this response.  Top-level
-        deployment fields are merged first-write-wins; dbConfig is always
-        replaced.  CLH must call this before issuing any pool operation.
+        on re-seed, clusterConfig (seed, required shape, and actual layout).
+        VCM stores the configuration in memory and returns 200 immediately once
+        the payload is accepted. Database reachability is validated
+        asynchronously; an internal readiness flag reflects connectivity and is
+        not exposed on this response. Supplied nested fields use
+        last-write-wins semantics; stateDbConfig is always replaced. CLH must call
+        this before issuing any pool operation.
       requestBody:
         required: true
         content:
@@ -1336,126 +1336,301 @@ components:
       type: object
       description: |
         Durable configuration for a VCM instance.  On first startup VCM is
-        bootstrapped with just dbConfig; the remaining deployment fields
-        (identity, network, ONTAP credentials, zones) are supplied later on
-        re-seed (after pool create / crash recovery).  Everything here is
-        intent/identity that cannot be re-derived from live cloud/ONTAP state;
-        runtime addressing (ipConfig) is read-only and reconstructed by VCM.
+        bootstrapped with just stateDbConfig; clusterConfig is supplied later on
+        re-seed. SeedConfig carries cluster identity and static bindings,
+        requiredShape carries the CLH technical blueprint, and actualLayout
+        carries volatile topology including runtime addressing.
       required:
-        # Only dbConfig is required. On first startup VCM is bootstrapped with
-        # just dbConfig; the remaining fields are supplied later on re-seed
-        # (after pool create / crash recovery). Presence of the deployment
-        # fields for a re-seed is enforced at the application layer.
-        - dbConfig
+        - stateDbConfig
       properties:
-        dbConfig:
-          # Durable workflow-backend (Cloud Spanner) configuration.
-          $ref: "#/components/schemas/DbConfig_v1"
-        serviceTenantProject:
-          type: string
-          description: Tenant project number where the VSA VMs run.
-          example: "237071556299"
-        netConfig:
-          # Per-interface VPC/subnet assignments for the pool.
-          $ref: "#/components/schemas/NetConfig_v1"
-        ipConfig:
-          description: Read-only runtime network addressing (gateway IPs + LIF IPs)
-          readOnly: true
-          allOf:
-            - $ref: "#/components/schemas/IpConfig_v1"
-        ontapCredentials:
-          type: array
-          description: ONTAP credential sets (one per type - default, admin, ontap-mode).
-          items:
-            $ref: "#/components/schemas/OntapCredentials_v1"
-        caUri:
-          type: string
-          description: URI of the CA bundle used to verify ONTAP TLS connections.
-          example: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
-        zone1:
-          type: string
-          description: The desired primary zone for the storage pool.
-          example: us-central1-a
-        zone2:
-          type: string
-          description: The desired secondary zone for the storage pool.
-          example: us-central1-c
-        mediatorZone:
-          type: string
-          description: The desired zone for the storage pool mediator.
-          example: us-central1-c
+        stateDbConfig:
+          $ref: "#/components/schemas/StateDbConfig_v1"
+        clusterConfig:
+          $ref: "#/components/schemas/ClusterConfig_v1"
+      example:
+        stateDbConfig:
+          version: 1
+          project: example-project
+          instance: example-instance
+          database: example-database
+        clusterConfig:
+          version: 1
+          seedConfig:
+            deploymentId: example-deployment
+            zone1: zone-a
+            zone2: zone-b
+            mediatorZone: zone-m
+            consumerProjectNum: 111111111111
+            serviceTenantProjectNum: 222222222222
+            snHostProjectNum: 333333333333
+            netConfig:
+              nodemgmt:
+                vpc: example-nodemgmt-vpc
+                subnet: example-nodemgmt-subnet
+              ic:
+                vpc: example-ic-vpc
+                subnet: example-ic-subnet
+              rsm:
+                vpc: example-rsm-vpc
+                subnet: example-rsm-subnet
+              data:
+                vpc: example-data-vpc
+                subnet: example-data-subnet
+            ontapCredentials:
+              - role: ADMIN
+                activeAuthType: CERT
+                certificateAuthCreds:
+                  certSecretId: projects/example/secrets/admin-cert
+                  certPrivateKeySecretId: projects/example/secrets/admin-key
+                passwordAuthCreds:
+                  username: admin
+                  passwordSecretId: projects/example/secrets/admin-password
+              - role: VCM_ADMIN
+                activeAuthType: CERT
+                certificateAuthCreds:
+                  certSecretId: projects/example/secrets/vcm-admin-cert
+                  certPrivateKeySecretId: projects/example/secrets/vcm-admin-key
+                passwordAuthCreds:
+                  username: vcm-admin
+                  passwordSecretId: projects/example/secrets/vcm-admin-password
+            caUri: projects/example/secrets/ca
+            ontapLicenseSecretUri: projects/example/secrets/license
+            serviceAccountEmail: example@example.com
+          requiredShape:
+            provisionedThroughputMibps: 100
+            provisionedIops: 200
+            provisionedSizeInBytes: 300
+            qosType: example
+            mode: DEFAULT
+            infrastructureSpec:
+              haPairCount: 1
+              preferredVsaInstanceFamily: example-family
+              vsaInstanceType: example-type
+              dataDiskType: example-data-disk
+              systemDiskType: example-system-disk
+              mediatorDiskType: example-mediator-disk
+              dataDiskCount: 1
+            regionIdentifier: example-region
+          actualLayout:
+            nodes:
+              - vmName: node-1
+                gceInstanceId: instance-1
+                nodeManagementIp: 10.0.0.10
+                vmSerialNumber: serial-1
+                disks:
+                  - diskName: disk-1
+                    gceDiskId: disk-id-1
+                    sizeBytes: 100
+            ipConfig:
+              vmLifs:
+                - name: node-1
+                  nodemgmt: 10.0.0.10
+            activeZone: zone-a
+            standbyZone: zone-b
+            forwardingRuleIp: 10.0.0.20
+
+    ClusterConfig_v1:
+      type: object
+      description: Cluster configuration segmented by seed, required shape, and actual layout.
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Monotonic version of the cluster configuration set by CLH.
+        seedConfig:
+          $ref: "#/components/schemas/SeedConfig_v1"
+        requiredShape:
+          $ref: "#/components/schemas/ClusterShape_v1"
+        actualLayout:
+          $ref: "#/components/schemas/ClusterLayout_v1"
+
+    SeedConfig_v1:
+      type: object
+      description: Immutable cluster identity and static bindings.
+      properties:
         deploymentId:
           type: string
-          description: Unique identifier for this VSA deployment / cluster.
-          example: "gcnv-8d0ff6a0b456f30"
-      example:
-        dbConfig:
-          project: "237071556299"
-          instance: vcm-instance
-          database: vcm
-        serviceTenantProject: "237071556299"
+        zone1:
+          type: string
+        zone2:
+          type: string
+        mediatorZone:
+          type: string
+        consumerProjectNum:
+          type: integer
+          format: int64
+        serviceTenantProjectNum:
+          type: integer
+          format: int64
+        snHostProjectNum:
+          type: integer
+          format: int64
         netConfig:
-          nodemgmt:
-            vpc: mgmt-e0a-vpc-01
-            subnet: mgmt-e0a-subnet-01
-          ic:
-            vpc: ic-e0b-vpc-01
-            subnet: ic-e0b-subnet-01
-          rsm:
-            vpc: rsm-e0c-vpc-01
-            subnet: rsm-e0c-subnet-01
-          data:
-            vpc: netapp-autopush-tst-network
-            subnet: vsa-237071556299-1753966457
-        ipConfig:
-          gateways:
-            clus: 198.18.0.1
-            ic: 198.18.32.1
-            intercluster: 10.10.0.33
-            nodemgmt: 198.18.0.1
-            nodemgmtinternal: 198.18.0.1
-            rsm: 198.18.16.1
-            svm: 10.10.0.33
-            clusterMgmtGateway: ""
-          lifs:
-            - name: vm1
-              clus: 198.18.0.10
-              ic: 198.18.32.7
-              intercluster: 10.10.0.40
-              nodemgmt: 198.18.0.5
-              nodemgmtinternal: 198.18.0.6
-              rsm: 198.18.16.42
-            - name: vm2
-              clus: 198.18.0.11
-              ic: 198.18.32.6
-              intercluster: 10.10.0.41
-              nodemgmt: 198.18.0.7
-              nodemgmtinternal: 198.18.0.8
-              rsm: 198.18.16.40
-            - name: mediator
-              rsm: 198.18.16.41
-          dataLifs:
-            ilbnas: 10.10.0.50
-            san:
-              - 10.10.0.51
-              - 10.10.0.52
+          $ref: "#/components/schemas/NetConfig_v1"
         ontapCredentials:
-          - type: default
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-admin-password-default
-          - type: admin
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-admin-password
-          - type: ontap-mode
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-mode-password
-        caUri: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
-        zone1: us-central1-a
-        zone2: us-central1-c
-        mediatorZone: us-central1-c
-        deploymentId: gcnv-8d0ff6a0b456f30
+          type: array
+          items:
+            $ref: "#/components/schemas/OntapCredential_v1"
+        caUri:
+          type: string
+        ontapLicenseSecretUri:
+          type: string
+        serviceAccountEmail:
+          type: string
 
-    DbConfig_v1:
+    OntapCredential_v1:
+      type: object
+      required: [role]
+      properties:
+        passwordAuthCreds:
+          $ref: "#/components/schemas/PasswordAuthCreds_v1"
+        certificateAuthCreds:
+          $ref: "#/components/schemas/CertificateAuthCreds_v1"
+        activeAuthType:
+          type: string
+          enum: [CERT, PWD]
+          description: |
+            Active auth type for this credential set. CERT uses
+            certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
+            when unset.
+        role:
+          type: string
+          enum: [ONTAP_MODE, ADMIN, VCM_ADMIN]
+          description: ONTAP role this credential set is provisioned for.
+
+    PasswordAuthCreds_v1:
+      type: object
+      properties:
+        username:
+          type: string
+          description: ONTAP username (e.g. root).
+        passwordSecretId:
+          type: string
+          description: Secret Manager secret ID containing the password.
+
+    CertificateAuthCreds_v1:
+      type: object
+      properties:
+        certSecretId:
+          type: string
+          description: Secret Manager secret ID containing the CA certificate path.
+        certPrivateKeySecretId:
+          type: string
+          description: Secret Manager secret ID containing the certificate's private key.
+
+    ClusterShape_v1:
+      type: object
+      description: CLH-computed technical blueprint stored for future VCM use.
+      properties:
+        provisionedThroughputMibps:
+          type: integer
+          format: int64
+        provisionedIops:
+          type: integer
+          format: int64
+        provisionedSizeInBytes:
+          type: integer
+          format: int64
+        qosType:
+          type: string
+        infrastructureSpec:
+          $ref: "#/components/schemas/InfrastructureSpec_v1"
+        mode:
+          type: string
+          enum: [MODE_UNSPECIFIED, DEFAULT, ONTAP]
+        kmsConfig:
+          $ref: "#/components/schemas/KmsConfig_v1"
+        autoTieringConfig:
+          $ref: "#/components/schemas/AutoTieringConfig_v1"
+        ontapModeRbac:
+          $ref: "#/components/schemas/OntapModeRbac_v1"
+        regionIdentifier:
+          type: string
+        userThroughputMibps:
+          type: integer
+          format: int64
+        userIops:
+          type: integer
+          format: int64
+        userSizeInBytes:
+          type: integer
+          format: int64
+
+    InfrastructureSpec_v1:
+      type: object
+      properties:
+        haPairCount:
+          type: integer
+          format: int32
+        preferredVsaInstanceFamily:
+          type: string
+        vsaInstanceType:
+          type: string
+        dataDiskType:
+          type: string
+        systemDiskType:
+          type: string
+        mediatorDiskType:
+          type: string
+        dataDiskCount:
+          type: integer
+          format: int32
+
+    AutoTieringConfig_v1:
+      type: object
+      properties:
+        autoTierBucketName:
+          type: string
+        hotTierSizeInBytes:
+          type: integer
+          format: int64
+          x-omitempty: true
+
+    ClusterLayout_v1:
+      type: object
+      description: Volatile physical and operational cluster topology.
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/VsaNode_v1"
+        ipConfig:
+          $ref: "#/components/schemas/IpConfig_v1"
+        activeZone:
+          type: string
+        standbyZone:
+          type: string
+        forwardingRuleIp:
+          type: string
+
+    VsaNode_v1:
+      type: object
+      properties:
+        vmName:
+          type: string
+        gceInstanceId:
+          type: string
+        nodeManagementIp:
+          type: string
+        vmSerialNumber:
+          type: string
+        disks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachedDisk_v1"
+
+    AttachedDisk_v1:
+      type: object
+      properties:
+        diskName:
+          type: string
+        gceDiskId:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+
+    StateDbConfig_v1:
       type: object
       description: |
         Cloud Spanner configuration for the VCM go-workflows durable backend.
@@ -1465,6 +1640,10 @@ components:
         - instance
         - database
       properties:
+        version:
+          type: integer
+          format: int64
+          description: Monotonic version of the state DB configuration set by CLH.
         project:
           type: string
           description: GCP project hosting the Spanner instance.
@@ -1478,6 +1657,7 @@ components:
           description: Cloud Spanner database name.
           example: vcm
       example:
+        version: 1
         project: "237071556299"
         instance: vcm-instance
         database: vcm
@@ -1758,7 +1938,7 @@ components:
             rsm: 198.18.16.1
             svm: 10.10.0.33
             clusterMgmtGateway: ""
-          lifs:
+          vmLifs:
             - name: vm1
               clus: 198.18.0.10
               ic: 198.18.32.7
@@ -1775,7 +1955,7 @@ components:
               rsm: 198.18.16.40
             - name: mediator
               rsm: 198.18.16.41
-          dataLifs:
+          dataLif:
             ilbnas: 10.10.0.50
             san:
               - 10.10.0.51
@@ -1785,8 +1965,8 @@ components:
           - "93520140000000000002"
         ontapLicenseSecretURI: projects/237071556299/secrets/ontap-license/versions/latest
         ontapModeRbac:
-          RbacFileURL: gs://my-bucket/rbac.json
-          RbacFileCheckSum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+          rbacFileURL: gs://my-bucket/rbac.json
+          rbacFileCheckSum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         ontapCredentials:
           - type: default
             certificateId: ""
@@ -1859,10 +2039,10 @@ components:
     OntapModeRbac_v1:
       type: object
       properties:
-        RbacFileURL:
+        rbacFileURL:
           type: string
           description: GCS URL of the RBAC bootstrap file.
-        RbacFileCheckSum:
+        rbacFileCheckSum:
           type: string
           description: SHA-256 checksum of the RBAC bootstrap file.
 
@@ -1893,18 +2073,18 @@ components:
           description: Per-interface gateway IPs.
           allOf:
             - $ref: "#/components/schemas/Gateways_v1"
-        lifs:
+        vmLifs:
           type: array
           readOnly: true
           description: Per-VM LIF IPs (distinct from the gateway IPs). One entry per
             VSA VM - vm1, vm2, ... up to vm6 for large deployments.
           items:
-            $ref: "#/components/schemas/VmLifs_v1"
-        dataLifs:
+            $ref: "#/components/schemas/VmLif_v1"
+        dataLif:
           readOnly: true
           description: SVM data-serving LIF IPs (ILB NAS IP and SAN IPs).
           allOf:
-            - $ref: "#/components/schemas/DataLifs_v1"
+            - $ref: "#/components/schemas/DataLif_v1"
 
     Gateways_v1:
       type: object
@@ -1943,7 +2123,7 @@ components:
           readOnly: true
           description: Gateway for the cluster management network (empty when unused).
 
-    VmLifs_v1:
+    VmLif_v1:
       type: object
       description: Per-interface LIF IPs for a single node - a VSA VM (vm1, vm2, ...)
         or the mediator.
@@ -1979,7 +2159,7 @@ components:
           description: RSM LIF IP. For the mediator node this is its only LIF.
           example: 198.18.16.42
 
-    DataLifs_v1:
+    DataLif_v1:
       type: object
       description: SVM data-serving LIF IPs.
       properties:

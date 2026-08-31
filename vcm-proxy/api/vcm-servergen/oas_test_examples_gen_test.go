@@ -15,6 +15,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAttachedDiskV1_EncodeDecode(t *testing.T) {
+	var typ AttachedDiskV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AttachedDiskV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAutoTieringConfigV1_EncodeDecode(t *testing.T) {
+	var typ AutoTieringConfigV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AutoTieringConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestBlockDeviceV1_EncodeDecode(t *testing.T) {
 	var typ BlockDeviceV1
 	typ.SetFake()
@@ -68,6 +92,66 @@ func TestBlockDeviceV1OsType_Examples(t *testing.T) {
 		})
 	}
 }
+func TestCertificateAuthCredsV1_EncodeDecode(t *testing.T) {
+	var typ CertificateAuthCredsV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CertificateAuthCredsV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterConfigV1_EncodeDecode(t *testing.T) {
+	var typ ClusterConfigV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterLayoutV1_EncodeDecode(t *testing.T) {
+	var typ ClusterLayoutV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterLayoutV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterShapeV1_EncodeDecode(t *testing.T) {
+	var typ ClusterShapeV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterShapeV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterShapeV1Mode_EncodeDecode(t *testing.T) {
+	var typ ClusterShapeV1Mode
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterShapeV1Mode
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestDailyScheduleV1_EncodeDecode(t *testing.T) {
 	var typ DailyScheduleV1
 	typ.SetFake()
@@ -80,8 +164,8 @@ func TestDailyScheduleV1_EncodeDecode(t *testing.T) {
 	var typ2 DailyScheduleV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestDataLifsV1_EncodeDecode(t *testing.T) {
-	var typ DataLifsV1
+func TestDataLifV1_EncodeDecode(t *testing.T) {
+	var typ DataLifV1
 	typ.SetFake()
 
 	e := jx.Encoder{}
@@ -89,49 +173,8 @@ func TestDataLifsV1_EncodeDecode(t *testing.T) {
 	data := e.Bytes()
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
-	var typ2 DataLifsV1
+	var typ2 DataLifV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestDbConfigV1_EncodeDecode(t *testing.T) {
-	var typ DbConfigV1
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 DbConfigV1
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-
-func TestDbConfigV1_Examples(t *testing.T) {
-
-	for i, tc := range []struct {
-		Input string
-	}{
-		{Input: "{\"database\":\"vcm\",\"instance\":\"vcm-instance\",\"project\":\"237071556299\"}"},
-	} {
-		tc := tc
-		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
-			var typ DbConfigV1
-
-			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
-				if validateErr, ok := errors.Into[*validate.Error](err); ok {
-					t.Skipf("Validation error: %v", validateErr)
-					return
-				}
-				require.NoErrorf(t, err, "Input: %s", tc.Input)
-			}
-
-			e := jx.Encoder{}
-			typ.Encode(&e)
-			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
-
-			var typ2 DbConfigV1
-			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
-		})
-	}
 }
 func TestDeploymentShapeV1_EncodeDecode(t *testing.T) {
 	var typ DeploymentShapeV1
@@ -365,6 +408,18 @@ func TestIgroupV1OsType_Examples(t *testing.T) {
 		})
 	}
 }
+func TestInfrastructureSpecV1_EncodeDecode(t *testing.T) {
+	var typ InfrastructureSpecV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InfrastructureSpecV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestIpConfigV1_EncodeDecode(t *testing.T) {
 	var typ IpConfigV1
 	typ.SetFake()
@@ -435,6 +490,42 @@ func TestNetInterfaceConfigV1_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 NetInterfaceConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOntapCredentialV1_EncodeDecode(t *testing.T) {
+	var typ OntapCredentialV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OntapCredentialV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOntapCredentialV1ActiveAuthType_EncodeDecode(t *testing.T) {
+	var typ OntapCredentialV1ActiveAuthType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OntapCredentialV1ActiveAuthType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOntapCredentialV1Role_EncodeDecode(t *testing.T) {
+	var typ OntapCredentialV1Role
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OntapCredentialV1Role
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestOntapCredentialsV1_EncodeDecode(t *testing.T) {
@@ -576,6 +667,18 @@ func TestOperationV1Response_EncodeDecode(t *testing.T) {
 	typ2 = make(OperationV1Response)
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestPasswordAuthCredsV1_EncodeDecode(t *testing.T) {
+	var typ PasswordAuthCredsV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PasswordAuthCredsV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestPoolCreateV1BadRequest_EncodeDecode(t *testing.T) {
 	var typ PoolCreateV1BadRequest
 	typ.SetFake()
@@ -659,7 +762,7 @@ func TestPoolV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"SNHostProject\":\"m30b15e7f4112ab02-tp\",\"VMSerialNumbers\":[\"93520140000000000001\",\"93520140000000000002\"],\"allowAutoTiering\":false,\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"caUri\":\"https://secretmanager.googleapis.com/v1/projects/237071556299/secrets/ontap-ca\",\"deploymentId\":\"gcnv-8d0ff6a0b456f30\",\"deploymentShape\":{\"dataDiskCount\":8,\"dataDiskType\":\"hyperdisk-balanced\",\"mediatorDiskType\":\"pd-ssd\",\"spConfig\":{\"iops\":42173,\"isHeterogeneous\":false,\"size\":\"1229Gi\",\"tput\":2640},\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"forwardingRuleIp\":\"10.0.0.5\",\"hotTierSizeInBytes\":1099511627776,\"iops\":5000,\"ipConfig\":{\"dataLifs\":{\"ilbnas\":\"10.10.0.50\",\"san\":[\"10.10.0.51\",\"10.10.0.52\"]},\"gateways\":{\"clus\":\"198.18.0.1\",\"clusterMgmtGateway\":\"\",\"ic\":\"198.18.32.1\",\"intercluster\":\"10.10.0.33\",\"nodemgmt\":\"198.18.0.1\",\"nodemgmtinternal\":\"198.18.0.1\",\"rsm\":\"198.18.16.1\",\"svm\":\"10.10.0.33\"},\"lifs\":[{\"clus\":\"198.18.0.10\",\"ic\":\"198.18.32.7\",\"intercluster\":\"10.10.0.40\",\"name\":\"vm1\",\"nodemgmt\":\"198.18.0.5\",\"nodemgmtinternal\":\"198.18.0.6\",\"rsm\":\"198.18.16.42\"},{\"clus\":\"198.18.0.11\",\"ic\":\"198.18.32.6\",\"intercluster\":\"10.10.0.41\",\"name\":\"vm2\",\"nodemgmt\":\"198.18.0.7\",\"nodemgmtinternal\":\"198.18.0.8\",\"rsm\":\"198.18.16.40\"},{\"name\":\"mediator\",\"rsm\":\"198.18.16.41\"}]},\"kmsConfig\":{\"keyName\":\"my-key\",\"keyProjectId\":\"237071556299\",\"keyRingLocation\":\"us-central1\",\"keyRingName\":\"my-key-ring\",\"saPasswordLocation\":\"projects/237071556299/secrets/sa-password\"},\"mediatorZone\":\"us-central1-c\",\"mode\":\"DEFAULT\",\"netConfig\":{\"data\":{\"subnet\":\"vsa-237071556299-1753966457\",\"vpc\":\"netapp-autopush-tst-network\"},\"ic\":{\"subnet\":\"ic-e0b-subnet-01\",\"vpc\":\"ic-e0b-vpc-01\"},\"nodemgmt\":{\"subnet\":\"mgmt-e0a-subnet-01\",\"vpc\":\"mgmt-e0a-vpc-01\"},\"rsm\":{\"subnet\":\"rsm-e0c-subnet-01\",\"vpc\":\"rsm-e0c-vpc-01\"}},\"numHAPair\":1,\"ontapCredentials\":[{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password-default\",\"type\":\"default\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password\",\"type\":\"admin\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-mode-password\",\"type\":\"ontap-mode\"}],\"ontapLicenseSecretURI\":\"projects/237071556299/secrets/ontap-license/versions/latest\",\"ontapModeRbac\":{\"RbacFileCheckSum\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"RbacFileURL\":\"gs://my-bucket/rbac.json\"},\"preferredVsaInstanceFamily\":\"c3-lssd\",\"primaryZone\":\"us-central1-a\",\"projectId\":\"81821054389\",\"qosType\":\"auto\",\"regionIdentifier\":\"34\",\"secondaryZone\":\"us-central1-c\",\"serviceAccountEmail\":\"vsa-sa-gcnv@237071556299.iam.gserviceaccount.com\",\"serviceTenantProject\":\"237071556299\",\"sizeInBytes\":1099511627776,\"throughputMibps\":1024}"},
+		{Input: "{\"SNHostProject\":\"m30b15e7f4112ab02-tp\",\"VMSerialNumbers\":[\"93520140000000000001\",\"93520140000000000002\"],\"allowAutoTiering\":false,\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"caUri\":\"https://secretmanager.googleapis.com/v1/projects/237071556299/secrets/ontap-ca\",\"deploymentId\":\"gcnv-8d0ff6a0b456f30\",\"deploymentShape\":{\"dataDiskCount\":8,\"dataDiskType\":\"hyperdisk-balanced\",\"mediatorDiskType\":\"pd-ssd\",\"spConfig\":{\"iops\":42173,\"isHeterogeneous\":false,\"size\":\"1229Gi\",\"tput\":2640},\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"forwardingRuleIp\":\"10.0.0.5\",\"hotTierSizeInBytes\":1099511627776,\"iops\":5000,\"ipConfig\":{\"dataLif\":{\"ilbnas\":\"10.10.0.50\",\"san\":[\"10.10.0.51\",\"10.10.0.52\"]},\"gateways\":{\"clus\":\"198.18.0.1\",\"clusterMgmtGateway\":\"\",\"ic\":\"198.18.32.1\",\"intercluster\":\"10.10.0.33\",\"nodemgmt\":\"198.18.0.1\",\"nodemgmtinternal\":\"198.18.0.1\",\"rsm\":\"198.18.16.1\",\"svm\":\"10.10.0.33\"},\"vmLifs\":[{\"clus\":\"198.18.0.10\",\"ic\":\"198.18.32.7\",\"intercluster\":\"10.10.0.40\",\"name\":\"vm1\",\"nodemgmt\":\"198.18.0.5\",\"nodemgmtinternal\":\"198.18.0.6\",\"rsm\":\"198.18.16.42\"},{\"clus\":\"198.18.0.11\",\"ic\":\"198.18.32.6\",\"intercluster\":\"10.10.0.41\",\"name\":\"vm2\",\"nodemgmt\":\"198.18.0.7\",\"nodemgmtinternal\":\"198.18.0.8\",\"rsm\":\"198.18.16.40\"},{\"name\":\"mediator\",\"rsm\":\"198.18.16.41\"}]},\"kmsConfig\":{\"keyName\":\"my-key\",\"keyProjectId\":\"237071556299\",\"keyRingLocation\":\"us-central1\",\"keyRingName\":\"my-key-ring\",\"saPasswordLocation\":\"projects/237071556299/secrets/sa-password\"},\"mediatorZone\":\"us-central1-c\",\"mode\":\"DEFAULT\",\"netConfig\":{\"data\":{\"subnet\":\"vsa-237071556299-1753966457\",\"vpc\":\"netapp-autopush-tst-network\"},\"ic\":{\"subnet\":\"ic-e0b-subnet-01\",\"vpc\":\"ic-e0b-vpc-01\"},\"nodemgmt\":{\"subnet\":\"mgmt-e0a-subnet-01\",\"vpc\":\"mgmt-e0a-vpc-01\"},\"rsm\":{\"subnet\":\"rsm-e0c-subnet-01\",\"vpc\":\"rsm-e0c-vpc-01\"}},\"numHAPair\":1,\"ontapCredentials\":[{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password-default\",\"type\":\"default\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password\",\"type\":\"admin\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-mode-password\",\"type\":\"ontap-mode\"}],\"ontapLicenseSecretURI\":\"projects/237071556299/secrets/ontap-license/versions/latest\",\"ontapModeRbac\":{\"rbacFileCheckSum\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"rbacFileURL\":\"gs://my-bucket/rbac.json\"},\"preferredVsaInstanceFamily\":\"c3-lssd\",\"primaryZone\":\"us-central1-a\",\"projectId\":\"81821054389\",\"qosType\":\"auto\",\"regionIdentifier\":\"34\",\"secondaryZone\":\"us-central1-c\",\"serviceAccountEmail\":\"vsa-sa-gcnv@237071556299.iam.gserviceaccount.com\",\"serviceTenantProject\":\"237071556299\",\"sizeInBytes\":1099511627776,\"throughputMibps\":1024}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -817,6 +920,18 @@ func TestRestrictedActionsV1Item_Examples(t *testing.T) {
 		})
 	}
 }
+func TestSeedConfigV1_EncodeDecode(t *testing.T) {
+	var typ SeedConfigV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 SeedConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestSetConfigRequestV1_EncodeDecode(t *testing.T) {
 	var typ SetConfigRequestV1
 	typ.SetFake()
@@ -835,7 +950,7 @@ func TestSetConfigRequestV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"caUri\":\"123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4\",\"dbConfig\":{\"database\":\"vcm\",\"instance\":\"vcm-instance\",\"project\":\"237071556299\"},\"deploymentId\":\"gcnv-8d0ff6a0b456f30\",\"ipConfig\":{\"dataLifs\":{\"ilbnas\":\"10.10.0.50\",\"san\":[\"10.10.0.51\",\"10.10.0.52\"]},\"gateways\":{\"clus\":\"198.18.0.1\",\"clusterMgmtGateway\":\"\",\"ic\":\"198.18.32.1\",\"intercluster\":\"10.10.0.33\",\"nodemgmt\":\"198.18.0.1\",\"nodemgmtinternal\":\"198.18.0.1\",\"rsm\":\"198.18.16.1\",\"svm\":\"10.10.0.33\"},\"lifs\":[{\"clus\":\"198.18.0.10\",\"ic\":\"198.18.32.7\",\"intercluster\":\"10.10.0.40\",\"name\":\"vm1\",\"nodemgmt\":\"198.18.0.5\",\"nodemgmtinternal\":\"198.18.0.6\",\"rsm\":\"198.18.16.42\"},{\"clus\":\"198.18.0.11\",\"ic\":\"198.18.32.6\",\"intercluster\":\"10.10.0.41\",\"name\":\"vm2\",\"nodemgmt\":\"198.18.0.7\",\"nodemgmtinternal\":\"198.18.0.8\",\"rsm\":\"198.18.16.40\"},{\"name\":\"mediator\",\"rsm\":\"198.18.16.41\"}]},\"mediatorZone\":\"us-central1-c\",\"netConfig\":{\"data\":{\"subnet\":\"vsa-237071556299-1753966457\",\"vpc\":\"netapp-autopush-tst-network\"},\"ic\":{\"subnet\":\"ic-e0b-subnet-01\",\"vpc\":\"ic-e0b-vpc-01\"},\"nodemgmt\":{\"subnet\":\"mgmt-e0a-subnet-01\",\"vpc\":\"mgmt-e0a-vpc-01\"},\"rsm\":{\"subnet\":\"rsm-e0c-subnet-01\",\"vpc\":\"rsm-e0c-vpc-01\"}},\"ontapCredentials\":[{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password-default\",\"type\":\"default\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-admin-password\",\"type\":\"admin\"},{\"certificateId\":\"\",\"secretId\":\"projects/237071556299/secrets/ontap-mode-password\",\"type\":\"ontap-mode\"}],\"serviceTenantProject\":\"237071556299\",\"zone1\":\"us-central1-a\",\"zone2\":\"us-central1-c\"}"},
+		{Input: "{\"clusterConfig\":{\"actualLayout\":{\"activeZone\":\"zone-a\",\"forwardingRuleIp\":\"10.0.0.20\",\"ipConfig\":{\"vmLifs\":[{\"name\":\"node-1\",\"nodemgmt\":\"10.0.0.10\"}]},\"nodes\":[{\"disks\":[{\"diskName\":\"disk-1\",\"gceDiskId\":\"disk-id-1\",\"sizeBytes\":100}],\"gceInstanceId\":\"instance-1\",\"nodeManagementIp\":\"10.0.0.10\",\"vmName\":\"node-1\",\"vmSerialNumber\":\"serial-1\"}],\"standbyZone\":\"zone-b\"},\"requiredShape\":{\"infrastructureSpec\":{\"dataDiskCount\":1,\"dataDiskType\":\"example-data-disk\",\"haPairCount\":1,\"mediatorDiskType\":\"example-mediator-disk\",\"preferredVsaInstanceFamily\":\"example-family\",\"systemDiskType\":\"example-system-disk\",\"vsaInstanceType\":\"example-type\"},\"mode\":\"DEFAULT\",\"provisionedIops\":200,\"provisionedSizeInBytes\":300,\"provisionedThroughputMibps\":100,\"qosType\":\"example\",\"regionIdentifier\":\"example-region\"},\"seedConfig\":{\"caUri\":\"projects/example/secrets/ca\",\"consumerProjectNum\":111111111111,\"deploymentId\":\"example-deployment\",\"mediatorZone\":\"zone-m\",\"netConfig\":{\"data\":{\"subnet\":\"example-data-subnet\",\"vpc\":\"example-data-vpc\"},\"ic\":{\"subnet\":\"example-ic-subnet\",\"vpc\":\"example-ic-vpc\"},\"nodemgmt\":{\"subnet\":\"example-nodemgmt-subnet\",\"vpc\":\"example-nodemgmt-vpc\"},\"rsm\":{\"subnet\":\"example-rsm-subnet\",\"vpc\":\"example-rsm-vpc\"}},\"ontapCredentials\":[{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/admin-key\",\"certSecretId\":\"projects/example/secrets/admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/admin-password\",\"username\":\"admin\"},\"role\":\"ADMIN\"},{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/vcm-admin-key\",\"certSecretId\":\"projects/example/secrets/vcm-admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/vcm-admin-password\",\"username\":\"vcm-admin\"},\"role\":\"VCM_ADMIN\"}],\"ontapLicenseSecretUri\":\"projects/example/secrets/license\",\"serviceAccountEmail\":\"example@example.com\",\"serviceTenantProjectNum\":222222222222,\"snHostProjectNum\":333333333333,\"zone1\":\"zone-a\",\"zone2\":\"zone-b\"},\"version\":1},\"stateDbConfig\":{\"database\":\"example-database\",\"instance\":\"example-instance\",\"project\":\"example-project\",\"version\":1}}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -975,6 +1090,47 @@ func TestSpConfigV1_EncodeDecode(t *testing.T) {
 
 	var typ2 SpConfigV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestStateDbConfigV1_EncodeDecode(t *testing.T) {
+	var typ StateDbConfigV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 StateDbConfigV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestStateDbConfigV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"database\":\"vcm\",\"instance\":\"vcm-instance\",\"project\":\"237071556299\",\"version\":1}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ StateDbConfigV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 StateDbConfigV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestV1CreateIgroupBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1CreateIgroupBadRequest
@@ -1516,8 +1672,8 @@ func TestV1UpdateVolumeUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateVolumeUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestVmLifsV1_EncodeDecode(t *testing.T) {
-	var typ VmLifsV1
+func TestVmLifV1_EncodeDecode(t *testing.T) {
+	var typ VmLifV1
 	typ.SetFake()
 
 	e := jx.Encoder{}
@@ -1525,7 +1681,7 @@ func TestVmLifsV1_EncodeDecode(t *testing.T) {
 	data := e.Bytes()
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
-	var typ2 VmLifsV1
+	var typ2 VmLifV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestVolumeV1_EncodeDecode(t *testing.T) {
@@ -1611,6 +1767,18 @@ func TestVolumeV1SecurityStyle_Examples(t *testing.T) {
 			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
 		})
 	}
+}
+func TestVsaNodeV1_EncodeDecode(t *testing.T) {
+	var typ VsaNodeV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 VsaNodeV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestWeeklyScheduleV1_EncodeDecode(t *testing.T) {
 	var typ WeeklyScheduleV1

@@ -24,7 +24,7 @@ type stubDBOpener struct {
 	dsn string
 }
 
-func (s *stubDBOpener) Open(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+func (s *stubDBOpener) Open(ctx context.Context, _ vcmserver.StateDbConfigV1) (vcmdb.Storage, error) {
 	return vcmdb.Open(ctx, vcmdb.Config{
 		Driver: vcmdb.DriverSQLite,
 		SQLite: vcmdb.SQLConfig{DSN: s.dsn},
@@ -42,7 +42,7 @@ func configuredPoolHandler(t *testing.T) (*Handler, *vcmconfig.Store, *factory.M
 		dsn: fmt.Sprintf("file:vcm-pool-endpoint-%s?mode=memory&cache=shared", t.Name()),
 	})
 	store.Apply(context.Background(), &vcmserver.SetConfigRequestV1{
-		DbConfig: vcmserver.DbConfigV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{
 			Project:  "test-project",
 			Instance: "test-instance",
 			Database: "test-db",

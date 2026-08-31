@@ -13,44 +13,61 @@ import (
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
 
-func withAuthType(t *testing.T, authType int) {
-	t.Helper()
-	original := env.AuthType
-	env.AuthType = authType
-	t.Cleanup(func() { env.AuthType = original })
+// certOntapCredential builds a certificate-auth credential for the given role.
+func certOntapCredential(role vcmserver.OntapCredentialV1Role, certSecretID, certPrivateKeySecretID string) vcmserver.OntapCredentialV1 {
+	entry := vcmserver.OntapCredentialV1{Role: role}
+	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
+	cert := vcmserver.CertificateAuthCredsV1{}
+	if certSecretID != "" {
+		cert.CertSecretId.SetTo(certSecretID)
+	}
+	if certPrivateKeySecretID != "" {
+		cert.CertPrivateKeySecretId.SetTo(certPrivateKeySecretID)
+	}
+	entry.CertificateAuthCreds.SetTo(cert)
+	return entry
 }
 
-func withNodePassword(t *testing.T, password string) {
-	t.Helper()
-	original := env.NodePassword
-	env.NodePassword = password
-	t.Cleanup(func() { env.NodePassword = original })
+// passwordOntapCredential builds a password-auth credential for the given role.
+func passwordOntapCredential(role vcmserver.OntapCredentialV1Role, username, passwordSecretID string) vcmserver.OntapCredentialV1 {
+	entry := vcmserver.OntapCredentialV1{Role: role}
+	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
+	pwd := vcmserver.PasswordAuthCredsV1{}
+	if username != "" {
+		pwd.Username.SetTo(username)
+	}
+	if passwordSecretID != "" {
+		pwd.PasswordSecretId.SetTo(passwordSecretID)
+	}
+	entry.PasswordAuthCreds.SetTo(pwd)
+	return entry
 }
 
-func defaultOntapCredentials(secretID, certificateID string) []vcmserver.OntapCredentialsV1 {
-	entry := vcmserver.OntapCredentialsV1{
-		Type:     vcmserver.OntapCredentialsV1TypeDefault,
-		SecretId: vcmserver.NewOptString(secretID),
+// defaultOntapCredentials returns a single VCM_ADMIN password credential used as
+// the baseline for configuredStore.
+func defaultOntapCredentials(passwordSecretID string) []vcmserver.OntapCredentialV1 {
+	return []vcmserver.OntapCredentialV1{
+		passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "root", passwordSecretID),
 	}
-	if certificateID != "" {
-		entry.CertificateId = vcmserver.NewOptString(certificateID)
-	}
-	return []vcmserver.OntapCredentialsV1{entry}
 }
 
 func configuredStore(t *testing.T, mutate func(*vcmserver.SetConfigRequestV1)) *Store {
 	t.Helper()
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
-	req.DeploymentId = vcmserver.NewOptString("gcnv-test")
-	req.OntapCredentials = defaultOntapCredentials("secret-1", "")
-	req.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{
-			{
-				Name:     vcmserver.NewOptString("vm1"),
-				Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+		seed.DeploymentId = vcmserver.NewOptString("gcnv-test")
+		seed.OntapCredentials = defaultOntapCredentials("secret-1")
+	})
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{
+					Name:     vcmserver.NewOptString("vm1"),
+					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+				},
 			},
-		},
+		})
 	})
 	if mutate != nil {
 		mutate(req)
@@ -60,15 +77,14 @@ func configuredStore(t *testing.T, mutate func(*vcmserver.SetConfigRequestV1)) *
 	return store
 }
 
-func TestNodeProviderInput_SecretManagerAuth(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
+func TestNodeProviderInput_PasswordAuth(t *testing.T) {
 	input, err := configuredStore(t, nil).NodeProviderInput()
 	require.NoError(t, err)
 	assert.Equal(t, "gcnv-test", input.DeploymentName)
 	require.NotNil(t, input.OntapCredentials)
 	assert.Equal(t, env.USERNAME_PWD_SEC_MGR, input.OntapCredentials.AuthType)
 	assert.Equal(t, "secret-1", input.OntapCredentials.SecretID)
+	assert.Equal(t, "root", input.OntapCredentials.Username)
 	assert.Equal(t, "", input.OntapCredentials.CertificateID)
 	require.Len(t, input.Nodes, 1)
 	assert.Equal(t, "vm1", input.Nodes[0].Name)
@@ -76,10 +92,12 @@ func TestNodeProviderInput_SecretManagerAuth(t *testing.T) {
 }
 
 func TestNodeProviderInput_CertificateAuth(t *testing.T) {
-	withAuthType(t, env.USER_CERTIFICATE)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.OntapCredentials = defaultOntapCredentials("secret-1", "cert-1")
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{
+				certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "cert-1", "key-1"),
+			}
+		})
 	})
 
 	input, err := store.NodeProviderInput()
@@ -87,43 +105,51 @@ func TestNodeProviderInput_CertificateAuth(t *testing.T) {
 	require.NotNil(t, input.OntapCredentials)
 	assert.Equal(t, env.USER_CERTIFICATE, input.OntapCredentials.AuthType)
 	assert.Equal(t, "cert-1", input.OntapCredentials.CertificateID)
-	assert.Equal(t, "secret-1", input.OntapCredentials.SecretID)
+	assert.Equal(t, "key-1", input.OntapCredentials.SecretID)
 	require.Len(t, input.Nodes, 1)
 }
 
-func TestNodeProviderInput_PlainPasswordAuth(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD)
-	withNodePassword(t, "node-password")
+func TestNodeProviderInput_DefaultsToCertificateWhenAuthTypeUnset(t *testing.T) {
+	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+			entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+				CertSecretId:           vcmserver.NewOptString("cert-1"),
+				CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
+			})
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+		})
+	})
 
-	input, err := configuredStore(t, nil).NodeProviderInput()
+	input, err := store.NodeProviderInput()
 	require.NoError(t, err)
 	require.NotNil(t, input.OntapCredentials)
-	assert.Equal(t, env.USERNAME_PWD, input.OntapCredentials.AuthType)
-	assert.Equal(t, "node-password", input.OntapCredentials.Password)
-	assert.Equal(t, "", input.OntapCredentials.SecretID)
+	assert.Equal(t, env.USER_CERTIFICATE, input.OntapCredentials.AuthType)
+	assert.Equal(t, "cert-1", input.OntapCredentials.CertificateID)
+	assert.Equal(t, "key-1", input.OntapCredentials.SecretID)
 }
 
 func TestNodeProviderInput_SkipsMediatorAndEmptyLifs(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.IpConfig.SetTo(vcmserver.IpConfigV1{
-			Lifs: []vcmserver.VmLifsV1{
-				{
-					Name:     vcmserver.NewOptString("vm1"),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+				VmLifs: []vcmserver.VmLifV1{
+					{
+						Name:     vcmserver.NewOptString("vm1"),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+					},
+					{
+						Name:     vcmserver.NewOptString("vm2"),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.6"),
+					},
+					{
+						Name: vcmserver.NewOptString("mediator"),
+						Rsm:  vcmserver.NewOptString("198.18.16.41"),
+					},
+					{Name: vcmserver.NewOptString("")},
+					{Name: vcmserver.NewOptString("vm3")},
 				},
-				{
-					Name:     vcmserver.NewOptString("vm2"),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.6"),
-				},
-				{
-					Name: vcmserver.NewOptString("mediator"),
-					Rsm:  vcmserver.NewOptString("198.18.16.41"),
-				},
-				{Name: vcmserver.NewOptString("")},
-				{Name: vcmserver.NewOptString("vm3")},
-			},
+			})
 		})
 	})
 
@@ -135,24 +161,24 @@ func TestNodeProviderInput_SkipsMediatorAndEmptyLifs(t *testing.T) {
 }
 
 func TestNodeProviderInput_TrimsLifNames(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.IpConfig.SetTo(vcmserver.IpConfigV1{
-			Lifs: []vcmserver.VmLifsV1{
-				{
-					Name:     vcmserver.NewOptString("  vm1  "),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+				VmLifs: []vcmserver.VmLifV1{
+					{
+						Name:     vcmserver.NewOptString("  vm1  "),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+					},
+					{
+						Name:     vcmserver.NewOptString("  mediator  "),
+						Nodemgmt: vcmserver.NewOptString("198.18.16.41"),
+					},
+					{
+						Name:     vcmserver.NewOptString("   "),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.7"),
+					},
 				},
-				{
-					Name:     vcmserver.NewOptString("  mediator  "),
-					Nodemgmt: vcmserver.NewOptString("198.18.16.41"),
-				},
-				{
-					Name:     vcmserver.NewOptString("   "),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.7"),
-				},
-			},
+			})
 		})
 	})
 
@@ -163,26 +189,26 @@ func TestNodeProviderInput_TrimsLifNames(t *testing.T) {
 	assert.Equal(t, "198.18.0.5", input.Nodes[0].EndpointAddress)
 }
 
-func TestNodeProviderInput_SecretManagerRequiresSecretId(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
+func TestNodeProviderInput_PasswordRequiresPasswordSecretId(t *testing.T) {
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.OntapCredentials = []vcmserver.OntapCredentialsV1{{
-			Type: vcmserver.OntapCredentialsV1TypeDefault,
-		}}
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{
+				passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "root", ""),
+			}
+		})
 	})
 
 	_, err := store.NodeProviderInput()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
-	assert.Contains(t, err.Error(), "secretId")
+	assert.Contains(t, err.Error(), "passwordSecretId")
 }
 
 func TestNodeProviderInput_MissingOntapCredentials(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.OntapCredentials = nil
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = nil
+		})
 	})
 
 	_, err := store.NodeProviderInput()
@@ -192,10 +218,10 @@ func TestNodeProviderInput_MissingOntapCredentials(t *testing.T) {
 }
 
 func TestNodeProviderInput_MissingDeploymentId(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.DeploymentId.Reset()
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.DeploymentId.Reset()
+		})
 	})
 
 	_, err := store.NodeProviderInput()
@@ -205,10 +231,10 @@ func TestNodeProviderInput_MissingDeploymentId(t *testing.T) {
 }
 
 func TestNodeProviderInput_EmptyDeploymentId(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.DeploymentId = vcmserver.NewOptString("   ")
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.DeploymentId = vcmserver.NewOptString("   ")
+		})
 	})
 
 	_, err := store.NodeProviderInput()
@@ -218,12 +244,12 @@ func TestNodeProviderInput_EmptyDeploymentId(t *testing.T) {
 }
 
 func TestNodeProviderInput_MissingIpConfig(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
-
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
-	req.DeploymentId = vcmserver.NewOptString("gcnv-test")
-	req.OntapCredentials = defaultOntapCredentials("secret-1", "")
+	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+		seed.DeploymentId = vcmserver.NewOptString("gcnv-test")
+		seed.OntapCredentials = defaultOntapCredentials("secret-1")
+	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
@@ -233,25 +259,32 @@ func TestNodeProviderInput_MissingIpConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "ipConfig")
 }
 
-func TestNodeProviderInput_PlainPasswordRequiresNodePassword(t *testing.T) {
-	withAuthType(t, env.USERNAME_PWD)
-	withNodePassword(t, "")
-
-	_, err := configuredStore(t, nil).NodeProviderInput()
-	require.Error(t, err)
-	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
-	assert.Contains(t, err.Error(), "VSA_NODE_PASSWORD")
-}
-
-func TestNodeProviderInput_CertificateRequiresCertificateId(t *testing.T) {
-	withAuthType(t, env.USER_CERTIFICATE)
-
+func TestNodeProviderInput_CertificateRequiresCertSecretId(t *testing.T) {
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
-		req.OntapCredentials = defaultOntapCredentials("secret-1", "")
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{
+				certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "", "key-1"),
+			}
+		})
 	})
 
 	_, err := store.NodeProviderInput()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
-	assert.Contains(t, err.Error(), "certificateId")
+	assert.Contains(t, err.Error(), "certSecretId")
+}
+
+func TestNodeProviderInput_CertificateRequiresCertPrivateKeySecretId(t *testing.T) {
+	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{
+				certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "cert-1", ""),
+			}
+		})
+	})
+
+	_, err := store.NodeProviderInput()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
+	assert.Contains(t, err.Error(), "certPrivateKeySecretId")
 }

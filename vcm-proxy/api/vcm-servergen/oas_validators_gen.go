@@ -91,6 +91,97 @@ func (s BlockDeviceV1OsType) Validate() error {
 	}
 }
 
+func (s *ClusterConfigV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.SeedConfig.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "seedConfig",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.RequiredShape.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "requiredShape",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *ClusterShapeV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.Mode.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "mode",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s ClusterShapeV1Mode) Validate() error {
+	switch s {
+	case "MODE_UNSPECIFIED":
+		return nil
+	case "DEFAULT":
+		return nil
+	case "ONTAP":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *DailyScheduleV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -573,6 +664,71 @@ func (s *MountPointV1) Validate() error {
 	return nil
 }
 
+func (s *OntapCredentialV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.ActiveAuthType.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "activeAuthType",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.Role.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "role",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s OntapCredentialV1ActiveAuthType) Validate() error {
+	switch s {
+	case "CERT":
+		return nil
+	case "PWD":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s OntapCredentialV1Role) Validate() error {
+	switch s {
+	case "ONTAP_MODE":
+		return nil
+	case "ADMIN":
+		return nil
+	case "VCM_ADMIN":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *OntapCredentialsV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -930,7 +1086,7 @@ func (s RestrictedActionsV1Item) Validate() error {
 	}
 }
 
-func (s *SetConfigRequestV1) Validate() error {
+func (s *SeedConfigV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -958,6 +1114,36 @@ func (s *SetConfigRequestV1) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "ontapCredentials",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *SetConfigRequestV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.ClusterConfig.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "clusterConfig",
 			Error: err,
 		})
 	}

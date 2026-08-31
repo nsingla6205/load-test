@@ -62,13 +62,13 @@ func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolRequestV1
 //
 // Pushes the common configuration required for VCM to operate.  The
 // request carries the durable workflow-backend database configuration and,
-// on re-seed, the deployment configuration (identity, zones, network and
-// ONTAP credentials).  VCM stores the configuration in memory and
-// returns 200 immediately once the payload is accepted.  Database
-// reachability is validated asynchronously; an internal readiness flag
-// reflects connectivity and is not exposed on this response.  Top-level
-// deployment fields are merged first-write-wins; dbConfig is always
-// replaced.  CLH must call this before issuing any pool operation.
+// on re-seed, clusterConfig (seed, required shape, and actual layout).
+// VCM stores the configuration in memory and returns 200 immediately once
+// the payload is accepted. Database reachability is validated
+// asynchronously; an internal readiness flag reflects connectivity and is
+// not exposed on this response. Supplied nested fields use
+// last-write-wins semantics; stateDbConfig is always replaced. CLH must call
+// this before issuing any pool operation.
 //
 // POST /v1/config
 func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error {

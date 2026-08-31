@@ -10,6 +10,39 @@ import (
 )
 
 // SetFake set fake values.
+func (s *AttachedDiskV1) SetFake() {
+	{
+		{
+			s.DiskName.SetFake()
+		}
+	}
+	{
+		{
+			s.GceDiskId.SetFake()
+		}
+	}
+	{
+		{
+			s.SizeBytes.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *AutoTieringConfigV1) SetFake() {
+	{
+		{
+			s.AutoTierBucketName.SetFake()
+		}
+	}
+	{
+		{
+			s.HotTierSizeInBytes.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *BlockDeviceV1) SetFake() {
 	{
 		{
@@ -36,6 +69,154 @@ func (s *BlockDeviceV1OsType) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *CertificateAuthCredsV1) SetFake() {
+	{
+		{
+			s.CertSecretId.SetFake()
+		}
+	}
+	{
+		{
+			s.CertPrivateKeySecretId.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ClusterConfigV1) SetFake() {
+	{
+		{
+			s.Version.SetFake()
+		}
+	}
+	{
+		{
+			s.SeedConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.RequiredShape.SetFake()
+		}
+	}
+	{
+		{
+			s.ActualLayout.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ClusterLayoutV1) SetFake() {
+	{
+		{
+			s.Nodes = nil
+			for i := 0; i < 0; i++ {
+				var elem VsaNodeV1
+				{
+					elem.SetFake()
+				}
+				s.Nodes = append(s.Nodes, elem)
+			}
+		}
+	}
+	{
+		{
+			s.IpConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.ActiveZone.SetFake()
+		}
+	}
+	{
+		{
+			s.StandbyZone.SetFake()
+		}
+	}
+	{
+		{
+			s.ForwardingRuleIp.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ClusterShapeV1) SetFake() {
+	{
+		{
+			s.ProvisionedThroughputMibps.SetFake()
+		}
+	}
+	{
+		{
+			s.ProvisionedIops.SetFake()
+		}
+	}
+	{
+		{
+			s.ProvisionedSizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.QosType.SetFake()
+		}
+	}
+	{
+		{
+			s.InfrastructureSpec.SetFake()
+		}
+	}
+	{
+		{
+			s.Mode.SetFake()
+		}
+	}
+	{
+		{
+			s.KmsConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.AutoTieringConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapModeRbac.SetFake()
+		}
+	}
+	{
+		{
+			s.RegionIdentifier.SetFake()
+		}
+	}
+	{
+		{
+			s.UserThroughputMibps.SetFake()
+		}
+	}
+	{
+		{
+			s.UserIops.SetFake()
+		}
+	}
+	{
+		{
+			s.UserSizeInBytes.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ClusterShapeV1Mode) SetFake() {
+	*s = ClusterShapeV1ModeMODEUNSPECIFIED
+}
+
+// SetFake set fake values.
 func (s *DailyScheduleV1) SetFake() {
 	{
 		{
@@ -55,7 +236,7 @@ func (s *DailyScheduleV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *DataLifsV1) SetFake() {
+func (s *DataLifV1) SetFake() {
 	{
 		{
 			s.Ilbnas.SetFake()
@@ -71,25 +252,6 @@ func (s *DataLifsV1) SetFake() {
 				}
 				s.San = append(s.San, elem)
 			}
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *DbConfigV1) SetFake() {
-	{
-		{
-			s.Project = "string"
-		}
-	}
-	{
-		{
-			s.Instance = "string"
-		}
-	}
-	{
-		{
-			s.Database = "string"
 		}
 	}
 }
@@ -278,6 +440,45 @@ func (s *IgroupV1OsType) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *InfrastructureSpecV1) SetFake() {
+	{
+		{
+			s.HaPairCount.SetFake()
+		}
+	}
+	{
+		{
+			s.PreferredVsaInstanceFamily.SetFake()
+		}
+	}
+	{
+		{
+			s.VsaInstanceType.SetFake()
+		}
+	}
+	{
+		{
+			s.DataDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.SystemDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.MediatorDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.DataDiskCount.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *IpConfigV1) SetFake() {
 	{
 		{
@@ -286,19 +487,19 @@ func (s *IpConfigV1) SetFake() {
 	}
 	{
 		{
-			s.Lifs = nil
+			s.VmLifs = nil
 			for i := 0; i < 0; i++ {
-				var elem VmLifsV1
+				var elem VmLifV1
 				{
 					elem.SetFake()
 				}
-				s.Lifs = append(s.Lifs, elem)
+				s.VmLifs = append(s.VmLifs, elem)
 			}
 		}
 	}
 	{
 		{
-			s.DataLifs.SetFake()
+			s.DataLif.SetFake()
 		}
 	}
 }
@@ -434,6 +635,40 @@ func (s *NilInt64) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OntapCredentialV1) SetFake() {
+	{
+		{
+			s.PasswordAuthCreds.SetFake()
+		}
+	}
+	{
+		{
+			s.CertificateAuthCreds.SetFake()
+		}
+	}
+	{
+		{
+			s.ActiveAuthType.SetFake()
+		}
+	}
+	{
+		{
+			s.Role.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OntapCredentialV1ActiveAuthType) SetFake() {
+	*s = OntapCredentialV1ActiveAuthTypeCERT
+}
+
+// SetFake set fake values.
+func (s *OntapCredentialV1Role) SetFake() {
+	*s = OntapCredentialV1RoleONTAPMODE
+}
+
+// SetFake set fake values.
 func (s *OntapCredentialsV1) SetFake() {
 	{
 		{
@@ -558,10 +793,64 @@ func (s *OperationV1Response) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptAutoTieringConfigV1) SetFake() {
+	var elem AutoTieringConfigV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptBool) SetFake() {
 	var elem bool
 	{
 		elem = true
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptCertificateAuthCredsV1) SetFake() {
+	var elem CertificateAuthCredsV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptClusterConfigV1) SetFake() {
+	var elem ClusterConfigV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptClusterLayoutV1) SetFake() {
+	var elem ClusterLayoutV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptClusterShapeV1) SetFake() {
+	var elem ClusterShapeV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptClusterShapeV1Mode) SetFake() {
+	var elem ClusterShapeV1Mode
+	{
+		elem.SetFake()
 	}
 	s.SetTo(elem)
 }
@@ -576,8 +865,8 @@ func (s *OptDailyScheduleV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptDataLifsV1) SetFake() {
-	var elem DataLifsV1
+func (s *OptDataLifV1) SetFake() {
+	var elem DataLifV1
 	{
 		elem.SetFake()
 	}
@@ -648,10 +937,37 @@ func (s *OptHourlyScheduleV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptInfrastructureSpecV1) SetFake() {
+	var elem InfrastructureSpecV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptInt) SetFake() {
 	var elem int
 	{
 		elem = int(0)
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptInt32) SetFake() {
+	var elem int32
+	{
+		elem = int32(0)
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptInt64) SetFake() {
+	var elem int64
+	{
+		elem = int64(0)
 	}
 	s.SetTo(elem)
 }
@@ -732,6 +1048,15 @@ func (s *OptNilString) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptOntapCredentialV1ActiveAuthType) SetFake() {
+	var elem OntapCredentialV1ActiveAuthType
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptOntapModeRbacV1) SetFake() {
 	var elem OntapModeRbacV1
 	{
@@ -759,6 +1084,15 @@ func (s *OptOperationV1Response) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptPasswordAuthCredsV1) SetFake() {
+	var elem PasswordAuthCredsV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptPoolV1Mode) SetFake() {
 	var elem PoolV1Mode
 	{
@@ -770,6 +1104,15 @@ func (s *OptPoolV1Mode) SetFake() {
 // SetFake set fake values.
 func (s *OptProtocolsV1) SetFake() {
 	var elem ProtocolsV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptSeedConfigV1) SetFake() {
+	var elem SeedConfigV1
 	{
 		elem.SetFake()
 	}
@@ -819,6 +1162,20 @@ func (s *OptWeeklyScheduleV1) SetFake() {
 		elem.SetFake()
 	}
 	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *PasswordAuthCredsV1) SetFake() {
+	{
+		{
+			s.Username.SetFake()
+		}
+	}
+	{
+		{
+			s.PasswordSecretId.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -1053,42 +1410,10 @@ func (s *RestrictedActionsV1Item) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *SetConfigRequestV1) SetFake() {
+func (s *SeedConfigV1) SetFake() {
 	{
 		{
-			s.DbConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.ServiceTenantProject.SetFake()
-		}
-	}
-	{
-		{
-			s.NetConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.IpConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.OntapCredentials = nil
-			for i := 0; i < 0; i++ {
-				var elem OntapCredentialsV1
-				{
-					elem.SetFake()
-				}
-				s.OntapCredentials = append(s.OntapCredentials, elem)
-			}
-		}
-	}
-	{
-		{
-			s.CaUri.SetFake()
+			s.DeploymentId.SetFake()
 		}
 	}
 	{
@@ -1108,7 +1433,63 @@ func (s *SetConfigRequestV1) SetFake() {
 	}
 	{
 		{
-			s.DeploymentId.SetFake()
+			s.ConsumerProjectNum.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceTenantProjectNum.SetFake()
+		}
+	}
+	{
+		{
+			s.SnHostProjectNum.SetFake()
+		}
+	}
+	{
+		{
+			s.NetConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapCredentials = nil
+			for i := 0; i < 0; i++ {
+				var elem OntapCredentialV1
+				{
+					elem.SetFake()
+				}
+				s.OntapCredentials = append(s.OntapCredentials, elem)
+			}
+		}
+	}
+	{
+		{
+			s.CaUri.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapLicenseSecretUri.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceAccountEmail.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *SetConfigRequestV1) SetFake() {
+	{
+		{
+			s.StateDbConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.ClusterConfig.SetFake()
 		}
 	}
 }
@@ -1241,6 +1622,30 @@ func (s *SpConfigV1) SetFake() {
 	{
 		{
 			s.IsHeterogeneous.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *StateDbConfigV1) SetFake() {
+	{
+		{
+			s.Version.SetFake()
+		}
+	}
+	{
+		{
+			s.Project = "string"
+		}
+	}
+	{
+		{
+			s.Instance = "string"
+		}
+	}
+	{
+		{
+			s.Database = "string"
 		}
 	}
 }
@@ -1658,7 +2063,7 @@ func (s *V1UpdateVolumeUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *VmLifsV1) SetFake() {
+func (s *VmLifV1) SetFake() {
 	{
 		{
 			s.Name.SetFake()
@@ -1809,6 +2214,42 @@ func (s *VolumeV1) SetFake() {
 // SetFake set fake values.
 func (s *VolumeV1SecurityStyle) SetFake() {
 	*s = VolumeV1SecurityStyleSECURITYSTYLEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *VsaNodeV1) SetFake() {
+	{
+		{
+			s.VmName.SetFake()
+		}
+	}
+	{
+		{
+			s.GceInstanceId.SetFake()
+		}
+	}
+	{
+		{
+			s.NodeManagementIp.SetFake()
+		}
+	}
+	{
+		{
+			s.VmSerialNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.Disks = nil
+			for i := 0; i < 0; i++ {
+				var elem AttachedDiskV1
+				{
+					elem.SetFake()
+				}
+				s.Disks = append(s.Disks, elem)
+			}
+		}
+	}
 }
 
 // SetFake set fake values.

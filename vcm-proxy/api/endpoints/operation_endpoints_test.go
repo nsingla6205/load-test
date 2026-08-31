@@ -23,7 +23,7 @@ func configuredOperationHandler(t *testing.T) (*Handler, *vcmconfig.Store) {
 		dsn: fmt.Sprintf("file:vcm-operation-endpoint-%s?mode=memory&cache=shared", t.Name()),
 	})
 	store.Apply(context.Background(), &vcmserver.SetConfigRequestV1{
-		DbConfig: vcmserver.DbConfigV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{
 			Project:  "test-project",
 			Instance: "test-instance",
 			Database: "test-db",

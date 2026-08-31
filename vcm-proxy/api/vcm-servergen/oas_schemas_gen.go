@@ -14,6 +14,69 @@ func (s *ErrorResponseV1StatusCode) Error() string {
 	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
 }
 
+// Ref: #/components/schemas/AttachedDisk_v1
+type AttachedDiskV1 struct {
+	DiskName  OptString `json:"diskName"`
+	GceDiskId OptString `json:"gceDiskId"`
+	SizeBytes OptInt64  `json:"sizeBytes"`
+}
+
+// GetDiskName returns the value of DiskName.
+func (s *AttachedDiskV1) GetDiskName() OptString {
+	return s.DiskName
+}
+
+// GetGceDiskId returns the value of GceDiskId.
+func (s *AttachedDiskV1) GetGceDiskId() OptString {
+	return s.GceDiskId
+}
+
+// GetSizeBytes returns the value of SizeBytes.
+func (s *AttachedDiskV1) GetSizeBytes() OptInt64 {
+	return s.SizeBytes
+}
+
+// SetDiskName sets the value of DiskName.
+func (s *AttachedDiskV1) SetDiskName(val OptString) {
+	s.DiskName = val
+}
+
+// SetGceDiskId sets the value of GceDiskId.
+func (s *AttachedDiskV1) SetGceDiskId(val OptString) {
+	s.GceDiskId = val
+}
+
+// SetSizeBytes sets the value of SizeBytes.
+func (s *AttachedDiskV1) SetSizeBytes(val OptInt64) {
+	s.SizeBytes = val
+}
+
+// Ref: #/components/schemas/AutoTieringConfig_v1
+type AutoTieringConfigV1 struct {
+	AutoTierBucketName OptString `json:"autoTierBucketName"`
+	HotTierSizeInBytes OptInt64  `json:"hotTierSizeInBytes"`
+}
+
+// GetAutoTierBucketName returns the value of AutoTierBucketName.
+func (s *AutoTieringConfigV1) GetAutoTierBucketName() OptString {
+	return s.AutoTierBucketName
+}
+
+// GetHotTierSizeInBytes returns the value of HotTierSizeInBytes.
+func (s *AutoTieringConfigV1) GetHotTierSizeInBytes() OptInt64 {
+	return s.HotTierSizeInBytes
+}
+
+// SetAutoTierBucketName sets the value of AutoTierBucketName.
+func (s *AutoTieringConfigV1) SetAutoTierBucketName(val OptString) {
+	s.AutoTierBucketName = val
+}
+
+// SetHotTierSizeInBytes sets the value of HotTierSizeInBytes.
+func (s *AutoTieringConfigV1) SetHotTierSizeInBytes(val OptInt64) {
+	s.HotTierSizeInBytes = val
+}
+
 // Ref: #/components/schemas/BlockDevice_v1
 type BlockDeviceV1 struct {
 	OsType BlockDeviceV1OsType `json:"osType"`
@@ -96,6 +159,340 @@ func (s *BlockDeviceV1OsType) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/CertificateAuthCreds_v1
+type CertificateAuthCredsV1 struct {
+	// Secret Manager secret ID containing the CA certificate path.
+	CertSecretId OptString `json:"certSecretId"`
+	// Secret Manager secret ID containing the certificate's private key.
+	CertPrivateKeySecretId OptString `json:"certPrivateKeySecretId"`
+}
+
+// GetCertSecretId returns the value of CertSecretId.
+func (s *CertificateAuthCredsV1) GetCertSecretId() OptString {
+	return s.CertSecretId
+}
+
+// GetCertPrivateKeySecretId returns the value of CertPrivateKeySecretId.
+func (s *CertificateAuthCredsV1) GetCertPrivateKeySecretId() OptString {
+	return s.CertPrivateKeySecretId
+}
+
+// SetCertSecretId sets the value of CertSecretId.
+func (s *CertificateAuthCredsV1) SetCertSecretId(val OptString) {
+	s.CertSecretId = val
+}
+
+// SetCertPrivateKeySecretId sets the value of CertPrivateKeySecretId.
+func (s *CertificateAuthCredsV1) SetCertPrivateKeySecretId(val OptString) {
+	s.CertPrivateKeySecretId = val
+}
+
+// Cluster configuration segmented by seed, required shape, and actual layout.
+// Ref: #/components/schemas/ClusterConfig_v1
+type ClusterConfigV1 struct {
+	// Monotonic version of the cluster configuration set by CLH.
+	Version       OptInt64           `json:"version"`
+	SeedConfig    OptSeedConfigV1    `json:"seedConfig"`
+	RequiredShape OptClusterShapeV1  `json:"requiredShape"`
+	ActualLayout  OptClusterLayoutV1 `json:"actualLayout"`
+}
+
+// GetVersion returns the value of Version.
+func (s *ClusterConfigV1) GetVersion() OptInt64 {
+	return s.Version
+}
+
+// GetSeedConfig returns the value of SeedConfig.
+func (s *ClusterConfigV1) GetSeedConfig() OptSeedConfigV1 {
+	return s.SeedConfig
+}
+
+// GetRequiredShape returns the value of RequiredShape.
+func (s *ClusterConfigV1) GetRequiredShape() OptClusterShapeV1 {
+	return s.RequiredShape
+}
+
+// GetActualLayout returns the value of ActualLayout.
+func (s *ClusterConfigV1) GetActualLayout() OptClusterLayoutV1 {
+	return s.ActualLayout
+}
+
+// SetVersion sets the value of Version.
+func (s *ClusterConfigV1) SetVersion(val OptInt64) {
+	s.Version = val
+}
+
+// SetSeedConfig sets the value of SeedConfig.
+func (s *ClusterConfigV1) SetSeedConfig(val OptSeedConfigV1) {
+	s.SeedConfig = val
+}
+
+// SetRequiredShape sets the value of RequiredShape.
+func (s *ClusterConfigV1) SetRequiredShape(val OptClusterShapeV1) {
+	s.RequiredShape = val
+}
+
+// SetActualLayout sets the value of ActualLayout.
+func (s *ClusterConfigV1) SetActualLayout(val OptClusterLayoutV1) {
+	s.ActualLayout = val
+}
+
+// Volatile physical and operational cluster topology.
+// Ref: #/components/schemas/ClusterLayout_v1
+type ClusterLayoutV1 struct {
+	Nodes            []VsaNodeV1   `json:"nodes"`
+	IpConfig         OptIpConfigV1 `json:"ipConfig"`
+	ActiveZone       OptString     `json:"activeZone"`
+	StandbyZone      OptString     `json:"standbyZone"`
+	ForwardingRuleIp OptString     `json:"forwardingRuleIp"`
+}
+
+// GetNodes returns the value of Nodes.
+func (s *ClusterLayoutV1) GetNodes() []VsaNodeV1 {
+	return s.Nodes
+}
+
+// GetIpConfig returns the value of IpConfig.
+func (s *ClusterLayoutV1) GetIpConfig() OptIpConfigV1 {
+	return s.IpConfig
+}
+
+// GetActiveZone returns the value of ActiveZone.
+func (s *ClusterLayoutV1) GetActiveZone() OptString {
+	return s.ActiveZone
+}
+
+// GetStandbyZone returns the value of StandbyZone.
+func (s *ClusterLayoutV1) GetStandbyZone() OptString {
+	return s.StandbyZone
+}
+
+// GetForwardingRuleIp returns the value of ForwardingRuleIp.
+func (s *ClusterLayoutV1) GetForwardingRuleIp() OptString {
+	return s.ForwardingRuleIp
+}
+
+// SetNodes sets the value of Nodes.
+func (s *ClusterLayoutV1) SetNodes(val []VsaNodeV1) {
+	s.Nodes = val
+}
+
+// SetIpConfig sets the value of IpConfig.
+func (s *ClusterLayoutV1) SetIpConfig(val OptIpConfigV1) {
+	s.IpConfig = val
+}
+
+// SetActiveZone sets the value of ActiveZone.
+func (s *ClusterLayoutV1) SetActiveZone(val OptString) {
+	s.ActiveZone = val
+}
+
+// SetStandbyZone sets the value of StandbyZone.
+func (s *ClusterLayoutV1) SetStandbyZone(val OptString) {
+	s.StandbyZone = val
+}
+
+// SetForwardingRuleIp sets the value of ForwardingRuleIp.
+func (s *ClusterLayoutV1) SetForwardingRuleIp(val OptString) {
+	s.ForwardingRuleIp = val
+}
+
+// CLH-computed technical blueprint stored for future VCM use.
+// Ref: #/components/schemas/ClusterShape_v1
+type ClusterShapeV1 struct {
+	ProvisionedThroughputMibps OptInt64                `json:"provisionedThroughputMibps"`
+	ProvisionedIops            OptInt64                `json:"provisionedIops"`
+	ProvisionedSizeInBytes     OptInt64                `json:"provisionedSizeInBytes"`
+	QosType                    OptString               `json:"qosType"`
+	InfrastructureSpec         OptInfrastructureSpecV1 `json:"infrastructureSpec"`
+	Mode                       OptClusterShapeV1Mode   `json:"mode"`
+	KmsConfig                  OptKmsConfigV1          `json:"kmsConfig"`
+	AutoTieringConfig          OptAutoTieringConfigV1  `json:"autoTieringConfig"`
+	OntapModeRbac              OptOntapModeRbacV1      `json:"ontapModeRbac"`
+	RegionIdentifier           OptString               `json:"regionIdentifier"`
+	UserThroughputMibps        OptInt64                `json:"userThroughputMibps"`
+	UserIops                   OptInt64                `json:"userIops"`
+	UserSizeInBytes            OptInt64                `json:"userSizeInBytes"`
+}
+
+// GetProvisionedThroughputMibps returns the value of ProvisionedThroughputMibps.
+func (s *ClusterShapeV1) GetProvisionedThroughputMibps() OptInt64 {
+	return s.ProvisionedThroughputMibps
+}
+
+// GetProvisionedIops returns the value of ProvisionedIops.
+func (s *ClusterShapeV1) GetProvisionedIops() OptInt64 {
+	return s.ProvisionedIops
+}
+
+// GetProvisionedSizeInBytes returns the value of ProvisionedSizeInBytes.
+func (s *ClusterShapeV1) GetProvisionedSizeInBytes() OptInt64 {
+	return s.ProvisionedSizeInBytes
+}
+
+// GetQosType returns the value of QosType.
+func (s *ClusterShapeV1) GetQosType() OptString {
+	return s.QosType
+}
+
+// GetInfrastructureSpec returns the value of InfrastructureSpec.
+func (s *ClusterShapeV1) GetInfrastructureSpec() OptInfrastructureSpecV1 {
+	return s.InfrastructureSpec
+}
+
+// GetMode returns the value of Mode.
+func (s *ClusterShapeV1) GetMode() OptClusterShapeV1Mode {
+	return s.Mode
+}
+
+// GetKmsConfig returns the value of KmsConfig.
+func (s *ClusterShapeV1) GetKmsConfig() OptKmsConfigV1 {
+	return s.KmsConfig
+}
+
+// GetAutoTieringConfig returns the value of AutoTieringConfig.
+func (s *ClusterShapeV1) GetAutoTieringConfig() OptAutoTieringConfigV1 {
+	return s.AutoTieringConfig
+}
+
+// GetOntapModeRbac returns the value of OntapModeRbac.
+func (s *ClusterShapeV1) GetOntapModeRbac() OptOntapModeRbacV1 {
+	return s.OntapModeRbac
+}
+
+// GetRegionIdentifier returns the value of RegionIdentifier.
+func (s *ClusterShapeV1) GetRegionIdentifier() OptString {
+	return s.RegionIdentifier
+}
+
+// GetUserThroughputMibps returns the value of UserThroughputMibps.
+func (s *ClusterShapeV1) GetUserThroughputMibps() OptInt64 {
+	return s.UserThroughputMibps
+}
+
+// GetUserIops returns the value of UserIops.
+func (s *ClusterShapeV1) GetUserIops() OptInt64 {
+	return s.UserIops
+}
+
+// GetUserSizeInBytes returns the value of UserSizeInBytes.
+func (s *ClusterShapeV1) GetUserSizeInBytes() OptInt64 {
+	return s.UserSizeInBytes
+}
+
+// SetProvisionedThroughputMibps sets the value of ProvisionedThroughputMibps.
+func (s *ClusterShapeV1) SetProvisionedThroughputMibps(val OptInt64) {
+	s.ProvisionedThroughputMibps = val
+}
+
+// SetProvisionedIops sets the value of ProvisionedIops.
+func (s *ClusterShapeV1) SetProvisionedIops(val OptInt64) {
+	s.ProvisionedIops = val
+}
+
+// SetProvisionedSizeInBytes sets the value of ProvisionedSizeInBytes.
+func (s *ClusterShapeV1) SetProvisionedSizeInBytes(val OptInt64) {
+	s.ProvisionedSizeInBytes = val
+}
+
+// SetQosType sets the value of QosType.
+func (s *ClusterShapeV1) SetQosType(val OptString) {
+	s.QosType = val
+}
+
+// SetInfrastructureSpec sets the value of InfrastructureSpec.
+func (s *ClusterShapeV1) SetInfrastructureSpec(val OptInfrastructureSpecV1) {
+	s.InfrastructureSpec = val
+}
+
+// SetMode sets the value of Mode.
+func (s *ClusterShapeV1) SetMode(val OptClusterShapeV1Mode) {
+	s.Mode = val
+}
+
+// SetKmsConfig sets the value of KmsConfig.
+func (s *ClusterShapeV1) SetKmsConfig(val OptKmsConfigV1) {
+	s.KmsConfig = val
+}
+
+// SetAutoTieringConfig sets the value of AutoTieringConfig.
+func (s *ClusterShapeV1) SetAutoTieringConfig(val OptAutoTieringConfigV1) {
+	s.AutoTieringConfig = val
+}
+
+// SetOntapModeRbac sets the value of OntapModeRbac.
+func (s *ClusterShapeV1) SetOntapModeRbac(val OptOntapModeRbacV1) {
+	s.OntapModeRbac = val
+}
+
+// SetRegionIdentifier sets the value of RegionIdentifier.
+func (s *ClusterShapeV1) SetRegionIdentifier(val OptString) {
+	s.RegionIdentifier = val
+}
+
+// SetUserThroughputMibps sets the value of UserThroughputMibps.
+func (s *ClusterShapeV1) SetUserThroughputMibps(val OptInt64) {
+	s.UserThroughputMibps = val
+}
+
+// SetUserIops sets the value of UserIops.
+func (s *ClusterShapeV1) SetUserIops(val OptInt64) {
+	s.UserIops = val
+}
+
+// SetUserSizeInBytes sets the value of UserSizeInBytes.
+func (s *ClusterShapeV1) SetUserSizeInBytes(val OptInt64) {
+	s.UserSizeInBytes = val
+}
+
+type ClusterShapeV1Mode string
+
+const (
+	ClusterShapeV1ModeMODEUNSPECIFIED ClusterShapeV1Mode = "MODE_UNSPECIFIED"
+	ClusterShapeV1ModeDEFAULT         ClusterShapeV1Mode = "DEFAULT"
+	ClusterShapeV1ModeONTAP           ClusterShapeV1Mode = "ONTAP"
+)
+
+// AllValues returns all ClusterShapeV1Mode values.
+func (ClusterShapeV1Mode) AllValues() []ClusterShapeV1Mode {
+	return []ClusterShapeV1Mode{
+		ClusterShapeV1ModeMODEUNSPECIFIED,
+		ClusterShapeV1ModeDEFAULT,
+		ClusterShapeV1ModeONTAP,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ClusterShapeV1Mode) MarshalText() ([]byte, error) {
+	switch s {
+	case ClusterShapeV1ModeMODEUNSPECIFIED:
+		return []byte(s), nil
+	case ClusterShapeV1ModeDEFAULT:
+		return []byte(s), nil
+	case ClusterShapeV1ModeONTAP:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ClusterShapeV1Mode) UnmarshalText(data []byte) error {
+	switch ClusterShapeV1Mode(data) {
+	case ClusterShapeV1ModeMODEUNSPECIFIED:
+		*s = ClusterShapeV1ModeMODEUNSPECIFIED
+		return nil
+	case ClusterShapeV1ModeDEFAULT:
+		*s = ClusterShapeV1ModeDEFAULT
+		return nil
+	case ClusterShapeV1ModeONTAP:
+		*s = ClusterShapeV1ModeONTAP
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // If enabled (snapshotsToKeep > 0), make a snapshot every day. Defaults to midnight.
 // Ref: #/components/schemas/DailySchedule_v1
 type DailyScheduleV1 struct {
@@ -138,8 +535,8 @@ func (s *DailyScheduleV1) SetMinute(val OptFloat64) {
 }
 
 // SVM data-serving LIF IPs.
-// Ref: #/components/schemas/DataLifs_v1
-type DataLifsV1 struct {
+// Ref: #/components/schemas/DataLif_v1
+type DataLifV1 struct {
 	// Internal load-balancer NAS LIF IP.
 	Ilbnas OptString `json:"ilbnas"`
 	// SAN LIF IPs (two entries).
@@ -147,65 +544,23 @@ type DataLifsV1 struct {
 }
 
 // GetIlbnas returns the value of Ilbnas.
-func (s *DataLifsV1) GetIlbnas() OptString {
+func (s *DataLifV1) GetIlbnas() OptString {
 	return s.Ilbnas
 }
 
 // GetSan returns the value of San.
-func (s *DataLifsV1) GetSan() []string {
+func (s *DataLifV1) GetSan() []string {
 	return s.San
 }
 
 // SetIlbnas sets the value of Ilbnas.
-func (s *DataLifsV1) SetIlbnas(val OptString) {
+func (s *DataLifV1) SetIlbnas(val OptString) {
 	s.Ilbnas = val
 }
 
 // SetSan sets the value of San.
-func (s *DataLifsV1) SetSan(val []string) {
+func (s *DataLifV1) SetSan(val []string) {
 	s.San = val
-}
-
-// Cloud Spanner configuration for the VCM go-workflows durable backend.
-// The Spanner instance must already exist.
-// Ref: #/components/schemas/DbConfig_v1
-type DbConfigV1 struct {
-	// GCP project hosting the Spanner instance.
-	Project string `json:"project"`
-	// Cloud Spanner instance ID (must already exist).
-	Instance string `json:"instance"`
-	// Cloud Spanner database name.
-	Database string `json:"database"`
-}
-
-// GetProject returns the value of Project.
-func (s *DbConfigV1) GetProject() string {
-	return s.Project
-}
-
-// GetInstance returns the value of Instance.
-func (s *DbConfigV1) GetInstance() string {
-	return s.Instance
-}
-
-// GetDatabase returns the value of Database.
-func (s *DbConfigV1) GetDatabase() string {
-	return s.Database
-}
-
-// SetProject sets the value of Project.
-func (s *DbConfigV1) SetProject(val string) {
-	s.Project = val
-}
-
-// SetInstance sets the value of Instance.
-func (s *DbConfigV1) SetInstance(val string) {
-	s.Instance = val
-}
-
-// SetDatabase sets the value of Database.
-func (s *DbConfigV1) SetDatabase(val string) {
-	s.Database = val
 }
 
 // Instance, storage-pool and disk sizing for the deployment.
@@ -626,6 +981,87 @@ func (s *IgroupV1OsType) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/InfrastructureSpec_v1
+type InfrastructureSpecV1 struct {
+	HaPairCount                OptInt32  `json:"haPairCount"`
+	PreferredVsaInstanceFamily OptString `json:"preferredVsaInstanceFamily"`
+	VsaInstanceType            OptString `json:"vsaInstanceType"`
+	DataDiskType               OptString `json:"dataDiskType"`
+	SystemDiskType             OptString `json:"systemDiskType"`
+	MediatorDiskType           OptString `json:"mediatorDiskType"`
+	DataDiskCount              OptInt32  `json:"dataDiskCount"`
+}
+
+// GetHaPairCount returns the value of HaPairCount.
+func (s *InfrastructureSpecV1) GetHaPairCount() OptInt32 {
+	return s.HaPairCount
+}
+
+// GetPreferredVsaInstanceFamily returns the value of PreferredVsaInstanceFamily.
+func (s *InfrastructureSpecV1) GetPreferredVsaInstanceFamily() OptString {
+	return s.PreferredVsaInstanceFamily
+}
+
+// GetVsaInstanceType returns the value of VsaInstanceType.
+func (s *InfrastructureSpecV1) GetVsaInstanceType() OptString {
+	return s.VsaInstanceType
+}
+
+// GetDataDiskType returns the value of DataDiskType.
+func (s *InfrastructureSpecV1) GetDataDiskType() OptString {
+	return s.DataDiskType
+}
+
+// GetSystemDiskType returns the value of SystemDiskType.
+func (s *InfrastructureSpecV1) GetSystemDiskType() OptString {
+	return s.SystemDiskType
+}
+
+// GetMediatorDiskType returns the value of MediatorDiskType.
+func (s *InfrastructureSpecV1) GetMediatorDiskType() OptString {
+	return s.MediatorDiskType
+}
+
+// GetDataDiskCount returns the value of DataDiskCount.
+func (s *InfrastructureSpecV1) GetDataDiskCount() OptInt32 {
+	return s.DataDiskCount
+}
+
+// SetHaPairCount sets the value of HaPairCount.
+func (s *InfrastructureSpecV1) SetHaPairCount(val OptInt32) {
+	s.HaPairCount = val
+}
+
+// SetPreferredVsaInstanceFamily sets the value of PreferredVsaInstanceFamily.
+func (s *InfrastructureSpecV1) SetPreferredVsaInstanceFamily(val OptString) {
+	s.PreferredVsaInstanceFamily = val
+}
+
+// SetVsaInstanceType sets the value of VsaInstanceType.
+func (s *InfrastructureSpecV1) SetVsaInstanceType(val OptString) {
+	s.VsaInstanceType = val
+}
+
+// SetDataDiskType sets the value of DataDiskType.
+func (s *InfrastructureSpecV1) SetDataDiskType(val OptString) {
+	s.DataDiskType = val
+}
+
+// SetSystemDiskType sets the value of SystemDiskType.
+func (s *InfrastructureSpecV1) SetSystemDiskType(val OptString) {
+	s.SystemDiskType = val
+}
+
+// SetMediatorDiskType sets the value of MediatorDiskType.
+func (s *InfrastructureSpecV1) SetMediatorDiskType(val OptString) {
+	s.MediatorDiskType = val
+}
+
+// SetDataDiskCount sets the value of DataDiskCount.
+func (s *InfrastructureSpecV1) SetDataDiskCount(val OptInt32) {
+	s.DataDiskCount = val
+}
+
 // Read-only runtime network addressing for the pool - per-interface gateway IPs and LIF IPs.
 // Ref: #/components/schemas/IpConfig_v1
 type IpConfigV1 struct {
@@ -633,9 +1069,9 @@ type IpConfigV1 struct {
 	Gateways OptGatewaysV1 `json:"gateways"`
 	// Per-VM LIF IPs (distinct from the gateway IPs). One entry per VSA VM - vm1, vm2, ... up to vm6 for
 	// large deployments.
-	Lifs []VmLifsV1 `json:"lifs"`
+	VmLifs []VmLifV1 `json:"vmLifs"`
 	// SVM data-serving LIF IPs (ILB NAS IP and SAN IPs).
-	DataLifs OptDataLifsV1 `json:"dataLifs"`
+	DataLif OptDataLifV1 `json:"dataLif"`
 }
 
 // GetGateways returns the value of Gateways.
@@ -643,14 +1079,14 @@ func (s *IpConfigV1) GetGateways() OptGatewaysV1 {
 	return s.Gateways
 }
 
-// GetLifs returns the value of Lifs.
-func (s *IpConfigV1) GetLifs() []VmLifsV1 {
-	return s.Lifs
+// GetVmLifs returns the value of VmLifs.
+func (s *IpConfigV1) GetVmLifs() []VmLifV1 {
+	return s.VmLifs
 }
 
-// GetDataLifs returns the value of DataLifs.
-func (s *IpConfigV1) GetDataLifs() OptDataLifsV1 {
-	return s.DataLifs
+// GetDataLif returns the value of DataLif.
+func (s *IpConfigV1) GetDataLif() OptDataLifV1 {
+	return s.DataLif
 }
 
 // SetGateways sets the value of Gateways.
@@ -658,14 +1094,14 @@ func (s *IpConfigV1) SetGateways(val OptGatewaysV1) {
 	s.Gateways = val
 }
 
-// SetLifs sets the value of Lifs.
-func (s *IpConfigV1) SetLifs(val []VmLifsV1) {
-	s.Lifs = val
+// SetVmLifs sets the value of VmLifs.
+func (s *IpConfigV1) SetVmLifs(val []VmLifV1) {
+	s.VmLifs = val
 }
 
-// SetDataLifs sets the value of DataLifs.
-func (s *IpConfigV1) SetDataLifs(val OptDataLifsV1) {
-	s.DataLifs = val
+// SetDataLif sets the value of DataLif.
+func (s *IpConfigV1) SetDataLif(val OptDataLifV1) {
+	s.DataLif = val
 }
 
 // Customer-managed encryption key (CMEK) configuration.
@@ -1015,6 +1451,151 @@ func (o NilInt64) Or(d int64) int64 {
 	return d
 }
 
+// Ref: #/components/schemas/OntapCredential_v1
+type OntapCredentialV1 struct {
+	PasswordAuthCreds    OptPasswordAuthCredsV1    `json:"passwordAuthCreds"`
+	CertificateAuthCreds OptCertificateAuthCredsV1 `json:"certificateAuthCreds"`
+	// Active auth type for this credential set. CERT uses
+	// certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
+	// when unset.
+	ActiveAuthType OptOntapCredentialV1ActiveAuthType `json:"activeAuthType"`
+	// ONTAP role this credential set is provisioned for.
+	Role OntapCredentialV1Role `json:"role"`
+}
+
+// GetPasswordAuthCreds returns the value of PasswordAuthCreds.
+func (s *OntapCredentialV1) GetPasswordAuthCreds() OptPasswordAuthCredsV1 {
+	return s.PasswordAuthCreds
+}
+
+// GetCertificateAuthCreds returns the value of CertificateAuthCreds.
+func (s *OntapCredentialV1) GetCertificateAuthCreds() OptCertificateAuthCredsV1 {
+	return s.CertificateAuthCreds
+}
+
+// GetActiveAuthType returns the value of ActiveAuthType.
+func (s *OntapCredentialV1) GetActiveAuthType() OptOntapCredentialV1ActiveAuthType {
+	return s.ActiveAuthType
+}
+
+// GetRole returns the value of Role.
+func (s *OntapCredentialV1) GetRole() OntapCredentialV1Role {
+	return s.Role
+}
+
+// SetPasswordAuthCreds sets the value of PasswordAuthCreds.
+func (s *OntapCredentialV1) SetPasswordAuthCreds(val OptPasswordAuthCredsV1) {
+	s.PasswordAuthCreds = val
+}
+
+// SetCertificateAuthCreds sets the value of CertificateAuthCreds.
+func (s *OntapCredentialV1) SetCertificateAuthCreds(val OptCertificateAuthCredsV1) {
+	s.CertificateAuthCreds = val
+}
+
+// SetActiveAuthType sets the value of ActiveAuthType.
+func (s *OntapCredentialV1) SetActiveAuthType(val OptOntapCredentialV1ActiveAuthType) {
+	s.ActiveAuthType = val
+}
+
+// SetRole sets the value of Role.
+func (s *OntapCredentialV1) SetRole(val OntapCredentialV1Role) {
+	s.Role = val
+}
+
+// Active auth type for this credential set. CERT uses
+// certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
+// when unset.
+type OntapCredentialV1ActiveAuthType string
+
+const (
+	OntapCredentialV1ActiveAuthTypeCERT OntapCredentialV1ActiveAuthType = "CERT"
+	OntapCredentialV1ActiveAuthTypePWD  OntapCredentialV1ActiveAuthType = "PWD"
+)
+
+// AllValues returns all OntapCredentialV1ActiveAuthType values.
+func (OntapCredentialV1ActiveAuthType) AllValues() []OntapCredentialV1ActiveAuthType {
+	return []OntapCredentialV1ActiveAuthType{
+		OntapCredentialV1ActiveAuthTypeCERT,
+		OntapCredentialV1ActiveAuthTypePWD,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OntapCredentialV1ActiveAuthType) MarshalText() ([]byte, error) {
+	switch s {
+	case OntapCredentialV1ActiveAuthTypeCERT:
+		return []byte(s), nil
+	case OntapCredentialV1ActiveAuthTypePWD:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OntapCredentialV1ActiveAuthType) UnmarshalText(data []byte) error {
+	switch OntapCredentialV1ActiveAuthType(data) {
+	case OntapCredentialV1ActiveAuthTypeCERT:
+		*s = OntapCredentialV1ActiveAuthTypeCERT
+		return nil
+	case OntapCredentialV1ActiveAuthTypePWD:
+		*s = OntapCredentialV1ActiveAuthTypePWD
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// ONTAP role this credential set is provisioned for.
+type OntapCredentialV1Role string
+
+const (
+	OntapCredentialV1RoleONTAPMODE OntapCredentialV1Role = "ONTAP_MODE"
+	OntapCredentialV1RoleADMIN     OntapCredentialV1Role = "ADMIN"
+	OntapCredentialV1RoleVCMADMIN  OntapCredentialV1Role = "VCM_ADMIN"
+)
+
+// AllValues returns all OntapCredentialV1Role values.
+func (OntapCredentialV1Role) AllValues() []OntapCredentialV1Role {
+	return []OntapCredentialV1Role{
+		OntapCredentialV1RoleONTAPMODE,
+		OntapCredentialV1RoleADMIN,
+		OntapCredentialV1RoleVCMADMIN,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OntapCredentialV1Role) MarshalText() ([]byte, error) {
+	switch s {
+	case OntapCredentialV1RoleONTAPMODE:
+		return []byte(s), nil
+	case OntapCredentialV1RoleADMIN:
+		return []byte(s), nil
+	case OntapCredentialV1RoleVCMADMIN:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OntapCredentialV1Role) UnmarshalText(data []byte) error {
+	switch OntapCredentialV1Role(data) {
+	case OntapCredentialV1RoleONTAPMODE:
+		*s = OntapCredentialV1RoleONTAPMODE
+		return nil
+	case OntapCredentialV1RoleADMIN:
+		*s = OntapCredentialV1RoleADMIN
+		return nil
+	case OntapCredentialV1RoleVCMADMIN:
+		*s = OntapCredentialV1RoleVCMADMIN
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/OntapCredentials_v1
 type OntapCredentialsV1 struct {
 	// Credential set type - default, admin, or ontap-mode.
@@ -1107,9 +1688,9 @@ func (s *OntapCredentialsV1Type) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/OntapModeRbac_v1
 type OntapModeRbacV1 struct {
 	// GCS URL of the RBAC bootstrap file.
-	RbacFileURL OptString `json:"RbacFileURL"`
+	RbacFileURL OptString `json:"rbacFileURL"`
 	// SHA-256 checksum of the RBAC bootstrap file.
-	RbacFileCheckSum OptString `json:"RbacFileCheckSum"`
+	RbacFileCheckSum OptString `json:"rbacFileCheckSum"`
 }
 
 // GetRbacFileURL returns the value of RbacFileURL.
@@ -1274,6 +1855,52 @@ func (s *OperationV1Response) init() OperationV1Response {
 	return m
 }
 
+// NewOptAutoTieringConfigV1 returns new OptAutoTieringConfigV1 with value set to v.
+func NewOptAutoTieringConfigV1(v AutoTieringConfigV1) OptAutoTieringConfigV1 {
+	return OptAutoTieringConfigV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptAutoTieringConfigV1 is optional AutoTieringConfigV1.
+type OptAutoTieringConfigV1 struct {
+	Value AutoTieringConfigV1
+	Set   bool
+}
+
+// IsSet returns true if OptAutoTieringConfigV1 was set.
+func (o OptAutoTieringConfigV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptAutoTieringConfigV1) Reset() {
+	var v AutoTieringConfigV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptAutoTieringConfigV1) SetTo(v AutoTieringConfigV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptAutoTieringConfigV1) Get() (v AutoTieringConfigV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptAutoTieringConfigV1) Or(d AutoTieringConfigV1) AutoTieringConfigV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptBool returns new OptBool with value set to v.
 func NewOptBool(v bool) OptBool {
 	return OptBool{
@@ -1314,6 +1941,236 @@ func (o OptBool) Get() (v bool, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptBool) Or(d bool) bool {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCertificateAuthCredsV1 returns new OptCertificateAuthCredsV1 with value set to v.
+func NewOptCertificateAuthCredsV1(v CertificateAuthCredsV1) OptCertificateAuthCredsV1 {
+	return OptCertificateAuthCredsV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCertificateAuthCredsV1 is optional CertificateAuthCredsV1.
+type OptCertificateAuthCredsV1 struct {
+	Value CertificateAuthCredsV1
+	Set   bool
+}
+
+// IsSet returns true if OptCertificateAuthCredsV1 was set.
+func (o OptCertificateAuthCredsV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCertificateAuthCredsV1) Reset() {
+	var v CertificateAuthCredsV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCertificateAuthCredsV1) SetTo(v CertificateAuthCredsV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCertificateAuthCredsV1) Get() (v CertificateAuthCredsV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCertificateAuthCredsV1) Or(d CertificateAuthCredsV1) CertificateAuthCredsV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptClusterConfigV1 returns new OptClusterConfigV1 with value set to v.
+func NewOptClusterConfigV1(v ClusterConfigV1) OptClusterConfigV1 {
+	return OptClusterConfigV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptClusterConfigV1 is optional ClusterConfigV1.
+type OptClusterConfigV1 struct {
+	Value ClusterConfigV1
+	Set   bool
+}
+
+// IsSet returns true if OptClusterConfigV1 was set.
+func (o OptClusterConfigV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptClusterConfigV1) Reset() {
+	var v ClusterConfigV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptClusterConfigV1) SetTo(v ClusterConfigV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptClusterConfigV1) Get() (v ClusterConfigV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptClusterConfigV1) Or(d ClusterConfigV1) ClusterConfigV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptClusterLayoutV1 returns new OptClusterLayoutV1 with value set to v.
+func NewOptClusterLayoutV1(v ClusterLayoutV1) OptClusterLayoutV1 {
+	return OptClusterLayoutV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptClusterLayoutV1 is optional ClusterLayoutV1.
+type OptClusterLayoutV1 struct {
+	Value ClusterLayoutV1
+	Set   bool
+}
+
+// IsSet returns true if OptClusterLayoutV1 was set.
+func (o OptClusterLayoutV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptClusterLayoutV1) Reset() {
+	var v ClusterLayoutV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptClusterLayoutV1) SetTo(v ClusterLayoutV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptClusterLayoutV1) Get() (v ClusterLayoutV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptClusterLayoutV1) Or(d ClusterLayoutV1) ClusterLayoutV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptClusterShapeV1 returns new OptClusterShapeV1 with value set to v.
+func NewOptClusterShapeV1(v ClusterShapeV1) OptClusterShapeV1 {
+	return OptClusterShapeV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptClusterShapeV1 is optional ClusterShapeV1.
+type OptClusterShapeV1 struct {
+	Value ClusterShapeV1
+	Set   bool
+}
+
+// IsSet returns true if OptClusterShapeV1 was set.
+func (o OptClusterShapeV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptClusterShapeV1) Reset() {
+	var v ClusterShapeV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptClusterShapeV1) SetTo(v ClusterShapeV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptClusterShapeV1) Get() (v ClusterShapeV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptClusterShapeV1) Or(d ClusterShapeV1) ClusterShapeV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptClusterShapeV1Mode returns new OptClusterShapeV1Mode with value set to v.
+func NewOptClusterShapeV1Mode(v ClusterShapeV1Mode) OptClusterShapeV1Mode {
+	return OptClusterShapeV1Mode{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptClusterShapeV1Mode is optional ClusterShapeV1Mode.
+type OptClusterShapeV1Mode struct {
+	Value ClusterShapeV1Mode
+	Set   bool
+}
+
+// IsSet returns true if OptClusterShapeV1Mode was set.
+func (o OptClusterShapeV1Mode) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptClusterShapeV1Mode) Reset() {
+	var v ClusterShapeV1Mode
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptClusterShapeV1Mode) SetTo(v ClusterShapeV1Mode) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptClusterShapeV1Mode) Get() (v ClusterShapeV1Mode, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptClusterShapeV1Mode) Or(d ClusterShapeV1Mode) ClusterShapeV1Mode {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -1366,38 +2223,38 @@ func (o OptDailyScheduleV1) Or(d DailyScheduleV1) DailyScheduleV1 {
 	return d
 }
 
-// NewOptDataLifsV1 returns new OptDataLifsV1 with value set to v.
-func NewOptDataLifsV1(v DataLifsV1) OptDataLifsV1 {
-	return OptDataLifsV1{
+// NewOptDataLifV1 returns new OptDataLifV1 with value set to v.
+func NewOptDataLifV1(v DataLifV1) OptDataLifV1 {
+	return OptDataLifV1{
 		Value: v,
 		Set:   true,
 	}
 }
 
-// OptDataLifsV1 is optional DataLifsV1.
-type OptDataLifsV1 struct {
-	Value DataLifsV1
+// OptDataLifV1 is optional DataLifV1.
+type OptDataLifV1 struct {
+	Value DataLifV1
 	Set   bool
 }
 
-// IsSet returns true if OptDataLifsV1 was set.
-func (o OptDataLifsV1) IsSet() bool { return o.Set }
+// IsSet returns true if OptDataLifV1 was set.
+func (o OptDataLifV1) IsSet() bool { return o.Set }
 
 // Reset unsets value.
-func (o *OptDataLifsV1) Reset() {
-	var v DataLifsV1
+func (o *OptDataLifV1) Reset() {
+	var v DataLifV1
 	o.Value = v
 	o.Set = false
 }
 
 // SetTo sets value to v.
-func (o *OptDataLifsV1) SetTo(v DataLifsV1) {
+func (o *OptDataLifV1) SetTo(v DataLifV1) {
 	o.Set = true
 	o.Value = v
 }
 
 // Get returns value and boolean that denotes whether value was set.
-func (o OptDataLifsV1) Get() (v DataLifsV1, ok bool) {
+func (o OptDataLifV1) Get() (v DataLifV1, ok bool) {
 	if !o.Set {
 		return v, false
 	}
@@ -1405,7 +2262,7 @@ func (o OptDataLifsV1) Get() (v DataLifsV1, ok bool) {
 }
 
 // Or returns value if set, or given parameter if does not.
-func (o OptDataLifsV1) Or(d DataLifsV1) DataLifsV1 {
+func (o OptDataLifV1) Or(d DataLifV1) DataLifV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -1734,6 +2591,52 @@ func (o OptHourlyScheduleV1) Or(d HourlyScheduleV1) HourlyScheduleV1 {
 	return d
 }
 
+// NewOptInfrastructureSpecV1 returns new OptInfrastructureSpecV1 with value set to v.
+func NewOptInfrastructureSpecV1(v InfrastructureSpecV1) OptInfrastructureSpecV1 {
+	return OptInfrastructureSpecV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInfrastructureSpecV1 is optional InfrastructureSpecV1.
+type OptInfrastructureSpecV1 struct {
+	Value InfrastructureSpecV1
+	Set   bool
+}
+
+// IsSet returns true if OptInfrastructureSpecV1 was set.
+func (o OptInfrastructureSpecV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInfrastructureSpecV1) Reset() {
+	var v InfrastructureSpecV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInfrastructureSpecV1) SetTo(v InfrastructureSpecV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInfrastructureSpecV1) Get() (v InfrastructureSpecV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInfrastructureSpecV1) Or(d InfrastructureSpecV1) InfrastructureSpecV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptInt returns new OptInt with value set to v.
 func NewOptInt(v int) OptInt {
 	return OptInt{
@@ -1774,6 +2677,98 @@ func (o OptInt) Get() (v int, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptInt) Or(d int) int {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptInt32 returns new OptInt32 with value set to v.
+func NewOptInt32(v int32) OptInt32 {
+	return OptInt32{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInt32 is optional int32.
+type OptInt32 struct {
+	Value int32
+	Set   bool
+}
+
+// IsSet returns true if OptInt32 was set.
+func (o OptInt32) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInt32) Reset() {
+	var v int32
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInt32) SetTo(v int32) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInt32) Get() (v int32, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInt32) Or(d int32) int32 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptInt64 returns new OptInt64 with value set to v.
+func NewOptInt64(v int64) OptInt64 {
+	return OptInt64{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInt64 is optional int64.
+type OptInt64 struct {
+	Value int64
+	Set   bool
+}
+
+// IsSet returns true if OptInt64 was set.
+func (o OptInt64) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInt64) Reset() {
+	var v int64
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInt64) SetTo(v int64) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInt64) Get() (v int64, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInt64) Or(d int64) int64 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2325,6 +3320,52 @@ func (o OptNilString) Or(d string) string {
 	return d
 }
 
+// NewOptOntapCredentialV1ActiveAuthType returns new OptOntapCredentialV1ActiveAuthType with value set to v.
+func NewOptOntapCredentialV1ActiveAuthType(v OntapCredentialV1ActiveAuthType) OptOntapCredentialV1ActiveAuthType {
+	return OptOntapCredentialV1ActiveAuthType{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOntapCredentialV1ActiveAuthType is optional OntapCredentialV1ActiveAuthType.
+type OptOntapCredentialV1ActiveAuthType struct {
+	Value OntapCredentialV1ActiveAuthType
+	Set   bool
+}
+
+// IsSet returns true if OptOntapCredentialV1ActiveAuthType was set.
+func (o OptOntapCredentialV1ActiveAuthType) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOntapCredentialV1ActiveAuthType) Reset() {
+	var v OntapCredentialV1ActiveAuthType
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOntapCredentialV1ActiveAuthType) SetTo(v OntapCredentialV1ActiveAuthType) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOntapCredentialV1ActiveAuthType) Get() (v OntapCredentialV1ActiveAuthType, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOntapCredentialV1ActiveAuthType) Or(d OntapCredentialV1ActiveAuthType) OntapCredentialV1ActiveAuthType {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptOntapModeRbacV1 returns new OptOntapModeRbacV1 with value set to v.
 func NewOptOntapModeRbacV1(v OntapModeRbacV1) OptOntapModeRbacV1 {
 	return OptOntapModeRbacV1{
@@ -2463,6 +3504,52 @@ func (o OptOperationV1Response) Or(d OperationV1Response) OperationV1Response {
 	return d
 }
 
+// NewOptPasswordAuthCredsV1 returns new OptPasswordAuthCredsV1 with value set to v.
+func NewOptPasswordAuthCredsV1(v PasswordAuthCredsV1) OptPasswordAuthCredsV1 {
+	return OptPasswordAuthCredsV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptPasswordAuthCredsV1 is optional PasswordAuthCredsV1.
+type OptPasswordAuthCredsV1 struct {
+	Value PasswordAuthCredsV1
+	Set   bool
+}
+
+// IsSet returns true if OptPasswordAuthCredsV1 was set.
+func (o OptPasswordAuthCredsV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptPasswordAuthCredsV1) Reset() {
+	var v PasswordAuthCredsV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptPasswordAuthCredsV1) SetTo(v PasswordAuthCredsV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptPasswordAuthCredsV1) Get() (v PasswordAuthCredsV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptPasswordAuthCredsV1) Or(d PasswordAuthCredsV1) PasswordAuthCredsV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptPoolV1Mode returns new OptPoolV1Mode with value set to v.
 func NewOptPoolV1Mode(v PoolV1Mode) OptPoolV1Mode {
 	return OptPoolV1Mode{
@@ -2549,6 +3636,52 @@ func (o OptProtocolsV1) Get() (v ProtocolsV1, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptProtocolsV1) Or(d ProtocolsV1) ProtocolsV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptSeedConfigV1 returns new OptSeedConfigV1 with value set to v.
+func NewOptSeedConfigV1(v SeedConfigV1) OptSeedConfigV1 {
+	return OptSeedConfigV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptSeedConfigV1 is optional SeedConfigV1.
+type OptSeedConfigV1 struct {
+	Value SeedConfigV1
+	Set   bool
+}
+
+// IsSet returns true if OptSeedConfigV1 was set.
+func (o OptSeedConfigV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptSeedConfigV1) Reset() {
+	var v SeedConfigV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptSeedConfigV1) SetTo(v SeedConfigV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptSeedConfigV1) Get() (v SeedConfigV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptSeedConfigV1) Or(d SeedConfigV1) SeedConfigV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2783,6 +3916,34 @@ func (o OptWeeklyScheduleV1) Or(d WeeklyScheduleV1) WeeklyScheduleV1 {
 		return v
 	}
 	return d
+}
+
+// Ref: #/components/schemas/PasswordAuthCreds_v1
+type PasswordAuthCredsV1 struct {
+	// ONTAP username (e.g. root).
+	Username OptString `json:"username"`
+	// Secret Manager secret ID containing the password.
+	PasswordSecretId OptString `json:"passwordSecretId"`
+}
+
+// GetUsername returns the value of Username.
+func (s *PasswordAuthCredsV1) GetUsername() OptString {
+	return s.Username
+}
+
+// GetPasswordSecretId returns the value of PasswordSecretId.
+func (s *PasswordAuthCredsV1) GetPasswordSecretId() OptString {
+	return s.PasswordSecretId
+}
+
+// SetUsername sets the value of Username.
+func (s *PasswordAuthCredsV1) SetUsername(val OptString) {
+	s.Username = val
+}
+
+// SetPasswordSecretId sets the value of PasswordSecretId.
+func (s *PasswordAuthCredsV1) SetPasswordSecretId(val OptString) {
+	s.PasswordSecretId = val
 }
 
 type PoolCreateV1BadRequest ErrorResponseV1
@@ -3346,132 +4507,172 @@ func (s *RestrictedActionsV1Item) UnmarshalText(data []byte) error {
 	}
 }
 
-// Durable configuration for a VCM instance.  On first startup VCM is
-// bootstrapped with just dbConfig; the remaining deployment fields
-// (identity, network, ONTAP credentials, zones) are supplied later on
-// re-seed (after pool create / crash recovery).  Everything here is
-// intent/identity that cannot be re-derived from live cloud/ONTAP state;
-// runtime addressing (ipConfig) is read-only and reconstructed by VCM.
-// Ref: #/components/schemas/SetConfigRequest_v1
-type SetConfigRequestV1 struct {
-	DbConfig DbConfigV1 `json:"dbConfig"`
-	// Tenant project number where the VSA VMs run.
-	ServiceTenantProject OptString      `json:"serviceTenantProject"`
-	NetConfig            OptNetConfigV1 `json:"netConfig"`
-	// Read-only runtime network addressing (gateway IPs + LIF IPs).
-	IpConfig OptIpConfigV1 `json:"ipConfig"`
-	// ONTAP credential sets (one per type - default, admin, ontap-mode).
-	OntapCredentials []OntapCredentialsV1 `json:"ontapCredentials"`
-	// URI of the CA bundle used to verify ONTAP TLS connections.
-	CaUri OptString `json:"caUri"`
-	// The desired primary zone for the storage pool.
-	Zone1 OptString `json:"zone1"`
-	// The desired secondary zone for the storage pool.
-	Zone2 OptString `json:"zone2"`
-	// The desired zone for the storage pool mediator.
-	MediatorZone OptString `json:"mediatorZone"`
-	// Unique identifier for this VSA deployment / cluster.
-	DeploymentId OptString `json:"deploymentId"`
+// Immutable cluster identity and static bindings.
+// Ref: #/components/schemas/SeedConfig_v1
+type SeedConfigV1 struct {
+	DeploymentId            OptString           `json:"deploymentId"`
+	Zone1                   OptString           `json:"zone1"`
+	Zone2                   OptString           `json:"zone2"`
+	MediatorZone            OptString           `json:"mediatorZone"`
+	ConsumerProjectNum      OptInt64            `json:"consumerProjectNum"`
+	ServiceTenantProjectNum OptInt64            `json:"serviceTenantProjectNum"`
+	SnHostProjectNum        OptInt64            `json:"snHostProjectNum"`
+	NetConfig               OptNetConfigV1      `json:"netConfig"`
+	OntapCredentials        []OntapCredentialV1 `json:"ontapCredentials"`
+	CaUri                   OptString           `json:"caUri"`
+	OntapLicenseSecretUri   OptString           `json:"ontapLicenseSecretUri"`
+	ServiceAccountEmail     OptString           `json:"serviceAccountEmail"`
 }
 
-// GetDbConfig returns the value of DbConfig.
-func (s *SetConfigRequestV1) GetDbConfig() DbConfigV1 {
-	return s.DbConfig
-}
-
-// GetServiceTenantProject returns the value of ServiceTenantProject.
-func (s *SetConfigRequestV1) GetServiceTenantProject() OptString {
-	return s.ServiceTenantProject
-}
-
-// GetNetConfig returns the value of NetConfig.
-func (s *SetConfigRequestV1) GetNetConfig() OptNetConfigV1 {
-	return s.NetConfig
-}
-
-// GetIpConfig returns the value of IpConfig.
-func (s *SetConfigRequestV1) GetIpConfig() OptIpConfigV1 {
-	return s.IpConfig
-}
-
-// GetOntapCredentials returns the value of OntapCredentials.
-func (s *SetConfigRequestV1) GetOntapCredentials() []OntapCredentialsV1 {
-	return s.OntapCredentials
-}
-
-// GetCaUri returns the value of CaUri.
-func (s *SetConfigRequestV1) GetCaUri() OptString {
-	return s.CaUri
+// GetDeploymentId returns the value of DeploymentId.
+func (s *SeedConfigV1) GetDeploymentId() OptString {
+	return s.DeploymentId
 }
 
 // GetZone1 returns the value of Zone1.
-func (s *SetConfigRequestV1) GetZone1() OptString {
+func (s *SeedConfigV1) GetZone1() OptString {
 	return s.Zone1
 }
 
 // GetZone2 returns the value of Zone2.
-func (s *SetConfigRequestV1) GetZone2() OptString {
+func (s *SeedConfigV1) GetZone2() OptString {
 	return s.Zone2
 }
 
 // GetMediatorZone returns the value of MediatorZone.
-func (s *SetConfigRequestV1) GetMediatorZone() OptString {
+func (s *SeedConfigV1) GetMediatorZone() OptString {
 	return s.MediatorZone
 }
 
-// GetDeploymentId returns the value of DeploymentId.
-func (s *SetConfigRequestV1) GetDeploymentId() OptString {
-	return s.DeploymentId
+// GetConsumerProjectNum returns the value of ConsumerProjectNum.
+func (s *SeedConfigV1) GetConsumerProjectNum() OptInt64 {
+	return s.ConsumerProjectNum
 }
 
-// SetDbConfig sets the value of DbConfig.
-func (s *SetConfigRequestV1) SetDbConfig(val DbConfigV1) {
-	s.DbConfig = val
+// GetServiceTenantProjectNum returns the value of ServiceTenantProjectNum.
+func (s *SeedConfigV1) GetServiceTenantProjectNum() OptInt64 {
+	return s.ServiceTenantProjectNum
 }
 
-// SetServiceTenantProject sets the value of ServiceTenantProject.
-func (s *SetConfigRequestV1) SetServiceTenantProject(val OptString) {
-	s.ServiceTenantProject = val
+// GetSnHostProjectNum returns the value of SnHostProjectNum.
+func (s *SeedConfigV1) GetSnHostProjectNum() OptInt64 {
+	return s.SnHostProjectNum
 }
 
-// SetNetConfig sets the value of NetConfig.
-func (s *SetConfigRequestV1) SetNetConfig(val OptNetConfigV1) {
-	s.NetConfig = val
+// GetNetConfig returns the value of NetConfig.
+func (s *SeedConfigV1) GetNetConfig() OptNetConfigV1 {
+	return s.NetConfig
 }
 
-// SetIpConfig sets the value of IpConfig.
-func (s *SetConfigRequestV1) SetIpConfig(val OptIpConfigV1) {
-	s.IpConfig = val
+// GetOntapCredentials returns the value of OntapCredentials.
+func (s *SeedConfigV1) GetOntapCredentials() []OntapCredentialV1 {
+	return s.OntapCredentials
 }
 
-// SetOntapCredentials sets the value of OntapCredentials.
-func (s *SetConfigRequestV1) SetOntapCredentials(val []OntapCredentialsV1) {
-	s.OntapCredentials = val
+// GetCaUri returns the value of CaUri.
+func (s *SeedConfigV1) GetCaUri() OptString {
+	return s.CaUri
 }
 
-// SetCaUri sets the value of CaUri.
-func (s *SetConfigRequestV1) SetCaUri(val OptString) {
-	s.CaUri = val
+// GetOntapLicenseSecretUri returns the value of OntapLicenseSecretUri.
+func (s *SeedConfigV1) GetOntapLicenseSecretUri() OptString {
+	return s.OntapLicenseSecretUri
+}
+
+// GetServiceAccountEmail returns the value of ServiceAccountEmail.
+func (s *SeedConfigV1) GetServiceAccountEmail() OptString {
+	return s.ServiceAccountEmail
+}
+
+// SetDeploymentId sets the value of DeploymentId.
+func (s *SeedConfigV1) SetDeploymentId(val OptString) {
+	s.DeploymentId = val
 }
 
 // SetZone1 sets the value of Zone1.
-func (s *SetConfigRequestV1) SetZone1(val OptString) {
+func (s *SeedConfigV1) SetZone1(val OptString) {
 	s.Zone1 = val
 }
 
 // SetZone2 sets the value of Zone2.
-func (s *SetConfigRequestV1) SetZone2(val OptString) {
+func (s *SeedConfigV1) SetZone2(val OptString) {
 	s.Zone2 = val
 }
 
 // SetMediatorZone sets the value of MediatorZone.
-func (s *SetConfigRequestV1) SetMediatorZone(val OptString) {
+func (s *SeedConfigV1) SetMediatorZone(val OptString) {
 	s.MediatorZone = val
 }
 
-// SetDeploymentId sets the value of DeploymentId.
-func (s *SetConfigRequestV1) SetDeploymentId(val OptString) {
-	s.DeploymentId = val
+// SetConsumerProjectNum sets the value of ConsumerProjectNum.
+func (s *SeedConfigV1) SetConsumerProjectNum(val OptInt64) {
+	s.ConsumerProjectNum = val
+}
+
+// SetServiceTenantProjectNum sets the value of ServiceTenantProjectNum.
+func (s *SeedConfigV1) SetServiceTenantProjectNum(val OptInt64) {
+	s.ServiceTenantProjectNum = val
+}
+
+// SetSnHostProjectNum sets the value of SnHostProjectNum.
+func (s *SeedConfigV1) SetSnHostProjectNum(val OptInt64) {
+	s.SnHostProjectNum = val
+}
+
+// SetNetConfig sets the value of NetConfig.
+func (s *SeedConfigV1) SetNetConfig(val OptNetConfigV1) {
+	s.NetConfig = val
+}
+
+// SetOntapCredentials sets the value of OntapCredentials.
+func (s *SeedConfigV1) SetOntapCredentials(val []OntapCredentialV1) {
+	s.OntapCredentials = val
+}
+
+// SetCaUri sets the value of CaUri.
+func (s *SeedConfigV1) SetCaUri(val OptString) {
+	s.CaUri = val
+}
+
+// SetOntapLicenseSecretUri sets the value of OntapLicenseSecretUri.
+func (s *SeedConfigV1) SetOntapLicenseSecretUri(val OptString) {
+	s.OntapLicenseSecretUri = val
+}
+
+// SetServiceAccountEmail sets the value of ServiceAccountEmail.
+func (s *SeedConfigV1) SetServiceAccountEmail(val OptString) {
+	s.ServiceAccountEmail = val
+}
+
+// Durable configuration for a VCM instance.  On first startup VCM is
+// bootstrapped with just stateDbConfig; clusterConfig is supplied later on
+// re-seed. SeedConfig carries cluster identity and static bindings,
+// requiredShape carries the CLH technical blueprint, and actualLayout
+// carries volatile topology including runtime addressing.
+// Ref: #/components/schemas/SetConfigRequest_v1
+type SetConfigRequestV1 struct {
+	StateDbConfig StateDbConfigV1    `json:"stateDbConfig"`
+	ClusterConfig OptClusterConfigV1 `json:"clusterConfig"`
+}
+
+// GetStateDbConfig returns the value of StateDbConfig.
+func (s *SetConfigRequestV1) GetStateDbConfig() StateDbConfigV1 {
+	return s.StateDbConfig
+}
+
+// GetClusterConfig returns the value of ClusterConfig.
+func (s *SetConfigRequestV1) GetClusterConfig() OptClusterConfigV1 {
+	return s.ClusterConfig
+}
+
+// SetStateDbConfig sets the value of StateDbConfig.
+func (s *SetConfigRequestV1) SetStateDbConfig(val StateDbConfigV1) {
+	s.StateDbConfig = val
+}
+
+// SetClusterConfig sets the value of ClusterConfig.
+func (s *SetConfigRequestV1) SetClusterConfig(val OptClusterConfigV1) {
+	s.ClusterConfig = val
 }
 
 // SetConfigV1OK is response for SetConfigV1 operation.
@@ -3883,6 +5084,60 @@ func (s *SpConfigV1) SetIsHeterogeneous(val OptBool) {
 	s.IsHeterogeneous = val
 }
 
+// Cloud Spanner configuration for the VCM go-workflows durable backend.
+// The Spanner instance must already exist.
+// Ref: #/components/schemas/StateDbConfig_v1
+type StateDbConfigV1 struct {
+	// Monotonic version of the state DB configuration set by CLH.
+	Version OptInt64 `json:"version"`
+	// GCP project hosting the Spanner instance.
+	Project string `json:"project"`
+	// Cloud Spanner instance ID (must already exist).
+	Instance string `json:"instance"`
+	// Cloud Spanner database name.
+	Database string `json:"database"`
+}
+
+// GetVersion returns the value of Version.
+func (s *StateDbConfigV1) GetVersion() OptInt64 {
+	return s.Version
+}
+
+// GetProject returns the value of Project.
+func (s *StateDbConfigV1) GetProject() string {
+	return s.Project
+}
+
+// GetInstance returns the value of Instance.
+func (s *StateDbConfigV1) GetInstance() string {
+	return s.Instance
+}
+
+// GetDatabase returns the value of Database.
+func (s *StateDbConfigV1) GetDatabase() string {
+	return s.Database
+}
+
+// SetVersion sets the value of Version.
+func (s *StateDbConfigV1) SetVersion(val OptInt64) {
+	s.Version = val
+}
+
+// SetProject sets the value of Project.
+func (s *StateDbConfigV1) SetProject(val string) {
+	s.Project = val
+}
+
+// SetInstance sets the value of Instance.
+func (s *StateDbConfigV1) SetInstance(val string) {
+	s.Instance = val
+}
+
+// SetDatabase sets the value of Database.
+func (s *StateDbConfigV1) SetDatabase(val string) {
+	s.Database = val
+}
+
 type V1CreateIgroupBadRequest ErrorResponseV1
 
 func (*V1CreateIgroupBadRequest) v1CreateIgroupRes() {}
@@ -4076,8 +5331,8 @@ type V1UpdateVolumeUnauthorized ErrorResponseV1
 func (*V1UpdateVolumeUnauthorized) v1UpdateVolumeRes() {}
 
 // Per-interface LIF IPs for a single node - a VSA VM (vm1, vm2, ...) or the mediator.
-// Ref: #/components/schemas/VmLifs_v1
-type VmLifsV1 struct {
+// Ref: #/components/schemas/VmLif_v1
+type VmLifV1 struct {
 	// Node identifier - vm1, vm2, ... up to vm6, or mediator.
 	Name             OptString `json:"name"`
 	Clus             OptString `json:"clus"`
@@ -4090,72 +5345,72 @@ type VmLifsV1 struct {
 }
 
 // GetName returns the value of Name.
-func (s *VmLifsV1) GetName() OptString {
+func (s *VmLifV1) GetName() OptString {
 	return s.Name
 }
 
 // GetClus returns the value of Clus.
-func (s *VmLifsV1) GetClus() OptString {
+func (s *VmLifV1) GetClus() OptString {
 	return s.Clus
 }
 
 // GetIc returns the value of Ic.
-func (s *VmLifsV1) GetIc() OptString {
+func (s *VmLifV1) GetIc() OptString {
 	return s.Ic
 }
 
 // GetIntercluster returns the value of Intercluster.
-func (s *VmLifsV1) GetIntercluster() OptString {
+func (s *VmLifV1) GetIntercluster() OptString {
 	return s.Intercluster
 }
 
 // GetNodemgmt returns the value of Nodemgmt.
-func (s *VmLifsV1) GetNodemgmt() OptString {
+func (s *VmLifV1) GetNodemgmt() OptString {
 	return s.Nodemgmt
 }
 
 // GetNodemgmtinternal returns the value of Nodemgmtinternal.
-func (s *VmLifsV1) GetNodemgmtinternal() OptString {
+func (s *VmLifV1) GetNodemgmtinternal() OptString {
 	return s.Nodemgmtinternal
 }
 
 // GetRsm returns the value of Rsm.
-func (s *VmLifsV1) GetRsm() OptString {
+func (s *VmLifV1) GetRsm() OptString {
 	return s.Rsm
 }
 
 // SetName sets the value of Name.
-func (s *VmLifsV1) SetName(val OptString) {
+func (s *VmLifV1) SetName(val OptString) {
 	s.Name = val
 }
 
 // SetClus sets the value of Clus.
-func (s *VmLifsV1) SetClus(val OptString) {
+func (s *VmLifV1) SetClus(val OptString) {
 	s.Clus = val
 }
 
 // SetIc sets the value of Ic.
-func (s *VmLifsV1) SetIc(val OptString) {
+func (s *VmLifV1) SetIc(val OptString) {
 	s.Ic = val
 }
 
 // SetIntercluster sets the value of Intercluster.
-func (s *VmLifsV1) SetIntercluster(val OptString) {
+func (s *VmLifV1) SetIntercluster(val OptString) {
 	s.Intercluster = val
 }
 
 // SetNodemgmt sets the value of Nodemgmt.
-func (s *VmLifsV1) SetNodemgmt(val OptString) {
+func (s *VmLifV1) SetNodemgmt(val OptString) {
 	s.Nodemgmt = val
 }
 
 // SetNodemgmtinternal sets the value of Nodemgmtinternal.
-func (s *VmLifsV1) SetNodemgmtinternal(val OptString) {
+func (s *VmLifV1) SetNodemgmtinternal(val OptString) {
 	s.Nodemgmtinternal = val
 }
 
 // SetRsm sets the value of Rsm.
-func (s *VmLifsV1) SetRsm(val OptString) {
+func (s *VmLifV1) SetRsm(val OptString) {
 	s.Rsm = val
 }
 
@@ -4423,6 +5678,65 @@ func (s *VolumeV1SecurityStyle) UnmarshalText(data []byte) error {
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
+}
+
+// Ref: #/components/schemas/VsaNode_v1
+type VsaNodeV1 struct {
+	VmName           OptString        `json:"vmName"`
+	GceInstanceId    OptString        `json:"gceInstanceId"`
+	NodeManagementIp OptString        `json:"nodeManagementIp"`
+	VmSerialNumber   OptString        `json:"vmSerialNumber"`
+	Disks            []AttachedDiskV1 `json:"disks"`
+}
+
+// GetVmName returns the value of VmName.
+func (s *VsaNodeV1) GetVmName() OptString {
+	return s.VmName
+}
+
+// GetGceInstanceId returns the value of GceInstanceId.
+func (s *VsaNodeV1) GetGceInstanceId() OptString {
+	return s.GceInstanceId
+}
+
+// GetNodeManagementIp returns the value of NodeManagementIp.
+func (s *VsaNodeV1) GetNodeManagementIp() OptString {
+	return s.NodeManagementIp
+}
+
+// GetVmSerialNumber returns the value of VmSerialNumber.
+func (s *VsaNodeV1) GetVmSerialNumber() OptString {
+	return s.VmSerialNumber
+}
+
+// GetDisks returns the value of Disks.
+func (s *VsaNodeV1) GetDisks() []AttachedDiskV1 {
+	return s.Disks
+}
+
+// SetVmName sets the value of VmName.
+func (s *VsaNodeV1) SetVmName(val OptString) {
+	s.VmName = val
+}
+
+// SetGceInstanceId sets the value of GceInstanceId.
+func (s *VsaNodeV1) SetGceInstanceId(val OptString) {
+	s.GceInstanceId = val
+}
+
+// SetNodeManagementIp sets the value of NodeManagementIp.
+func (s *VsaNodeV1) SetNodeManagementIp(val OptString) {
+	s.NodeManagementIp = val
+}
+
+// SetVmSerialNumber sets the value of VmSerialNumber.
+func (s *VsaNodeV1) SetVmSerialNumber(val OptString) {
+	s.VmSerialNumber = val
+}
+
+// SetDisks sets the value of Disks.
+func (s *VsaNodeV1) SetDisks(val []AttachedDiskV1) {
+	s.Disks = val
 }
 
 // If enabled (snapshotsToKeep > 0), make a snapshot every week at a specific day or days, defaults

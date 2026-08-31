@@ -281,6 +281,7 @@ func DeriveOntapCredentials(creds []VCMOntapCredential, caURI string) *datamodel
 	poolCreds := &datamodel.PoolCredentials{
 		SecretID:      cred.SecretID,
 		CertificateID: cred.CertificateID,
+		Username:      cred.Username,
 		CaURI:         caURI,
 	}
 	switch {
@@ -299,6 +300,7 @@ type VCMOntapCredential struct {
 	Type          string
 	SecretID      string
 	CertificateID string
+	Username      string
 }
 
 // VCMPoolWorkflowResult is the terminal result of the VCM pool-create workflow.
