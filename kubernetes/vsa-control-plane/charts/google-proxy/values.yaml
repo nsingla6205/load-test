@@ -62,6 +62,8 @@ poCmekEnabled: false # Feature flag: allow CMEK/KMS on PO pool create
 regionalSupportEnabled: true
 # When true, core/worker use registered address ranges for pool subnet creation; set to match global.coreConfig.addressSpaceMgmtEnabled in deployments.
 addressSpaceMgmtEnabled: "false"
+# When true, google-proxy resolves interclusterLIF parent CIDRs at pool create; set to match workerConfig.icLifAddressSpaceEnabled in deployments.
+icLifAddressSpaceEnabled: "false"
 # Must match global.coreConfig.sequenceWorkflowResilienceEnabled on core and worker at rollout.
 sequenceWorkflowResilienceEnabled: true
 filesProtocolSupport: true

@@ -104,6 +104,8 @@ spec:
               value: "true"
             - name: ADDRESS_SPACE_MGMT_ENABLED
               value: "true"
+            - name: IC_LIF_ADDRESS_SPACE_ENABLED
+              value: "false"
             - name: NUMBER_OF_HA_PAIRS_LARGE_CAPACITY
               value: "6"
             - name: EXPERIMENTAL_NUMBER_OF_HA_PAIRS_LARGE_CAPACITY

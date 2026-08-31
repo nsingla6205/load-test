@@ -88,6 +88,7 @@ data:
   EXPERIMENTAL_CUSTOM_HA_LARGE_VOLUME_ALLOWLISTED_ACCOUNTS: "{{ index .Values "experimentalCustomHaLargeVolumeAllowlistedAccounts" }}"
   IS_ALL_SQUASH_ENABLED: "{{ index .Values "isAllSquashEnabled" }}"
   ADDRESS_SPACE_MGMT_ENABLED: "{{ index .Values "addressSpaceMgmtEnabled" }}"
+  IC_LIF_ADDRESS_SPACE_ENABLED: "{{ index .Values "icLifAddressSpaceEnabled" }}"
   SEQUENCE_WORKFLOW_RESILIENCE_ENABLED: "{{ index .Values "sequenceWorkflowResilienceEnabled" }}"
   MIN_QUOTA_IN_BYTES_POOL: "{{ index .Values "minQuotaInBytesPool" }}"
   MAX_QUOTA_IN_BYTES_POOL: "{{ index .Values "maxQuotaInBytesPool" }}"
