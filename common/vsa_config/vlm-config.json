@@ -14,8 +14,8 @@
       "mediator_zone": ""
     },
     "images": {
-      "vsa_image_name": "x-9-19-1",
-      "mediator_image_name": "cvo-mediator-x-9-19-1"
+      "vsa_image_name": "x-9-19-1p2",
+      "mediator_image_name": "cvo-mediator-x-9-19-1p2"
     },
     "tags": "",
     "labels": {},

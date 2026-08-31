@@ -65,7 +65,7 @@ addressSpaceMgmtEnabled: "false"
 # Must match global.coreConfig.sequenceWorkflowResilienceEnabled on core and worker at rollout.
 sequenceWorkflowResilienceEnabled: true
 filesProtocolSupport: true
-ontapVersionDetails: "9.19.1"
+ontapVersionDetails: "9.19.1P2"
 ontapVersionDetailsExperimental: ""
 # "" implies only block support is enabled. #"*" implies all accounts are allowlisted for files protocol support
 # "Comma-separated list of account IDs" implies only those accounts are allowlisted for files protocol support

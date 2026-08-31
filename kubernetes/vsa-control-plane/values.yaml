@@ -111,7 +111,7 @@ global:
     finishProjectBackoffCoefficient: "1.0"
     localRegion: ""
     coreApiClientTransportSchema: "https"
-    ontapVersionDetails: "9.19.1"
+    ontapVersionDetails: "9.19.1P2"
     ontapVersionDetailsExperimental: ""
     skipOntapImageVersionMatch: "false"
     # Below variable is to be enabled when DB rollback is required

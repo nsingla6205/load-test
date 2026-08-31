@@ -103,6 +103,12 @@ ontapVersionVlmImageMappings:
     vlmImageDigest: "sha256:69f53f22a49dd354414ba461e77fd0abff1afb0d5417784cd60b348ec246aab2"
     secondary: true
     pullPolicy: IfNotPresent
+  - ontapVersion: "9.19.1P2"
+    vlmImageName: "vlm-worker"
+    vlmImageTag: "R9.19.1Px_8258295"
+    vlmImageDigest: "sha256:624af541e3e6a09c5b202c7f7e089d34543ec8e67998ac964b3d9728a1a11e30"
+    secondary: true
+    pullPolicy: IfNotPresent
 
 podAnnotations: {}
 
