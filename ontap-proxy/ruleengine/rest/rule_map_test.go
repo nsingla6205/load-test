@@ -780,6 +780,100 @@ func TestStorageVolumesRule(t *testing.T) {
 	})
 }
 
+func TestFPolicyPersistentStoreRule_AutosizeMode(t *testing.T) {
+	const path = "/api/protocols/fpolicy/4f643fb4-fd21-11e8-ae49-0050568e2c1e/persistent-stores"
+
+	rules := GetProxyRules()
+	rule, ok := rules["/api/protocols/fpolicy/{uuid}/persistent-stores"]
+	assert.True(t, ok, "Should have a rule for FPolicy persistent-store collection")
+
+	tests := []struct {
+		name        string
+		body        string
+		wantAllowed bool
+	}{
+		{
+			name:        "WhenAutosizeModeOmitted_ShouldAllow",
+			body:        `{"name":"ps1","volume":"psvol1","size":1073741824}`,
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeOff_ShouldAllow",
+			body:        `{"name":"ps1","volume":"psvol1","size":1073741824,"autosize_mode":"off"}`,
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeGrow_ShouldDeny",
+			body:        `{"name":"ps1","volume":"psvol1","size":1073741824,"autosize_mode":"grow"}`,
+			wantAllowed: false,
+		},
+		{
+			name:        "WhenAutosizeModeGrowShrink_ShouldDeny",
+			body:        `{"name":"ps1","volume":"psvol1","size":1073741824,"autosize_mode":"grow_shrink"}`,
+			wantAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			action := rule.GetAction(req)
+			assert.NotNil(t, action)
+			allowed, reason := action.ShouldAllow(req)
+			assert.Equal(t, tt.wantAllowed, allowed, "reason: %s", reason)
+		})
+	}
+}
+
+func TestPrivateCLIFPolicyPersistentStoreRule_AutosizeMode(t *testing.T) {
+	const path = "/api/private/cli/vserver/fpolicy/persistent-store"
+
+	rules := GetProxyRules()
+	rule, ok := rules[path]
+	assert.True(t, ok, "Should have a rule for private CLI FPolicy persistent-store")
+
+	tests := []struct {
+		name        string
+		body        string
+		wantAllowed bool
+	}{
+		{
+			name:        "WhenAutosizeModeOmitted_ShouldAllow",
+			body:        `{"vserver":"vs1","persistent-store":"ps1","volume":"psvol1","size":"1GB"}`,
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeOff_ShouldAllow",
+			body:        `{"vserver":"vs1","persistent-store":"ps1","volume":"psvol1","size":"1GB","autosize-mode":"off"}`,
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeGrow_ShouldDeny",
+			body:        `{"vserver":"vs1","persistent-store":"ps1","volume":"psvol1","size":"1GB","autosize-mode":"grow"}`,
+			wantAllowed: false,
+		},
+		{
+			name:        "WhenAutosizeModeGrowShrink_ShouldDeny",
+			body:        `{"vserver":"vs1","persistent-store":"ps1","volume":"psvol1","size":"1GB","autosize-mode":"grow_shrink"}`,
+			wantAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			action := rule.GetAction(req)
+			assert.NotNil(t, action)
+			allowed, reason := action.ShouldAllow(req)
+			assert.Equal(t, tt.wantAllowed, allowed, "reason: %s", reason)
+		})
+	}
+}
+
 func TestStorageVolumesUUIDRule(t *testing.T) {
 	// Save and restore originals
 	origValidateVolumeModification := validateVolumeModification

@@ -889,6 +889,55 @@ func TestVolumeCreateRule_AutosizeBlocked(t *testing.T) {
 	}
 }
 
+func TestFPolicyPersistentStoreCreateRule_AutosizeMode(t *testing.T) {
+	rule := findRule("vserver fpolicy persistent-store create")
+	if rule == nil {
+		t.Fatal("vserver fpolicy persistent-store create rule not found")
+	}
+
+	baseCommand := "vserver fpolicy persistent-store create -vserver vs1 -persistent-store ps1 -volume psvol1 -size 1GB"
+	tests := []struct {
+		name        string
+		input       string
+		wantAllowed bool
+	}{
+		{
+			name:        "WhenAutosizeModeOmitted_ShouldAllow",
+			input:       baseCommand,
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeOff_ShouldAllow",
+			input:       baseCommand + " -autosize-mode off",
+			wantAllowed: true,
+		},
+		{
+			name:        "WhenAutosizeModeGrow_ShouldDeny",
+			input:       baseCommand + " -autosize-mode grow",
+			wantAllowed: false,
+		},
+		{
+			name:        "WhenAutosizeModeGrowShrink_ShouldDeny",
+			input:       baseCommand + " -autosize-mode grow_shrink",
+			wantAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, err := ParseCLICommand(tt.input)
+			if err != nil {
+				t.Fatalf("ParseCLICommand(%q): %v", tt.input, err)
+			}
+
+			allowed, reason := EvaluateRule(rule, cmd)
+			if allowed != tt.wantAllowed {
+				t.Errorf("allowed = %v, want %v; reason: %s", allowed, tt.wantAllowed, reason)
+			}
+		})
+	}
+}
+
 // TestVolumeModifyRule_AutosizeBlocked verifies that the volume/vol modify rules deny any
 // attempt to enable autosize (via -autosize-mode grow/grow_shrink, autosize threshold/limit
 // args, or -autosize-reset) while still allowing modifies that omit autosize args or explicitly

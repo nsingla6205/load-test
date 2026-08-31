@@ -271,4 +271,15 @@ func TestFindMatchingRule(t *testing.T) {
 		assert.Equal(t, "/api/cluster/counter/tables/*", path)
 		assert.NotNil(t, rule.GET)
 	})
+
+	t.Run("WhenFPolicyPersistentStorePath_ShouldNormalizeSVMUUIDAndMatchRule", func(t *testing.T) {
+		logger := util.GetLogger(context.Background())
+		requestPath := "/ontap/api/protocols/fpolicy/4f643fb4-fd21-11e8-ae49-0050568e2c1e/persistent-stores"
+
+		rule, path, found := findMatchingRule(requestPath, logger)
+
+		assert.True(t, found)
+		assert.Equal(t, "/api/protocols/fpolicy/{uuid}/persistent-stores", path)
+		assert.NotNil(t, rule.POST)
+	})
 }

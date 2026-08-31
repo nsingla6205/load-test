@@ -383,6 +383,14 @@ var cliRules = []CLIRule{
 		Allow:   false,
 	},
 
+	// FPolicy persistent-store creation creates a FlexVol. Keep autosize disabled so its
+	// logical capacity commitment remains deterministic.
+	{
+		Pattern:   "vserver fpolicy persistent-store create",
+		Allow:     true,
+		Condition: CLIIfPresentThenValue("-autosize-mode", "off"),
+	},
+
 	// FlexCache Volumes - corresponds to /api/storage/flexcache/flexcaches in rule_map.go
 	// Supports "volume flexcache", "vol flexcache", and bare "flexcache" forms
 	{

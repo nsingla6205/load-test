@@ -178,6 +178,19 @@ func GetProxyRules() map[string]Rule {
 			},
 		},
 
+		// FPolicy persistent-store creation creates a FlexVol. Keep autosize disabled so its
+		// logical capacity commitment remains deterministic.
+		"/api/protocols/fpolicy/{uuid}/persistent-stores": {
+			GET: Allow{Name: "Allow FPolicy persistent-store listing"},
+			POST: When{
+				Name:      "FPolicy persistent-store creation validation",
+				Condition: IfPresentThenValue("autosize_mode", "off"),
+				IsTrue:    Allow{Name: "Allow FPolicy persistent-store creation"},
+			},
+			PATCH:  DenyAll{},
+			DELETE: DenyAll{},
+		},
+
 		// Storage LUNs - block thick provisioning (space-reserved LUNs).
 		// REST equivalent of CLI `lun create -space-reserve disabled` is space.guarantee.requested=false
 		// (true => space-reserved/thick, false => thin). The proxy rejects any explicit request for a
@@ -407,6 +420,19 @@ func GetProxyRules() map[string]Rule {
 				Name: "SVM deletion not allowed",
 			},
 		},
+		// FPolicy persistent-store creation via private CLI REST path.
+		// Field names use CLI convention (hyphens), so autosize-mode not autosize_mode.
+		"/api/private/cli/vserver/fpolicy/persistent-store": {
+			GET: Allow{Name: "Allow FPolicy persistent-store listing"},
+			POST: When{
+				Name:      "Private CLI FPolicy persistent-store creation validation",
+				Condition: IfPresentThenValue("autosize-mode", "off"),
+				IsTrue:    Allow{Name: "Allow FPolicy persistent-store creation"},
+			},
+			PATCH:  DenyAll{},
+			DELETE: DenyAll{},
+		},
+
 		"/api/private/cli/vserver/object-store-server/bucket": {
 			GET: Allow{Name: "Allow private CLI NAS bucket GET"},
 			POST: When{
