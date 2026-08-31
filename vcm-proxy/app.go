@@ -23,6 +23,7 @@ import (
 	vcm "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
 	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -70,6 +71,10 @@ func main() {
 	logger.Info("PROVIDER env set for in-process VLM workflows", "provider", vcmCloudProvider)
 
 	cfg := vcmconfig.LoadServerConfig()
+	if err := env.ValidateVCMEnvironmentVariables(); err != nil {
+		logger.Error("Failed to validate environment variables", "error", err.Error())
+		os.Exit(1)
+	}
 
 	shutdown, err := log.SetupOpenTelemetry(ctx)
 	if err != nil {

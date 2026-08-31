@@ -176,9 +176,9 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 
 	// Drive the local-env credential branch so provision() resolves ONTAP
 	// credentials from env instead of the (unregistered) Secret Manager activity.
-	origEnv, origPw := runningEnv, localOntapPassword
-	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
-	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	reqID := uuid.NewString()
 	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
@@ -205,9 +205,9 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
 	t.Setenv("PROVIDER", vlm.GCPCloud)
 
-	origEnv, origPw := runningEnv, localOntapPassword
-	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
-	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	origPayloadFn := poolCreateOperationResponsePayloadFn
 	poolCreateOperationResponsePayloadFn = func(string) (*string, error) {

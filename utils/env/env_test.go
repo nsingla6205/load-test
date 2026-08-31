@@ -2560,6 +2560,166 @@ func TestValidateCertificateLifetime(t *testing.T) {
 	})
 }
 
+func TestValidateVCMEnvironmentVariables(t *testing.T) {
+	origEnv := Env
+	origRegion := Region
+	origCaName := CaName
+	origCaPoolName := CaPoolName
+	origCaPoolDeployedProjectID := CaPoolDeployedProjectID
+	origSecretManagerProjectID := SecretManagerProjectID
+	origVsaImageProject := VsaImageProject
+	origVsaImageName := VsaImageName
+	origVsaMediatorImageProject := VsaMediatorImageProject
+	origVsaMediatorImageName := VsaMediatorImageName
+	origGCPServiceURL := GCPServiceURL
+	origGCPAuthAcceptedServiceAccounts := GCPAuthAcceptedServiceAccounts
+	origVCMLocalUsername := VCMLocalUsername
+	origVCMLocalPassword := VCMLocalPassword
+	t.Cleanup(func() {
+		Env = origEnv
+		Region = origRegion
+		CaName = origCaName
+		CaPoolName = origCaPoolName
+		CaPoolDeployedProjectID = origCaPoolDeployedProjectID
+		SecretManagerProjectID = origSecretManagerProjectID
+		VsaImageProject = origVsaImageProject
+		VsaImageName = origVsaImageName
+		VsaMediatorImageProject = origVsaMediatorImageProject
+		VsaMediatorImageName = origVsaMediatorImageName
+		GCPServiceURL = origGCPServiceURL
+		GCPAuthAcceptedServiceAccounts = origGCPAuthAcceptedServiceAccounts
+		VCMLocalUsername = origVCMLocalUsername
+		VCMLocalPassword = origVCMLocalPassword
+	})
+
+	setValidVCMEnvironment := func(tt *testing.T) {
+		tt.Helper()
+		Env = "prod"
+		Region = "us-central1"
+		CaName = "test-ca"
+		CaPoolName = "test-ca-pool"
+		CaPoolDeployedProjectID = "test-ca-project"
+		SecretManagerProjectID = "secret-project"
+		VsaImageProject = "gcnv-images"
+		VsaImageName = "vsa-image"
+		VsaMediatorImageProject = "gcnv-mediator-images"
+		VsaMediatorImageName = "mediator-image"
+		GCPServiceURL = "https://vcm.example.com"
+		GCPAuthAcceptedServiceAccounts = "vcm@example.iam.gserviceaccount.com"
+		VCMLocalUsername = ""
+		VCMLocalPassword = ""
+	}
+
+	t.Run("WhenAllEnvironmentVariablesAreSet", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		assert.NoError(tt, ValidateVCMEnvironmentVariables())
+	})
+
+	t.Run("WhenRegionIsEmpty", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		Region = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "LOCAL_REGION must be set for authentication")
+	})
+
+	t.Run("WhenSecretManagerProjectIDIsEmpty", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		SecretManagerProjectID = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SECRET_MANAGER_PROJECT_ID must be set for authentication")
+	})
+
+	t.Run("WhenVsaImageProjectIsEmpty", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		VsaImageProject = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VSA_IMAGE_PROJECT must be set for VCM configuration")
+	})
+
+	t.Run("WhenVsaImageNameIsEmpty", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		VsaImageName = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VSA_IMAGE_NAME must be set for VCM configuration")
+	})
+
+	t.Run("WhenVsaMediatorImageProjectIsEmpty", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		VsaMediatorImageProject = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VSA_MEDIATOR_IMAGE_PROJECT must be set for VCM configuration")
+	})
+
+	t.Run("WhenImageOverlayIsIncomplete", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		VsaMediatorImageName = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VSA_MEDIATOR_IMAGE_NAME must be set for VCM configuration")
+	})
+
+	t.Run("WhenLocalRequiresUsernameAndPassword", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		Env = "local"
+		GCPServiceURL = ""
+		GCPAuthAcceptedServiceAccounts = ""
+		VCMLocalUsername = ""
+		VCMLocalPassword = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VCM_LOCAL_ONTAP_USERNAME must be set for local VCM configuration")
+
+		VCMLocalUsername = "admin"
+		err = ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "VCM_LOCAL_ONTAP_PASSWORD must be set for local VCM configuration")
+
+		VCMLocalPassword = "password"
+		assert.NoError(tt, ValidateVCMEnvironmentVariables())
+	})
+
+	t.Run("WhenDeployedProxyAuthConfigIsIncomplete", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		GCPServiceURL = ""
+
+		err := ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "GCP_SERVICE_URL must be set for VCM authentication")
+
+		GCPServiceURL = "https://vcm.example.com"
+		GCPAuthAcceptedServiceAccounts = ""
+		err = ValidateVCMEnvironmentVariables()
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "GCP_AUTH_ACCEPTED_SERVICE_ACCOUNTS must be set for VCM authentication")
+	})
+
+	t.Run("WhenLocalSkipsCAAndGCPAuthConfig", func(tt *testing.T) {
+		setValidVCMEnvironment(tt)
+		Env = "local"
+		CaName = ""
+		CaPoolName = ""
+		CaPoolDeployedProjectID = ""
+		GCPServiceURL = ""
+		GCPAuthAcceptedServiceAccounts = ""
+		VCMLocalUsername = "admin"
+		VCMLocalPassword = "password"
+
+		assert.NoError(tt, ValidateVCMEnvironmentVariables())
+	})
+}
+
 func TestValidateEnvironmentVariables_OCIRequiresWorkerTaskQueue(t *testing.T) {
 	origH, origW := Hyperscaler, WorkerTaskQueue
 	t.Cleanup(func() {

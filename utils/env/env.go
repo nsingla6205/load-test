@@ -553,6 +553,15 @@ var (
 	CloudDNSCacheTTL             = GetInt64("CLOUD_DNS_CACHE_TTL", 300) // Default to 300 seconds
 	PrivateKeyBits               = GetInt("PRIVATE_KEY_BITS", 4096)     // Default to 4096 bits for RSA keys
 
+	VsaImageProject                = GetString("VSA_IMAGE_PROJECT", "")
+	VsaImageName                   = GetString("VSA_IMAGE_NAME", "")
+	VsaMediatorImageProject        = GetString("VSA_MEDIATOR_IMAGE_PROJECT", "")
+	VsaMediatorImageName           = GetString("VSA_MEDIATOR_IMAGE_NAME", "")
+	GCPServiceURL                  = GetString("GCP_SERVICE_URL", "")
+	GCPAuthAcceptedServiceAccounts = GetString("GCP_AUTH_ACCEPTED_SERVICE_ACCOUNTS", "")
+	VCMLocalUsername               = GetString("VCM_LOCAL_ONTAP_USERNAME", "")
+	VCMLocalPassword               = GetString("VCM_LOCAL_ONTAP_PASSWORD", "")
+
 	MgmtFirewallSourceRanges = GetString("MGMT_FIREWALL_SOURCE_RANGES", "")
 	RsmFirewallSourceRanges  = GetString("RSM_FIREWALL_SOURCE_RANGES", "")
 	IcFirewallSourceRanges   = GetString("IC_FIREWALL_SOURCE_RANGES", "")
@@ -894,6 +903,50 @@ func ValidateEnvironmentVariables() error {
 		return errors.New(500, "WORKER_TASK_QUEUE must be set for worker configuration")
 	}
 	return validateNetworkEnvVariables()
+}
+
+// ValidateVCMEnvironmentVariables checks that required VCM environment variables are set.
+func ValidateVCMEnvironmentVariables() error {
+	if Region == "" {
+		return errors.New(500, "LOCAL_REGION must be set for authentication")
+	}
+
+	// Check in the future whether SecretManagerProjectID can be derived from SetConfig credentials.
+	if SecretManagerProjectID == "" {
+		return errors.New(500, "SECRET_MANAGER_PROJECT_ID must be set for authentication")
+	}
+	if VsaImageProject == "" {
+		return errors.New(500, "VSA_IMAGE_PROJECT must be set for VCM configuration")
+	}
+
+	// These values may be baked into vlm-config.json, and Helm normally injects them.
+	// Requiring the overlays prevents cluster creation from reaching VLM without explicit image configuration.
+	if VsaImageName == "" {
+		return errors.New(500, "VSA_IMAGE_NAME must be set for VCM configuration")
+	}
+	if VsaMediatorImageProject == "" {
+		return errors.New(500, "VSA_MEDIATOR_IMAGE_PROJECT must be set for VCM configuration")
+	}
+	if VsaMediatorImageName == "" {
+		return errors.New(500, "VSA_MEDIATOR_IMAGE_NAME must be set for VCM configuration")
+	}
+
+	if Env == "local" {
+		if VCMLocalUsername == "" {
+			return errors.New(500, "VCM_LOCAL_ONTAP_USERNAME must be set for local VCM configuration")
+		}
+		if VCMLocalPassword == "" {
+			return errors.New(500, "VCM_LOCAL_ONTAP_PASSWORD must be set for local VCM configuration")
+		}
+		return nil
+	}
+	if GCPServiceURL == "" {
+		return errors.New(500, "GCP_SERVICE_URL must be set for VCM authentication")
+	}
+	if GCPAuthAcceptedServiceAccounts == "" {
+		return errors.New(500, "GCP_AUTH_ACCEPTED_SERVICE_ACCOUNTS must be set for VCM authentication")
+	}
+	return nil
 }
 
 func validateNetworkEnvVariables() error {

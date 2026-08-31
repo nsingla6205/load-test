@@ -47,9 +47,9 @@ const (
 )
 
 var (
-	runningEnv         = env.GetString("ENV", "")
-	localOntapUsername = env.GetString("USERNAME", "")
-	localOntapPassword = env.GetString("PASSWORD", "")
+	runningEnv            = env.GetString("ENV", "")
+	vcmLocalOntapUsername = env.GetString("VCM_LOCAL_ONTAP_USERNAME", "")
+	vcmLocalOntapPassword = env.GetString("VCM_LOCAL_ONTAP_PASSWORD", "")
 
 	vmrsConfigPath = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
 
@@ -394,7 +394,7 @@ func (wf *createPoolWorkflow) checkDeadline(_ *orchestrator.Context, _ string) e
 // a cert-auth cluster must resolve the certificate rather than a password.
 func resolveOntapCredentials(ctx *orchestrator.Context, poolCreds *datamodel.PoolCredentials) (vlm.OntapCredentials, error) {
 	if isLocalEnv() {
-		return vlm.OntapCredentials{AdminPassword: localOntapPassword}, nil
+		return vlm.OntapCredentials{AdminPassword: vcmLocalOntapPassword}, nil
 	}
 
 	var ca *activities.VCMCredentialActivity
@@ -473,8 +473,8 @@ func svmUUIDFromVLMConfig(cfg vlm.VLMConfig, svmName string) string {
 func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials {
 	if isLocalEnv() {
 		return &datamodel.PoolCredentials{
-			Username: localOntapUsername,
-			Password: localOntapPassword,
+			Username: vcmLocalOntapUsername,
+			Password: vcmLocalOntapPassword,
 			AuthType: env.USERNAME_PWD,
 		}
 	}

@@ -119,9 +119,9 @@ func runRebuildWFE2E(t *testing.T, store activities.VLMConfigStore, params *comm
 
 func TestRebuildVLMConfigWorkflowE2E_HappyPath_LocalEnv(t *testing.T) {
 	t.Setenv("PROVIDER", vlm.GCPCloud)
-	origEnv, origPw := runningEnv, localOntapPassword
-	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
-	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	store := &fakeRebuildStore{}
 	err := runRebuildWFE2E(t, store, rebuildWFParams("dep-1"), func(reg orchestrator.WorkflowRegistrar) {
@@ -180,9 +180,9 @@ func TestRebuildVLMConfigWorkflowE2E_CertCredPath(t *testing.T) {
 
 func TestRebuildVLMConfigWorkflowE2E_ChildError_FinalizesFailure(t *testing.T) {
 	t.Setenv("PROVIDER", vlm.GCPCloud)
-	origEnv, origPw := runningEnv, localOntapPassword
-	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
-	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	store := &fakeRebuildStore{}
 	err := runRebuildWFE2E(t, store, rebuildWFParams("dep-3"), func(reg orchestrator.WorkflowRegistrar) {
@@ -207,9 +207,9 @@ func TestRebuildVLMConfigWorkflowE2E_NilParams(t *testing.T) {
 // context is used, so a nil context is safe.
 
 func TestResolveVLMConfigCredentials_LocalEnv_UsesLocalPassword(t *testing.T) {
-	origEnv, origPw := runningEnv, localOntapPassword
-	runningEnv, localOntapPassword = localEnv, "local-admin-pw"
-	t.Cleanup(func() { runningEnv, localOntapPassword = origEnv, origPw })
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	creds, err := resolveVLMConfigCredentials(nil, &commonparams.GetVLMConfigParams{DeploymentID: "dep-1"})
 	require.NoError(t, err)
