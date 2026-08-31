@@ -10,38 +10,36 @@ import (
 	"github.com/google/uuid"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-const (
-	ociSvmNamePrefix         = "oci-svm-"
-	ociSvmNameMaxTotalLength = 40
+var (
+	ociSvmNamePrefix         = env.GetString("OCI_SVM_NAME_PREFIX", "oci-svm-")
+	ociSvmNameMaxInputLength = env.GetInt("OCI_SVM_NAME_MAX_INPUT_LENGTH", 32)
 )
 
-func ociSvmNameMaxSuffixLength(prefix string) int {
-	return ociSvmNameMaxTotalLength - len(prefix)
-}
-
-func errMsgSvmNamePrefix(prefix string) string {
-	return fmt.Sprintf("name must start with %s", prefix)
-}
-
-func errMsgSvmNameTooShort(prefix string) string {
-	return fmt.Sprintf("name must be longer than the %s prefix", prefix)
-}
-
-func errMsgSvmNameTooLong(maxTotal int) string {
-	return fmt.Sprintf("name must be at most %d characters", maxTotal)
+func errMsgSvmNameTooLong(maxLen int) string {
+	return fmt.Sprintf("name must be at most %d characters", maxLen)
 }
 
 func generateSvmResourceName(name string) string {
 	trimmed := strings.TrimSpace(name)
+	prefix := ociSvmNamePrefix
 	if trimmed == "" {
-		return ociSvmNamePrefix + strings.ReplaceAll(uuid.NewString(), "-", "")
+		suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+		maxSuffix := ociSvmNameMaxInputLength
+		if maxSuffix < 0 {
+			maxSuffix = 0
+		}
+		if len(suffix) > maxSuffix {
+			suffix = suffix[:maxSuffix]
+		}
+		return prefix + suffix
 	}
-	return trimmed
+	return prefix + trimmed
 }
 
 func validateSvmResourceName(name string) string {
@@ -49,14 +47,8 @@ func validateSvmResourceName(name string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if !strings.HasPrefix(trimmed, ociSvmNamePrefix) {
-		return errMsgSvmNamePrefix(ociSvmNamePrefix)
-	}
-	if len(trimmed) <= len(ociSvmNamePrefix) {
-		return errMsgSvmNameTooShort(ociSvmNamePrefix)
-	}
-	if len(trimmed) > ociSvmNameMaxTotalLength {
-		return errMsgSvmNameTooLong(ociSvmNameMaxTotalLength)
+	if len(trimmed) > ociSvmNameMaxInputLength {
+		return errMsgSvmNameTooLong(ociSvmNameMaxInputLength)
 	}
 	return ""
 }

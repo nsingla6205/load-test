@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -18,10 +17,10 @@ import (
 )
 
 const (
-	testSvmOCID       = "ocid1.svm.oc1..svm"
-	testSvmInputName  = "oci-svm-testsvm1"
-	testSvmFullName   = testSvmInputName
-	testTenancyOCID   = "ocid1.tenancy.oc1..tenancy"
+	testSvmOCID      = "ocid1.svm.oc1..svm"
+	testSvmInputName = "testsvm1"
+	testSvmFullName  = "oci-svm-testsvm1"
+	testTenancyOCID  = "ocid1.tenancy.oc1..tenancy"
 )
 
 // validSvmAdminPassword returns a fixed valid OCIOCIDVersionRef for update-SVM tests.
@@ -194,8 +193,12 @@ func TestCreateSvmByPool(t *testing.T) {
 		assert.Equal(tt, "wf-null-name", headers.Response.WorkflowId)
 	})
 
-	t.Run("returns 400 when name does not start with oci-svm-", func(tt *testing.T) {
-		h := &Handler{}
+	t.Run("returns 202 and prefixes provided name", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return p.Name == "oci-svm-my-svm"
+		})).Return("wf-prefix-name", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          testSvmOCID,
 			Name:             ociserver.NewOptString("my-svm"),
@@ -204,16 +207,17 @@ func TestCreateSvmByPool(t *testing.T) {
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
-		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), badReq.Response.ErrorMessage)
+		assert.Equal(tt, "wf-prefix-name", headers.Response.WorkflowId)
 	})
 
-	t.Run("returns 400 when name is prefix only", func(tt *testing.T) {
+	t.Run("returns 400 when input name exceeds 32 characters", func(tt *testing.T) {
 		h := &Handler{}
+		suffix := strings.Repeat("a", ociSvmNameMaxInputLength+1)
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          testSvmOCID,
-			Name:             ociserver.NewOptString("oci-svm-"),
+			Name:             ociserver.NewOptString(suffix),
 			SvmAdminPassword: validSvmAdminPasswordOpt(),
 		}
 
@@ -221,35 +225,20 @@ func TestCreateSvmByPool(t *testing.T) {
 		assert.NoError(tt, err)
 		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, errMsgSvmNameTooShort(ociSvmNamePrefix), badReq.Response.ErrorMessage)
+		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxInputLength), badReq.Response.ErrorMessage)
 	})
 
-	t.Run("returns 400 when name exceeds max length", func(tt *testing.T) {
-		h := &Handler{}
-		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix)+1)
-		req := &ociserver.CreateSvmRequest{
-			SvmOCID:          testSvmOCID,
-			Name:             ociserver.NewOptString("oci-svm-" + suffix),
-			SvmAdminPassword: validSvmAdminPasswordOpt(),
-		}
-
-		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
-		assert.NoError(tt, err)
-		badReq, ok := res.(*ociserver.CreateSvmByPoolBadRequest)
-		assert.True(tt, ok)
-		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxTotalLength), badReq.Response.ErrorMessage)
-	})
-
-	t.Run("returns 202 when name is at max length", func(tt *testing.T) {
+	t.Run("returns 202 when name is at max input length", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
-		maxName := ociSvmNamePrefix + strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix))
+		suffix := strings.Repeat("a", ociSvmNameMaxInputLength)
+		maxName := ociSvmNamePrefix + suffix
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
-			return p.Name == maxName && len(p.Name) == ociSvmNameMaxTotalLength
+			return p.Name == maxName
 		})).Return("wf-max-name", nil)
 		h := &Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          testSvmOCID,
-			Name:             ociserver.NewOptString(maxName),
+			Name:             ociserver.NewOptString(suffix),
 			SvmAdminPassword: validSvmAdminPasswordOpt(),
 		}
 
@@ -776,32 +765,49 @@ func TestUpdateSvm(t *testing.T) {
 }
 
 func TestGenerateSvmResourceName(t *testing.T) {
-	uuidSuffix := regexp.MustCompile(`^[0-9a-f]{32}$`)
-
-	t.Run("uses provided name as-is", func(tt *testing.T) {
-		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("oci-svm-my-svm"))
+	t.Run("always prepends prefix to provided name", func(tt *testing.T) {
+		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("my-svm"))
 	})
 
-	t.Run("trims provided name", func(tt *testing.T) {
-		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("  oci-svm-my-svm  "))
+	t.Run("trims then prepends prefix", func(tt *testing.T) {
+		assert.Equal(tt, "oci-svm-my-svm", generateSvmResourceName("  my-svm  "))
+	})
+
+	t.Run("prepends prefix even when input already has prefix", func(tt *testing.T) {
+		assert.Equal(tt, "oci-svm-oci-svm-my-svm", generateSvmResourceName("oci-svm-my-svm"))
 	})
 
 	t.Run("generates uuid suffix when omitted", func(tt *testing.T) {
 		name := generateSvmResourceName("")
-		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
-		assert.True(tt, uuidSuffix.MatchString(name[len(ociSvmNamePrefix):]), "suffix %q", name[len(ociSvmNamePrefix):])
+		assert.Equal(tt, len(ociSvmNamePrefix)+ociSvmNameMaxInputLength, len(name))
+		assert.Regexp(tt, fmt.Sprintf("^[0-9a-f]{%d}$", ociSvmNameMaxInputLength), name[len(ociSvmNamePrefix):])
 	})
 
 	t.Run("generates uuid suffix when blank", func(tt *testing.T) {
 		name := generateSvmResourceName("   ")
-		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
-		assert.True(tt, uuidSuffix.MatchString(name[len(ociSvmNamePrefix):]), "suffix %q", name[len(ociSvmNamePrefix):])
+		assert.Equal(tt, len(ociSvmNamePrefix)+ociSvmNameMaxInputLength, len(name))
+		assert.Regexp(tt, fmt.Sprintf("^[0-9a-f]{%d}$", ociSvmNameMaxInputLength), name[len(ociSvmNamePrefix):])
 	})
 
 	t.Run("uuid suffix is unique per call", func(tt *testing.T) {
 		first := generateSvmResourceName("")
 		second := generateSvmResourceName("")
 		assert.NotEqual(tt, first, second)
+	})
+
+	t.Run("uses configured prefix", func(tt *testing.T) {
+		orig := ociSvmNamePrefix
+		ociSvmNamePrefix = "custom-"
+		tt.Cleanup(func() { ociSvmNamePrefix = orig })
+		assert.Equal(tt, "custom-my-svm", generateSvmResourceName("my-svm"))
+	})
+
+	t.Run("uses configured max input length", func(tt *testing.T) {
+		orig := ociSvmNameMaxInputLength
+		ociSvmNameMaxInputLength = 4
+		tt.Cleanup(func() { ociSvmNameMaxInputLength = orig })
+		assert.Empty(tt, validateSvmResourceName("abcd"))
+		assert.Equal(tt, errMsgSvmNameTooLong(4), validateSvmResourceName("abcde"))
 	})
 }
 
@@ -814,44 +820,17 @@ func TestValidateSvmResourceName(t *testing.T) {
 		assert.Empty(tt, validateSvmResourceName("   "))
 	})
 
-	t.Run("allows oci-svm- prefix", func(tt *testing.T) {
-		assert.Empty(tt, validateSvmResourceName("oci-svm-my-svm"))
+	t.Run("allows unprefixed name", func(tt *testing.T) {
+		assert.Empty(tt, validateSvmResourceName("my-svm"))
 	})
 
-	t.Run("rejects mixed case prefix", func(tt *testing.T) {
-		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("OCI-SVM-my-svm"))
+	t.Run("allows max input length", func(tt *testing.T) {
+		suffix := strings.Repeat("a", ociSvmNameMaxInputLength)
+		assert.Empty(tt, validateSvmResourceName(suffix))
 	})
 
-	t.Run("rejects name without prefix", func(tt *testing.T) {
-		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("my-svm"))
-	})
-
-	t.Run("rejects oci-svm- prefix only without suffix", func(tt *testing.T) {
-		assert.Equal(tt, errMsgSvmNameTooShort(ociSvmNamePrefix), validateSvmResourceName("oci-svm-"))
-	})
-
-	t.Run("rejects oci-svm without trailing hyphen", func(tt *testing.T) {
-		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("oci-svm"))
-	})
-
-	t.Run("rejects mixed case prefix only", func(tt *testing.T) {
-		assert.Equal(tt, errMsgSvmNamePrefix(ociSvmNamePrefix), validateSvmResourceName("OCI-SVM-"))
-	})
-
-	t.Run("allows one character after prefix", func(tt *testing.T) {
-		assert.Empty(tt, validateSvmResourceName("oci-svm-a"))
-	})
-
-	t.Run("allows max length name", func(tt *testing.T) {
-		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix))
-		name := ociSvmNamePrefix + suffix
-		assert.Equal(tt, ociSvmNameMaxTotalLength, len(name))
-		assert.Empty(tt, validateSvmResourceName(name))
-	})
-
-	t.Run("rejects name exceeding max length", func(tt *testing.T) {
-		suffix := strings.Repeat("a", ociSvmNameMaxSuffixLength(ociSvmNamePrefix)+1)
-		name := ociSvmNamePrefix + suffix
-		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxTotalLength), validateSvmResourceName(name))
+	t.Run("rejects name exceeding 32 character input limit", func(tt *testing.T) {
+		suffix := strings.Repeat("a", ociSvmNameMaxInputLength+1)
+		assert.Equal(tt, errMsgSvmNameTooLong(ociSvmNameMaxInputLength), validateSvmResourceName(suffix))
 	})
 }

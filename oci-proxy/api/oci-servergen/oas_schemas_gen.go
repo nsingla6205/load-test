@@ -576,11 +576,11 @@ func (*CreateSvmDefaultErrorStatusCodeWithHeaders) createSvmByPoolRes() {}
 type CreateSvmRequest struct {
 	// OCI SVM resource OCID for the SVM being created.
 	SvmOCID string `json:"svmOCID"`
-	// Optional ONTAP SVM resource name. When provided, must start with
-	// `oci-svm-` (for example, `oci-svm-my-svm`) and be at most 40
-	// characters total (the `oci-svm-` prefix plus up to 32 characters).
-	// When omitted, a unique name is generated automatically with the
-	// `oci-svm-` prefix (40 characters total).
+	// Optional ONTAP SVM resource name suffix, at most
+	// `OCI_SVM_NAME_MAX_INPUT_LENGTH` characters (default 32).
+	// The server always prepends `OCI_SVM_NAME_PREFIX` (default `oci-svm-`).
+	// For example, `my-svm` becomes `oci-svm-my-svm`. When omitted, a
+	// unique name is generated with the same prefix.
 	Name OptString `json:"name"`
 	// OCI secret reference for the SVM admin password.
 	SvmAdminPassword OptOCIOCIDVersionRef `json:"svmAdminPassword"`

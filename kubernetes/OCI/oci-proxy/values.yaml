@@ -36,6 +36,8 @@ vsaAuthType: 2  # 0 : username/password, 1: password-based auth, 2: certificate 
 enableOciVsaCertificateRotation: "true"
 ociCertificateRotationCronExpression: "0 0 * * *"
 enableAdminTempPassword: "true"
+ociSvmNamePrefix: "oci-svm-"
+ociSvmNameMaxInputLength: 32
 ociAdminTempPasswordExpiryHours: 24
 enableOciTempPasswordResetCron: "true"
 ociTempPasswordVerificationCronExpression: "0 0 * * *"

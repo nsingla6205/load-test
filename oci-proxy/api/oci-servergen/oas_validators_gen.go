@@ -127,7 +127,7 @@ func (s *CreateSvmRequest) Validate() error {
 				if err := (validate.String{
 					MinLength:    0,
 					MinLengthSet: false,
-					MaxLength:    40,
+					MaxLength:    32,
 					MaxLengthSet: true,
 					Email:        false,
 					Hostname:     false,

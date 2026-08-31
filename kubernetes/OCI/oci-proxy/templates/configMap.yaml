@@ -50,6 +50,8 @@ data:
   OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION: "{{ index .Values "ociCertificateRotationCronExpression" }}"
   # Gates the reset-password (admin temporary password) API; keep in sync with the vcp-worker chart.
   ENABLE_ADMIN_TEMP_PASSWORD: "{{ index .Values "enableAdminTempPassword" }}"
+  OCI_SVM_NAME_PREFIX: "{{ index .Values "ociSvmNamePrefix" }}"
+  OCI_SVM_NAME_MAX_INPUT_LENGTH: "{{ index .Values "ociSvmNameMaxInputLength" }}"
   # Expiry window (hours) reported as passwordExpiresAt by the reset-password API.
   OCI_ADMIN_TEMP_PASSWORD_EXPIRY_HOURS: "{{ index .Values "ociAdminTempPasswordExpiryHours" }}"
   ENABLE_OCI_TEMP_PASSWORD_RESET_CRON: "{{ index .Values "enableOciTempPasswordResetCron" }}"
