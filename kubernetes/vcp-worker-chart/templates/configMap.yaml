@@ -380,6 +380,9 @@ data:
   VOLUME_RECONCILIATION_EXPERT_MODE_ACTIVITIES_MAX_ATTEMPTS: {{$.Values.workerConfig.volumeReconciliationExpertModeActivitiesMaxAttempts | quote }}
   VOLUME_RECONCILIATION_EXPERT_MODE_START_TO_CLOSE_TIMEOUT_SEC: {{$.Values.workerConfig.volumeReconciliationExpertModeStartToCloseTimeoutSec | quote }}
   VOLUME_RECONCILIATION_EXPERT_MODE_BACKOFF_COEFFICIENT: {{$.Values.workerConfig.volumeReconciliationExpertModeBackoffCoefficient | quote }}
+  VOLUME_RECONCILIATION_EXPERT_MODE_POLL_BACKOFF_COEFFICIENT: {{$.Values.workerConfig.volumeReconciliationExpertModePollBackoffCoefficient | quote }}
+  VOLUME_RECONCILIATION_EXPERT_MODE_INITIAL_INTERVAL_SEC: {{$.Values.workerConfig.volumeReconciliationExpertModeInitialIntervalSec | quote }}
+  VOLUME_RECONCILIATION_EXPERT_MODE_POLL_SCHEDULE_TO_CLOSE_SEC: {{$.Values.workerConfig.volumeReconciliationExpertModePollScheduleToCloseSec | quote }}
   EXPERT_MODE_FLEXCLONE_SPLIT_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.expertModeFlexCloneSplitWorkflowTimeoutMinutes | quote }}
   EXPERT_MODE_FLEXCLONE_SPLIT_POLL_INTERVAL_SEC: {{$.Values.workerConfig.expertModeFlexCloneSplitPollIntervalSec | quote }}
   EXPERT_MODE_CREATING_GHOST_MAX_AGE_MINUTES: {{$.Values.workerConfig.expertModeCreatingGhostMaxAgeMinutes | quote }}

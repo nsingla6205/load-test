@@ -16,10 +16,46 @@ import (
 )
 
 var (
-	VolumeReconciliationExpertModeRetryMaxAttempts       = env.GetUint64("VOLUME_RECONCILIATION_EXPERT_MODE_ACTIVITIES_MAX_ATTEMPTS", 8)
+	// VolumeReconciliationExpertModeRetryMaxAttempts bounds the ONTAP-check activity in the expert
+	// mode volume reconciliation workflows (create/delete/update). With a constant 2s poll interval,
+	// 90 attempts spans ~3 minutes of retry delays (89 × 2s, excluding per-attempt runtime).
+	VolumeReconciliationExpertModeRetryMaxAttempts       = env.GetUint64("VOLUME_RECONCILIATION_EXPERT_MODE_ACTIVITIES_MAX_ATTEMPTS", 90)
 	VolumeReconciliationExpertModeStartToCloseTimeoutSec = env.GetUint64("VOLUME_RECONCILIATION_EXPERT_MODE_START_TO_CLOSE_TIMEOUT_SEC", 60)
-	VolumeReconciliationExpertModeBackoffCoefficient     = env.GetFloat64("VOLUME_RECONCILIATION_EXPERT_MODE_BACKOFF_COEFFICIENT", 1.5)
+	// VolumeReconciliationExpertModeBackoffCoefficient (1.5) is the exponential backoff coefficient for
+	// the generic (non-poll) expert mode activities: node resolve and DB writes in the reconciliation
+	// workflows, plus GetNode/complete-in-DB in volume_flexclone_split_workflow.go. Only the
+	// reconciliation ONTAP-check poll overrides it (see PollBackoffCoefficient below).
+	VolumeReconciliationExpertModeBackoffCoefficient = env.GetFloat64("VOLUME_RECONCILIATION_EXPERT_MODE_BACKOFF_COEFFICIENT", 1.5)
+	// VolumeReconciliationExpertModePollBackoffCoefficient is 1.0 so the ONTAP-check poll uses a
+	// constant interval (VolumeReconciliationExpertModeInitialIntervalSec) instead of exponential backoff.
+	VolumeReconciliationExpertModePollBackoffCoefficient = env.GetFloat64("VOLUME_RECONCILIATION_EXPERT_MODE_POLL_BACKOFF_COEFFICIENT", 1.0)
+	// VolumeReconciliationExpertModeInitialIntervalSec is the constant delay between ONTAP-check poll
+	// retries for the expert mode volume reconciliation workflows (create/delete/update): every 2s.
+	VolumeReconciliationExpertModeInitialIntervalSec = env.GetUint64("VOLUME_RECONCILIATION_EXPERT_MODE_INITIAL_INTERVAL_SEC", 2)
+	// VolumeReconciliationExpertModePollScheduleToCloseSec caps the total wall-clock the ONTAP-check
+	// poll can consume across all retries (default 5m). The 90-attempt / 2s schedule normally finishes
+	// in ~3 minutes, but a hung or slow ONTAP (each attempt burning the full StartToCloseTimeout) could
+	// otherwise stretch 90 attempts into ~90 minutes of held worker slots; this bounds that tail.
+	VolumeReconciliationExpertModePollScheduleToCloseSec = env.GetUint64("VOLUME_RECONCILIATION_EXPERT_MODE_POLL_SCHEDULE_TO_CLOSE_SEC", 300)
 )
+
+// expertModeReconciliationRetryPolicies returns two independent policies: generic (shared values,
+// for node-resolve/DB-write activities) and poll (constant 2s interval for the ONTAP-check only).
+func expertModeReconciliationRetryPolicies(rp *workflows.WorkflowRetryPolicy) (generic, poll *temporal.RetryPolicy) {
+	generic = &temporal.RetryPolicy{
+		InitialInterval:        rp.InitialInterval,
+		BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
+		MaximumInterval:        rp.MaximumInterval,
+		MaximumAttempts:        int32(rp.MaximumAttempts),
+		NonRetryableErrorTypes: []string{"PanicError"},
+	}
+	pollPolicy := *generic
+	pollPolicy.InitialInterval = time.Duration(VolumeReconciliationExpertModeInitialIntervalSec) * time.Second
+	pollPolicy.BackoffCoefficient = VolumeReconciliationExpertModePollBackoffCoefficient
+	pollPolicy.MaximumInterval = pollPolicy.InitialInterval
+	pollPolicy.MaximumAttempts = int32(VolumeReconciliationExpertModeRetryMaxAttempts)
+	return generic, &pollPolicy
+}
 
 type volumeCreateReconciliationWorkflow struct {
 	workflows.BaseWorkflow
@@ -97,21 +133,22 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	expertModeStartToCloseTimeout := time.Duration(VolumeReconciliationExpertModeStartToCloseTimeoutSec) * time.Second
 
+	genericRetry, pollRetry := expertModeReconciliationRetryPolicies(retryPolicy)
+
+	// Generic activity policy (node resolve, DB writes): standard interval/backoff/attempts.
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
 		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:        retryPolicy.InitialInterval,
-			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
-			MaximumInterval:        retryPolicy.MaximumInterval,
-			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
-			NonRetryableErrorTypes: []string{"PanicError"},
-		},
+		RetryPolicy:         genericRetry,
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
+	// Dedicated poll policy for the ONTAP-check activity only (constant 2s interval, ~3 minutes).
+	// ScheduleToCloseTimeout caps the total wall-clock so a hung/slow ONTAP (each attempt burning the
+	// full StartToCloseTimeout) can't stretch the 90 attempts into ~90 minutes of held worker slots.
 	ao1 := ao
-	ao1.RetryPolicy.MaximumAttempts = int32(VolumeReconciliationExpertModeRetryMaxAttempts)
+	ao1.RetryPolicy = pollRetry
+	ao1.ScheduleToCloseTimeout = time.Duration(VolumeReconciliationExpertModePollScheduleToCloseSec) * time.Second
 	ctx1 := workflow.WithActivityOptions(ctx, ao1)
 
 	pool := volume.Pool
@@ -221,21 +258,22 @@ func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	expertModeStartToCloseTimeout := time.Duration(VolumeReconciliationExpertModeStartToCloseTimeoutSec) * time.Second
 
+	genericRetry, pollRetry := expertModeReconciliationRetryPolicies(retryPolicy)
+
+	// Generic activity policy (node resolve, DB writes): standard interval/backoff/attempts.
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
 		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:        retryPolicy.InitialInterval,
-			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
-			MaximumInterval:        retryPolicy.MaximumInterval,
-			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
-			NonRetryableErrorTypes: []string{"PanicError"},
-		},
+		RetryPolicy:         genericRetry,
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
+	// Dedicated poll policy for the ONTAP-check activity only (constant 2s interval, ~3 minutes).
+	// ScheduleToCloseTimeout caps the total wall-clock so a hung/slow ONTAP (each attempt burning the
+	// full StartToCloseTimeout) can't stretch the 90 attempts into ~90 minutes of held worker slots.
 	ao1 := ao
-	ao1.RetryPolicy.MaximumAttempts = int32(VolumeReconciliationExpertModeRetryMaxAttempts)
+	ao1.RetryPolicy = pollRetry
+	ao1.ScheduleToCloseTimeout = time.Duration(VolumeReconciliationExpertModePollScheduleToCloseSec) * time.Second
 	ctx1 := workflow.WithActivityOptions(ctx, ao1)
 
 	pool := volume.Pool
@@ -336,21 +374,22 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	expertModeStartToCloseTimeout := time.Duration(VolumeReconciliationExpertModeStartToCloseTimeoutSec) * time.Second
 
+	genericRetry, pollRetry := expertModeReconciliationRetryPolicies(retryPolicy)
+
+	// Generic activity policy (node resolve, DB writes): standard interval/backoff/attempts.
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
 		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:        retryPolicy.InitialInterval,
-			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
-			MaximumInterval:        retryPolicy.MaximumInterval,
-			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
-			NonRetryableErrorTypes: []string{"PanicError"},
-		},
+		RetryPolicy:         genericRetry,
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
+	// Dedicated poll policy for the ONTAP-check activity only (constant 2s interval, ~3 minutes).
+	// ScheduleToCloseTimeout caps the total wall-clock so a hung/slow ONTAP (each attempt burning the
+	// full StartToCloseTimeout) can't stretch the 90 attempts into ~90 minutes of held worker slots.
 	ao1 := ao
-	ao1.RetryPolicy.MaximumAttempts = int32(VolumeReconciliationExpertModeRetryMaxAttempts)
+	ao1.RetryPolicy = pollRetry
+	ao1.ScheduleToCloseTimeout = time.Duration(VolumeReconciliationExpertModePollScheduleToCloseSec) * time.Second
 	ctx1 := workflow.WithActivityOptions(ctx, ao1)
 
 	pool := volume.Pool

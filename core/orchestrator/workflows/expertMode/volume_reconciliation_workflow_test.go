@@ -10,6 +10,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -22,6 +23,59 @@ import (
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
+
+// TestExpertModeReconciliationRetryPolicies asserts the two independent activity retry policies
+// used by the create/delete/update reconciliation workflows: the ONTAP-check ("poll") policy must
+// be a constant 2s interval (coefficient 1.0) for 90 attempts (~3 minutes), while the generic
+// policy (node resolve, DB writes) keeps the shared retry values and is not mutated by the poll one.
+func TestExpertModeReconciliationRetryPolicies(t *testing.T) {
+	origInterval := VolumeReconciliationExpertModeInitialIntervalSec
+	origCoeff := VolumeReconciliationExpertModeBackoffCoefficient
+	origPollCoeff := VolumeReconciliationExpertModePollBackoffCoefficient
+	origAttempts := VolumeReconciliationExpertModeRetryMaxAttempts
+	t.Cleanup(func() {
+		VolumeReconciliationExpertModeInitialIntervalSec = origInterval
+		VolumeReconciliationExpertModeBackoffCoefficient = origCoeff
+		VolumeReconciliationExpertModePollBackoffCoefficient = origPollCoeff
+		VolumeReconciliationExpertModeRetryMaxAttempts = origAttempts
+	})
+	VolumeReconciliationExpertModeInitialIntervalSec = 2
+	VolumeReconciliationExpertModeBackoffCoefficient = 1.5
+	VolumeReconciliationExpertModePollBackoffCoefficient = 1.0
+	VolumeReconciliationExpertModeRetryMaxAttempts = 90
+
+	// Shared workflow retry policy (as PopulateRetryPolicyParams would return): 5s / coeff 2.0 / 3 attempts.
+	// BackoffCoefficient here is deliberately 2.0 to prove the generic policy uses the expert-mode
+	// coefficient (1.5), not the shared one.
+	rp := &workflows.WorkflowRetryPolicy{
+		InitialInterval:    5 * time.Second,
+		BackoffCoefficient: 2.0,
+		MaximumInterval:    5 * time.Minute,
+		MaximumAttempts:    3,
+	}
+
+	generic, poll := expertModeReconciliationRetryPolicies(rp)
+
+	// Poll policy (ONTAP-check activity only): retry every 2s at a constant interval for ~3 minutes.
+	assert.Equal(t, 2*time.Second, poll.InitialInterval)
+	assert.Equal(t, 1.0, poll.BackoffCoefficient)
+	assert.Equal(t, 2*time.Second, poll.MaximumInterval)
+	assert.Equal(t, int32(90), poll.MaximumAttempts)
+	assert.Equal(t, []string{"PanicError"}, poll.NonRetryableErrorTypes)
+
+	// Generic policy (node resolve, DB writes): shared interval/max-interval/attempts, but the
+	// expert-mode backoff coefficient (1.5) - unchanged from origin/main, not the shared rp coeff.
+	assert.Equal(t, 5*time.Second, generic.InitialInterval)
+	assert.Equal(t, 1.5, generic.BackoffCoefficient)
+	assert.Equal(t, 5*time.Minute, generic.MaximumInterval)
+	assert.Equal(t, int32(3), generic.MaximumAttempts)
+
+	// The two policies must be independent objects so applying the poll policy to the ONTAP-check
+	// context never mutates the generic policy shared by node-resolve and DB-write activities.
+	assert.NotSame(t, generic, poll)
+	assert.NotEqual(t, generic.InitialInterval, poll.InitialInterval)
+	assert.NotEqual(t, generic.MaximumAttempts, poll.MaximumAttempts)
+}
 
 func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 	t.Run("Success_VolumeFoundAndUpdated", func(tt *testing.T) {

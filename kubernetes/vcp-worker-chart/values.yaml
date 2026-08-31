@@ -448,9 +448,12 @@ workerConfig:
   pollerRebalanceBucketName: "" # Bucket name for poller rebalance
 
   # Expert Mode Volume Reconciliation configuration
-  volumeReconciliationExpertModeActivitiesMaxAttempts: "8"
+  volumeReconciliationExpertModeActivitiesMaxAttempts: "90"
   volumeReconciliationExpertModeStartToCloseTimeoutSec: "60"
-  volumeReconciliationExpertModeBackoffCoefficient: 1.5
+  volumeReconciliationExpertModeBackoffCoefficient: "1.5"
+  volumeReconciliationExpertModePollBackoffCoefficient: "1.0"
+  volumeReconciliationExpertModeInitialIntervalSec: "2"
+  volumeReconciliationExpertModePollScheduleToCloseSec: "300"
   # FlexClone split: workflow ScheduleToClose (minutes) and poll interval between ONTAP checks (seconds); see workflow_engine/temporal/workflow_config.go
   expertModeFlexCloneSplitWorkflowTimeoutMinutes: "4320"
   expertModeFlexCloneSplitPollIntervalSec: "30"
