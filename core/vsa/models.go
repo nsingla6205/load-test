@@ -383,6 +383,7 @@ type CreateVolumeParams struct {
 	SecurityStyle       *string
 	QosPolicy           *string // Optional: QoS policy name to assign to the volume
 	UnixPermissions     *string
+	LargeSizeEnabled    *bool // maps to ONTAP space.large_size_enabled (CLI -is-large-size-enabled)
 	// AllSquashUid is the UNIX UID to assign to the volume NAS owner when AllSquash is enabled.
 	// ONTAP does not accept nas.uid during volume create, so CreateVolume issues a post-create
 	// VolumeModify to set it. Only populated when AllSquash is active and AnonUid is explicitly set.

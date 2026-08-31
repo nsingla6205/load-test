@@ -186,6 +186,7 @@ data:
   ENABLE_NFS_OVER_TLS: {{$.Values.workerConfig.enableNfsOverTls | quote }}
   NFS_TLS_CONN_MAX_LIMIT: {{$.Values.workerConfig.nfsTlsConnMaxLimit | quote }}
   ENABLE_MQOS: {{$.Values.workerConfig.enableMqos | quote }}
+  LARGE_FILE_SIZE_ENABLED: {{$.Values.workerConfig.largeFileSizeEnabled | default "true" | quote }}
   ADDRESS_SPACE_MGMT_ENABLED: {{$.Values.workerConfig.addressSpaceMgmtEnabled | quote }}
   SEQUENCE_WORKFLOW_RESILIENCE_ENABLED: {{$.Values.workerConfig.sequenceWorkflowResilienceEnabled | quote }}
   ENABLE_TRUE_ZONAL_LV: {{$.Values.workerConfig.enableTrueZonalLV | quote }}

@@ -1091,6 +1091,123 @@ func TestVolumeCreateParamsToONTAP(t *testing.T) {
 	})
 }
 
+func TestVolumeCreateParamsToONTAPWithLargeSizeEnabled(t *testing.T) {
+	t.Run("WhenLargeSizeEnabledUnset_ThenFieldIsNotSet", func(tt *testing.T) {
+		params := &VolumeCreateParams{
+			Name:       "vol1",
+			Type:       "rw",
+			Size:       1024,
+			Svm:        "svm1",
+			Aggregates: []string{"aggr1"},
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) {
+			assert.Nil(tt, result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenLargeSizeEnabledTrueAndStyleFlexVol_ThenTrueIsSet", func(tt *testing.T) {
+		style := VolumeStyleFlexVol
+		params := &VolumeCreateParams{
+			Name:             "vol1",
+			Type:             "rw",
+			Size:             1024,
+			Svm:              "svm1",
+			Aggregates:       []string{"aggr1"},
+			Style:            &style,
+			LargeSizeEnabled: nillable.ToPointer(true),
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) && assert.NotNil(tt, result.Info.Space.LargeSizeEnabled) {
+			assert.True(tt, *result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenLargeSizeEnabledTrueAndStyleFlexGroup_ThenTrueIsSet", func(tt *testing.T) {
+		style := VolumeStyleFlexGroup
+		params := &VolumeCreateParams{
+			Name:             "vol1",
+			Type:             "rw",
+			Size:             1024,
+			Svm:              "svm1",
+			Aggregates:       []string{"aggr1"},
+			Style:            &style,
+			LargeSizeEnabled: nillable.ToPointer(true),
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) && assert.NotNil(tt, result.Info.Space.LargeSizeEnabled) {
+			assert.True(tt, *result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenLargeSizeEnabledExplicitlyFalse_ThenFieldIsNotSet", func(tt *testing.T) {
+		params := &VolumeCreateParams{
+			Name:             "vol1",
+			Type:             "rw",
+			Size:             1024,
+			Svm:              "svm1",
+			Aggregates:       []string{"aggr1"},
+			LargeSizeEnabled: nillable.ToPointer(false),
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) {
+			assert.Nil(tt, result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenRestoreFromSnapshotAndLargeSizeEnabledTrue_ThenTrueIsSet", func(tt *testing.T) {
+		params := &VolumeCreateParams{
+			Name:             "vol1",
+			Type:             "rw",
+			Svm:              "svm1",
+			LargeSizeEnabled: nillable.ToPointer(true),
+			RestoreFromSnapshot: &RestoreFromSnapshotParams{
+				ParentVolumeName:    "parent",
+				SnapshotName:        "snap1",
+				ParentVolumeSvmName: "svm1",
+			},
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) && assert.NotNil(tt, result.Info.Space.LargeSizeEnabled) {
+			assert.True(tt, *result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenRestoreFromSnapshotAndLargeSizeEnabledUnset_ThenFieldIsNotSet", func(tt *testing.T) {
+		params := &VolumeCreateParams{
+			Name: "vol1",
+			Type: "rw",
+			Svm:  "svm1",
+			RestoreFromSnapshot: &RestoreFromSnapshotParams{
+				ParentVolumeName:    "parent",
+				SnapshotName:        "snap1",
+				ParentVolumeSvmName: "svm1",
+			},
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) {
+			assert.Nil(tt, result.Info.Space.LargeSizeEnabled)
+		}
+	})
+
+	t.Run("WhenLargeSizeEnabledTrueAndStyleIsFlexCache_ThenFieldIsNotSet", func(tt *testing.T) {
+		style := "flexcache"
+		params := &VolumeCreateParams{
+			Name:             "vol1",
+			Type:             "rw",
+			Size:             1024,
+			Svm:              "svm1",
+			Aggregates:       []string{"aggr1"},
+			Style:            &style,
+			LargeSizeEnabled: nillable.ToPointer(true),
+		}
+		result := volumeCreateParamsToONTAP(params)
+		if assert.NotNil(tt, result.Info.Space) {
+			assert.Nil(tt, result.Info.Space.LargeSizeEnabled)
+		}
+	})
+}
+
 func TestVolumeCreateParamsToONTAPWithSecurityStyle(t *testing.T) {
 	t.Run("WhenSecurityStyleIsEmpty_ThenSecurityStyleIsNotSet", func(tt *testing.T) {
 		params := &VolumeCreateParams{

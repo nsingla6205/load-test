@@ -52,6 +52,8 @@ const (
 
 var GCBDRVaultEnabled = env.GetBool("GCBDR_VAULT_ENABLED", true)
 
+var LargeFileSizeEnabled = env.GetBool("LARGE_FILE_SIZE_ENABLED", true)
+
 type VolumeCreateActivity struct {
 	SE        database.Storage
 	Scheduler *scheduler.TemporalScheduler
@@ -214,6 +216,9 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		}
 	} else {
 		params.Aggregates = []string{AggregateName}
+	}
+	if LargeFileSizeEnabled {
+		params.LargeSizeEnabled = nillable.ToPointer(true)
 	}
 
 	// This can be removed once files protocols are fully supported

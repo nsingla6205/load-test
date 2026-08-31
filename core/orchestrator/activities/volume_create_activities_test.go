@@ -330,6 +330,90 @@ func TestCreateVolumeInONTAP_Success(t *testing.T) {
 		mockProvider.AssertExpectations(t)
 	})
 
+	t.Run("TestCreateVolumeInONTAP_WhenLargeFileSizeEnabledDefault_ThenTrueIsSet", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		origFlag := activities.LargeFileSizeEnabled
+		defer func() { activities.LargeFileSizeEnabled = origFlag }()
+		activities.LargeFileSizeEnabled = true
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := activities.VolumeCreateActivity{
+			SE: database.NewMockStorage(t),
+		}
+		env.RegisterActivity(activity.CreateVolumeInONTAP)
+
+		volume := &datamodel.Volume{
+			Name:    "test-volume",
+			Svm:     &datamodel.Svm{Name: "test-svm"},
+			Account: &datamodel.Account{Name: "test-account"},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				IsDataProtection:  false,
+				SnapshotDirectory: true,
+			},
+		}
+		expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 1024}
+		mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
+			return params.LargeSizeEnabled != nil && *params.LargeSizeEnabled
+		})).Return(expectedResponse, nil)
+
+		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, &models.Node{}, nil, nil, nil)
+		assert.NoError(t, err)
+		var result *vsa.VolumeResponse
+		_ = val.Get(&result)
+		assert.Equal(t, expectedResponse, result)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("TestCreateVolumeInONTAP_WhenLargeFileSizeEnabledFalse_ThenFieldIsOmitted", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		origFlag := activities.LargeFileSizeEnabled
+		defer func() { activities.LargeFileSizeEnabled = origFlag }()
+		activities.LargeFileSizeEnabled = false
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := activities.VolumeCreateActivity{
+			SE: database.NewMockStorage(t),
+		}
+		env.RegisterActivity(activity.CreateVolumeInONTAP)
+
+		volume := &datamodel.Volume{
+			Name:    "test-volume",
+			Svm:     &datamodel.Svm{Name: "test-svm"},
+			Account: &datamodel.Account{Name: "test-account"},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				IsDataProtection:  false,
+				SnapshotDirectory: true,
+			},
+		}
+		expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 1024}
+		mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
+			return params.LargeSizeEnabled == nil
+		})).Return(expectedResponse, nil)
+
+		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, &models.Node{}, nil, nil, nil)
+		assert.NoError(t, err)
+		var result *vsa.VolumeResponse
+		_ = val.Get(&result)
+		assert.Equal(t, expectedResponse, result)
+		mockProvider.AssertExpectations(t)
+	})
+
 	t.Run("TestCreateVolumeInONTAP_WhenAutoTieringIsFalse_DefaultConfigIsSet", func(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()

@@ -2574,6 +2574,7 @@ type VolumeCreateParams struct {
 	TieringSupported               *bool
 	GranularData                   *bool   // Enable granular data on the volume (auto-set for FlexGroup)
 	GranularDataMode               *string // Mode of granular data: "disabled", "basic", "advanced" (auto-set for FlexGroup)
+	LargeSizeEnabled               *bool   // maps to ONTAP space.large_size_enabled (CLI -is-large-size-enabled)
 }
 
 type FlexCacheVolumeCreateParams struct {
@@ -2637,8 +2638,19 @@ const (
 	VolumeStateOnline        = "online"
 	GuaranteeTypeNone        = "none"
 	GranularDataModeAdvanced = "advanced"
+	VolumeStyleFlexVol       = "flexvol"
 	VolumeStyleFlexGroup     = "flexgroup"
 )
+
+func largeSizeEnabledForVolumeCreate(params *VolumeCreateParams) *bool {
+	if params.LargeSizeEnabled == nil || !*params.LargeSizeEnabled {
+		return nil
+	}
+	if params.Style == nil || *params.Style == "" || *params.Style == VolumeStyleFlexVol || *params.Style == VolumeStyleFlexGroup {
+		return nillable.ToPointer(true)
+	}
+	return nil
+}
 
 func volumeCreateFromSnapshotParamsToONTAP(params *VolumeCreateParams) *storage.VolumeCreateParams {
 	otParams := storage.NewVolumeCreateParams()
@@ -2660,6 +2672,7 @@ func volumeCreateFromSnapshotParamsToONTAP(params *VolumeCreateParams) *storage.
 				Enforcement: nillable.ToPointer(true),
 				Reporting:   nillable.ToPointer(true),
 			},
+			LargeSizeEnabled: largeSizeEnabledForVolumeCreate(params),
 		},
 		Autosize: &models.VolumeInlineAutosize{
 			Mode: nillable.ToPointer("off"),
@@ -2716,6 +2729,7 @@ func volumeCreateParamsToONTAP(params *VolumeCreateParams) *storage.VolumeCreate
 				Enforcement: nillable.ToPointer(true),
 				Reporting:   nillable.ToPointer(true),
 			},
+			LargeSizeEnabled: largeSizeEnabledForVolumeCreate(params),
 		},
 		Autosize: &models.VolumeInlineAutosize{
 			Mode: nillable.ToPointer("off"),

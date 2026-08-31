@@ -168,6 +168,7 @@ workerConfig:
   nfsTlsConnMaxLimit: "100"
   enableTrueZonalLV: "false"
   enableMqos: "true"
+  largeFileSizeEnabled: "true"
   addressSpaceMgmtEnabled: "false"
   icLifAddressSpaceEnabled: "false"
   sequenceWorkflowResilienceEnabled: "true"

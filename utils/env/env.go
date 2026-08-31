@@ -77,6 +77,9 @@ const (
 	// pool create/delete.
 	EnvAddressSpaceMgmtEnabled = "ADDRESS_SPACE_MGMT_ENABLED"
 
+	// Controls whether FlexVol/FlexGroup create sets ONTAP space.large_size_enabled. Default true.
+	EnvLargeFileSizeEnabled = "LARGE_FILE_SIZE_ENABLED"
+
 	// EnvCVNDefaultSubnetMaskSize names the CVN datapath subnet prefix length
 	// for PO pools. CVN accepts only 27 or 28; default is 27.
 	EnvCVNDefaultSubnetMaskSize = "CVN_DEFAULT_SUBNET_MASK_SIZE"
