@@ -222,7 +222,7 @@ workerConfig:
   vsaMediatorImageProject: ""
   vsaImageChecksums:
     VSA_IMAGE_CHECKSUM: "bd323c95d78805d8eb579e6b23057f9cf71b73a25f920adbd59ca0da6837a24b"
-    VSA_MEDIATOR_IMAGE_CHECKSUM: "bd323c95d78805d8eb579e6b23057f9cf71b73a25f920adbd59ca0da6837a24b"
+    VSA_MEDIATOR_IMAGE_CHECKSUM: "edfef9ce880f511ed44e57b4aab9b87e560378a12705b5f14cc25ca80bc92943"
   validateImageDigest: true
   # VSA Image Bucket for signed URL generation
   vsaImageBucket: "gcnv-autopush-images-bucket"
