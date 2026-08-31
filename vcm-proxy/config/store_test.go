@@ -743,7 +743,7 @@ func TestStore_Apply_RetriggersRebuildOnRebuildFieldChange(t *testing.T) {
 	store.Apply(context.Background(), changed)
 
 	waitFor(t, func() bool { return starter.callCount() == 2 })
-	assert.Empty(t, store.VLMConfigJSON(), "stale config must be cleared on a rebuild-field change")
+	assert.Empty(t, store.GetVLMConfig(), "stale config must be cleared on a rebuild-field change")
 	assert.Equal(t, "us-central1-f", starter.lastParams().Zone2)
 }
 
@@ -762,12 +762,16 @@ func TestStore_Apply_StartErrorClearsFetching(t *testing.T) {
 func TestStore_SetVLMConfig_And_Clear(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
 
+	assert.False(t, store.IsVLMConfigReady())
+	assert.Empty(t, store.GetVLMConfig())
+
 	store.mu.Lock()
 	store.vlmConfigFetching = true
 	store.mu.Unlock()
 
 	require.NoError(t, store.SetVLMConfig(context.Background(), `{"a":1}`))
-	assert.Equal(t, `{"a":1}`, store.VLMConfigJSON())
+	assert.True(t, store.IsVLMConfigReady())
+	assert.Equal(t, `{"a":1}`, store.GetVLMConfig())
 	assert.False(t, fetchingFlag(store))
 
 	store.mu.Lock()

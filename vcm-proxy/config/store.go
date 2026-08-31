@@ -423,7 +423,15 @@ func (s *Store) SetVLMConfigRebuildStarter(starter VLMConfigRebuildStarter) {
 	s.vlmConfigRebuildStarter = starter
 }
 
-func (s *Store) VLMConfigJSON() string {
+// IsVLMConfigReady reports whether a rebuilt VLM config is available.
+func (s *Store) IsVLMConfigReady() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.vlmConfigJSON != ""
+}
+
+// GetVLMConfig returns the cached VLM config JSON.
+func (s *Store) GetVLMConfig() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.vlmConfigJSON
