@@ -794,11 +794,16 @@ func TestUpdatePOPoolWorkflow_UpdatedPoolFailure(t *testing.T) {
 		Description: "after",
 	}
 
-	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).
-		Return(nil, temporal.NewNonRetryableApplicationError("db failed", "NonRetryableErr", nil)).Once()
+	env.OnActivity("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
+		return p.Description == "after"
+	})).Return(nil, temporal.NewNonRetryableApplicationError("db failed", "NonRetryableErr", nil)).Once()
+	env.OnActivity("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
+		return p.Description != "after"
+	})).Return(pool, nil).Once() // defer rollback with original pool snapshot → READY
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
 }

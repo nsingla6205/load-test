@@ -193,12 +193,26 @@ func GetUpdatePoolWorkflowTimeout(largeCapacity bool) *time.Duration {
 	return getWorkflowTimeoutWithDefault(UpdatePoolWorkflowTimeoutMinutes, 150)
 }
 
-// GetUpdatePoolWorkflowRunTimeout returns the workflow run timeout used when starting UpdatePoolWorkflow.
-// - Large capacity (LV) pools use the update-pool LV timeout
-// - Standard pools use the standard update-pool timeout
-func GetUpdatePoolWorkflowRunTimeout(largeCapacity bool) *time.Duration {
-	timeout := GetUpdatePoolWorkflowTimeout(largeCapacity)
-	return timeout
+const (
+	// updatePoolWorkflowRunTimeoutSafetyMultiplier is applied when useSafetyNetRunTimeout is true
+	// (GCP UpdatePoolWorkflow). The in-workflow budget fires at 1×; Temporal hard-kills at 2×
+	// if rollback gets stuck.
+	updatePoolWorkflowRunTimeoutSafetyMultiplier = 2
+)
+
+// GetUpdatePoolWorkflowRunTimeout returns WorkflowRunTimeout for UpdatePoolWorkflow.
+// When useSafetyNetRunTimeout is false (OCI), returns 1× the operation budget.
+// When true (GCP), returns updatePoolWorkflowRunTimeoutSafetyMultiplier × the budget.
+func GetUpdatePoolWorkflowRunTimeout(largeCapacity bool, useSafetyNetRunTimeout bool) *time.Duration {
+	budget := GetUpdatePoolWorkflowTimeout(largeCapacity)
+	if budget == nil {
+		return nil
+	}
+	if !useSafetyNetRunTimeout {
+		return budget
+	}
+	timeout := *budget * updatePoolWorkflowRunTimeoutSafetyMultiplier
+	return &timeout
 }
 
 func GetPoolMaintenanceWorkflowRunTimeout() *time.Duration {

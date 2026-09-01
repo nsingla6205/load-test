@@ -1404,7 +1404,7 @@ func TestUpdatePool(t *testing.T) {
 				if !ok {
 					return false
 				}
-				want := workflowengine.GetUpdatePoolWorkflowRunTimeout(true)
+				want := workflowengine.GetUpdatePoolWorkflowRunTimeout(true, true)
 				return want != nil && timeout == *want
 			}),
 			mock.Anything,

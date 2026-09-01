@@ -420,11 +420,13 @@ func (wf *autoTieringHotTierAutoResizeWorkflow) Run(ctx workflow.Context, args .
 		return nil, err
 	}
 
+	updatePoolRunTimeout := temporalutils.GetUpdatePoolWorkflowRunTimeout(pool.LargeCapacity, true)
 	childWFCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:            createdJob.WorkflowID,
 		TaskQueue:             temporalutils.BackgroundTaskQueue,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
 		WorkflowTaskTimeout:   temporalutils.GetWorkflowGlobalTimeout(),
+		WorkflowRunTimeout:    *updatePoolRunTimeout,
 		ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
 	})
 	err = workflow.ExecuteChildWorkflow(childWFCtx, workflows.UpdatePoolWorkflow, poolUpdateParams, pool).Get(ctx, nil)

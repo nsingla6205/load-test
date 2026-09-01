@@ -217,7 +217,7 @@ func TestGetUpdatePoolWorkflowRunTimeout_StandardUsesStandardTimeout(t *testing.
 	defer func() { UpdatePoolWorkflowTimeoutMinutes = origStd }()
 
 	UpdatePoolWorkflowTimeoutMinutes = "75"
-	got := GetUpdatePoolWorkflowRunTimeout(false)
+	got := GetUpdatePoolWorkflowRunTimeout(false, false)
 	if got == nil || *got != 75*time.Minute {
 		t.Fatalf("expected 75m, got %v", got)
 	}
@@ -234,9 +234,37 @@ func TestGetUpdatePoolWorkflowRunTimeout_LVUsesLVTimeout(t *testing.T) {
 	UpdatePoolWorkflowTimeoutMinutes = "75"
 	UpdatePoolWorkflowTimeoutMinutesLV = "30"
 
-	got := GetUpdatePoolWorkflowRunTimeout(true)
+	got := GetUpdatePoolWorkflowRunTimeout(true, false)
 	if got == nil || *got != 30*time.Minute {
-		t.Fatalf("expected 30m, got %v", got)
+		t.Fatalf("expected 30m (1x LV budget), got %v", got)
+	}
+}
+
+func TestGetUpdatePoolWorkflowRunTimeout_StandardUsesDoubleBudget(t *testing.T) {
+	origStd := UpdatePoolWorkflowTimeoutMinutes
+	defer func() { UpdatePoolWorkflowTimeoutMinutes = origStd }()
+
+	UpdatePoolWorkflowTimeoutMinutes = "75"
+	got := GetUpdatePoolWorkflowRunTimeout(false, true)
+	if got == nil || *got != 150*time.Minute {
+		t.Fatalf("expected 150m (2x 75m budget), got %v", got)
+	}
+}
+
+func TestGetUpdatePoolWorkflowRunTimeout_LVUsesDoubleLVBudget(t *testing.T) {
+	origStd := UpdatePoolWorkflowTimeoutMinutes
+	origLV := UpdatePoolWorkflowTimeoutMinutesLV
+	defer func() {
+		UpdatePoolWorkflowTimeoutMinutes = origStd
+		UpdatePoolWorkflowTimeoutMinutesLV = origLV
+	}()
+
+	UpdatePoolWorkflowTimeoutMinutes = "75"
+	UpdatePoolWorkflowTimeoutMinutesLV = "30"
+
+	got := GetUpdatePoolWorkflowRunTimeout(true, true)
+	if got == nil || *got != 60*time.Minute {
+		t.Fatalf("expected 60m (2x 30m LV budget), got %v", got)
 	}
 }
 

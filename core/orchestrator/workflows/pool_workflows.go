@@ -32,6 +32,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -1348,18 +1350,15 @@ func _syncPoolZIZSDetailsWorkflow(ctx workflow.Context, dbPool *datamodel.Pool, 
 
 // runPOPoolUpdate persists PO pool metadata and size in VCP only (no VLM, CVN, QoS, or ONTAP policy changes).
 func (wf *updatePoolWorkflow) runPOPoolUpdate(
-	ctx workflow.Context,
-	dbHbCtx workflow.Context,
+	dbOrchCtx *orchestrator.Context,
 	updatePoolParams *common.UpdatePoolParams,
 	dbPool *datamodel.Pool,
-	pool *datamodel.Pool,
-	rollbackManager *common.RollbackManager,
-) (interface{}, *vsaerrors.CustomError) {
+) error {
 	poolActivity := &activities.PoolActivity{}
 
 	if hostErr := common.ValidatePOPoolHostUUID(dbPool); hostErr != nil {
-		return nil, ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, hostErr)))
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, hostErr))
 	}
 
 	dbPool.Description = updatePoolParams.Description
@@ -1373,11 +1372,8 @@ func (wf *updatePoolWorkflow) runPOPoolUpdate(
 		dbPool.SizeInBytes = int64(updatePoolParams.SizeInBytes)
 	}
 
-	rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
-	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
-		return nil, ConvertToVSAError(err)
-	}
-	return nil, nil
+	persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+	return orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPool, nil, dbPool)
 }
 
 type updatePoolWorkflow struct {
@@ -1415,14 +1411,13 @@ func UpdatePoolWorkflow(ctx workflow.Context, params *common.UpdatePoolParams, p
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
-	_, err = updatePoolWF.Run(ctx, params, pool, autoscaleConfig)
-	if e, ok := err.(*vsaerrors.CustomError); ok && e != nil {
+	_, runErr := updatePoolWF.Run(ctx, params, pool, autoscaleConfig)
+	if runErr != nil {
 		updatePoolWF.Status = WorkflowStatusFailed
-		err = updatePoolWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
-		if err != nil {
+		if err = updatePoolWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), runErr); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-		return nil, ConvertToVSAError(err)
+		return nil, runErr
 	}
 	updatePoolWF.Status = WorkflowStatusCompleted
 	err = updatePoolWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
@@ -1457,6 +1452,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	autoScalingParams := args[2].(*common.AutoPoolScalingParams)
 	poolActivity := &activities.PoolActivity{}
 	svmActivity := &activities.SvmActivity{}
+	commonActivities := activities.CommonActivities{}
 	retryPolicy, err := PopulateRetryPolicyParams(pool.LargeCapacity)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
@@ -1473,15 +1469,32 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
+	orchCtx := temporalbackend.NewTemporalContext(ctx)
+	budgetStart := orchCtx.WorkflowStartTime()
+	if budgetStart.IsZero() {
+		budgetStart = orchestrator.Now(orchCtx)
+	}
+	operationBudgetEnd := budgetStart.Add(*workflowengine.GetUpdatePoolWorkflowTimeout(pool.LargeCapacity))
+	budgetCheck := func() bool { return orchestrator.Now(orchCtx).After(operationBudgetEnd) }
+	orchCtx = orchCtx.WithOperationBudgetCheck(budgetCheck)
+	ctx = temporalbackend.WorkflowCtx(orchCtx)
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+	dbOrchCtx := temporalbackend.NewTemporalContext(dbHbCtx).WithOperationBudgetCheck(budgetCheck)
+
 	rollbackManager := common.NewRollbackManager()
+	rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
 
 	defer func() {
 		if err != nil {
-			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
-			rollbackManager.ExecuteRollback(disconnectedCtx, err)
+			disconnectedOrchCtx := orchestrator.NewDisconnectedContext(orchCtx).ClearOperationBudgetCheck()
+			rollbackManager.ExecuteRollback(temporalbackend.WorkflowCtx(disconnectedOrchCtx), err)
 		}
 	}()
+
+	if orchCtx.OperationBudgetExceeded() {
+		err = fmt.Errorf("operation budget exceeded: workflow was queued too long")
+		return nil, ConvertToVSAError(err)
+	}
 
 	dbPool, err := deepCopyPoolFn(pool)
 	if err != nil {
@@ -1489,11 +1502,9 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	if common.IsPOPool(dbPool) {
-		return wf.runPOPoolUpdate(ctx, dbHbCtx, updatePoolParams, dbPool, pool, rollbackManager)
+		err = wf.runPOPoolUpdate(dbOrchCtx, updatePoolParams, dbPool)
+		return nil, ConvertToVSAError(err)
 	}
-
-	// In case of any errors, rollback to the old values.
-	rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
 
 	wf.Logger.Info("Updating pool with new parameters", "params", updatePoolParams) // Update the pool with the new parameters
 
@@ -1533,6 +1544,10 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		if err = syncActiveDirectoryInVcp(ctx, adSyncParams, dbPool); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
+		if orchCtx.OperationBudgetExceeded() {
+			err = fmt.Errorf("operation budget exceeded after Active Directory sync")
+			return nil, ConvertToVSAError(err)
+		}
 	}
 
 	// Check if Zone Switch is needed.
@@ -1559,13 +1574,14 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 				},
 			}
 			metricCtx := workflow.WithActivityOptions(ctx, metricAO)
-			_ = workflow.ExecuteActivity(metricCtx, backgroundactivities.EmitZoneSwitchWorkflowMetric,
-				dbPool.UUID, dbPool.Name, zoneSwitchAction, status, failureStep).Get(metricCtx, nil)
+			metricOrchCtx := temporalbackend.NewTemporalContext(metricCtx).ClearOperationBudgetCheck()
+			_ = orchestrator.RunActivity(metricOrchCtx, backgroundactivities.EmitZoneSwitchWorkflowMetric, nil,
+				dbPool.UUID, dbPool.Name, zoneSwitchAction, status, failureStep)
 		}
 
 		rollbackZoneSwitchPool := func() {
-			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
-			if rbErr := workflow.ExecuteActivity(disconnectedCtx, poolActivity.UpdatedPool, pool).Get(disconnectedCtx, nil); rbErr != nil {
+			disconnectedOrchCtx := orchestrator.NewDisconnectedContext(orchCtx).ClearOperationBudgetCheck()
+			if rbErr := orchestrator.RunActivity(disconnectedOrchCtx, poolActivity.UpdatedPool, nil, pool); rbErr != nil {
 				wf.Logger.Errorf("Failed to rollback pool after zone switch failure: %v", rbErr)
 			}
 		}
@@ -1577,21 +1593,22 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			return ConvertToVSAError(failureErr)
 		}
 
-		err = workflow.ExecuteActivity(ctx, poolActivity.UpdateZoneSwitchPoolAttributes, dbPool, datamodel.ZoneSwitching).Get(ctx, nil)
-		if err != nil {
+		budgetFailZoneSwitch := func(failureStep string) *vsaerrors.CustomError {
+			return failZoneSwitch(failureStep, fmt.Errorf("operation budget exceeded after %s", failureStep))
+		}
+
+		if err = orchestrator.RunActivity(orchCtx, poolActivity.UpdateZoneSwitchPoolAttributes, nil, dbPool, datamodel.ZoneSwitching); err != nil {
 			return nil, failZoneSwitch(zoneSwitchFailureStepUpdateAttributes, err)
 		}
 
 		// Retrieve the last known VLM config to be used for zone switching workflow.
 		vlmConfig := &vlm.VLMConfig{}
-		err = workflow.ExecuteActivity(ctx, poolActivity.ParseVlmConfig, pool).Get(ctx, &vlmConfig)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, poolActivity.ParseVlmConfig, &vlmConfig, pool); err != nil {
 			return nil, failZoneSwitch(zoneSwitchFailureStepParseVLMConfig, err)
 		}
 
 		credentials := &vlm.OntapCredentials{}
-		err = workflow.ExecuteActivity(ctx, poolActivity.GetOnTapCredentials, pool).Get(ctx, &credentials)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, poolActivity.GetOnTapCredentials, &credentials, pool); err != nil {
 			return nil, failZoneSwitch(zoneSwitchFailureStepGetCredentials, err)
 		}
 
@@ -1605,6 +1622,9 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		if zoneSwitchResponse == nil {
 			wf.Logger.Infof("zone switch returned nil response")
 			return nil, failZoneSwitch(zoneSwitchFailureStepNilResponse, fmt.Errorf("zone switch returned nil response"))
+		}
+		if orchCtx.OperationBudgetExceeded() {
+			return nil, budgetFailZoneSwitch(zoneSwitchFailureStepZoneSwitch)
 		}
 		wf.Logger.Info("Zone switch completed ", "response", zoneSwitchResponse)
 
@@ -1620,8 +1640,8 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		}
 
 		// Persist swapped zones (and same deployment snapshot as pre-switch persist; matches prior behavior).
-		err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPoolWithVLMConfig, dbPool, zoneSwitchResponse.VLMConfig, updatePoolParams).Get(dbHbCtx, nil)
-		if err != nil {
+		persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+		if err = orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPoolWithVLMConfig, nil, dbPool, zoneSwitchResponse.VLMConfig, updatePoolParams); err != nil {
 			return nil, failZoneSwitch(zoneSwitchFailureStepPersistConfig, err)
 		}
 		emitZoneSwitchMetric(zoneSwitchMetricStatusSuccess, zoneSwitchMetricFailureStepNone)
@@ -1659,18 +1679,18 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		// and cannot revert this patch on its own.
 		origHot, origEnable := originalHotTierInfo(pool)
 		rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
-		if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+		if err = persistAutoTieringHotTierInfo(dbOrchCtx, poolActivity, dbPool, updatePoolParams); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
-		rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
-		err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil)
+		persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+		err = orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPool, nil, dbPool)
 		return nil, ConvertToVSAError(err)
 	}
 
 	// qosType transition: auto → manual
 	if updatePoolParams.QosType == utils.QosTypeManual && dbPool.QosType == utils.QosTypeAuto {
-		if customErr := runPoolQosTypeTransitionAutoToManual(ctx, dbHbCtx, wf, rollbackManager, poolActivity, svmActivity, dbPool, updatePoolParams, pool); customErr != nil {
+		if customErr := runPoolQosTypeTransitionAutoToManual(orchCtx, dbOrchCtx, wf, rollbackManager, poolActivity, svmActivity, dbPool, updatePoolParams, pool); customErr != nil {
 			err = customErr // ensure defer runs ExecuteRollback (e.g. restore QPG on vserver)
 			return nil, customErr
 		}
@@ -1679,7 +1699,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// qosType transition: manual → auto
 	if updatePoolParams.QosType == utils.QosTypeAuto && dbPool.QosType == utils.QosTypeManual {
-		if customErr := runPoolQosTypeTransitionManualToAuto(ctx, dbHbCtx, wf, rollbackManager, poolActivity, svmActivity, dbPool, updatePoolParams, pool); customErr != nil {
+		if customErr := runPoolQosTypeTransitionManualToAuto(orchCtx, dbOrchCtx, wf, rollbackManager, poolActivity, svmActivity, dbPool, updatePoolParams, pool); customErr != nil {
 			err = customErr
 			return nil, customErr
 		}
@@ -1702,8 +1722,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Retrieve the last known VLM config that was shared with us.
 	currentVlmConfig := &vlm.VLMConfig{}
-	err = workflow.ExecuteActivity(ctx, poolActivity.ParseVlmConfig, pool).Get(ctx, &currentVlmConfig)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, poolActivity.ParseVlmConfig, &currentVlmConfig, pool); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -1769,8 +1788,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		AccountID:           updatePoolParams.AccountName,
 		PoolID:              dbPool.ID,
 	}
-	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, identifyVMsRequest).Get(ctx, newVlmConfig)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, poolActivity.IdentifyVMs, newVlmConfig, identifyVMsRequest); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -1786,8 +1804,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if currentInstanceType != newInstanceType {
 		wf.Logger.Info("Instance type is changing, validating zone compatibility", "currentType", currentInstanceType, "newType", newInstanceType)
 		// Validate that primary and secondary zones support the VSA instance type
-		err = workflow.ExecuteActivity(ctx, poolActivity.ValidateZonesForMachineTypes, pool.ClusterDetails.RegionalTenantProject, locationInfo.PrimaryZone, locationInfo.SecondaryZone, newInstanceType).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, poolActivity.ValidateZonesForMachineTypes, nil, pool.ClusterDetails.RegionalTenantProject, locationInfo.PrimaryZone, locationInfo.SecondaryZone, newInstanceType); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 	} else {
@@ -1795,21 +1812,18 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	var isScalingUp bool
-	err = workflow.ExecuteActivity(ctx, poolActivity.DetermineVMScalingDirection, updateVMRSConfigPath, currentInstanceType, newInstanceType).Get(ctx, &isScalingUp)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, poolActivity.DetermineVMScalingDirection, &isScalingUp, updateVMRSConfigPath, currentInstanceType, newInstanceType); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
 	credentials := &vlm.OntapCredentials{}
-	err = workflow.ExecuteActivity(ctx, poolActivity.GetOnTapCredentials, pool).Get(ctx, &credentials)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, poolActivity.GetOnTapCredentials, &credentials, pool); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
 	// Get nodes for the pool to modify QoS policy
 	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(dbHbCtx, activities.CommonActivities.GetNode, pool.ID).Get(dbHbCtx, &dbNodes)
-	if err != nil {
+	if err = orchestrator.RunActivity(dbOrchCtx, commonActivities.GetNode, &dbNodes, pool.ID); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
@@ -1824,8 +1838,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	// Execute QoS modification before deployment update if scaling down
 	if !isScalingUp {
 		wf.Logger.Info("Scaling down detected - modifying QoS policy first")
-		err = workflow.ExecuteActivity(ctx, svmActivity.ModifyQoSPolicyAndApplyToSVM, dbPool, node, updatePoolParams).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, svmActivity.ModifyQoSPolicyAndApplyToSVM, nil, dbPool, node, updatePoolParams); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -1842,10 +1855,9 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			IsTrueZonal:     dbPool.PoolAttributes.IsTrueZonal,
 		}
 		// Update pool in DB to reflect QoS changes
-		err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, dbPool.UUID, map[string]interface{}{
+		if err = orchestrator.RunActivity(dbOrchCtx, poolActivity.UpdatePoolFields, nil, dbPool.UUID, map[string]interface{}{
 			"pool_attributes": updatedPoolAttributes,
-		}).Get(dbHbCtx, nil)
-		if err != nil {
+		}); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 		dbPool.PoolAttributes.ThroughputMibps = int64(updatePoolParams.TotalThroughputMibps)
@@ -1861,13 +1873,12 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		ParallelNumberOfNodesForITC: parallelNumberOfNodesForITC,
 	}
 	var batchPlan *activities.CalculateBatchPlanActivityOutput
-	err = workflow.ExecuteActivity(ctx, poolActivity.CalculateBatchPlanForUpdate, batchPlanInput).Get(ctx, &batchPlan)
-	if err != nil {
+	if err = orchestrator.RunActivity(orchCtx, poolActivity.CalculateBatchPlanForUpdate, &batchPlan, *batchPlanInput); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
 	// Execute batch updates using reusable function
-	updateVSAClusterDeploymentResponse, err := executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, wf.Logger, bucketNameForVLMUpdate)
+	updateVSAClusterDeploymentResponse, err := executePoolBatchUpdates(orchCtx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, wf.Logger, bucketNameForVLMUpdate)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -1875,8 +1886,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	// Execute QoS modification after deployment update if scaling up
 	if isScalingUp {
 		wf.Logger.Info("Scaling up detected - modifying QoS policy after deployment update")
-		err = workflow.ExecuteActivity(ctx, svmActivity.ModifyQoSPolicyAndApplyToSVM, dbPool, node, updatePoolParams).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, svmActivity.ModifyQoSPolicyAndApplyToSVM, nil, dbPool, node, updatePoolParams); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
 	}
@@ -1884,8 +1894,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	// Update nodes table with new instance type if it changed
 	if currentInstanceType != newInstanceType {
 		wf.Logger.Info("Instance type changed - updating nodes table", "from", currentInstanceType, "to", newInstanceType)
-		err = workflow.ExecuteActivity(ctx, poolActivity.UpdateNodesInstanceTypeActivity, dbPool.ID, newInstanceType).Get(ctx, nil)
-		if err != nil {
+		if err = orchestrator.RunActivity(orchCtx, poolActivity.UpdateNodesInstanceTypeActivity, nil, dbPool.ID, newInstanceType); err != nil {
 			wf.Logger.Errorf("Failed to update nodes instance type in database: %v", err)
 			return nil, ConvertToVSAError(err)
 		}
@@ -1893,8 +1902,8 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Only hydrate to CCFE if this update was triggered by auto-tiering hot tier auto-resize.
 	if updatePoolParams.AutoResizeTriggeredUpdate {
-		err = workflow.ExecuteActivity(ctx, poolActivity.HydrateUpdatedPoolToCCFE, pool).Get(ctx, nil)
-		if err != nil {
+		hydrateOrchCtx := orchCtx.ClearOperationBudgetCheck()
+		if err = orchestrator.RunActivity(hydrateOrchCtx, poolActivity.HydrateUpdatedPoolToCCFE, nil, *pool); err != nil {
 			wf.Logger.Errorf("Failed to hydrate pool to CCFE as part of auto-tiering hot tier auto-resize, error: %v", err)
 			// TODO: Add error handling for hydration failure when auto-tiering feature integration is complete
 			// return nil, ConvertToVSAError(err)
@@ -1902,7 +1911,8 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	// Update pool with VLM config
-	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPoolWithVLMConfig, dbPool, updateVSAClusterDeploymentResponse.VLMConfig, updatePoolParams).Get(dbHbCtx, nil)
+	persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+	err = orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPoolWithVLMConfig, nil, dbPool, updateVSAClusterDeploymentResponse.VLMConfig, updatePoolParams)
 	return nil, ConvertToVSAError(err)
 }
 
@@ -3133,7 +3143,8 @@ func prepareZoneSwitchRequest(zoneSwitchRequest *vlm.ZoneSwitchRequest, currentV
 }
 
 // executePoolBatchUpdates processes HA pair updates in batches sequentially
-func executePoolBatchUpdates(ctx workflow.Context, batchPlan *activities.CalculateBatchPlanActivityOutput, currentVlmConfig *vlm.VLMConfig, newVlmConfig *vlm.VLMConfig, credentials *vlm.OntapCredentials, ontapVersion string, vsaClientWorkflowManager vlm.VlmWorkflowClient, logger log.Logger, bucketName string) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+func executePoolBatchUpdates(orchCtx *orchestrator.Context, batchPlan *activities.CalculateBatchPlanActivityOutput, currentVlmConfig *vlm.VLMConfig, newVlmConfig *vlm.VLMConfig, credentials *vlm.OntapCredentials, ontapVersion string, vsaClientWorkflowManager vlm.VlmWorkflowClient, logger log.Logger, bucketName string) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	ctx := temporalbackend.WorkflowCtx(orchCtx)
 	currentConfig := currentVlmConfig
 	var updateVSAClusterDeploymentResponse *vlm.UpdateVSAClusterDeploymentResponse
 
@@ -3171,6 +3182,10 @@ func executePoolBatchUpdates(ctx workflow.Context, batchPlan *activities.Calcula
 		updateVSAClusterDeploymentResponse = response
 
 		logger.Info("Completed update batch", "batchNumber", batchNum+1, "totalBatches", batchPlan.NumWorkflowCalls, "indices", batchIndices)
+
+		if orchCtx.OperationBudgetExceeded() {
+			return nil, fmt.Errorf("operation budget exceeded after VLM batch %d", batchNum+1)
+		}
 	}
 
 	return updateVSAClusterDeploymentResponse, nil
@@ -3445,8 +3460,8 @@ func _waitForGCPNetworkOperationStatus(ctx workflow.Context, poolActivity *activ
 // create converted VPG (ONTAP + DB), assign all pool volumes to it, update pool qos_type to manual.
 // Registers rollback after each step so failure restores pre-transition state.
 func runPoolQosTypeTransitionAutoToManual(
-	ctx workflow.Context,
-	dbHbCtx workflow.Context,
+	orchCtx *orchestrator.Context,
+	dbOrchCtx *orchestrator.Context,
 	wf *updatePoolWorkflow,
 	rollbackManager *common.RollbackManager,
 	poolActivity *activities.PoolActivity,
@@ -3459,6 +3474,7 @@ func runPoolQosTypeTransitionAutoToManual(
 	vpgActivity := &activities.VolumePerformanceGroupActivity{}
 	updateActivity := &activities.VolumeUpdateActivity{}
 	volumeDeleteActivity := &activities.VolumeDeleteActivity{}
+	commonActivities := activities.CommonActivities{}
 
 	wf.Logger.Info("qosType transition started", "direction", "auto_to_manual", "poolUUID", dbPool.UUID)
 
@@ -3471,7 +3487,7 @@ func runPoolQosTypeTransitionAutoToManual(
 
 	// 1. Get node for pool
 	var dbNodes []*datamodel.Node
-	if err := workflow.ExecuteActivity(dbHbCtx, activities.CommonActivities.GetNode, pool.ID).Get(dbHbCtx, &dbNodes); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, commonActivities.GetNode, &dbNodes, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3483,7 +3499,7 @@ func runPoolQosTypeTransitionAutoToManual(
 
 	// 2. Remove QPG from vserver
 	wf.Logger.Info("qosType auto→manual: removing QPG from vserver")
-	if err := workflow.ExecuteActivity(ctx, svmActivity.RemoveQoSPolicyFromSVM, dbPool, node).Get(ctx, nil); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, svmActivity.RemoveQoSPolicyFromSVM, nil, dbPool, node); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3495,7 +3511,7 @@ func runPoolQosTypeTransitionAutoToManual(
 	// 2b. Delete any existing QoS policy with the transition name (idempotent create: leftover from previous run)
 	// TransitionVPGNameFromPoolName is defined in pool_vpg_helpers.go.
 	transitionName := TransitionVPGNameFromPoolName(dbPool.Name)
-	if err := workflow.ExecuteActivity(ctx, vpgActivity.DeleteQoSPolicyInONTAP, transitionName, "", pool.ID, node).Get(ctx, nil); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, vpgActivity.DeleteQoSPolicyInONTAP, nil, transitionName, "", pool.ID, node); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3511,7 +3527,7 @@ func runPoolQosTypeTransitionAutoToManual(
 		IsAutoGen:       false,
 	}
 	var qosPolicyID string
-	if err := workflow.ExecuteActivity(ctx, vpgActivity.CreateQoSPolicyInONTAP, convertedVPG, node).Get(ctx, &qosPolicyID); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, vpgActivity.CreateQoSPolicyInONTAP, &qosPolicyID, convertedVPG, node); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3519,7 +3535,7 @@ func runPoolQosTypeTransitionAutoToManual(
 	rollbackManager.AddActivity(vpgActivity.DeleteQoSPolicyInONTAP, qosPolicyID, "", pool.ID, node)
 
 	var createdVPG *datamodel.VolumePerformanceGroup
-	if err := workflow.ExecuteActivity(ctx, vpgActivity.CreateVPGInDB, convertedVPG).Get(ctx, &createdVPG); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, vpgActivity.CreateVPGInDB, &createdVPG, convertedVPG); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3527,7 +3543,7 @@ func runPoolQosTypeTransitionAutoToManual(
 
 	// 4. Get volumes in pool
 	var volumes []*datamodel.Volume
-	if err := workflow.ExecuteActivity(dbHbCtx, volumeCreateActivity.GetPoolVolumesForQosTransition, pool.ID).Get(dbHbCtx, &volumes); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, volumeCreateActivity.GetPoolVolumesForQosTransition, &volumes, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3535,14 +3551,14 @@ func runPoolQosTypeTransitionAutoToManual(
 	// 5. Assign each volume to the converted VPG (ONTAP + DB).
 	// Use VPG name (policy name in ONTAP), not OntapQosPolicyID (UUID): ONTAP volume update expects qos.policy.name.
 	for _, vol := range volumes {
-		if err := workflow.ExecuteActivity(ctx, updateActivity.AssignQoSPolicyToVolume, vol, createdVPG.Name, node).Get(ctx, nil); err != nil {
+		if err := orchestrator.RunActivity(orchCtx, updateActivity.AssignQoSPolicyToVolume, nil, vol, createdVPG.Name, node); err != nil {
 			wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 			return ConvertToVSAError(err)
 		}
 		rollbackManager.AddActivity(updateActivity.UpdateVolumePerformanceGroupInDBForVolume, vol.UUID, nil)
 		rollbackManager.AddActivity(updateActivity.UnassignQoSPolicyFromVolume, vol, node)
 
-		if err := workflow.ExecuteActivity(dbHbCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, vol.UUID, createdVPG).Get(dbHbCtx, nil); err != nil {
+		if err := orchestrator.RunActivity(dbOrchCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, nil, vol.UUID, createdVPG); err != nil {
 			wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 			return ConvertToVSAError(err)
 		}
@@ -3552,9 +3568,9 @@ func runPoolQosTypeTransitionAutoToManual(
 	applyUpdatePoolParamsToDbPool(dbPool, updatePoolParams)
 	// Update pool qos_type to manual in DB
 	dbPool.QosType = utils.QosTypeManual
-	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, dbPool.UUID, map[string]interface{}{
+	if err := orchestrator.RunActivity(dbOrchCtx, poolActivity.UpdatePoolFields, nil, dbPool.UUID, map[string]interface{}{
 		"qos_type": utils.QosTypeManual,
-	}).Get(dbHbCtx, nil); err != nil {
+	}); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3562,11 +3578,12 @@ func runPoolQosTypeTransitionAutoToManual(
 	// failure restores the original values (UpdatedPool omits auto_tiering_config).
 	origHot, origEnable := originalHotTierInfo(pool)
 	rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
-	if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+	if err := persistAutoTieringHotTierInfo(dbOrchCtx, poolActivity, dbPool, updatePoolParams); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
-	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
+	persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+	if err := orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPool, nil, dbPool); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3578,8 +3595,8 @@ func runPoolQosTypeTransitionAutoToManual(
 // delete auto-generated VPGs, apply QPG to vserver, update pool qos_type to auto.
 // Registers rollback after each step so failure restores pre-transition state.
 func runPoolQosTypeTransitionManualToAuto(
-	ctx workflow.Context,
-	dbHbCtx workflow.Context,
+	orchCtx *orchestrator.Context,
+	dbOrchCtx *orchestrator.Context,
 	wf *updatePoolWorkflow,
 	rollbackManager *common.RollbackManager,
 	poolActivity *activities.PoolActivity,
@@ -3592,6 +3609,7 @@ func runPoolQosTypeTransitionManualToAuto(
 	volumeCreateActivity := &activities.VolumeCreateActivity{}
 	volumeDeleteActivity := &activities.VolumeDeleteActivity{}
 	updateActivity := &activities.VolumeUpdateActivity{}
+	commonActivities := activities.CommonActivities{}
 
 	wf.Logger.Info("qosType transition started", "direction", "manual_to_auto", "poolUUID", dbPool.UUID)
 
@@ -3603,7 +3621,7 @@ func runPoolQosTypeTransitionManualToAuto(
 
 	// 1. Get node for pool
 	var dbNodes []*datamodel.Node
-	if err := workflow.ExecuteActivity(dbHbCtx, activities.CommonActivities.GetNode, pool.ID).Get(dbHbCtx, &dbNodes); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, commonActivities.GetNode, &dbNodes, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3615,14 +3633,14 @@ func runPoolQosTypeTransitionManualToAuto(
 
 	// 2. Get volumes in pool (lightweight query — no association preloads)
 	var volumes []*datamodel.Volume
-	if err := workflow.ExecuteActivity(dbHbCtx, volumeCreateActivity.GetPoolVolumesForQosTransition, pool.ID).Get(dbHbCtx, &volumes); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, volumeCreateActivity.GetPoolVolumesForQosTransition, &volumes, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
 
 	// 3. List all VPGs for the pool (manual→auto deletes every pool VPG, not only auto-generated)
 	var allVPGs []*datamodel.VolumePerformanceGroup
-	if err := workflow.ExecuteActivity(dbHbCtx, vpgActivity.ListVolumePerformanceGroupsByPoolID, pool.ID).Get(dbHbCtx, &allVPGs); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, vpgActivity.ListVolumePerformanceGroupsByPoolID, &allVPGs, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3640,11 +3658,11 @@ func runPoolQosTypeTransitionManualToAuto(
 	wf.Logger.Info("qosType manual→auto: unassigning volumes from VPGs", "direction", "manual_to_auto", "poolUUID", dbPool.UUID)
 	for _, vpg := range allVPGs {
 		for _, vol := range volumesByVPGID[vpg.ID] {
-			if err := workflow.ExecuteActivity(ctx, updateActivity.UnassignQoSPolicyFromVolume, vol, node).Get(ctx, nil); err != nil {
+			if err := orchestrator.RunActivity(orchCtx, updateActivity.UnassignQoSPolicyFromVolume, nil, vol, node); err != nil {
 				wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 				return ConvertToVSAError(err)
 			}
-			if err := workflow.ExecuteActivity(dbHbCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, vol.UUID, nil).Get(dbHbCtx, nil); err != nil {
+			if err := orchestrator.RunActivity(dbOrchCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, nil, vol.UUID, nil); err != nil {
 				wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 				return ConvertToVSAError(err)
 			}
@@ -3655,14 +3673,14 @@ func runPoolQosTypeTransitionManualToAuto(
 
 	// 5. Bulk dereference any remaining pool volumes from VPGs (e.g. soft-deleted volumes) to avoid FK on VPG delete
 	wf.Logger.Info("qosType manual→auto: dereferencing pool volumes from VPGs in DB", "direction", "manual_to_auto", "poolUUID", dbPool.UUID)
-	if err := workflow.ExecuteActivity(dbHbCtx, volumeDeleteActivity.DereferencePoolVolumesFromVPGs, pool.ID).Get(dbHbCtx, nil); err != nil {
+	if err := orchestrator.RunActivity(dbOrchCtx, volumeDeleteActivity.DereferencePoolVolumesFromVPGs, nil, pool.ID); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
 
 	// 6. Delete every pool VPG (QPG in ONTAP + hard-delete VPG in DB); register rollback to restore
 	for _, vpg := range allVPGs {
-		if err := workflow.ExecuteActivity(ctx, volumeDeleteActivity.DeleteVPGByID, vpg.ID, node).Get(ctx, nil); err != nil {
+		if err := orchestrator.RunActivity(orchCtx, volumeDeleteActivity.DeleteVPGByID, nil, vpg.ID, node); err != nil {
 			wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 			return ConvertToVSAError(err)
 		}
@@ -3672,7 +3690,7 @@ func runPoolQosTypeTransitionManualToAuto(
 
 	// 6b. Delete QoS policy by transition name so no leftover policy remains (e.g. from failed DeleteVPGByID or wrong UUID)
 	transitionName := TransitionVPGNameFromPoolName(dbPool.Name)
-	if err := workflow.ExecuteActivity(ctx, vpgActivity.DeleteQoSPolicyInONTAP, transitionName, "", pool.ID, node).Get(ctx, nil); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, vpgActivity.DeleteQoSPolicyInONTAP, nil, transitionName, "", pool.ID, node); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3695,7 +3713,7 @@ func runPoolQosTypeTransitionManualToAuto(
 	// Pass pool with QosType=auto so ModifyQoSPolicyAndApplyToSVM does not early-return for manual pools
 	poolForSVM := *dbPool
 	poolForSVM.QosType = utils.QosTypeAuto
-	if err := workflow.ExecuteActivity(ctx, svmActivity.ModifyQoSPolicyAndApplyToSVM, &poolForSVM, node, paramsForApply).Get(ctx, nil); err != nil {
+	if err := orchestrator.RunActivity(orchCtx, svmActivity.ModifyQoSPolicyAndApplyToSVM, nil, &poolForSVM, node, paramsForApply); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3705,9 +3723,9 @@ func runPoolQosTypeTransitionManualToAuto(
 	applyUpdatePoolParamsToDbPool(dbPool, updatePoolParams)
 	// Update pool qos_type to auto in DB
 	dbPool.QosType = utils.QosTypeAuto
-	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, dbPool.UUID, map[string]interface{}{
+	if err := orchestrator.RunActivity(dbOrchCtx, poolActivity.UpdatePoolFields, nil, dbPool.UUID, map[string]interface{}{
 		"qos_type": utils.QosTypeAuto,
-	}).Get(dbHbCtx, nil); err != nil {
+	}); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3715,11 +3733,12 @@ func runPoolQosTypeTransitionManualToAuto(
 	// failure restores the original values (UpdatedPool omits auto_tiering_config).
 	origHot, origEnable := originalHotTierInfo(pool)
 	rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
-	if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+	if err := persistAutoTieringHotTierInfo(dbOrchCtx, poolActivity, dbPool, updatePoolParams); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
-	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
+	persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
+	if err := orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPool, nil, dbPool); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
@@ -3766,13 +3785,13 @@ func hotTierInfoFromUpdatePoolParams(dbPool *datamodel.Pool, updatePoolParams *c
 }
 
 func persistAutoTieringHotTierInfo(
-	dbHbCtx workflow.Context,
+	dbOrchCtx *orchestrator.Context,
 	poolActivity *activities.PoolActivity,
 	dbPool *datamodel.Pool,
 	updatePoolParams *common.UpdatePoolParams,
 ) error {
 	hot, enable := hotTierInfoFromUpdatePoolParams(dbPool, updatePoolParams)
-	return workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdateAutoTieringHotTierInfo, dbPool.UUID, hot, enable).Get(dbHbCtx, nil)
+	return orchestrator.RunActivity(dbOrchCtx, poolActivity.UpdateAutoTieringHotTierInfo, nil, dbPool.UUID, hot, enable)
 }
 
 // originalHotTierInfo snapshots the pre-update hot-tier values from the original pool so a

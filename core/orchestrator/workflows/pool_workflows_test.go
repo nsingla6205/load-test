@@ -33,7 +33,9 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
+	workflowtemporal "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	commonpb "go.temporal.io/api/common/v1"
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
@@ -45,6 +47,20 @@ import (
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 )
+
+func TestMain(m *testing.M) {
+	// Legacy UpdatePoolWorkflow tests assume a generous in-workflow budget; production reads
+	// UPDATE_POOL_* env via GetUpdatePoolWorkflowTimeout at call time. Save/restore globals so
+	// other packages' tests are unaffected and budget-suite overrides remain isolated per test.
+	origStd := workflowtemporal.UpdatePoolWorkflowTimeoutMinutes
+	origLV := workflowtemporal.UpdatePoolWorkflowTimeoutMinutesLV
+	workflowtemporal.UpdatePoolWorkflowTimeoutMinutes = "1440"
+	workflowtemporal.UpdatePoolWorkflowTimeoutMinutesLV = "1440"
+	code := m.Run()
+	workflowtemporal.UpdatePoolWorkflowTimeoutMinutes = origStd
+	workflowtemporal.UpdatePoolWorkflowTimeoutMinutesLV = origLV
+	os.Exit(code)
+}
 
 func testVerifyKmsConfigReachabilityWorkflow(ctx workflow.Context, kmsConfigID string) error {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -3275,6 +3291,13 @@ func TestUpdatePoolWorkflow(t *testing.T) {
 	// Mock UpdateNodesInstanceTypeActivity since instance type is changing (foo-bar -> c3-new-instance-type)
 	env.OnActivity("UpdateNodesInstanceTypeActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
+	env.OnActivity("CalculateBatchPlanForUpdate", mock.Anything, mock.Anything).Return(&activities.CalculateBatchPlanActivityOutput{
+		NumHAPairs:       1,
+		BatchSize:        1,
+		NumWorkflowCalls: 1,
+		BatchIndices:     [][]int{{0}},
+	}, nil)
+
 	// AD sync expectations
 	env.OnActivity("GetAuthJWTToken", mock.Anything, params.AccountName).Return("test-jwt-token", nil).Maybe()
 	env.OnActivity("PushActiveDirectoryPasswordActivity", mock.Anything, mock.Anything).Return(&active_directory_activities.PushActiveDirectoryPasswordResult{
@@ -3342,12 +3365,16 @@ func TestUpdatePoolWorkflowNoVLM_PersistHotTierFails(t *testing.T) {
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
 	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(errors.New("persist hot tier failed"))
+		Return(temporal.NewNonRetryableApplicationError("persist hot tier failed", "NonRetryableErr", nil)).Once()
+	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Once() // rollback compensating hot-tier patch
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Once() // rollback → READY
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
 }
 
 func TestUpdatePoolWorkflowNoVLM(t *testing.T) {
@@ -4242,6 +4269,7 @@ func TestUpdatePoolWorkflow_DeepCopyPoolFailure_ReturnsError(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
 
@@ -5884,7 +5912,13 @@ func TestUpdatePoolWorkflowWithHydrationSuccess(t *testing.T) {
 	env.OnActivity("PollPushPasswordOperationActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("CreateActiveDirectoryInVCPActivity", mock.Anything, mock.Anything, "secret-path").Return(&datamodel.ActiveDirectory{BaseModel: datamodel.BaseModel{ID: 11}}, nil).Maybe()
 	env.OnActivity("UpdatePoolActiveDirectoryIDActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	env.OnActivity("HydrateUpdatedPoolToCCFE", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("HydrateUpdatedPoolToCCFE", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CalculateBatchPlanForUpdate", mock.Anything, mock.Anything).Return(&activities.CalculateBatchPlanActivityOutput{
+		NumHAPairs:       1,
+		BatchSize:        1,
+		NumWorkflowCalls: 1,
+		BatchIndices:     [][]int{{0}},
+	}, nil)
 	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
 		return mockVSAClientWorkflowManager
 	}
@@ -16252,7 +16286,7 @@ func TestExecutePoolBatchUpdates_Success(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16353,7 +16387,7 @@ func TestExecutePoolBatchUpdates_SingleBatch(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16448,7 +16482,7 @@ func TestExecutePoolBatchUpdates_PartialFailure(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16551,7 +16585,7 @@ func TestExecutePoolBatchUpdates_ConfigUpdateBetweenBatches(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16631,7 +16665,7 @@ func TestExecutePoolBatchUpdates_FirstBatchFails(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16730,7 +16764,7 @@ func TestExecutePoolBatchUpdates_LastBatchFails(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16803,7 +16837,7 @@ func TestExecutePoolBatchUpdates_SingleBatchFails(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, "")
 	}
 
 	env.ExecuteWorkflow(testWorkflow)
@@ -16884,7 +16918,7 @@ func TestExecutePoolBatchUpdates_WithBucketName(t *testing.T) {
 	testWorkflow := func(ctx workflow.Context) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
 		logger := util.GetLogger(ctx)
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-		return executePoolBatchUpdates(ctx, batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, bucketName)
+		return executePoolBatchUpdates(temporalbackend.NewTemporalContext(ctx), batchPlan, currentVlmConfig, newVlmConfig, credentials, ontapVersion, vsaClientWorkflowManager, logger, bucketName)
 	}
 
 	env.ExecuteWorkflow(testWorkflow)

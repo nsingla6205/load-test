@@ -481,7 +481,7 @@ func _updatePool(ctx context.Context, se database.Storage, temporal client.Clien
 		createdJob.WorkflowID,
 		workflowengine.CustomerTaskQueue,
 		workflows.UpdatePoolWorkflow,
-		workflowengine.GetUpdatePoolWorkflowRunTimeout(pool.LargeCapacity),
+		workflowengine.GetUpdatePoolWorkflowRunTimeout(pool.LargeCapacity, true),
 		params,
 		pool,
 		nil,

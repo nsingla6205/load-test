@@ -35,6 +35,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowEngineMock "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
@@ -30575,7 +30576,10 @@ func TestCheckAndTriggerPoolScalingIfNeeded(t *testing.T) {
 
 		// Mock ExecuteWorkflow to succeed
 		mockTemporal.EXPECT().ExecuteWorkflow(ctx,
-			mock.AnythingOfType("internal.StartWorkflowOptions"),
+			mock.MatchedBy(func(opts client.StartWorkflowOptions) bool {
+				want := workflowengine.GetUpdatePoolWorkflowRunTimeout(false, true)
+				return want != nil && opts.WorkflowRunTimeout == *want
+			}),
 			mock.AnythingOfType("func(internal.Context, *common.UpdatePoolParams, *datamodel.Pool, *common.AutoPoolScalingParams) (gcpserver.V1betaDescribePoolRes, error)"),
 			mock.MatchedBy(func(updateParams *common.UpdatePoolParams) bool {
 				return updateParams.PoolId == pool.UUID &&
@@ -30649,7 +30653,10 @@ func TestCheckAndTriggerPoolScalingIfNeeded(t *testing.T) {
 
 		// Mock ExecuteWorkflow to succeed
 		mockTemporal.EXPECT().ExecuteWorkflow(ctx,
-			mock.AnythingOfType("internal.StartWorkflowOptions"),
+			mock.MatchedBy(func(opts client.StartWorkflowOptions) bool {
+				want := workflowengine.GetUpdatePoolWorkflowRunTimeout(true, true)
+				return want != nil && opts.WorkflowRunTimeout == *want
+			}),
 			mock.AnythingOfType("func(internal.Context, *common.UpdatePoolParams, *datamodel.Pool, *common.AutoPoolScalingParams) (gcpserver.V1betaDescribePoolRes, error)"),
 			mock.AnythingOfType("*common.UpdatePoolParams"),
 			pool,

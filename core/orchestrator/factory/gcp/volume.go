@@ -3876,11 +3876,13 @@ func checkAndTriggerPoolScalingIfNeeded(ctx context.Context, se database.Storage
 		}
 	}()
 
+	updatePoolRunTimeout := workflowengine.GetUpdatePoolWorkflowRunTimeout(pool.LargeCapacity, true)
 	_, err = temporal.ExecuteWorkflow(ctx,
 		client.StartWorkflowOptions{
 			TaskQueue:             workflowengine.BackgroundTaskQueue,
 			ID:                    createdJob.WorkflowID,
 			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+			WorkflowRunTimeout:    *updatePoolRunTimeout,
 		},
 		workflows.UpdatePoolWorkflow,
 		updateParams,

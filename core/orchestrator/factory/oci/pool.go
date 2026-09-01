@@ -372,7 +372,7 @@ func (o *OCIOrchestrator) updatePool(ctx context.Context, params *commonparams.U
 		workflowID,
 		workflowengine.CustomerTaskQueue,
 		ociworkflows.OCIUpdatePoolWorkflow,
-		workflowengine.GetUpdatePoolWorkflowRunTimeout(false),
+		workflowengine.GetUpdatePoolWorkflowRunTimeout(false, false),
 		params,
 		pool,
 	)
