@@ -2286,6 +2286,17 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	backup := backupActivitiesContext.BackupWorkflowInit.Backup
 	backupVault := backupActivitiesContext.BackupWorkflowInit.BackupVault
 	projectNumber := backupActivitiesContext.BackupWorkflowInit.Volume.Account.Name
+	// A cross-project vault lives in a different project than the volume, and the remote
+	// region scopes the vault to its owning account.
+	if backupVault.ServiceType == datamodel.ServiceTypeCrossProject {
+		if backupVault.Account != nil && backupVault.Account.Name != "" {
+			projectNumber = backupVault.Account.Name
+		} else {
+			logger.Error("backup vault account is nil/empty for cross-project remote backup creation",
+				"backupVaultUUID", backupVault.UUID, "backupUUID", backup.UUID)
+			return vsaerrors.WrapAsTemporalApplicationError(errors.New("backup vault account is nil/empty for cross-project remote backup creation"))
+		}
+	}
 	region := *backupActivitiesContext.BackupWorkflowInit.BackupVault.BackupRegionName
 
 	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for backup %s", backup.UUID))
@@ -2388,8 +2399,9 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 		if sourcePoolLocation == "" {
 			sourcePoolLocation = *backupVault.SourceRegionName
 		}
+		// The source pool always lives in the volume's project, even for cross-project vaults.
 		sourcePoolPath := fmt.Sprintf("projects/%s/locations/%s/storagePools/%s",
-			projectNumber, sourcePoolLocation, volume.Pool.Name)
+			volume.Account.Name, sourcePoolLocation, volume.Pool.Name)
 		backupCreate.SourceStoragePool = googleproxyclient.NewOptString(sourcePoolPath)
 	}
 

@@ -10059,6 +10059,133 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 		mockInvoker.AssertExpectations(t)
 	})
 
+	t.Run("Success_CrossProjectUsesVaultAccountAndSourceVolumeAccount", func(t *testing.T) {
+		// Arrange
+		activity := BackupActivity{}
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		vaultProjectNumber := "vault-project-123"
+		volumeProjectNumber := "volume-project-456"
+		sourceRegion := "us-east1"
+		primaryZone := "us-east1-b"
+		poolName := "source-pool"
+
+		backupActivitiesContext := &BackupActivitiesContext{
+			BackupWorkflowInit: &BackupWorkflowInput{
+				Backup: &datamodel.Backup{
+					BaseModel:  datamodel.BaseModel{UUID: backupUUID},
+					Name:       "test-backup",
+					VolumeUUID: volumeUUID,
+					Attributes: &datamodel.BackupAttributes{
+						VolumeName:         "test-volume",
+						Protocols:          []string{"NFSV3"},
+						IsExpertModeBackup: true,
+					},
+				},
+				BackupVault: &datamodel.BackupVault{
+					BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
+					Account:          &datamodel.Account{Name: vaultProjectNumber},
+					BackupVaultType:  CrossRegionBackupType,
+					BackupRegionName: &region,
+					SourceRegionName: &sourceRegion,
+					ServiceType:      datamodel.ServiceTypeCrossProject,
+				},
+				Volume: &datamodel.Volume{
+					Account: &datamodel.Account{Name: volumeProjectNumber},
+					Pool: &datamodel.Pool{
+						Name:           poolName,
+						PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: primaryZone},
+					},
+				},
+			},
+		}
+
+		originalGetRemoteRegionConfig := commonparams.GetRemoteRegionConfig
+		defer func() { commonparams.GetRemoteRegionConfig = originalGetRemoteRegionConfig }()
+		commonparams.GetRemoteRegionConfig = func(regionParam, projectNumberParam string) (string, string, error) {
+			assert.Equal(t, region, regionParam)
+			assert.Equal(t, vaultProjectNumber, projectNumberParam)
+			return basePath, jwtToken, nil
+		}
+
+		mockInvoker := googleproxyclient.NewMockInvoker(t)
+		mockClient := &googleproxyclient.ProxyClient{Invoker: mockInvoker}
+		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		defer func() { googleproxyclient.GetGProxyClient = originalGetGProxyClient }()
+		googleproxyclient.GetGProxyClient = func(_ string, _ string, _ log.Logger) *googleproxyclient.ProxyClient {
+			return mockClient
+		}
+
+		expectedPoolPath := fmt.Sprintf("projects/%s/locations/%s/storagePools/%s", volumeProjectNumber, primaryZone, poolName)
+		mockInvoker.On("V1betaInternalCreateBackup", mock.Anything, mock.MatchedBy(func(req *googleproxyclient.InternalBackupCreateV1beta) bool {
+			return req.SourceStoragePool.IsSet() &&
+				req.SourceStoragePool.Value == expectedPoolPath
+		}), mock.MatchedBy(func(params googleproxyclient.V1betaInternalCreateBackupParams) bool {
+			return params.ProjectNumber == vaultProjectNumber &&
+				params.LocationId == region &&
+				params.BackupVaultId == backupVaultUUID
+		})).Return(&googleproxyclient.InternalBackupV1beta{}, nil)
+
+		// Act
+		err := activity.CreateRemoteBackupFromVCPActivity(ctx, backupActivitiesContext)
+
+		// Assert
+		assert.NoError(t, err)
+		mockInvoker.AssertExpectations(t)
+	})
+
+	t.Run("Error_CrossProjectWithoutVaultAccount", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			vaultAccount *datamodel.Account
+		}{
+			{name: "NilAccount", vaultAccount: nil},
+			{name: "EmptyAccountName", vaultAccount: &datamodel.Account{Name: ""}},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				// Arrange
+				activity := BackupActivity{}
+				ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+				backupActivitiesContext := &BackupActivitiesContext{
+					BackupWorkflowInit: &BackupWorkflowInput{
+						Backup: &datamodel.Backup{
+							BaseModel:  datamodel.BaseModel{UUID: backupUUID},
+							Name:       "test-backup",
+							VolumeUUID: volumeUUID,
+						},
+						BackupVault: &datamodel.BackupVault{
+							BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
+							Account:          tt.vaultAccount,
+							BackupVaultType:  CrossRegionBackupType,
+							BackupRegionName: &region,
+							ServiceType:      datamodel.ServiceTypeCrossProject,
+						},
+						Volume: &datamodel.Volume{
+							Account: &datamodel.Account{Name: projectNumber},
+						},
+					},
+				}
+
+				// The activity must fail before any remote region call is attempted.
+				originalGetRemoteRegionConfig := commonparams.GetRemoteRegionConfig
+				defer func() { commonparams.GetRemoteRegionConfig = originalGetRemoteRegionConfig }()
+				commonparams.GetRemoteRegionConfig = func(_, _ string) (string, string, error) {
+					t.Fatal("GetRemoteRegionConfig should not be called when the vault account is missing")
+					return "", "", nil
+				}
+
+				// Act
+				err := activity.CreateRemoteBackupFromVCPActivity(ctx, backupActivitiesContext)
+
+				// Assert
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "backup vault account is nil/empty for cross-project remote backup creation")
+			})
+		}
+	})
+
 	t.Run("Success_NotCrossRegionBackup", func(t *testing.T) {
 		// Arrange
 		activity := BackupActivity{}
