@@ -2286,16 +2286,16 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	backup := backupActivitiesContext.BackupWorkflowInit.Backup
 	backupVault := backupActivitiesContext.BackupWorkflowInit.BackupVault
 	projectNumber := backupActivitiesContext.BackupWorkflowInit.Volume.Account.Name
-	// A cross-project vault lives in a different project than the volume, and the remote
-	// region scopes the vault to its owning account.
+	// BackupVault.Account is excluded from Temporal serialization, so resolve the
+	// cross-project vault owner from the persisted AccountID.
 	if backupVault.ServiceType == datamodel.ServiceTypeCrossProject {
-		if backupVault.Account != nil && backupVault.Account.Name != "" {
-			projectNumber = backupVault.Account.Name
-		} else {
-			logger.Error("backup vault account is nil/empty for cross-project remote backup creation",
-				"backupVaultUUID", backupVault.UUID, "backupUUID", backup.UUID)
-			return vsaerrors.WrapAsTemporalApplicationError(errors.New("backup vault account is nil/empty for cross-project remote backup creation"))
+		vaultProjectNumber, err := backupVaultProjectNumber(ctx, a.SE, backupVault)
+		if err != nil {
+			logger.Error("Failed to resolve backup vault account for cross-project remote backup creation",
+				"backupVaultUUID", backupVault.UUID, "backupUUID", backup.UUID, "error", err)
+			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
+		projectNumber = vaultProjectNumber
 	}
 	region := *backupActivitiesContext.BackupWorkflowInit.BackupVault.BackupRegionName
 

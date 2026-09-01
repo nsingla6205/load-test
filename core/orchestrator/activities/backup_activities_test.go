@@ -10061,13 +10061,17 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 
 	t.Run("Success_CrossProjectUsesVaultAccountAndSourceVolumeAccount", func(t *testing.T) {
 		// Arrange
-		activity := BackupActivity{}
+		mockStorage := database.NewMockStorage(t)
+		activity := BackupActivity{SE: mockStorage}
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 		vaultProjectNumber := "vault-project-123"
 		volumeProjectNumber := "volume-project-456"
+		vaultAccountID := int64(42)
 		sourceRegion := "us-east1"
 		primaryZone := "us-east1-b"
 		poolName := "source-pool"
+		mockStorage.On("GetAccountByInternalID", ctx, vaultAccountID).
+			Return(&datamodel.Account{Name: vaultProjectNumber}, nil).Once()
 
 		backupActivitiesContext := &BackupActivitiesContext{
 			BackupWorkflowInit: &BackupWorkflowInput{
@@ -10083,7 +10087,7 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 				},
 				BackupVault: &datamodel.BackupVault{
 					BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
-					Account:          &datamodel.Account{Name: vaultProjectNumber},
+					AccountID:        vaultAccountID,
 					BackupVaultType:  CrossRegionBackupType,
 					BackupRegionName: &region,
 					SourceRegionName: &sourceRegion,
@@ -10133,20 +10137,33 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 		mockInvoker.AssertExpectations(t)
 	})
 
-	t.Run("Error_CrossProjectWithoutVaultAccount", func(t *testing.T) {
+	t.Run("Error_CrossProjectVaultAccountLookupFails", func(t *testing.T) {
 		tests := []struct {
-			name         string
-			vaultAccount *datamodel.Account
+			name            string
+			resolvedAccount *datamodel.Account
+			lookupErr       error
+			expectedError   string
 		}{
-			{name: "NilAccount", vaultAccount: nil},
-			{name: "EmptyAccountName", vaultAccount: &datamodel.Account{Name: ""}},
+			{
+				name:          "DatabaseError",
+				lookupErr:     errors.New("database unavailable"),
+				expectedError: "failed to resolve owner account",
+			},
+			{
+				name:          "MissingAccount",
+				expectedError: "owner account is missing",
+			},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				// Arrange
-				activity := BackupActivity{}
+				mockStorage := database.NewMockStorage(t)
+				activity := BackupActivity{SE: mockStorage}
 				ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+				vaultAccountID := int64(42)
+				mockStorage.On("GetAccountByInternalID", ctx, vaultAccountID).
+					Return(tt.resolvedAccount, tt.lookupErr).Once()
 
 				backupActivitiesContext := &BackupActivitiesContext{
 					BackupWorkflowInit: &BackupWorkflowInput{
@@ -10157,7 +10174,7 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 						},
 						BackupVault: &datamodel.BackupVault{
 							BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
-							Account:          tt.vaultAccount,
+							AccountID:        vaultAccountID,
 							BackupVaultType:  CrossRegionBackupType,
 							BackupRegionName: &region,
 							ServiceType:      datamodel.ServiceTypeCrossProject,
@@ -10181,7 +10198,7 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 
 				// Assert
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "backup vault account is nil/empty for cross-project remote backup creation")
+				assert.Contains(t, err.Error(), tt.expectedError)
 			})
 		}
 	})
