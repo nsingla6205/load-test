@@ -108,7 +108,7 @@ func NewSSHClient(ctx context.Context, params SSHClientParams) (SSHClient, error
 	}
 
 	// Connect to the SSH server
-	address := fmt.Sprintf("%s:%d", params.Host, params.Port)
+	address := net.JoinHostPort(params.Host, fmt.Sprintf("%d", params.Port))
 	conn, err := net.DialTimeout("tcp", address, params.Timeout)
 	if err != nil {
 		logger.Errorf("Failed to dial SSH server %s: %v", address, err)

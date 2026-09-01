@@ -2155,7 +2155,7 @@ func (a *BackupActivity) DeleteRemoteBackupFromVCPActivity(ctx context.Context, 
 	case *googleproxyclient.OperationV1beta:
 		isDone := r.Done.Value
 		logger.Infof("Delete operation returned for remote backup %s in region %s. Operation: %s, Done: %v",
-			backupUUID, region, r.GetName(), isDone)
+			backupUUID, region, r.GetName().Value, isDone)
 
 		if !isDone {
 			logger.Warnf("Delete operation for remote backup %s not marked as done, but treating as synchronous", backupUUID)
@@ -2459,7 +2459,7 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	case *googleproxyclient.OperationV1beta:
 		isDone := r.Done.Value
 		logger.Infof("Create operation returned for remote backup %s in region %s. Operation: %s, Done: %v",
-			backup.Name, region, r.GetName(), isDone)
+			backup.Name, region, r.GetName().Value, isDone)
 
 		if !isDone {
 			logger.Warnf("Create operation for remote backup %s not marked as done, but treating as synchronous", backup.Name)
@@ -2572,7 +2572,7 @@ func (a *BackupActivity) UpdateRemoteBackupFromVCPActivity(ctx context.Context, 
 		// If account is not loaded, use AccountVendorID (project number)
 		projectNumber = backupVault.AccountVendorID
 	} else {
-		logger.Warnf("BackupVault account not loaded and AccountVendorID not available, cannot update remote backup", "backupID", backup.UUID)
+		logger.Warn("BackupVault account not loaded and AccountVendorID not available, cannot update remote backup", "backupID", backup.UUID)
 		return nil
 	}
 
@@ -2601,7 +2601,7 @@ func (a *BackupActivity) UpdateRemoteBackupFromVCPActivity(ctx context.Context, 
 	recordHeartbeat(ctx, fmt.Sprintf("Updating remote backup %s in region %s", backup.UUID, region))
 	res, err := googleProxyClient.Invoker.V1betaInternalUpdateBackup(ctx, &backupUpdate, params)
 	if err != nil {
-		logger.Errorf("Failed to update remote Backup: %v, region=%s, backupVaultID=%s, backupID=%s", err, region, backupVault.ExternalUUID, backup.ExternalUUID)
+		logger.Errorf("Failed to update remote Backup: %v, region=%s, backupVaultID=%s, backupID=%s", err, region, nillable.FromPointer(backupVault.ExternalUUID), backup.ExternalUUID)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 

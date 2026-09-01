@@ -201,7 +201,7 @@ func (a *RegisterNodeToHarvestFarmActivity) ValidateAndCreateKubernetesLease(dbH
 // validateNodeGroupMap validates the node group mapping structure
 func (a *RegisterNodeToHarvestFarmActivity) validateNodeGroupMap(nodeGroupMap *datamodel.NodeNodeGroupMap, logger log.Logger) error {
 	if nodeGroupMap.NodeGroup == nil {
-		logger.Errorf("Failed to fetch node group details of node groupID:%s", nodeGroupMap.NodeGroupID)
+		logger.Errorf("Failed to fetch node group details of node groupID:%d", nodeGroupMap.NodeGroupID)
 		return errors.New("failed to fetch node group details from nodeGroup Map table")
 	}
 	return nil

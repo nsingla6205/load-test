@@ -275,7 +275,7 @@ func _createForwardingRule(gService hyperscaler2.Services, projectName string, r
 	}
 	if vpcNetwork == nil || vpcNetwork.SelfLink == "" {
 		errorMessage := fmt.Sprintf("Failed to GetNetwork %v in region %s for project %s", vpcName, region, projectName)
-		logger.Errorf(errorMessage)
+		logger.Error(errorMessage)
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, errors.New(errorMessage))
 	}
 	logger.Warnf("Creating forwarding rule %s in region %s for project %s using network: %+v, attachment: %+v and address: %+v", privateAddressName, region, projectName, vpcNetwork.SelfLink, serviceAttachment, addressURI)
@@ -336,7 +336,7 @@ func (j *PSCActivity) DeleteForwardingRule(ctx context.Context, pool *datamodel.
 	pools, err := se.ListPools(ctx, filter)
 
 	if err != nil {
-		logger.Errorf("Failed to get pools for account: %s, network: %s, error: %s", pool.AccountID, pool.Network, err.Error())
+		logger.Errorf("Failed to get pools for account: %d, network: %s, error: %s", pool.AccountID, pool.Network, err.Error())
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	if len(pools) > 1 {
@@ -383,7 +383,7 @@ func (j *PSCActivity) DeleteAddress(ctx context.Context, pool *datamodel.Pool) (
 	pools, err := se.ListPools(ctx, filter)
 
 	if err != nil {
-		logger.Errorf("Failed to get pools for account: %s, network: %s, error: %s", pool.AccountID, pool.Network, err.Error())
+		logger.Errorf("Failed to get pools for account: %d, network: %s, error: %s", pool.AccountID, pool.Network, err.Error())
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	if len(pools) > 1 {
@@ -447,7 +447,7 @@ func _createAddress(gService hyperscaler2.Services, projectName, region string, 
 	}
 	if subNet == nil || subNet.SelfLink == "" {
 		errorMessage := fmt.Sprintf("Error getting subnetwork for project : %s and subnetwork : %s. ", projectName, subNetwork)
-		logger.Errorf(errorMessage)
+		logger.Error(errorMessage)
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, errors.New(errorMessage))
 	}
 

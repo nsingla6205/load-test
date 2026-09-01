@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	dbmodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
@@ -4087,4 +4088,18 @@ func Test_isAllowedEmptyLabel(t *testing.T) {
 		result := isAllowedEmptyLabel("/replication/Source_Service_Level")
 		assert.False(t, result, "Expected case-sensitive mismatch to return false")
 	})
+}
+
+// TestHasDuplicateMeasuredTypes_MeasuredTypeError covers the GetMeasuredType error
+// branch in hasDuplicateMeasuredTypes: a metric that cannot resolve a measured type
+// is logged and skipped, and the function reports no duplicates.
+func TestHasDuplicateMeasuredTypes_MeasuredTypeError(t *testing.T) {
+	ml := &log.MockLogger{}
+	ml.On("Debug", "Error getting measured type in has duplicate measured types method.",
+		"error", mock.Anything, "metric", mock.Anything).Once()
+
+	invalid := *common.NewGoogleMetric("invalid-type")
+
+	assert.False(t, hasDuplicateMeasuredTypes([]common.GoogleMetric{invalid}, ml))
+	ml.AssertExpectations(t)
 }

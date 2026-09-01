@@ -3,7 +3,7 @@
 # Built for linux/amd64 platform for Cloud Run compatibility
 
 # syntax=docker/dockerfile:1
-FROM --platform=linux/amd64 mirror.gcr.io/library/golang:1.25.12-alpine AS builder
+FROM --platform=linux/amd64 mirror.gcr.io/library/golang:1.26.6-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -40,7 +40,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     ./tools/mock-resource-generator/generate_hydrated_metrics.go
 
 # Final stage - explicitly set platform for Cloud Run
-FROM --platform=linux/amd64 mirror.gcr.io/library/golang:1.25.12-alpine
+FROM --platform=linux/amd64 mirror.gcr.io/library/golang:1.26.6-alpine
 
 # Install runtime dependencies
 RUN apk add --no-cache \

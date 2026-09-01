@@ -2232,7 +2232,11 @@ func (a *RotateVcpToVsaCertificateActivity) testPasswordConnectivity(ctx context
 		logger.Errorf("Password connectivity test failed: %v", err)
 		return err
 	}
-	logger.Infof("Password connectivity test passed, ONTAP version: %s", ontapVersion)
+	ontapVersionStr := ""
+	if ontapVersion != nil {
+		ontapVersionStr = *ontapVersion
+	}
+	logger.Infof("Password connectivity test passed, ONTAP version: %s", ontapVersionStr)
 	logger.Infof("Password connectivity test passed for pool: %s", pool.UUID)
 	return nil
 }

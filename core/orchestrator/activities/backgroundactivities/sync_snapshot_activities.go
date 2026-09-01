@@ -490,7 +490,7 @@ func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Co
 	provider, err := GetOntapRestProviderForPool(ctx, se, pool)
 	if err != nil || provider == nil {
 		errMsg := fmt.Sprintf("Failed to get ONTAP rest provider for pool %v: %v", pool.UUID, err)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, err
 	}
 
@@ -508,16 +508,16 @@ func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Co
 	case <-done:
 		if volumesErr != nil {
 			errMsg := fmt.Sprintf("Failed to get ONTAP volumes for the pool: %s, %v", pool.UUID, volumesErr)
-			logger.Errorf(errMsg)
+			logger.Error(errMsg)
 			return nil, volumesErr
 		}
 	case <-time.After(30 * time.Second):
 		errMsg := fmt.Sprintf("Timeout getting ONTAP volumes for pool %s after 30 seconds", pool.UUID)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, errors.New(errMsg)
 	case <-ctx.Done():
 		errMsg := fmt.Sprintf("Context cancelled while getting ONTAP volumes for pool %s", pool.UUID)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, ctx.Err()
 	}
 
@@ -609,7 +609,7 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 	dbVolumes, err := se.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get volumes from database for pool %s: %v", pool.UUID, err)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, err
 	}
 
@@ -625,7 +625,7 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 	dbSnapshots, err := se.GetSnapshotsByVolumeIDs(ctx, dbVolumeIDs)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get snapshots from database for pool %s: %v", pool.UUID, err)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, err
 	}
 

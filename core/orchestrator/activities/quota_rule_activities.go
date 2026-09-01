@@ -1568,7 +1568,7 @@ func (a *QuotaRuleCommonActivity) GetMatchingQuotaRuleOnDestination(
 		for _, quotaRule := range r.QuotaRules {
 			if quotaRule.ResourceId == quotaRuleName {
 				logger.Infof("Found matching quota rule on destination: resourceId=%s, quotaId=%s, volumeUUID=%s",
-					quotaRule.ResourceId, quotaRule.QuotaId, destinationVolumeUUID)
+					quotaRule.ResourceId, quotaRule.QuotaId.Value, destinationVolumeUUID)
 
 				destinationQuotaRuleId, hasQuotaId := quotaRule.QuotaId.Get()
 				if !hasQuotaId {

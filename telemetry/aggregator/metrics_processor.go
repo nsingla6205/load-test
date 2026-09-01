@@ -2041,7 +2041,7 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 		}
 	}
 
-	logger.Debugf("Processing metrics for resource %s and customer id %s with aggregation type %s and %s", resourceKey.ResourceName, resourceKey.ConsumerID, jobDef.AggregationType, aggregated)
+	logger.Debugf("Processing metrics for resource %s and customer id %s with aggregation type %s and %v", resourceKey.ResourceName, resourceKey.ConsumerID, jobDef.AggregationType, aggregated)
 	// Format labels for better readability
 	labelsInfo := "none"
 	if len(resourceData.Labels) > 0 {

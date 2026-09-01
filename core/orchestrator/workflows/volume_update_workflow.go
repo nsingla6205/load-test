@@ -314,7 +314,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				"Free up space or choose a larger size",
 				utils.FmtUint64Bytes(uint64(params.QuotaInBytes)),
 				utils.FmtUint64Bytes(uint64(volResponse.UsedBytes)))
-			log.Errorf(err.Error())
+			log.Error(err.Error())
 			return nil, ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrVolumeSizeTooSmall, err))
 		}
 		log.Debugf("Volume size reduction validation passed for volume %s: new size %d >= used bytes %d",

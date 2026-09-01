@@ -341,7 +341,7 @@ func processGenericData(ctx workflow.Context, fetchedData interface{}, config Ge
 	items := reflect.ValueOf(fetchedData)
 	if items.Kind() != reflect.Slice {
 		errorMsg := fmt.Sprintf("Child Workflow '%s'-> expected slice, got %T", config.WorkflowName, fetchedData)
-		logger.Errorf(errorMsg)
+		logger.Error(errorMsg)
 		return 0, allResults
 	}
 
@@ -387,7 +387,7 @@ func processGenericData(ctx workflow.Context, fetchedData interface{}, config Ge
 
 				if err != nil {
 					errorMsg := fmt.Sprintf("Child Workflow '%s' -> Batch %d failed: %v", config.WorkflowName, i, err)
-					logger.Errorf(errorMsg)
+					logger.Error(errorMsg)
 					allResults = append(allResults, map[string]interface{}{
 						"error":      err.Error(),
 						"batch_size": len(dataBatch),

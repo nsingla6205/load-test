@@ -1,4 +1,4 @@
-FROM mirror.gcr.io/library/golang:1.25.12 AS base
+FROM mirror.gcr.io/library/golang:1.26.6 AS base
 # Define GOTRACEBACK to mark this container as using the Go language runtime
 # for `skaffold debug` (https://skaffold.dev/docs/workflows/debug/).
 # Install Air for live reload

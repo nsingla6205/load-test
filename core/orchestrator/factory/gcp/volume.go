@@ -2967,7 +2967,7 @@ func _updateVolume(ctx context.Context, se database.Storage, temporal client.Cli
 	if err != nil {
 		return nil, "", err
 	}
-	logger.Debugf("Pool details: UUID: %s, AccountID: %d, SizeBytes: %d, QuotaBytes: %d, VolumeCount: %d, Throughput: %f, Iops: %f", pool.UUID, pool.AccountID, pool.SizeInBytes, pool.QuotaInBytes, pool.VolumeCount, pool.Throughput, pool.Iops)
+	logger.Debugf("Pool details: UUID: %s, AccountID: %d, SizeBytes: %d, QuotaBytes: %d, VolumeCount: %d, Throughput: %f, Iops: %d", pool.UUID, pool.AccountID, pool.SizeInBytes, pool.QuotaInBytes, pool.VolumeCount, pool.Throughput, pool.Iops)
 
 	// Handle Inferred IOPs now that pool information is available as well
 	// Only assign param.ThroughputMibps/param.Iops for throughput-based updates, not when volumePerformanceGroupId is set

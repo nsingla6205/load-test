@@ -339,7 +339,7 @@ func _createCIFSServer(tracelog log.Logger, api ontapRest.RESTClient, svmUUID, s
 			CertificateType: nillable.ToPointer("server-ca"),
 		})
 		if getCertError != nil && !errors.IsNotFoundErr(getCertError) {
-			tracelog.Errorf("error getting server root CA certificate", "getCertError", getCertError.Error())
+			tracelog.Error("error getting server root CA certificate", "getCertError", getCertError.Error())
 			return getCertError
 		} else if errors.IsNotFoundErr(getCertError) {
 			tracelog.Warnf("server root CA certificate not found, installing it")
@@ -349,7 +349,7 @@ func _createCIFSServer(tracelog log.Logger, api ontapRest.RESTClient, svmUUID, s
 				CertificateType: nillable.ToPointer("server-ca"),
 			})
 			if installCertError != nil {
-				tracelog.Errorf("error installing server root CA certificate", "installCertError", installCertError.Error())
+				tracelog.Error("error installing server root CA certificate", "installCertError", installCertError.Error())
 				return installCertError
 			}
 			defer func() {
@@ -359,7 +359,7 @@ func _createCIFSServer(tracelog log.Logger, api ontapRest.RESTClient, svmUUID, s
 						CertificateType: nillable.ToPointer("server-ca"),
 					})
 					if getCertError != nil && !errors.IsNotFoundErr(getCertError) {
-						tracelog.Warnf("error getting server root CA certificate", "getCertError", getCertError.Error())
+						tracelog.Warn("error getting server root CA certificate", "getCertError", getCertError.Error())
 						return
 					}
 					// attempt certificate deletion only when certificate is found

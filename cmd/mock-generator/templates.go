@@ -81,7 +81,7 @@ func (mock *Mock<<.InterfaceNameUpper>>) assertCall(call, expectedCall *mock<<.I
 			}
 
 			if expectedParamTypePointerLayer != callParamTypePointerLayer {
-				mock.test.Fatalf("Params for %s call do not match expected ones. Expected func pointer layer does not match: '%d':'%d'", expectedParamTypePointerLayer, callParamTypePointerLayer)
+				mock.test.Fatalf("Params for %s call do not match expected ones. Expected func pointer layer does not match: '%d':'%d'", call.name, expectedParamTypePointerLayer, callParamTypePointerLayer)
 			}
 
 			expectedCall.params[i] = nil

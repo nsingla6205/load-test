@@ -364,9 +364,9 @@ func (ca CommonActivities) EnsureSmbIngressFirewall(ctx context.Context, params 
 	}
 
 	if op != "" {
-		logger.Infof("Triggered SMB firewall create operation", "project", params.Project, "network", params.Network, "operation", op)
+		logger.Info("Triggered SMB firewall create operation", "project", params.Project, "network", params.Network, "operation", op)
 	} else {
-		logger.Debugf("SMB firewall already present", "project", params.Project, "network", params.Network, "firewall", SmbFirewallName)
+		logger.Debug("SMB firewall already present", "project", params.Project, "network", params.Network, "firewall", SmbFirewallName)
 	}
 
 	return nil
@@ -402,9 +402,9 @@ func (ca CommonActivities) ILBHealthCheckFirewall(ctx context.Context, params En
 	}
 
 	if op != "" {
-		logger.Infof("Triggered ILBHealthCheck firewall create operation", "project", params.Project, "network", params.Network, "operation", op)
+		logger.Info("Triggered ILBHealthCheck firewall create operation", "project", params.Project, "network", params.Network, "operation", op)
 	} else {
-		logger.Debugf("ILBHealthCheck firewall already present", "project", params.Project, "network", params.Network, "firewall", ILBHealthCheckFirewallName)
+		logger.Debug("ILBHealthCheck firewall already present", "project", params.Project, "network", params.Network, "firewall", ILBHealthCheckFirewallName)
 	}
 
 	return nil

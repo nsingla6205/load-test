@@ -94,7 +94,7 @@ func (s *GoogleUsageSink) initializeTableName() {
 }
 
 func (s *GoogleUsageSink) DeliverMetrics(ctx context.Context, aggregatedRecords []datamodel.AggregatedUsage, aggregationEndTime time.Time) (failedCount int, err error) {
-	s.logger.Debugf("MapAggregatedRecordsToBilling: Received Number of records to map", "Number of records:", len(aggregatedRecords))
+	s.logger.Debug("MapAggregatedRecordsToBilling: Received Number of records to map", "Number of records:", len(aggregatedRecords))
 	validUsage, err := s.filterValidUsage(aggregatedRecords)
 	if err != nil {
 		return 0, err
@@ -136,7 +136,7 @@ func (s *GoogleUsageSink) completeRecords(records []datamodel.AggregatedUsage) [
 		missingFields := googleMetric.Validate()
 
 		if len(missingFields) == 0 {
-			s.logger.Debugf("Google Usage Mapping with ID is ready for billing", "Record ID: ", record.ID)
+			s.logger.Debug("Google Usage Mapping with ID is ready for billing", "Record ID: ", record.ID)
 			firstPartyGoogleMetrics = append(firstPartyGoogleMetrics, *googleMetric)
 		} else {
 			record.State = datamodel.Invalid
@@ -151,12 +151,12 @@ func (s *GoogleUsageSink) filterValidUsage(aggregatedRecords []datamodel.Aggrega
 	for _, usage := range aggregatedRecords {
 		u := usage
 		if !u.IsBillable {
-			s.logger.Debugf("Skipping usage: Not mapping usage record as it is non-billable usage.",
+			s.logger.Debug("Skipping usage: Not mapping usage record as it is non-billable usage.",
 				"Record ID", u.ID)
 			continue
 		}
 		if u.ID == 0 {
-			s.logger.Errorf("Skipping usage: Not mapping usage record due to unset id.", "Record ID", u.ID)
+			s.logger.Error("Skipping usage: Not mapping usage record due to unset id.", "Record ID", u.ID)
 			continue
 		}
 		if s.isValid(u) {
@@ -171,7 +171,7 @@ func (s *GoogleUsageSink) filterValidUsage(aggregatedRecords []datamodel.Aggrega
 
 func (s *GoogleUsageSink) isValid(usage datamodel.AggregatedUsage) bool {
 	if usage.VendorCustomerID == nil || *usage.VendorCustomerID == "" {
-		s.logger.Errorf("Skipping usage: Not mapping usage record due to missing project ID/number.",
+		s.logger.Error("Skipping usage: Not mapping usage record due to missing project ID/number.",
 			"Record ID", usage.ID)
 		return false
 	}
@@ -203,7 +203,7 @@ func (s *GoogleUsageSink) push(ctx context.Context, googleMetrics []common.Googl
 	fpResultChan := make(chan []common.MetricsResult, 1)
 	operationTime := aggregationEndTime.Add(time.Duration(s.config.TargetMinute) * time.Minute).Unix()
 
-	s.logger.Debugf("Reporting First Party Google Billing Metrics", "Google Metric First Party list count: ", len(googleMetrics))
+	s.logger.Debug("Reporting First Party Google Billing Metrics", "Google Metric First Party list count: ", len(googleMetrics))
 
 	// localFailed is owned by this invocation; processResponse writes only to it,
 	// and we copy it to the caller's pointer solely on the success (done) path.
@@ -315,7 +315,7 @@ func (s *GoogleUsageSink) processMetricsResultsSingle(ctx context.Context, gcpRe
 	for _, result := range gcpResults {
 		billingRecord, err := result.GoogleMetric.GetAsUsageBillingMetric()
 		if err != nil {
-			s.logger.Warnf("It appears that a non-billing Google Metric was reported by the billing paradigm. "+
+			s.logger.Warn("It appears that a non-billing Google Metric was reported by the billing paradigm. "+
 				"This should not happen, and its response cannot be processed.", "The error is:", err,
 				"The Google Metric is:", result)
 			continue
@@ -336,7 +336,7 @@ func (s *GoogleUsageSink) processMetricsResultsSingle(ctx context.Context, gcpRe
 			billingRecord.ErrorCount = billingRecord.ErrorCount + 1
 			billingRecord.State = datamodel.Error
 		}
-		s.logger.Infof("Updating usage information for billingRecord ID: %d, state: %s", billingRecord.ID, billingRecord.State)
+		s.logger.Infof("Updating usage information for billingRecord ID: %d, state: %v", billingRecord.ID, billingRecord.State)
 
 		// Create update map with only the fields that need to be updated
 		updates := map[string]interface{}{
@@ -370,7 +370,7 @@ func (s *GoogleUsageSink) processMetricsResultsBatch(ctx context.Context, gcpRes
 	for _, result := range gcpResults {
 		billingRecord, err := result.GoogleMetric.GetAsUsageBillingMetric()
 		if err != nil {
-			s.logger.Warnf("It appears that a non-billing Google Metric was reported by the billing paradigm. "+
+			s.logger.Warn("It appears that a non-billing Google Metric was reported by the billing paradigm. "+
 				"This should not happen, and its response cannot be processed.", "The error is:", err,
 				"The Google Metric is:", result)
 			continue
@@ -392,7 +392,7 @@ func (s *GoogleUsageSink) processMetricsResultsBatch(ctx context.Context, gcpRes
 			billingRecord.ErrorCount = billingRecord.ErrorCount + 1
 			billingRecord.State = datamodel.Error
 		}
-		s.logger.Debugf("Preparing batch update for billingRecord ID: %d, state: %s", billingRecord.ID, billingRecord.State)
+		s.logger.Debugf("Preparing batch update for billingRecord ID: %d, state: %v", billingRecord.ID, billingRecord.State)
 
 		// Create update map with only the fields that need to be updated
 		updates := map[string]interface{}{

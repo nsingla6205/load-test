@@ -277,7 +277,7 @@ func (wf *quotaRuleDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}
 						replication.ReplicationAttributes.DestinationVolumeUUID, *destinationQuotaRuleId, replication.ReplicationAttributes.DestinationLocation, destProjectNumber, jwtToken).Get(ctx, &deleteOperationResult)
 					if err != nil {
 						logger.Errorf("Failed to delete quota rule on destination: destinationVolumeUUID=%s, quotaRuleId=%s, error=%v",
-							replication.ReplicationAttributes.DestinationVolumeUUID, destinationQuotaRuleId, err)
+							replication.ReplicationAttributes.DestinationVolumeUUID, *destinationQuotaRuleId, err)
 						// If destination deletion fails, we can't proceed with source deletion
 						return nil, ConvertToVSAError(err)
 					}

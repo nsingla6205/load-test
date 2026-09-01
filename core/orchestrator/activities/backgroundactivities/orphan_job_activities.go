@@ -115,7 +115,7 @@ func _processSingleJob(ctx context.Context, se database.Storage, job *datamodel.
 	// Check if we've exceeded retry count
 	if job.JobAttributes.CurrentRetryCount >= models.WaitForTemporalJobMaxRetryCount {
 		errMsg := fmt.Sprintf("Job %s has exceeded max retry count (%d)", job.UUID, models.WaitForTemporalJobMaxRetryCount)
-		logger.Warnf(errMsg)
+		logger.Warn(errMsg)
 		// mark the job resource as error
 		updateErr := se.UpdateJob(ctx, job.UUID, string(datamodel.JobsStateERROR), job.TrackingID, errMsg)
 		if updateErr != nil {

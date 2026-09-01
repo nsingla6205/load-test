@@ -787,7 +787,7 @@ func DeleteRemoteBackupVaultInVCP(ctx context.Context, params *common.BackupVaul
 	case *googleproxyclient.OperationV1beta:
 		isDone := r.Done.Value
 		logger.Infof("Delete operation returned for remote backup vault %s in region %s. Operation: %s, Done: %v",
-			params.BackupVaultID, *params.BackupRegion, r.GetName(), isDone)
+			params.BackupVaultID, *params.BackupRegion, r.GetName().Value, isDone)
 
 		if !isDone {
 			logger.Warnf("Delete operation for remote backup vault %s not marked as done, but treating as synchronous", params.BackupVaultID)

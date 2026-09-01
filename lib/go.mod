@@ -1,6 +1,6 @@
 module github.com/vcp-vsa-control-Plane/vsa-control-plane/lib
 
-go 1.25.12
+go 1.26.6
 
 require (
 	github.com/stretchr/testify v1.11.1
@@ -13,7 +13,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/logging v1.15.0 // indirect
-	cloud.google.com/go/longrunning v0.11.0 // indirect
 	cloud.google.com/go/trace v1.13.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.27.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0.55.0 // indirect

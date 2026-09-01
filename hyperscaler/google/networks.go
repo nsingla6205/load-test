@@ -233,14 +233,14 @@ func (gcpService *GcpServices) GetSnHost(project string) (string, error) {
 	snProject, err := gcpService.AdminGCPService.computeService.Projects.GetXpnHost(project).Do()
 	if err != nil {
 		if strings.Contains(err.Error(), serviceNetworkingConnectionErrorMsg) {
-			gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project due to peering. Should not retry for project : %s, Error : %v", project, err))
+			gcpService.Logger.Errorf("error getting SN host for project due to peering. Should not retry for project : %s, Error : %v", project, err)
 			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, fmt.Errorf("SN Producer Host Project %s Error: %v", project, err)))
 		}
 		if isServiceDisabledError(err) {
-			gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project due to a disabled GCP API. Should not retry for project : %s, Error : %v", project, err))
+			gcpService.Logger.Errorf("error getting SN host for project due to a disabled GCP API. Should not retry for project : %s, Error : %v", project, err)
 			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPServiceDisabledError, fmt.Errorf("SN Host Project %s Error: %v", project, err)))
 		}
-		gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project : %s, Error : %v", project, err))
+		gcpService.Logger.Errorf("error getting SN host for project : %s, Error : %v", project, err)
 		return "", err
 	}
 	// for a new VPC, sn host project will be empty. we need to return empty in this case to establish datalink

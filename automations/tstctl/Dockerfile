@@ -1,5 +1,5 @@
 # Use the official Go base image
-FROM golang:1.24.1-bullseye AS builder
+FROM golang:1.26.6-bookworm AS builder
 
 # Set the working directory
 WORKDIR /app

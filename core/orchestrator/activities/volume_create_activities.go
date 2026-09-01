@@ -3407,7 +3407,7 @@ func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamod
 	if pool.PoolAttributes != nil {
 		ldapEnabled = pool.PoolAttributes.LdapEnabled
 	}
-	logger.Infof("Configure LDAP for volume %s", ldapEnabled)
+	logger.Infof("Configure LDAP for volume %s: ldapEnabled=%v", volume.UUID, ldapEnabled)
 	if !ldapEnabled {
 		logger.Info("Skipping ldap configuration for non-LDAP pool")
 		return nil

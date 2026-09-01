@@ -501,7 +501,7 @@ func (wf *clusterUpgradeWorkflow) upgradePhase(ctx workflow.Context, upgradeCont
 		if err != nil {
 			wf.Logger.Error("Failed to marshal VLM config after mediator upgrade", "jobID", upgradeContext.Params.JobID, "clusterID", upgradeContext.Params.ClusterID, "error", err)
 		} else {
-			wf.Logger.Infof(string(vlmConfigBytes))
+			wf.Logger.Info(string(vlmConfigBytes))
 			updates := map[string]interface{}{
 				"build_info": mediatorBuildInfo,
 				"vlm_config": string(vlmConfigBytes),

@@ -1,6 +1,6 @@
 module github.com/vcp-vsa-control-Plane/vsa-control-plane
 
-go 1.25.12
+go 1.26.6
 
 require (
 	cloud.google.com/go/iam v1.9.0

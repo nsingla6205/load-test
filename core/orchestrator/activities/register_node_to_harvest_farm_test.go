@@ -18,9 +18,24 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"go.temporal.io/sdk/testsuite"
 	"gorm.io/gorm"
 )
+
+// TestValidateNodeGroupMap_NilNodeGroup covers the error branch that logs and
+// returns when the node group details are missing from the map.
+func TestValidateNodeGroupMap_NilNodeGroup(t *testing.T) {
+	activity := &RegisterNodeToHarvestFarmActivity{}
+
+	ml := &log.MockLogger{}
+	ml.On("Errorf", "Failed to fetch node group details of node groupID:%d", mock.Anything).Once()
+
+	err := activity.validateNodeGroupMap(&datamodel.NodeNodeGroupMap{NodeGroup: nil}, ml)
+
+	assert.Error(t, err)
+	ml.AssertExpectations(t)
+}
 
 func TestRegisterNodeToHarvestFarm_Success(t *testing.T) {
 	mockSE := new(database.MockStorage)

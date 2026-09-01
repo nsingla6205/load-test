@@ -330,7 +330,7 @@ func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.G
 				if operation != nil && len(operation.MetricValueSets) > 0 {
 					operationAndMetrics[operation] = []common.GoogleMetric{metric}
 				} else {
-					client.logger.Warnf("Operation creation method succeeded, but no operation returned. ResourceId", info.ResourceId)
+					client.logger.Warn("Operation creation method succeeded, but no operation returned. ResourceId", info.ResourceId)
 				}
 			}
 		}
@@ -488,7 +488,7 @@ func partitionMetrics(googleMetrics []common.GoogleMetric, logger log.Logger) []
 	for _, metric := range googleMetrics {
 		measuredType, err := metric.GetMeasuredType()
 		if err != nil {
-			logger.Debugf("Error getting measured type in partition metrics method.", "error", err, "metric", metric)
+			logger.Debug("Error getting measured type in partition metrics method.", "error", err, "metric", metric)
 			continue
 		}
 		metricsByMeasuredType[measuredType] = append(metricsByMeasuredType[measuredType], metric)
@@ -517,7 +517,7 @@ func hasDuplicateMeasuredTypes(googleMetrics []common.GoogleMetric, logger log.L
 	for _, metric := range googleMetrics {
 		measuredType, err := metric.GetMeasuredType()
 		if err != nil {
-			logger.Debugf("Error getting measured type in has duplicate measured types method.", "error", err, "metric", metric)
+			logger.Debug("Error getting measured type in has duplicate measured types method.", "error", err, "metric", metric)
 			continue
 		}
 		val, ok := measuredTypeMap[measuredType]

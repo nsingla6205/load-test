@@ -77,7 +77,7 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) ValidateAndGet
 			logger.Errorf("no nodes found for pool ID %d", poolID)
 			return nil, temporal.NewNonRetryableApplicationError(err.Error(), UnRegisterNodesInfoNotAvailable, err)
 		}
-		logger.Warnf("failed to retrieve nodes information from pool ID %d: %w", poolID, err)
+		logger.Warnf("failed to retrieve nodes information from pool ID %d: %v", poolID, err)
 		return nil, err
 	}
 	return nodes, nil

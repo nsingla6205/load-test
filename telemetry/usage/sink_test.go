@@ -90,7 +90,7 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 		sink.logger = ml
 
 		// Set up mock expectations
-		ml.On("Errorf", "Skipping usage: Not mapping usage record due to missing project ID/number.",
+		ml.On("Error", "Skipping usage: Not mapping usage record due to missing project ID/number.",
 			"Record ID", int64(1)).Once()
 		ml.On("Errorf", "Found records that are not appropriate for billing. Not mapping them. Number of records: %d", 1).Once()
 
@@ -117,7 +117,7 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 
 		emptyCustomerID := ""
 		// Set up mock expectations
-		ml.On("Errorf", "Skipping usage: Not mapping usage record due to missing project ID/number.",
+		ml.On("Error", "Skipping usage: Not mapping usage record due to missing project ID/number.",
 			"Record ID", int64(1)).Once()
 		ml.On("Errorf", "Found records that are not appropriate for billing. Not mapping them. Number of records: %d", 1).Once()
 
@@ -137,6 +137,82 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 		assert.Len(t, validUsage, 0) // No valid records
 		ml.AssertExpectations(t)
 	})
+
+	t.Run("Non-billable usage record is skipped", func(t *testing.T) {
+		ml := &log.MockLogger{}
+		sink.logger = ml
+
+		ml.On("Debug", "Skipping usage: Not mapping usage record as it is non-billable usage.",
+			"Record ID", int64(1)).Once()
+		ml.On("Errorf", "Found records that are not appropriate for billing. Not mapping them. Number of records: %d", 1).Once()
+
+		aggregatedRecords := []datamodel.AggregatedUsage{
+			{
+				ID:               1,
+				VendorCustomerID: &customerID,
+				MeasuredType:     string(metadata.LogicalSize),
+				Quantity:         100.0,
+				IsBillable:       false, // Non-billable -> skipped
+			},
+		}
+
+		validUsage, err := sink.filterValidUsage(aggregatedRecords)
+
+		assert.NoError(t, err)
+		assert.Len(t, validUsage, 0)
+		ml.AssertExpectations(t)
+	})
+
+	t.Run("Usage record with unset ID is skipped", func(t *testing.T) {
+		ml := &log.MockLogger{}
+		sink.logger = ml
+
+		ml.On("Error", "Skipping usage: Not mapping usage record due to unset id.",
+			"Record ID", int64(0)).Once()
+		ml.On("Errorf", "Found records that are not appropriate for billing. Not mapping them. Number of records: %d", 1).Once()
+
+		aggregatedRecords := []datamodel.AggregatedUsage{
+			{
+				ID:               0, // Unset ID -> skipped
+				VendorCustomerID: &customerID,
+				MeasuredType:     string(metadata.LogicalSize),
+				Quantity:         100.0,
+				IsBillable:       true,
+			},
+		}
+
+		validUsage, err := sink.filterValidUsage(aggregatedRecords)
+
+		assert.NoError(t, err)
+		assert.Len(t, validUsage, 0)
+		ml.AssertExpectations(t)
+	})
+}
+
+// TestGoogleUsageSink_processMetricsResultsBatch_NonBillingMetric verifies that a
+// result whose GoogleMetric cannot be read as a billing metric is skipped and logged.
+func TestGoogleUsageSink_processMetricsResultsBatch_NonBillingMetric(t *testing.T) {
+	ctx := context.Background()
+	config := common.LoadConfig()
+	mockDB := createMockDB()
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+
+	sink := NewSink(ctx, config, mockDB, mockMetricRecorder)
+
+	ml := &log.MockLogger{}
+	sink.logger = ml
+	ml.On("Warn", "It appears that a non-billing Google Metric was reported by the billing paradigm. "+
+		"This should not happen, and its response cannot be processed.",
+		"The error is:", mock.Anything, "The Google Metric is:", mock.Anything).Once()
+
+	gcpResults := []common.MetricsResult{
+		{GoogleMetric: *common.NewGoogleMetric("invalid-type")},
+	}
+
+	measuredTypesInfo := make(map[string]float64)
+	sink.processMetricsResultsBatch(ctx, gcpResults, measuredTypesInfo)
+
+	ml.AssertExpectations(t)
 }
 
 func TestGoogleUsageSink_isValid(t *testing.T) {
@@ -165,7 +241,7 @@ func TestGoogleUsageSink_isValid(t *testing.T) {
 		ml := &log.MockLogger{}
 		sink.logger = ml
 
-		ml.On("Errorf", "Skipping usage: Not mapping usage record due to missing project ID/number.",
+		ml.On("Error", "Skipping usage: Not mapping usage record due to missing project ID/number.",
 			"Record ID", int64(1)).Once()
 
 		usage := datamodel.AggregatedUsage{
@@ -185,7 +261,7 @@ func TestGoogleUsageSink_isValid(t *testing.T) {
 		sink.logger = ml
 
 		emptyCustomerID := ""
-		ml.On("Errorf", "Skipping usage: Not mapping usage record due to missing project ID/number.",
+		ml.On("Error", "Skipping usage: Not mapping usage record due to missing project ID/number.",
 			"Record ID", int64(1)).Once()
 
 		usage := datamodel.AggregatedUsage{
@@ -215,9 +291,9 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 		ml := &log.MockLogger{}
 		sink.logger = ml
 
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(2)).Once()
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(3)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(2)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(3)).Once()
 
 		records := []datamodel.AggregatedUsage{
 			{
@@ -277,7 +353,7 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 		ml := &log.MockLogger{}
 		sink.logger = ml
 
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
 
 		records := []datamodel.AggregatedUsage{
 			{
@@ -302,10 +378,10 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 		ml := &log.MockLogger{}
 		sink.logger = ml
 
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(2)).Once()
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(3)).Once()
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(4)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(2)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(3)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(4)).Once()
 
 		records := []datamodel.AggregatedUsage{
 			{
@@ -366,7 +442,7 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 		ml := &log.MockLogger{}
 		sink.logger = ml
 
-		ml.On("Debugf", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
+		ml.On("Debug", "Google Usage Mapping with ID is ready for billing", "Record ID: ", int64(1)).Once()
 
 		records := []datamodel.AggregatedUsage{
 			{
@@ -877,7 +953,7 @@ func TestGoogleUsageSink_processMetricsResults_WithErrorLogging(t *testing.T) {
 	ml.On("Errorf", "Google Usage Mapping with ID %d failed GoogleMetric validation: missing fields %s", int64(1), mock.AnythingOfType("string")).Maybe()
 	ml.On("Errorf", "Google Usage Mapping with ID %d failed GoogleMetric validation: missing fields %s", int64(1), "customerId").Maybe()
 	ml.On("Debugf", "Processing the Google Metric Result for service: %s; result is %v, resultCode: %s", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Once()
-	ml.On("Infof", "Updating usage information for billingRecord ID: %d, state: %s", int64(1), mock.AnythingOfType("datamodel.TrackingState")).Once()
+	ml.On("Infof", "Updating usage information for billingRecord ID: %d, state: %v", int64(1), mock.AnythingOfType("datamodel.TrackingState")).Once()
 	ml.On("Infof", "%d metrics were successfully reported.", 0).Once()
 	ml.On("Infof", "%d metrics were not reported.", 1).Once()
 
@@ -928,7 +1004,7 @@ func TestGoogleUsageSink_processMetricsResults_WithSuccessfulLogging(t *testing.
 
 	// Set up mock expectations for success logging
 	ml.On("Debugf", "Processing the Google Metric Result for service: %s; result is %v, resultCode: %s", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Once()
-	ml.On("Infof", "Updating usage information for billingRecord ID: %d, state: %s", int64(1), mock.AnythingOfType("datamodel.TrackingState")).Once()
+	ml.On("Infof", "Updating usage information for billingRecord ID: %d, state: %v", int64(1), mock.AnythingOfType("datamodel.TrackingState")).Once()
 	ml.On("Infof", "%d metrics were successfully reported.", 1).Once()
 	ml.On("Infof", "%d metrics were not reported.", 0).Once()
 

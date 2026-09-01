@@ -69,7 +69,7 @@ func (a *VolumeRefreshActivity) GetDBVolumesForPool(ctx context.Context, pool *d
 	recordHeartbeat(ctx, fmt.Sprintf("Fetching database volumes for pool %s", pool.UUID))
 	dbVolumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
 	if err != nil {
-		logger.Errorf(fmt.Sprintf("Failed to get volumes from database for pool %s: %v", pool.UUID, err))
+		logger.Errorf("Failed to get volumes from database for pool %s: %v", pool.UUID, err)
 		return nil, err
 	}
 
@@ -92,7 +92,7 @@ func (a *VolumeRefreshActivity) GetOntapVolumes(ctx context.Context, pool *datam
 	provider, err := GetOntapRestProviderForPool(ctx, se, pool)
 	if err != nil || provider == nil {
 		errMsg := fmt.Sprintf("Failed to get ONTAP rest provider for pool %v: %v", pool.UUID, err)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, err
 	}
 
@@ -100,7 +100,7 @@ func (a *VolumeRefreshActivity) GetOntapVolumes(ctx context.Context, pool *datam
 	ontapVolumes, err := provider.GetVolumes()
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get ONTAP volumes for the pool: %s, %v", pool.UUID, err)
-		logger.Errorf(errMsg)
+		logger.Error(errMsg)
 		return nil, err
 	}
 	logger.Debugf("Successfully Fetched %d volumes from ONTAP for pool %s", len(ontapVolumes), pool.UUID)

@@ -944,7 +944,7 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 			if current+incoming > int64(params.MaxNodesPerGroup) {
 				msg := fmt.Sprintf("rebalance commit capacity changed: target group %d has %d assigned, incoming %d exceeds max %d",
 					targetID, current, incoming, params.MaxNodesPerGroup)
-				logger.Warnf(msg)
+				logger.Warn(msg)
 				return temporal.NewApplicationError(msg, "HarvestRebalanceCapacityChanged")
 			}
 		}
@@ -959,7 +959,7 @@ func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx co
 				if database.IsHarvestNodeGroupPortUniqueViolation(err) {
 					msg := fmt.Sprintf("rebalance commit port conflict: node %d target group %d port %s (concurrent assign)",
 						u.nodeID, u.targetID, u.port)
-					logger.Warnf(msg)
+					logger.Warn(msg)
 					return temporal.NewApplicationError(msg, "HarvestRebalancePortConflict")
 				}
 				return err

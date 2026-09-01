@@ -304,7 +304,7 @@ func startJobWorkers(
 		go func() {
 			defer wg.Done()
 			if err := queue.RunSweeper(pollCtx); err != nil && !errors.Is(err, context.Canceled) {
-				logger.Errorf(err.Error())
+				logger.Error(err.Error())
 			}
 		}()
 	}

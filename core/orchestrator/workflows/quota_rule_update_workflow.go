@@ -280,7 +280,7 @@ func (wf *quotaRuleUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}
 					replication.ReplicationAttributes.DestinationVolumeUUID, *destinationQuotaRuleId, diskLimitForDestination, replication.ReplicationAttributes.DestinationLocation, destProjectNumber, jwtToken, descriptionForDestination).Get(ctx, &updateOperationResult)
 				if err != nil {
 					logger.Errorf("Failed to update quota rule on destination: destinationVolumeUUID=%s, quotaRuleId=%s, error=%v",
-						replication.ReplicationAttributes.DestinationVolumeUUID, destinationQuotaRuleId, err)
+						replication.ReplicationAttributes.DestinationVolumeUUID, *destinationQuotaRuleId, err)
 
 					if params.DiskLimitInMib > 0 {
 						// Revert source quota rule if it was updated

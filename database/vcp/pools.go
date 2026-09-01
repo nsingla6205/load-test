@@ -1146,7 +1146,7 @@ func (d *DataStoreRepository) ListPoolsForMetrics(ctx context.Context) ([]*PoolM
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 
-	logger.Infof(fmt.Sprintf("ListPoolsForMetrics: Successfully fetched %d pools with only required fields for metrics.", len(results)))
+	logger.Infof("ListPoolsForMetrics: Successfully fetched %d pools with only required fields for metrics.", len(results))
 	return results, nil
 }
 

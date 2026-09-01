@@ -1,5 +1,5 @@
 34097494 3855 ./client/o_n_t_a_p_p_r_i_v_a_t_e_r_e_s_t_client.go
-1406111094 5779 ./client/object_store/client_service_mock.go
+2041437562 5790 ./client/object_store/client_service_mock.go
 2604356952 9139 ./client/object_store/client_service_mock_test.go
 4281951868 5952 ./client/object_store/object_store_client.go
 3520252934 6722 ./client/object_store/s3_service_delete_parameters.go
@@ -20,7 +20,7 @@
 1183304836 5133 ./client/operations/cifs_check_responses.go
 381447830 4157 ./client/operations/cli_execute_parameters.go
 4101174272 5152 ./client/operations/cli_execute_responses.go
-3655745331 17303 ./client/operations/client_service_mock.go
+3655816981 17314 ./client/operations/client_service_mock.go
 401988494 15775 ./client/operations/client_service_mock_test.go
 657326810 5577 ./client/operations/cluster_peer_create_parameters.go
 2679113514 7609 ./client/operations/cluster_peer_create_responses.go
@@ -37,7 +37,7 @@
 4270534203 8232 ./client/operations/security_login_password_modify_responses.go
 2711626885 4110 ./client/operations/srv_lookup_parameters.go
 3921520851 5193 ./client/operations/srv_lookup_responses.go
-2590053505 5650 ./client/snapmirror/client_service_mock.go
+935997821 5661 ./client/snapmirror/client_service_mock.go
 2537853736 9083 ./client/snapmirror/client_service_mock_test.go
 3480578976 5782 ./client/snapmirror/snapmirror_client.go
 2831955388 14688 ./client/snapmirror/snapmirror_get_parameters.go

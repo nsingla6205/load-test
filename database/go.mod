@@ -1,6 +1,6 @@
 module github.com/vcp-vsa-control-Plane/vsa-control-plane/database
 
-go 1.25.12
+go 1.26.6
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -163,7 +163,7 @@ require (
 	github.com/gofrs/flock v0.10.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/googleapis/go-sql-spanner v1.25.0 // indirect
-	github.com/greenqloud/cloud-volumes-network v0.0.0-20260706071356-f7e516c9189c // indirect
+	github.com/greenqloud/cloud-volumes-network v0.0.0-20260811082136-7688888e511f // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
