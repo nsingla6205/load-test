@@ -9,9 +9,30 @@ IMPERSONATE_SA="${COT_IMPERSONATE_SA:-gcnv-vsa-image-sa@gcnv-vsa-prod.iam.gservi
 : "${GCP_ZONE:?GCP_ZONE}"
 : "${PULL_VM_PROJECT:?PULL_VM_PROJECT}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/oslogin-ssh-retry.sh"
+
+# Only stderr is captured, so `cat` output reaches callers unpolluted.
+_pull_vm_attempt() {
+  local rc=0
+  "$@" 2>"$PULL_VM_ERRFILE" || rc=$?
+  cat "$PULL_VM_ERRFILE" >&2
+  return "$rc"
+}
+
+run_with_oslogin_recovery() {
+  local rc=0
+  PULL_VM_ERRFILE=$(mktemp)
+  retry_pull_vm_ssh "$PULL_VM_ERRFILE" _pull_vm_attempt "$@" || rc=$?
+  rm -f "$PULL_VM_ERRFILE"
+  return "$rc"
+}
+
 vm_ssh() {
   local remote_cmd="$1"
-  gcloud compute ssh "$PULL_VM_NAME" \
+  run_with_oslogin_recovery gcloud compute ssh "$PULL_VM_NAME" \
     --zone="$GCP_ZONE" \
     --project="$PULL_VM_PROJECT" \
     --impersonate-service-account="${COT_IMPERSONATE_SA}" \
@@ -23,36 +44,38 @@ vm_ssh() {
 case "$CMD" in
   stat)
     uri="${2:?gs uri}"
-    remote=$(printf 'gsutil -i %q -q stat %q' "$IMPERSONATE_SA" "$uri")
-    #remote=$(printf 'gcloud config set auth/impersonate_service_account %q >/dev/null 2>&1 && gsutil -q stat %q' "$IMPERSONATE_SA" "$uri")
+    # gsutil -i writes impersonation state under the executing user's config
+    # directory. The pull VM restricts that path for the SSH user, which caused
+    # an opaque "OSError: Permission denied." Run it in the same elevated
+    # context as the proven debug-mode COT reads.
+    remote=$(printf 'sudo gsutil -i %q -q stat %q' "$IMPERSONATE_SA" "$uri")
     vm_ssh "$remote"
     ;;
   cp)
     src="${2:?gs src}"; dst="${3:?gs dst}"
-    #remote=$(printf 'gcloud config set auth/impersonate_service_account %q >/dev/null 2>&1 && gsutil cp %q %q' "$IMPERSONATE_SA" "$src" "$dst")
-    remote=$(printf 'gsutil -i %q cp %q %q' "$IMPERSONATE_SA" "$src" "$dst")
+    remote=$(printf 'sudo gsutil -i %q cp %q %q' "$IMPERSONATE_SA" "$src" "$dst")
     vm_ssh "$remote"
     ;;
   cat)
     uri="${2:?gs uri}"
-    #remote=$(printf 'gcloud config set auth/impersonate_service_account %q >/dev/null 2>&1 && gsutil cat %q' "$IMPERSONATE_SA" "$uri")
-    remote=$(printf 'gsutil -i %q cat %q' "$IMPERSONATE_SA" "$uri")
+    remote=$(printf 'sudo gsutil -i %q cat %q' "$IMPERSONATE_SA" "$uri")
     vm_ssh "$remote"
     ;;
   fetch)
     uri="${2:?gs uri}"; local_dest="${3:?local path on runner}"
     vm_tmp="/tmp/cot-fetch-${GITHUB_RUN_ID:-$$}-${RANDOM}"
-    #r1=$(printf 'gcloud config set auth/impersonate_service_account %q >/dev/null 2>&1 && gsutil cp %q %q' "$IMPERSONATE_SA" "$uri" "$vm_tmp")
-    r1=$(printf 'gsutil -i %q cp %q %q' "$IMPERSONATE_SA" "$uri" "$vm_tmp")
+    # chmod is required because sudo creates the temporary file as root and the
+    # subsequent gcloud compute scp runs as the SSH user.
+    r1=$(printf 'sudo gsutil -i %q cp %q %q && sudo chmod 0644 %q' "$IMPERSONATE_SA" "$uri" "$vm_tmp" "$vm_tmp")
     vm_ssh "$r1"
-    gcloud compute scp \
+    run_with_oslogin_recovery gcloud compute scp \
       --zone="$GCP_ZONE" \
       --project="$PULL_VM_PROJECT" \
       --impersonate-service-account="${COT_IMPERSONATE_SA}" \
       --quiet \
       "${PULL_VM_NAME}:${vm_tmp}" \
       "$local_dest"
-    r2=$(printf 'rm -f %q' "$vm_tmp")
+    r2=$(printf 'sudo rm -f %q' "$vm_tmp")
     vm_ssh "$r2" || true
     ;;
   *)

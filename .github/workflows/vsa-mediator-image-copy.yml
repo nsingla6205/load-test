@@ -252,6 +252,11 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # Needed for .github/scripts/oslogin-prune-keys.sh; this job SSHes to the
+      # pull VM and hits the same full OS Login profile as the copy jobs.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -296,6 +301,33 @@ jobs:
             printf '[exit=%s]\n' "${PIPESTATUS[0]}"
           }
 
+          # Lists what COT actually ships inside IMAGE_SIG_TGZ. Needed because the
+          # digest name and whether a per-image certificate is included differ
+          # between VSA and Mediator, and our copy path repackages the archive.
+          inspect_archive() {
+            local uri="$1"
+            local tmp
+            printf '\n===== ARCHIVE %s =====\n' "$uri"
+            tmp="$(mktemp -d)"
+            if gcloud storage cp "$uri" "$tmp/IMAGE_SIG_TGZ" >/dev/null 2>&1; then
+              tar -tzvf "$tmp/IMAGE_SIG_TGZ" 2>&1 | head -40
+              tar -xzf "$tmp/IMAGE_SIG_TGZ" -C "$tmp" 2>/dev/null
+              for pem in "$tmp"/*.pem; do
+                [ -f "$pem" ] || continue
+                printf -- '--- certificate %s\n' "$(basename "$pem")"
+                openssl x509 -in "$pem" -noout -subject -issuer 2>&1 | head -4
+                openssl x509 -in "$pem" -noout -text 2>/dev/null | grep -i 'Public-Key:' | head -1
+              done
+              for sig in "$tmp"/*.sig; do
+                [ -f "$sig" ] || continue
+                printf -- '--- signature %s (%s bytes)\n' "$(basename "$sig")" "$(stat -c %s "$sig")"
+              done
+            else
+              printf 'copy failed (missing object or no access)\n'
+            fi
+            rm -rf "$tmp"
+          }
+
           printf 'VERSION=%s\nBUNDLE_NAME=%s\nUPGRADE_BUNDLE=%s\nUPGRADE_FILE=%s\n' \
             '__VERSION__' '__BUNDLE_NAME__' '__UPGRADE_BUNDLE__' '__UPGRADE_FILE__'
 
@@ -303,6 +335,11 @@ jobs:
           inspect_object "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/GCNV/__VERSION__/IMAGE_SIG_TGZ"
           inspect_object "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/Mediator/__VERSION__/IMAGE_SIG_TGZ"
           inspect_object "gs://cot-releases-public/__UPGRADE_BUNDLE__/__UPGRADE_FILE__"
+
+          # Contents of the signature archives as COT publishes them, before our
+          # copy path rewrites them.
+          inspect_archive "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/GCNV/__VERSION__/IMAGE_SIG_TGZ"
+          inspect_archive "gs://cot-releases-public/GCNV_released_bundle/__BUNDLE_NAME__/Mediator/__VERSION__/IMAGE_SIG_TGZ"
 
           # Candidate release structures seen in the P2X6 branch history.
           for root in GCNV_released_bundle GCNV_staged_bundle; do
@@ -324,12 +361,20 @@ jobs:
           REMOTE_SCRIPT="${REMOTE_SCRIPT//__RBAC_FOLDER__/${RBAC_FOLDER}}"
           SCRIPT_B64=$(printf '%s' "$REMOTE_SCRIPT" | base64 -w0)
 
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="echo '$SCRIPT_B64' | base64 -d | sudo bash"
+          source .github/scripts/oslogin-ssh-retry.sh
+
+          run_ssh() {
+            gcloud compute ssh ${PULL_VM_NAME} \
+              --zone=${GCP_ZONE} \
+              --project=${PULL_VM_PROJECT} \
+              --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
+              --quiet \
+              --command="echo '$SCRIPT_B64' | base64 -d | sudo bash" \
+              2>&1 | tee debug-ssh.log
+            return ${PIPESTATUS[0]}
+          }
+
+          retry_pull_vm_ssh debug-ssh.log run_ssh
 
   push-vlm-worker-image:
     name: Push VLM Worker Image (when in config)
@@ -1021,15 +1066,21 @@ jobs:
           SCRIPT_B64=$(base64 -w0 "$LOCAL_SCRIPT")
           printf -v REMOTE_ARGS ' %q' "$BUCKET_NAME" "$IMAGE_TYPE_PATH_SEGMENT" "$SIG_FILE_PATH" "$SOURCE_BUCKET"
 
-          gcloud compute ssh ${PULL_VM_NAME} \
-            --zone=${GCP_ZONE} \
-            --project=${PULL_VM_PROJECT} \
-            --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
-            --quiet \
-            --command="echo '$SCRIPT_B64' | base64 -d | sudo bash -s --${REMOTE_ARGS}" \
-            2>&1 | tee pull-execution.log
-          
-          EXIT_CODE=${PIPESTATUS[0]}
+          source .github/scripts/oslogin-ssh-retry.sh
+
+          run_ssh() {
+            gcloud compute ssh ${PULL_VM_NAME} \
+              --zone=${GCP_ZONE} \
+              --project=${PULL_VM_PROJECT} \
+              --impersonate-service-account=${{ env.COT_IMPERSONATE_SA }} \
+              --quiet \
+              --command="echo '$SCRIPT_B64' | base64 -d | sudo bash -s --${REMOTE_ARGS}" \
+              2>&1 | tee pull-execution.log
+            return ${PIPESTATUS[0]}
+          }
+
+          EXIT_CODE=0
+          retry_pull_vm_ssh pull-execution.log run_ssh || EXIT_CODE=$?
           
           # Check if execution was successful
           if [ ${EXIT_CODE} -eq 0 ]; then
@@ -1421,9 +1472,11 @@ jobs:
             fi
           fi
           if [ "$copy_cli" != "true" ] || [ "$copy_sha" != "true" ]; then
-            echo "⚠️ RBAC files not available at source/COT; skipping"
-            echo "status=skipped" >> $GITHUB_OUTPUT
-            exit 0
+            echo "❌ Configured RBAC files could not be read from source or COT"
+            echo "   COT cli path: $COT_CLI_URI"
+            echo "   COT sha path: $COT_SHA_URI"
+            echo "   Refusing to complete an image promotion without required ONTAP-mode RBAC artifacts."
+            exit 1
           fi
           if [ "$IS_AUTOPUSH" = "true" ]; then
             # Fetch via VM (COT read); upload with WIF — impersonated SA cannot gsutil cp into dest (needs objects.list there).
@@ -1649,9 +1702,11 @@ jobs:
             fi
           fi
           if [ "$copy_cli" != "true" ] || [ "$copy_sha" != "true" ]; then
-            echo "⚠️ RBAC files not available at source/COT; skipping"
-            echo "status=skipped" >> $GITHUB_OUTPUT
-            exit 0
+            echo "❌ Configured RBAC files could not be read from source or COT"
+            echo "   COT cli path: $COT_CLI_URI"
+            echo "   COT sha path: $COT_SHA_URI"
+            echo "   Refusing to complete an image promotion without required ONTAP-mode RBAC artifacts."
+            exit 1
           fi
           if [ "$IS_AUTOPUSH" = "true" ]; then
             bash "$COT_SH" fetch "$COT_CLI_URI" /tmp/gcnvadmin_create_cli
@@ -1670,6 +1725,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve-dispatch-inputs, parse-version-file, pre-check-image, create-and-export-image, copy-signature-file-to-vsa-compute-images, copy-to-destination]
     strategy:
+      # One image type failing must not cancel the other mid-creation, which can
+      # leave a partially created or unlabeled compute image behind.
+      fail-fast: false
       matrix:
         image_type: ${{ fromJson(needs.resolve-dispatch-inputs.outputs.image_types) }}
     if: |
@@ -1779,8 +1837,9 @@ jobs:
           
           # Step 3: Generate SHA256 digest for disk.raw
           echo "🔍 Step 3: Generating SHA256 digest for disk.raw..."
-          shasum -a 256 disk.raw | awk '{ print $1 }' > disk_raw.dig
-          DIGEST=$(cat disk_raw.dig)
+          DIGEST_FILE="$WORK_DIR/disk_raw.dig"
+          shasum -a 256 disk.raw | awk '{ print $1 }' > "$DIGEST_FILE"
+          DIGEST=$(cat "$DIGEST_FILE")
           echo "✅ Digest generated: $DIGEST"
           
           # Step 4: Download IMAGE_SIG_TGZ from destination bucket and extract signature file
@@ -1794,21 +1853,42 @@ jobs:
           fi
           echo "✅ Signature file downloaded from destination bucket"
           
-          # Extract IMAGE_SIG_TGZ to get signature file
+          # Extract into a dedicated directory. Unpacking beside $DIGEST_FILE would let
+          # a poisoned archive ship its own disk_raw.dig, overwrite the digest computed
+          # from the real disk.raw, and verify attacker-supplied content instead.
+          SIG_DIR="$WORK_DIR/sig"
+          rm -rf "$SIG_DIR"
+          mkdir -p "$SIG_DIR"
           echo "📦 Extracting signature file from IMAGE_SIG_TGZ..."
-          tar -xzvf IMAGE_SIG_TGZ
+          tar -xzvf IMAGE_SIG_TGZ -C "$SIG_DIR"
           
-          # IMAGE_SIG_TGZ is shared per VSA/Mediator folder. Require the digest
-          # named for THIS image so a sibling (e.g. cvo-mediator-x-9-19-1_digest.sig
-          # for a d1 image) cannot be used.
-          echo "🔍 Searching for signature file..."
-          SIG_FILE="${IMAGE_NAME}_digest.sig"
-          if [ ! -f "$SIG_FILE" ]; then
-            echo "❌ Signature archive does not contain ${SIG_FILE}"
-            echo "Available files:"
-            ls -la
+          # Catches an archive that escapes $SIG_DIR via .. or absolute member names.
+          if [ "$(cat "$DIGEST_FILE")" != "$DIGEST" ]; then
+            echo "❌ $DIGEST_FILE changed while extracting IMAGE_SIG_TGZ; refusing to verify"
             exit 1
           fi
+          
+          # IMAGE_SIG_TGZ is shared per VSA/Mediator folder. COT suffixes vary
+          # (<image>_digest.sig, <image>_gcp_digest.sig, ...), so match anything
+          # starting with this image name and ending in _digest.sig. The image-name
+          # prefix still blocks a parent/shorter digest (cvo-mediator-x-9-19-1 for a
+          # d1 image). Multiple matches fail rather than pick one.
+          echo "🔍 Searching for signature file..."
+          shopt -s nullglob
+          matches=( "$SIG_DIR/${IMAGE_NAME}"*_digest.sig )
+          shopt -u nullglob
+          if [ "${#matches[@]}" -eq 0 ]; then
+            echo "❌ Signature archive has no ${IMAGE_NAME}*_digest.sig"
+            echo "Available files:"
+            ls -la "$SIG_DIR"
+            exit 1
+          fi
+          if [ "${#matches[@]}" -gt 1 ]; then
+            echo "❌ Signature archive has multiple digests matching ${IMAGE_NAME}*_digest.sig; refusing to guess"
+            printf '%s\n' "${matches[@]}"
+            exit 1
+          fi
+          SIG_FILE="${matches[0]}"
           echo "✅ Signature file found: $SIG_FILE"
           
           # Step 5: Use certificate from repository
@@ -1849,7 +1929,7 @@ jobs:
           # Step 6: Try BOTH verification methods
           echo ""
           echo "🔐 Step 6: Attempting signature verification..."
-          echo "Digest file: disk_raw.dig"
+          echo "Digest file: $DIGEST_FILE"
           echo "Signature file: $SIG_FILE"
           echo ""
           
@@ -1857,26 +1937,34 @@ jobs:
           VERIFY_METHOD=""
           
           # ===== METHOD 1: OpenSSL RSA Verification =====
+          # COT signs a different payload per image type: Mediator signs the hex
+          # digest file, VSA (_gcp_digest.sig) signs disk.raw itself. Both are
+          # checked against the repo-pinned certificate, so whichever matches is a
+          # real proof over image content. disk.raw is multi-GB, hence the longer
+          # timeout.
           echo "📋 Method 1: OpenSSL RSA Verification"
           echo "=================================="
-          set +e
-          timeout 30 openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 \
-            -signature "$SIG_FILE" disk_raw.dig > /tmp/verify_result_openssl.txt 2>&1
-          OPENSSL_EXIT_CODE=$?
-          set -e
-          
-          OPENSSL_RESULT=$(cat /tmp/verify_result_openssl.txt)
-          echo "$OPENSSL_RESULT"
-          
-          if [ $OPENSSL_EXIT_CODE -eq 0 ]; then
-            echo "✅ OpenSSL verification PASSED"
-            VERIFY_SUCCESS=true
-            VERIFY_METHOD="OpenSSL RSA"
-          elif [ $OPENSSL_EXIT_CODE -eq 124 ]; then
-            echo "⏳ OpenSSL verification TIMEOUT"
-          else
-            echo "❌ OpenSSL verification FAILED (exit code: $OPENSSL_EXIT_CODE)"
-          fi
+          for PAYLOAD in "$DIGEST_FILE" "$WORK_DIR/disk.raw"; do
+            [ -f "$PAYLOAD" ] || continue
+            PAYLOAD_NAME=$(basename "$PAYLOAD")
+            echo "→ payload: $PAYLOAD_NAME"
+            set +e
+            timeout 900 openssl dgst -verify vsa_public_key.pem -keyform PEM -sha256 \
+              -signature "$SIG_FILE" "$PAYLOAD" > /tmp/verify_result_openssl.txt 2>&1
+            OPENSSL_EXIT_CODE=$?
+            set -e
+            cat /tmp/verify_result_openssl.txt
+            if [ $OPENSSL_EXIT_CODE -eq 0 ]; then
+              echo "✅ OpenSSL verification PASSED over $PAYLOAD_NAME"
+              VERIFY_SUCCESS=true
+              VERIFY_METHOD="OpenSSL RSA over $PAYLOAD_NAME"
+              break
+            elif [ $OPENSSL_EXIT_CODE -eq 124 ]; then
+              echo "⏳ OpenSSL verification TIMEOUT over $PAYLOAD_NAME"
+            else
+              echo "❌ OpenSSL verification FAILED over $PAYLOAD_NAME (exit code: $OPENSSL_EXIT_CODE)"
+            fi
+          done
           echo ""
           
           # ===== METHOD 2: GPG Verification =====
@@ -1887,7 +1975,7 @@ jobs:
             mkdir -p "$GNUPGHOME"
             
             set +e
-            timeout 30 gpg --verify "$SIG_FILE" disk_raw.dig > /tmp/verify_result_gpg.txt 2>&1
+            timeout 30 gpg --verify "$SIG_FILE" "$DIGEST_FILE" > /tmp/verify_result_gpg.txt 2>&1
             GPG_EXIT_CODE=$?
             set -e
             
