@@ -383,14 +383,15 @@ type IPRange struct {
 | Field | Value |
 |-------|-------|
 | `lifType` | `interclusterLIF` |
-| `network` | Data subnet name (e.g. `vsa-subnet-123…`) |
+| `network` | Full subnet resource name: `projects/{hostProjectNumber}/regions/{Region}/subnetworks/{subnetName}` (numeric host project, same as `address_ranges.network` / `VendorSubNetID`; not the SN host project ID) |
+| `netmask` | Dotted-octet mask (e.g. `255.255.255.248` for a /29), matching dataLIF / LIF conventions |
 | `addressRangeID` | Parent `address_ranges.id` |
 | `startIP` / `endIP` | Carved block bounds |
 | `id` | `TenancyInfo.IPRangeID` |
 
 **Not stored:** `gcp_secondary_range_name` (deterministic at GCP create).
 
-**Reuse:** `GetIPRanges(accountUUID, &dataSubnetName)` + filter `lifType==interclusterLIF`.
+**Reuse:** `GetIPRanges(accountUUID, &fullSubnetPath)` + filter `lifType==interclusterLIF`. GCP APIs still use the short subnet name.
 
 ### 7.2 `lifs` (our-branch SQL migration)
 
@@ -468,7 +469,7 @@ flowchart LR
 
 | # | Question | Notes |
 |---|----------|-------|
-| 1 | `network` field semantics for IC rows | Use data subnet name vs full VPC URL? |
+| 1 | ~~`network` field semantics for IC rows~~ | **Resolved:** full subnet resource name `projects/{hostProjectNumber}/regions/{Region}/subnetworks/{subnetName}` using the numeric host project from `VendorSubNetID` (not the SN host project ID, not short name). Clean cutover for new rows. |
 | 2 | Soft-delete `ip_ranges` when last pool leaves subnet? | Defer or subnet-delete hook |
 | 3 | User-provided IC IPs on create API | Future; same `ReserveInterclusterLifIPs` tx |
 

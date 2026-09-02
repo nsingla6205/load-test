@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/bits"
 	"net"
-	"strconv"
 	"strings"
 
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -174,7 +173,7 @@ func CidrFromStartEnd(startIP, endIP string) (string, error) {
 	return fmt.Sprintf("%s/%d", start.String(), prefix), nil
 }
 
-// CidrToStartEndMask returns inclusive start/end IPs and the prefix length as a string.
+// CidrToStartEndMask returns inclusive start/end IPs and the dotted-octet netmask
 func CidrToStartEndMask(cidr string) (startIP, endIP, mask string, err error) {
 	_, ipNet, parseErr := net.ParseCIDR(strings.TrimSpace(cidr))
 	if parseErr != nil {
@@ -184,8 +183,7 @@ func CidrToStartEndMask(cidr string) (startIP, endIP, mask string, err error) {
 	if !ok {
 		return "", "", "", fmt.Errorf("invalid CIDR bounds for %s", cidr)
 	}
-	ones, _ := ipNet.Mask.Size()
-	return uint32ToIPv4(start).String(), uint32ToIPv4(end).String(), strconv.Itoa(ones), nil
+	return uint32ToIPv4(start).String(), uint32ToIPv4(end).String(), net.IP(ipNet.Mask).String(), nil
 }
 
 func parentIDForCarvedCIDR(parents []InterclusterParentSpec, parentCIDR, carvedCIDR string) int64 {

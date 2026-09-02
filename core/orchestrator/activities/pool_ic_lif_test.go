@@ -13,6 +13,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"go.temporal.io/sdk/temporal"
 )
 
 func Test_interclusterLIFReservationCount_singleHAPair(t *testing.T) {
@@ -365,11 +367,15 @@ func TestDeleteInterclusterIPRangeForSubnet_deletesWhenLastPoolOnSubnet(t *testi
 	stubICLifDeleteHooks(t, func(ctx context.Context, se database.Storage, accountID, subnetworkName, poolNetwork string) ([]*datamodel.PoolView, error) {
 		return []*datamodel.PoolView{{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}}, nil
 	})
+	origRegion := Region
+	t.Cleanup(func() { Region = origRegion })
+	Region = "us-central1"
 
 	mockStorage := database.NewMockStorage(t)
 	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"}, Name: "test-account"}
 	subnet := "vsa-123-456"
-	network := subnet
+	snHost := "host-project"
+	network := interclusterSubnetNetwork("123", Region, subnet)
 	mockStorage.On("GetAccount", mock.Anything, account.Name).Return(account, nil)
 	mockStorage.On("GetIPRanges", mock.Anything, &account.UUID, &network).Return([]*datamodel.IPRange{{
 		BaseModel: datamodel.BaseModel{ID: 99, UUID: "ip-range-uuid"},
@@ -382,10 +388,11 @@ func TestDeleteInterclusterIPRangeForSubnet_deletesWhenLastPoolOnSubnet(t *testi
 		BaseModel: datamodel.BaseModel{ID: 40},
 		AccountID: 1,
 		Name:      "testpool1",
-		Network:   "vpc-1",
+		Network:   "projects/123/global/networks/vpc-1",
 		Account:   account,
 		ClusterDetails: datamodel.ClusterDetails{
-			SubnetNames: []string{subnet},
+			SubnetNames:   []string{subnet},
+			SnHostProject: snHost,
 		},
 	}
 
@@ -398,11 +405,15 @@ func TestDeleteInterclusterIPRangeForSubnet_releasesParentAddressRange(t *testin
 	stubICLifDeleteHooks(t, func(ctx context.Context, se database.Storage, accountID, subnetworkName, poolNetwork string) ([]*datamodel.PoolView, error) {
 		return []*datamodel.PoolView{{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}}, nil
 	})
+	origRegion := Region
+	t.Cleanup(func() { Region = origRegion })
+	Region = "us-central1"
 
 	mockStorage := database.NewMockStorage(t)
 	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"}, Name: "test-account"}
 	subnet := "vsa-123-456"
-	network := subnet
+	snHost := "host-project"
+	network := interclusterSubnetNetwork("123", Region, subnet)
 	mockStorage.On("GetAccount", mock.Anything, account.Name).Return(account, nil)
 	mockStorage.On("GetIPRanges", mock.Anything, &account.UUID, &network).Return([]*datamodel.IPRange{{
 		BaseModel: datamodel.BaseModel{ID: 99, UUID: "ip-range-uuid"},
@@ -418,10 +429,11 @@ func TestDeleteInterclusterIPRangeForSubnet_releasesParentAddressRange(t *testin
 		BaseModel: datamodel.BaseModel{ID: 40},
 		AccountID: 1,
 		Name:      "testpool1",
-		Network:   "vpc-1",
+		Network:   "projects/123/global/networks/vpc-1",
 		Account:   account,
 		ClusterDetails: datamodel.ClusterDetails{
-			SubnetNames: []string{subnet},
+			SubnetNames:   []string{subnet},
+			SnHostProject: snHost,
 		},
 	}
 
@@ -434,11 +446,15 @@ func TestDeleteInterclusterIPRangeForSubnet_releaseFailureDoesNotFailDelete(t *t
 	stubICLifDeleteHooks(t, func(ctx context.Context, se database.Storage, accountID, subnetworkName, poolNetwork string) ([]*datamodel.PoolView, error) {
 		return []*datamodel.PoolView{{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}}, nil
 	})
+	origRegion := Region
+	t.Cleanup(func() { Region = origRegion })
+	Region = "us-central1"
 
 	mockStorage := database.NewMockStorage(t)
 	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"}, Name: "test-account"}
 	subnet := "vsa-123-456"
-	network := subnet
+	snHost := "host-project"
+	network := interclusterSubnetNetwork("123", Region, subnet)
 	mockStorage.On("GetAccount", mock.Anything, account.Name).Return(account, nil)
 	mockStorage.On("GetIPRanges", mock.Anything, &account.UUID, &network).Return([]*datamodel.IPRange{{
 		BaseModel: datamodel.BaseModel{ID: 99, UUID: "ip-range-uuid"},
@@ -456,16 +472,57 @@ func TestDeleteInterclusterIPRangeForSubnet_releaseFailureDoesNotFailDelete(t *t
 		BaseModel: datamodel.BaseModel{ID: 40},
 		AccountID: 1,
 		Name:      "testpool1",
-		Network:   "vpc-1",
+		Network:   "projects/123/global/networks/vpc-1",
 		Account:   account,
 		ClusterDetails: datamodel.ClusterDetails{
-			SubnetNames: []string{subnet},
+			SubnetNames:   []string{subnet},
+			SnHostProject: snHost,
 		},
 	}
 
 	err := pa.DeleteInterclusterIPRangeForSubnet(context.Background(), pool)
 	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
+}
+
+func TestDeleteInterclusterIPRangeForSubnet_invalidVendorNetworkFails(t *testing.T) {
+	stubICLifDeleteHooks(t, func(ctx context.Context, se database.Storage, accountID, subnetworkName, poolNetwork string) ([]*datamodel.PoolView, error) {
+		return []*datamodel.PoolView{{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}}, nil
+	})
+	origRegion := Region
+	t.Cleanup(func() { Region = origRegion })
+	Region = "us-central1"
+
+	mockStorage := database.NewMockStorage(t)
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"}, Name: "test-account"}
+	mockStorage.On("GetAccount", mock.Anything, account.Name).Return(account, nil)
+
+	pa := &PoolActivity{SE: mockStorage}
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 40},
+		AccountID: 1,
+		Name:      "testpool1",
+		Network:   "not-a-vendor-network",
+		Account:   account,
+		ClusterDetails: datamodel.ClusterDetails{
+			SubnetNames:   []string{"vsa-123-456"},
+			SnHostProject: "host-project",
+		},
+	}
+
+	err := pa.DeleteInterclusterIPRangeForSubnet(context.Background(), pool)
+	require.Error(t, err)
+	var appErr *temporal.ApplicationError
+	require.ErrorAs(t, err, &appErr)
+	assert.True(t, appErr.NonRetryable())
+	assert.Equal(t, vsaerrors.CustomErrorType, appErr.Type())
+	var trackingID int
+	var originalMsg string
+	require.NoError(t, appErr.Details(&trackingID, &originalMsg))
+	assert.Equal(t, vsaerrors.ErrInputValidationError, trackingID)
+	assert.Contains(t, originalMsg, "invalid vendor network")
+	mockStorage.AssertNotCalled(t, "GetIPRanges", mock.Anything, mock.Anything, mock.Anything)
+	mockStorage.AssertNotCalled(t, "DeleteIPRangeByID", mock.Anything, mock.Anything)
 }
 
 func Test_interclusterHAPairCount_fallbacks(t *testing.T) {

@@ -51,6 +51,8 @@ func TestClaimCarvedInterclusterIPRange_idempotentWhenSubnetHasRow(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, first)
 	assert.Equal(t, "10.45.0.0/29", first.CarvedCIDR)
+	require.NotNil(t, first.IPRange)
+	assert.Equal(t, "255.255.255.248", first.IPRange.Netmask)
 
 	second, err := store.ClaimCarvedInterclusterIPRange(context.Background(), claim)
 	require.NoError(t, err)
@@ -158,6 +160,18 @@ func TestCidrFromStartEnd_errors(t *testing.T) {
 func TestCidrToStartEndMask_errors(t *testing.T) {
 	_, _, _, err := CidrToStartEndMask("not-a-cidr")
 	require.Error(t, err)
+}
+
+func TestCidrToStartEndMask_dottedOctet(t *testing.T) {
+	start, end, mask, err := CidrToStartEndMask("10.45.0.0/29")
+	require.NoError(t, err)
+	assert.Equal(t, "10.45.0.0", start)
+	assert.Equal(t, "10.45.0.7", end)
+	assert.Equal(t, "255.255.255.248", mask)
+
+	_, _, mask28, err := CidrToStartEndMask("10.45.0.0/28")
+	require.NoError(t, err)
+	assert.Equal(t, "255.255.255.240", mask28)
 }
 
 func TestCidrContainsCIDR_invalidInputs(t *testing.T) {

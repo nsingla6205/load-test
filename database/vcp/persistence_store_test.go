@@ -8592,7 +8592,7 @@ func seedCarvedInterclusterIPRange(t *testing.T, store *DataStoreRepository, add
 		Network:        &network,
 		StartIP:        startIP,
 		EndIP:          endIP,
-		Netmask:        "29",
+		Netmask:        "255.255.255.248",
 		LifType:        LifTypeInterclusterLIF,
 		AddressRangeID: sql.NullInt64{Int64: addressRangeID, Valid: true},
 	}

@@ -200,7 +200,8 @@ func Test_CheckInterclusterCarveAvailability_disabled(t *testing.T) {
 
 	// No storage calls are expected: the check must not touch the database when the feature is off.
 	pa := &PoolActivity{SE: database.NewMockStorage(t)}
-	params := commonparams.CreatePoolParams{SecondaryIpRange: []string{"10.45.0.0/16"}}
+	params := commonparams.CreatePoolParams{VendorSubNetID:   "projects/123/global/networks/vpc1",
+		SecondaryIpRange: []string{"10.45.0.0/16"}}
 	require.NoError(t, pa.CheckInterclusterCarveAvailability(context.Background(), params))
 }
 
@@ -273,10 +274,20 @@ func Test_EnsureInterclusterSecondaryRangeOp_disabled(t *testing.T) {
 	icLifAddressSpaceEnabled = func() bool { return false }
 
 	pa := &PoolActivity{SE: database.NewMockStorage(t)}
-	params := commonparams.CreatePoolParams{SecondaryIpRange: []string{"10.45.0.0/16"}}
+	params := commonparams.CreatePoolParams{VendorSubNetID:   "projects/123/global/networks/vpc1",
+		SecondaryIpRange: []string{"10.45.0.0/16"}}
 	result, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "host-project", "vsa-subnet")
 	require.NoError(t, err)
 	assert.Equal(t, &commonparams.EnsureICSecondaryRangeResult{}, result)
+}
+
+func Test_interclusterSubnetNetwork(t *testing.T) {
+	assert.Equal(t,
+		"projects/123/regions/us-central1/subnetworks/vsa-subnet",
+		interclusterSubnetNetwork("123", "us-central1", "vsa-subnet"))
+	assert.Empty(t, interclusterSubnetNetwork("", "us-central1", "vsa-subnet"))
+	assert.Empty(t, interclusterSubnetNetwork("host-project", "", "vsa-subnet"))
+	assert.Empty(t, interclusterSubnetNetwork("host-project", "us-central1", ""))
 }
 
 func expectGetSubnetworkEmpty(t *testing.T, mockSvc *hyperscaler2.MockServices, hostProject, region, subnetName string) {
@@ -295,6 +306,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_skipsWhenSubnetAlreadyCarved(t *tes
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	existing := &datamodel.IPRange{
 		BaseModel: datamodel.BaseModel{ID: 55},
@@ -305,7 +317,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_skipsWhenSubnetAlreadyCarved(t *tes
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).
 		Return([]*datamodel.IPRange{existing}, nil)
 
 	mockSvc := hyperscaler2.NewMockServices(t)
@@ -320,6 +332,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_skipsWhenSubnetAlreadyCarved(t *tes
 	params := commonparams.CreatePoolParams{
 		AccountName:      "acct",
 		Region:           "us-central1",
+		VendorSubNetID:   "projects/123/global/networks/vpc1",
 		SecondaryIpRange: []string{"10.45.0.0/16"},
 	}
 	result, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "host-project", subnetName)
@@ -340,11 +353,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_carvesAndPatches(t *testing.T) {
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -352,7 +366,9 @@ func Test_EnsureInterclusterSecondaryRangeOp_carvesAndPatches(t *testing.T) {
 		}, nil)
 	mockSE.On("GetRegionByName", mock.Anything, "us-central1").
 		Return(&datamodel.Region{BaseModel: datamodel.BaseModel{UUID: "region-uuid"}}, nil)
-	mockSE.On("ClaimCarvedInterclusterIPRange", mock.Anything, mock.Anything).
+	mockSE.On("ClaimCarvedInterclusterIPRange", mock.Anything, mock.MatchedBy(func(c database.InterclusterCarveClaim) bool {
+		return c.Network == network
+	})).
 		Return(&database.InterclusterCarveResult{
 			IPRange:    &datamodel.IPRange{BaseModel: datamodel.BaseModel{ID: 77}},
 			CarvedCIDR: "10.45.0.0/29",
@@ -396,21 +412,14 @@ func Test_EnsureInterclusterSecondaryRangeOp_failsWithoutSnHostProject(t *testin
 	t.Cleanup(func() { icLifAddressSpaceEnabled = origEnabled })
 	icLifAddressSpaceEnabled = func() bool { return true }
 
-	subnetName := "vsa-subnet"
-	accountUUID := "acct-uuid"
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("GetAccount", mock.Anything, "acct").
-		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
-
-	pa := &PoolActivity{SE: mockSE}
+	pa := &PoolActivity{SE: database.NewMockStorage(t)}
 	params := commonparams.CreatePoolParams{
 		AccountName:      "acct",
 		Region:           "us-central1",
 		VendorSubNetID:   "projects/123/global/networks/vpc1",
 		SecondaryIpRange: []string{"10.45.0.0/16"},
 	}
-	_, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "", subnetName)
+	_, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "", "vsa-subnet")
 	require.Error(t, err)
 	var customErr *vsaerrors.CustomError
 	require.True(t, vsaerrors.As(err, &customErr))
@@ -425,7 +434,10 @@ func persistICLifRangeMocks(t *testing.T) *database.MockStorage {
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "acct-uuid"}}, nil)
 	mockSE.On("GetIPRanges", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
-	mockSE.On("CreateIPRange", mock.Anything, mock.Anything).
+	mockSE.On("CreateIPRange", mock.Anything, mock.MatchedBy(func(ir *datamodel.IPRange) bool {
+		return ir != nil && ir.Network != nil && strings.HasPrefix(*ir.Network, "projects/") &&
+			ir.Netmask == "255.255.255.248"
+	})).
 		Return(&datamodel.IPRange{BaseModel: datamodel.BaseModel{ID: 77}}, nil)
 	return mockSE
 }
@@ -439,7 +451,7 @@ func Test_PersistInterclusterIPRange_marksParentInUse(t *testing.T) {
 	mockSE.On("MarkAddressRangeInUseByID", mock.Anything, int64(11)).Return(true, nil)
 
 	pa := &PoolActivity{SE: mockSE}
-	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct"}
+	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct", VendorSubNetID: "projects/123/global/networks/vpc1"}
 	id, err := pa.PersistInterclusterIPRange(context.Background(), params, "pool-uuid", "vsa-subnet", "10.44.0.0/29", 11)
 	require.NoError(t, err)
 	assert.Equal(t, int64(77), id)
@@ -458,7 +470,7 @@ func Test_PersistInterclusterIPRange_markFailureDoesNotFailCarve(t *testing.T) {
 	// The carved ip_ranges row is what actually blocks deletion, so a failed state flip
 	// must not abort pool creation.
 	pa := &PoolActivity{SE: mockSE}
-	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct"}
+	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct", VendorSubNetID: "projects/123/global/networks/vpc1"}
 	id, err := pa.PersistInterclusterIPRange(context.Background(), params, "pool-uuid", "vsa-subnet", "10.44.0.0/29", 11)
 	require.NoError(t, err)
 	assert.Equal(t, int64(77), id)
@@ -545,7 +557,7 @@ func Test_carveAndPersist_concurrent_noDuplicateCIDR(t *testing.T) {
 		})
 
 	pa := &PoolActivity{SE: mockSE}
-	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct"}
+	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct", VendorSubNetID: "projects/123/global/networks/vpc1"}
 
 	var wg sync.WaitGroup
 	errs := make([]error, concurrentPools)
@@ -586,7 +598,7 @@ func Test_PersistInterclusterIPRange_noParentSkipsMark(t *testing.T) {
 	mockSE := persistICLifRangeMocks(t)
 
 	pa := &PoolActivity{SE: mockSE}
-	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct"}
+	params := commonparams.CreatePoolParams{Region: "us-central1", AccountName: "acct", VendorSubNetID: "projects/123/global/networks/vpc1"}
 	_, err := pa.PersistInterclusterIPRange(context.Background(), params, "pool-uuid", "vsa-subnet", "10.44.0.0/29", 0)
 	require.NoError(t, err)
 	mockSE.AssertNotCalled(t, "MarkAddressRangeInUseByID", mock.Anything, mock.Anything)
@@ -653,11 +665,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_releasesClaimOnGCPConflictThenRecar
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -726,11 +739,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_releasesClaimOnNonConflictPatchFail
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -779,11 +793,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_doesNotReleaseReusedClaimOnPatchCon
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -853,11 +868,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_adoptsGCPRangeWhenDBEmpty(t *testin
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -909,11 +925,12 @@ func Test_EnsureInterclusterSecondaryRangeOp_sameCIDRConflictAdopts(t *testing.T
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).Return(nil, nil)
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).Return(nil, nil)
 	lifType := database.AddressRangeLifTypeInterclusterLIF
 	mockSE.On("ListAddressRanges", mock.Anything, "123", "vpc1", (*string)(nil), &lifType).
 		Return([]*datamodel.AddressRange{
@@ -1016,6 +1033,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_patchExistingSkipsWhenOnGCP(t *test
 	icLifAddressSpaceEnabled = func() bool { return true }
 
 	subnetName := "vsa-subnet"
+	network := interclusterSubnetNetwork("123", "us-central1", subnetName)
 	accountUUID := "acct-uuid"
 	existing := &datamodel.IPRange{
 		BaseModel: datamodel.BaseModel{ID: 55},
@@ -1026,7 +1044,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_patchExistingSkipsWhenOnGCP(t *test
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAccount", mock.Anything, "acct").
 		Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: accountUUID}}, nil)
-	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &subnetName).
+	mockSE.On("GetIPRanges", mock.Anything, &accountUUID, &network).
 		Return([]*datamodel.IPRange{existing}, nil)
 
 	mockSvc := hyperscaler2.NewMockServices(t)
@@ -1044,6 +1062,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_patchExistingSkipsWhenOnGCP(t *test
 	params := commonparams.CreatePoolParams{
 		AccountName:      "acct",
 		Region:           "us-central1",
+		VendorSubNetID:   "projects/123/global/networks/vpc1",
 		SecondaryIpRange: []string{"10.45.0.0/16"},
 	}
 	result, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "host-project", subnetName)

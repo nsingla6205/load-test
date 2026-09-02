@@ -23,6 +23,9 @@ import (
 const (
 	lifTypeInterclusterDB       = "intercluster"
 	interclusterLIFIPsPerHAPair = 2
+	// hostRouteNetmask matches data LIF rows (vsa.DefaultNetmask): a /32 host
+	// route on the individual LIF IP, not the carved block's prefix mask.
+	hostRouteNetmask = "255.255.255.255"
 )
 
 var (
@@ -226,13 +229,14 @@ func (d *DataStoreRepository) ReserveInterclusterLifIPs(ctx context.Context, poo
 					CreatedAt: now,
 					UpdatedAt: now,
 				},
-				Name:      fmt.Sprintf("ic-lif-pool-%d-%d", poolID, i),
-				AccountID: accountID,
-				Type:      lifTypeInterclusterDB,
-				IPAddress: ip,
-				NodeID:    0,
-				PoolID:    sql.NullInt64{Int64: poolID, Valid: true},
-				IPRangeID: sql.NullInt64{Int64: ipRangeID, Valid: true},
+				Name:       fmt.Sprintf("ic-lif-pool-%d-%d", poolID, i),
+				AccountID:  accountID,
+				Type:       lifTypeInterclusterDB,
+				IPAddress:  ip,
+				NodeID:     0,
+				SubnetMask: hostRouteNetmask,
+				PoolID:     sql.NullInt64{Int64: poolID, Valid: true},
+				IPRangeID:  sql.NullInt64{Int64: ipRangeID, Valid: true},
 				LifDetails: &datamodel.LifDetails{
 					ProtocolType: lifTypeInterclusterDB,
 					HAPairIndex:  i / interclusterLIFIPsPerHAPair,

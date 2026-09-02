@@ -31,6 +31,7 @@ func seedICIPRange(t *testing.T, store *DataStoreRepository, id int64, startIP, 
 		Network:   &network,
 		StartIP:   startIP,
 		EndIP:     endIP,
+		Netmask:   "255.255.255.240",
 		LifType:   "interclusterLIF",
 	}
 	require.NoError(t, store.db.GORM().Create(ir).Error, "Failed to seed IPRange")
@@ -86,6 +87,9 @@ func Test_ReserveInterclusterLifIPs(t *testing.T) {
 		assert.Equal(t, 0, lifs[1].LifDetails.HAPairIndex)
 		assert.Equal(t, 1, lifs[2].LifDetails.HAPairIndex)
 		assert.Equal(t, 1, lifs[3].LifDetails.HAPairIndex)
+		for _, lif := range lifs {
+			assert.Equal(t, "255.255.255.255", lif.SubnetMask)
+		}
 	})
 
 	t.Run("IdempotentReturnOfExistingPoolLifsInNumericOrder", func(t *testing.T) {

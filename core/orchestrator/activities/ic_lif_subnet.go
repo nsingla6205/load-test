@@ -335,11 +335,22 @@ func cidrToStartEndMask(cidr string) (startIP, endIP, mask string, err error) {
 	return database.CidrToStartEndMask(cidr)
 }
 
-func lookupInterclusterIPRangeID(ctx context.Context, se database.Storage, accountUUID, subnetName string) (int64, error) {
-	if se == nil || subnetName == "" || accountUUID == "" {
+// interclusterSubnetNetwork is the canonical ip_ranges.network value for IC LIF rows:
+// projects/{hostProjectNumber}/regions/{region}/subnetworks/{subnetName}.
+func interclusterSubnetNetwork(hostProjectNumber, region, subnetName string) string {
+	hostProjectNumber = strings.TrimSpace(hostProjectNumber)
+	region = strings.TrimSpace(region)
+	subnetName = strings.TrimSpace(subnetName)
+	if hostProjectNumber == "" || region == "" || subnetName == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", hostProjectNumber, region, subnetName)
+}
+
+func lookupInterclusterIPRangeID(ctx context.Context, se database.Storage, accountUUID, network string) (int64, error) {
+	if se == nil || network == "" || accountUUID == "" {
 		return 0, nil
 	}
-	network := subnetName
 	ranges, err := se.GetIPRanges(ctx, &accountUUID, &network)
 	if err != nil {
 		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -438,6 +449,12 @@ func (j *PoolActivity) adoptInterclusterRangeFromGCP(ctx context.Context, params
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	network := interclusterSubnetNetwork(hostProjectNumber, params.Region, subnetName)
+	if network == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot adopt intercluster IP range: missing host project number, region, or subnet name")))
+	}
 	specs := make([]database.InterclusterParentSpec, 0, len(parents))
 	for _, p := range parents {
 		specs = append(specs, database.InterclusterParentSpec{ID: p.ID, CIDR: p.CIDR})
@@ -447,7 +464,7 @@ func (j *PoolActivity) adoptInterclusterRangeFromGCP(ctx context.Context, params
 		VPCName:           vpcName,
 		CarvedCIDR:        carvedCIDR,
 		Parents:           specs,
-		Network:           subnetName,
+		Network:           network,
 		AccountUUID:       accountUUID,
 		RegionUUID:        region.UUID,
 	})
@@ -523,22 +540,34 @@ func (j *PoolActivity) EnsureInterclusterSecondaryRangeOp(ctx context.Context, p
 	}
 	recordHeartbeat(ctx, fmt.Sprintf("Ensuring intercluster secondary range on subnet %s in project %s", subnetName, snHostProject))
 
+	if snHostProject == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot attach intercluster secondary range to subnet %s: SN host project is empty", subnetName)))
+	}
+
 	account, err := j.SE.GetAccount(ctx, params.AccountName)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	existing, err := lookupInterclusterIPRange(ctx, j.SE, account.UUID, subnetName)
+	hostProjectNumber, _, parseErr := utils.ParseProjectId(params.VendorSubNetID)
+	if parseErr != nil || hostProjectNumber == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot ensure intercluster secondary range: invalid vendor subnet id %q", params.VendorSubNetID)))
+	}
+	network := interclusterSubnetNetwork(hostProjectNumber, params.Region, subnetName)
+	if network == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot ensure intercluster secondary range: missing region or subnet name")))
+	}
+	existing, err := lookupInterclusterIPRange(ctx, j.SE, account.UUID, network)
 	if err != nil {
 		return nil, err
 	}
 	if existing != nil {
 		return j.patchExistingInterclusterClaim(ctx, params, poolUUID, snHostProject, subnetName, existing)
-	}
-
-	if snHostProject == "" {
-		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-				fmt.Errorf("cannot attach intercluster secondary range to subnet %s: SN host project is empty", subnetName)))
 	}
 
 	service, err := resolveCloudServiceForICLif(ctx)
@@ -632,6 +661,12 @@ func (j *PoolActivity) claimInterclusterCarve(ctx context.Context, params common
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	network := interclusterSubnetNetwork(hostProjectNumber, params.Region, subnetName)
+	if network == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot claim intercluster IP range: missing host project number, region, or subnet name")))
+	}
 	specs := make([]database.InterclusterParentSpec, 0, len(parents))
 	for _, p := range parents {
 		specs = append(specs, database.InterclusterParentSpec{ID: p.ID, CIDR: p.CIDR})
@@ -641,7 +676,7 @@ func (j *PoolActivity) claimInterclusterCarve(ctx context.Context, params common
 		VPCName:            vpcName,
 		RequiredIPs:        requiredIPs,
 		Parents:            specs,
-		Network:            subnetName,
+		Network:            network,
 		AccountUUID:        accountUUID,
 		RegionUUID:         region.UUID,
 		ExtraReservedCIDRs: extraReservedCIDRs,
@@ -666,10 +701,10 @@ func (j *PoolActivity) patchClaimedInterclusterRange(ctx context.Context, servic
 		"subnet", subnetName, "project", snHostProject, "region", params.Region,
 		"rangeName", rangeName, "cidr", claim.CarvedCIDR, "operation", operationName, "ipRangeID", claim.IPRange.ID)
 	return &commonparams.EnsureICSecondaryRangeResult{
-		OperationName:             operationName,
-		Project:                   snHostProject,
-		CarvedSecondaryCIDR:       claim.CarvedCIDR,
-		ParentInterclusterRangeID: claim.ParentID,
+		OperationName:              operationName,
+		Project:                    snHostProject,
+		CarvedSecondaryCIDR:        claim.CarvedCIDR,
+		ParentInterclusterRangeID:  claim.ParentID,
 		IPRangeID:                  claim.IPRange.ID,
 		ReleaseClaimOnPatchFailure: claim.Inserted,
 	}, nil
@@ -734,11 +769,10 @@ func (j *PoolActivity) releaseInterclusterCarveClaim(ctx context.Context, ipRang
 	}
 }
 
-func lookupInterclusterIPRange(ctx context.Context, se database.Storage, accountUUID, subnetName string) (*datamodel.IPRange, error) {
-	if se == nil || subnetName == "" || accountUUID == "" {
+func lookupInterclusterIPRange(ctx context.Context, se database.Storage, accountUUID, network string) (*datamodel.IPRange, error) {
+	if se == nil || network == "" || accountUUID == "" {
 		return nil, nil
 	}
-	network := subnetName
 	ranges, err := se.GetIPRanges(ctx, &accountUUID, &network)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -767,7 +801,19 @@ func (j *PoolActivity) PersistInterclusterIPRange(ctx context.Context, params co
 	if err != nil {
 		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	existing, err := lookupInterclusterIPRange(ctx, j.SE, account.UUID, subnetName)
+	hostProjectNumber, _, parseErr := utils.ParseProjectId(params.VendorSubNetID)
+	if parseErr != nil || hostProjectNumber == "" {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot persist intercluster IP range: invalid vendor subnet id %q", params.VendorSubNetID)))
+	}
+	network := interclusterSubnetNetwork(hostProjectNumber, params.Region, subnetName)
+	if network == "" {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot persist intercluster IP range: missing host project number, region, or subnet name")))
+	}
+	existing, err := lookupInterclusterIPRange(ctx, j.SE, account.UUID, network)
 	if err != nil {
 		return 0, err
 	}
@@ -791,7 +837,6 @@ func (j *PoolActivity) PersistInterclusterIPRange(ctx context.Context, params co
 	if err != nil {
 		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	network := subnetName
 	ir := &datamodel.IPRange{
 		Network:     &network,
 		StartIP:     startIP,
@@ -808,7 +853,7 @@ func (j *PoolActivity) PersistInterclusterIPRange(ctx context.Context, params co
 	if err != nil {
 		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	util.GetLogger(ctx).Info("Persisted intercluster IP range", "poolUUID", poolUUID, "ipRangeID", created.ID, "subnet", subnetName, "cidr", carvedCIDR)
+	util.GetLogger(ctx).Info("Persisted intercluster IP range", "poolUUID", poolUUID, "ipRangeID", created.ID, "subnet", subnetName, "network", network, "cidr", carvedCIDR)
 	j.markInterclusterParentInUse(ctx, poolUUID, carvedCIDR, parentAddressRangeID)
 	return created.ID, nil
 }
@@ -890,7 +935,7 @@ func (j *PoolActivity) DeleteInterclusterIPRangeForSubnet(ctx context.Context, p
 			"subnet", subnetName, "pool", pool.Name, "snHostProject", snHostProject)
 		return nil
 	}
-	ipRangeID, err := j.LookupInterclusterIPRangeForSubnet(ctx, accountName, subnetName)
+	ipRangeID, err := j.LookupInterclusterIPRangeForSubnet(ctx, accountName, pool.Network, Region, subnetName)
 	if err != nil {
 		return err
 	}
@@ -951,10 +996,27 @@ func _icLifDataSubnetStillExists(ctx context.Context, snHostProject, subnetName 
 	return false, err
 }
 
-func (j *PoolActivity) LookupInterclusterIPRangeForSubnet(ctx context.Context, accountName, subnetName string) (int64, error) {
+func (j *PoolActivity) LookupInterclusterIPRangeForSubnet(ctx context.Context, accountName, vendorNetwork, region, subnetName string) (int64, error) {
 	account, err := j.SE.GetAccount(ctx, accountName)
 	if err != nil {
 		return 0, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	return lookupInterclusterIPRangeID(ctx, j.SE, account.UUID, subnetName)
+	hostProjectNumber, _, parseErr := utils.ParseProjectId(vendorNetwork)
+	if parseErr != nil {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot look up intercluster IP range: invalid vendor network %q: %w", vendorNetwork, parseErr)))
+	}
+	if hostProjectNumber == "" {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot look up intercluster IP range: empty host project number in vendor network %q", vendorNetwork)))
+	}
+	network := interclusterSubnetNetwork(hostProjectNumber, region, subnetName)
+	if network == "" {
+		return 0, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("cannot look up intercluster IP range: missing region or subnet name (vendorNetwork=%q)", vendorNetwork)))
+	}
+	return lookupInterclusterIPRangeID(ctx, j.SE, account.UUID, network)
 }
