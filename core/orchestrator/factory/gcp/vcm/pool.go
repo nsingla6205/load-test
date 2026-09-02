@@ -14,9 +14,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-// jobStepFailedToStart marks a job that never left NEW due to a dispatch failure.
-const jobStepFailedToStart = "failed-to-start"
-
 // CreatePool persists a durable pool-create job (in NEW), starts the VCM pool
 // workflow, and returns its operation ID. VCM is asynchronous, so no pool model
 // is returned; the caller polls the operation for progress. The request ID is

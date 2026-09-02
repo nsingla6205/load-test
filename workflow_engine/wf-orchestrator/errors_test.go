@@ -23,6 +23,20 @@ func TestNewApplicationError_IsRetryableWithDetails(t *testing.T) {
 	assert.Nil(t, appErr.Unwrap())
 }
 
+func TestNewApplicationErrorWithCause_CarriesCauseAndDetails(t *testing.T) {
+	cause := errors.New("underlying")
+	err := NewApplicationErrorWithCause("boom", "BoomType", cause, 1001)
+
+	appErr, ok := AsApplicationError(err)
+	require.True(t, ok)
+	assert.Equal(t, "boom", appErr.Error())
+	assert.Equal(t, "BoomType", appErr.Type())
+	assert.Equal(t, 1001, appErr.Details())
+	assert.False(t, appErr.NonRetryable())
+	assert.Equal(t, cause, appErr.Unwrap())
+	assert.ErrorIs(t, err, cause)
+}
+
 func TestNewNonRetryableApplicationError_CarriesCauseAndDetails(t *testing.T) {
 	cause := errors.New("underlying")
 	err := NewNonRetryableApplicationError("perm", "PermType", cause, "detail-payload")

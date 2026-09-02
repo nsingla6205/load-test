@@ -330,31 +330,10 @@ func (wf *createPoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
 	}
 }
 
-// jobErrorFields extracts the job's error metadata (tracking id, message,
-// retryability), preferring ApplicationError then a wrapped CustomError.
+// jobErrorFields extracts durable job error metadata from a workflow failure.
 func jobErrorFields(err error) (trackingID int, message string, retriable bool) {
-	if err == nil {
-		return 0, "", false
-	}
-	message = err.Error()
-
-	if appErr, ok := orchestrator.AsApplicationError(err); ok {
-		retriable = !appErr.NonRetryable()
-		if appErr.Type() == vsaerrors.CustomErrorType {
-			var tid int
-			if derr := appErr.ExtractDetails(&tid); derr == nil {
-				trackingID = tid
-			}
-		}
-		return trackingID, message, retriable
-	}
-
-	var customErr *vsaerrors.CustomError
-	if vsaerrors.As(err, &customErr) {
-		return customErr.TrackingID, message, customErr.IsRetriable()
-	}
-
-	return 0, message, false
+	trackingID, retriable, message = vsaerrors.ExtractJobFailureDetails(err)
+	return trackingID, message, retriable
 }
 
 // checkDeadline is temporarily disabled and always returns nil; callsites are

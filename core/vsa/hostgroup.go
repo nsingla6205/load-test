@@ -3,10 +3,86 @@ package vsa
 import (
 	"strings"
 
+	ontapModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
+
+// GetAllInitiators returns IQN names from an ONTAP igroup initiator list.
+func GetAllInitiators(initiators []*ontapModels.IgroupInlineInitiatorsInlineArrayItem) []string {
+	names := make([]string, 0, len(initiators))
+	for _, initiator := range initiators {
+		if initiator == nil || initiator.Name == nil {
+			continue
+		}
+		names = append(names, *initiator.Name)
+	}
+	return names
+}
+
+// IgroupMatchesCreateRequest reports whether an existing ONTAP igroup matches the requested osType and IQNs.
+func IgroupMatchesCreateRequest(igroup *ontapRest.Igroup, requestedOsType string, requestedIQNs []string) bool {
+	if igroup == nil {
+		return false
+	}
+	if mapOntapOsTypeToAPIEnum(igroup.OsType) != mapOntapOsTypeToAPIEnum(&requestedOsType) {
+		return false
+	}
+	toAdd, toDelete := utils.GetArrayDiff(GetAllInitiators(igroup.IgroupInlineInitiators), requestedIQNs)
+	return len(toAdd) == 0 && len(toDelete) == 0
+}
+
+// SyncIgroupInitiators reconciles an ONTAP igroup's initiator list to desiredHosts.
+func SyncIgroupInitiators(provider Provider, igroupName string, desiredHosts []string, svm *string) (found bool, osType string, err error) {
+	exists, hostGroup, err := provider.IgroupExists(igroupName, svm)
+	if err != nil {
+		return false, "", err
+	}
+	if !exists || hostGroup == nil || hostGroup.UUID == nil {
+		return false, "", nil
+	}
+	osType = mapOntapOsTypeToAPIEnum(hostGroup.OsType)
+
+	initiatorsToAdd, initiatorsToDelete := utils.GetArrayDiff(GetAllInitiators(hostGroup.IgroupInlineInitiators), desiredHosts)
+
+	// Delete obsolete initiators before adding new ones so replacements at the host
+	// limit (e.g. 128) never pass through an over-capacity intermediate state.
+	for _, initiatorToDelete := range initiatorsToDelete {
+		err = provider.IgroupDeleteInitiator(IgroupDeleteInitiator{
+			InitiatorName: initiatorToDelete,
+			IgroupUUID:    *hostGroup.UUID,
+		})
+		if err != nil {
+			return true, osType, err
+		}
+	}
+
+	if len(initiatorsToAdd) > 0 {
+		err = provider.IgroupAddInitiator(IgroupAddInitiator{
+			Initiator:  initiatorsToAdd,
+			IgroupUUID: *hostGroup.UUID,
+		})
+		if err != nil {
+			return true, osType, err
+		}
+	}
+	return true, osType, nil
+}
+
+// mapOntapOsTypeToAPIEnum converts an ONTAP igroup os_type value to the API osType enum.
+func mapOntapOsTypeToAPIEnum(osType *string) string {
+	if osType == nil {
+		return ""
+	}
+	switch strings.ToLower(*osType) {
+	case "vmware":
+		return "ESXI"
+	default:
+		return strings.ToUpper(*osType)
+	}
+}
 
 // IgroupCreate creates an initiator group by calling the ONTAP REST Client
 func (rc *OntapRestProvider) IgroupCreate(params IgroupCreateParams) (string, error) {
@@ -36,12 +112,18 @@ func (rc *OntapRestProvider) IgroupDelete(uuid string) error {
 		UUID: uuid,
 	})
 	if err != nil && !strings.Contains(err.Error(), "was not found") {
-		return err
+		if strings.Contains(err.Error(), "LUN maps for this initiator group exist") {
+			return vsaerrors.NewVCPError(vsaerrors.ErrHostGroupHasLUNMaps, err)
+		}
+		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
 	return nil
 }
 
-// IgroupGet creates an initiator group by calling the ONTAP REST Client
+// igroupReadFields are the ONTAP fields needed to map an igroup to a HostGroup.
+var igroupReadFields = []string{"name", "os_type", "initiators"}
+
+// IgroupGet fetches a single initiator group by calling the ONTAP REST Client.
 func (rc *OntapRestProvider) IgroupGet(name, svmName *string) (*ontapRest.Igroup, error) {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {
@@ -49,7 +131,7 @@ func (rc *OntapRestProvider) IgroupGet(name, svmName *string) (*ontapRest.Igroup
 	}
 	iGroup, err := client.SAN().IGroupGet(&ontapRest.IgroupGetParams{
 		BaseParams: ontapRest.BaseParams{
-			Fields: []string{"initiators"},
+			Fields: igroupReadFields,
 		},
 		Name:    name,
 		SvmName: svmName,
@@ -58,6 +140,24 @@ func (rc *OntapRestProvider) IgroupGet(name, svmName *string) (*ontapRest.Igroup
 		return nil, err
 	}
 	return iGroup, nil
+}
+
+// IgroupList lists initiator groups on the given SVM.
+func (rc *OntapRestProvider) IgroupList(svm *string) ([]*ontapRest.Igroup, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+	igroups, err := client.SAN().IGroupsGet(&ontapRest.IgroupGetParams{
+		BaseParams: ontapRest.BaseParams{
+			Fields: igroupReadFields,
+		},
+		SvmName: svm,
+	})
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+	return igroups, nil
 }
 
 func (rc *OntapRestProvider) IgroupExists(name string, svm *string) (bool, *ontapRest.Igroup, error) {

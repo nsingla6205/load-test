@@ -81,7 +81,9 @@ func TestV1betaDeleteHostGroup(t *testing.T) {
 			return "us-east4", "us-east4", nil
 		}
 		mockOrchestrator.EXPECT().GetHostGroup(mock.Anything, params.HostGroupId, params.ProjectNumber).Return(existingHG, nil)
-		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, params.ProjectNumber, params.HostGroupId).Return(nil, errors.NewUserInputValidationErr("host group is attached to volumes"))
+		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, mock.MatchedBy(func(p *common.DeleteHostGroupParams) bool {
+			return p != nil && p.Name == params.HostGroupId && p.AccountName == params.ProjectNumber
+		})).Return(nil, errors.NewUserInputValidationErr("host group is attached to volumes"))
 
 		handler := Handler{
 			Orchestrator: mockOrchestrator,
@@ -110,7 +112,9 @@ func TestV1betaDeleteHostGroup(t *testing.T) {
 			return "us-east4", "us-east4", nil
 		}
 		mockOrchestrator.EXPECT().GetHostGroup(mock.Anything, params.HostGroupId, params.ProjectNumber).Return(existingHG, nil)
-		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, params.ProjectNumber, params.HostGroupId).Return(nil, errors.New("some error"))
+		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, mock.MatchedBy(func(p *common.DeleteHostGroupParams) bool {
+			return p != nil && p.Name == params.HostGroupId && p.AccountName == params.ProjectNumber
+		})).Return(nil, errors.New("some error"))
 
 		handler := Handler{
 			Orchestrator: mockOrchestrator,
@@ -173,7 +177,9 @@ func TestV1betaDeleteHostGroup(t *testing.T) {
 			return "us-east4", "us-east4", nil
 		}
 		mockOrchestrator.EXPECT().GetHostGroup(mock.Anything, params.HostGroupId, params.ProjectNumber).Return(existingHG, nil)
-		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, params.ProjectNumber, params.HostGroupId).Return(deletedPool, nil)
+		mockOrchestrator.EXPECT().DeleteHostGroup(mock.Anything, mock.MatchedBy(func(p *common.DeleteHostGroupParams) bool {
+			return p != nil && p.Name == params.HostGroupId && p.AccountName == params.ProjectNumber
+		})).Return(deletedPool, nil)
 
 		handler := Handler{
 			Orchestrator: mockOrchestrator,

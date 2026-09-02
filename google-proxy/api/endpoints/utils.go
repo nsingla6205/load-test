@@ -21,19 +21,6 @@ var (
 	blockTrueZonalAutoTieringAndBackup = env.GetBool("BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP", false)
 )
 
-func DeduplicateSlice(elements []string) []string {
-	uniqueElements := make(map[string]bool)
-	var deduplicatedElements []string
-
-	for _, element := range elements {
-		if _, exists := uniqueElements[element]; !exists {
-			uniqueElements[element] = true
-			deduplicatedElements = append(deduplicatedElements, element)
-		}
-	}
-	return deduplicatedElements
-}
-
 func validateUUIDList(uuids []string, fieldName string) string {
 	for i, u := range uuids {
 		if !uuidRegex.MatchString(u) {

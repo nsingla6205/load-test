@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,6 +13,8 @@ import (
 	cclient "github.com/cschleiden/go-workflows/client"
 	gowf "github.com/cschleiden/go-workflows/workflow"
 	"github.com/google/uuid"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,51 @@ func TestToGowfError_TranslatesNonRetryableApplicationError(t *testing.T) {
 
 func TestToGowfError_TranslatesNonRetryableWrapper(t *testing.T) {
 	in := &orchestrator.NonRetryableError{Err: errors.New("boom")}
+	out := ToGowfError(in)
+	if out == nil {
+		t.Fatal("expected non-nil output")
+	}
+	if gowf.CanRetry(out) {
+		t.Fatalf("expected permanent error, got retryable: %v", out)
+	}
+}
+
+type duckTypedCustomError struct {
+	msg          string
+	nonRetryable bool
+}
+
+func (e *duckTypedCustomError) Error() string { return e.msg }
+
+func (e *duckTypedCustomError) Type() string { return vsaerrors.CustomErrorType }
+
+func (e *duckTypedCustomError) NonRetryable() bool { return e.nonRetryable }
+
+func TestToGowfError_TranslatesDuckTypedNonRetryableCustomError(t *testing.T) {
+	in := &duckTypedCustomError{msg: "host group already exists", nonRetryable: true}
+	out := ToGowfError(in)
+	if out == nil {
+		t.Fatal("expected non-nil output")
+	}
+	if gowf.CanRetry(out) {
+		t.Fatalf("expected permanent error, got retryable: %v", out)
+	}
+}
+
+func TestToGowfError_PassesRetryableDuckTypedCustomErrorThrough(t *testing.T) {
+	in := &duckTypedCustomError{msg: "transient ontap error", nonRetryable: false}
+	out := ToGowfError(in)
+	if out != in {
+		t.Fatalf("expected passthrough, got %v", out)
+	}
+	if !gowf.CanRetry(out) {
+		t.Fatalf("expected retryable error, got permanent: %v", out)
+	}
+}
+
+func TestToGowfError_TranslatesTemporalNonRetryableCustomError(t *testing.T) {
+	in := vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+		vsaerrors.NewVCPError(vsaerrors.ErrHostGroupAlreadyExists, fmt.Errorf("igroup %q already exists", "hg-1")))
 	out := ToGowfError(in)
 	if out == nil {
 		t.Fatal("expected non-nil output")

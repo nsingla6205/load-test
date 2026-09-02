@@ -12,6 +12,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/helper"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -54,7 +55,7 @@ func (h Handler) V1betaCreateHostGroup(ctx context.Context, req *gcpgenserver.Ho
 
 	createParams := &common.CreateHostGroupParams{
 		Name:        req.ResourceId,
-		Hosts:       DeduplicateSlice(req.Hosts),
+		Hosts:       utils.DeduplicateSlice(req.Hosts),
 		AccountName: params.ProjectNumber,
 	}
 
@@ -170,7 +171,10 @@ func (h Handler) V1betaDeleteHostGroup(ctx context.Context, params gcpgenserver.
 		}, err
 	}
 
-	_, err = h.Orchestrator.DeleteHostGroup(ctx, params.ProjectNumber, params.HostGroupId)
+	_, err = h.Orchestrator.DeleteHostGroup(ctx, &common.DeleteHostGroupParams{
+		Name:        params.HostGroupId,
+		AccountName: params.ProjectNumber,
+	})
 	if err != nil {
 		if customerrors.IsUserInputValidationErr(err) {
 			return &gcpgenserver.V1betaDeleteHostGroupBadRequest{
@@ -252,7 +256,7 @@ func (h Handler) V1betaUpdateHostGroup(ctx context.Context, req *gcpgenserver.Ho
 	}
 
 	if req.Hosts != nil {
-		hosts := DeduplicateSlice(req.Hosts)
+		hosts := utils.DeduplicateSlice(req.Hosts)
 		updateParams.Hosts = &hosts
 	}
 

@@ -788,7 +788,7 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 				{
 					Name:       blockDeviceName,
 					OSType:     string(osType.Value),
-					HostGroups: DeduplicateSlice(blockDevice.GetHostGroups()),
+					HostGroups: utils.DeduplicateSlice(blockDevice.GetHostGroups()),
 				},
 			}
 		} else {
@@ -800,7 +800,7 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 			osType := reqBlockProperties.GetOsType()
 			param.BlockProperties = &common.BlockPropertiesRequest{
 				OSType:         string(osType.Value),
-				HostGroupUUIDs: DeduplicateSlice(reqBlockProperties.GetHostGroupIds()),
+				HostGroupUUIDs: utils.DeduplicateSlice(reqBlockProperties.GetHostGroupIds()),
 			}
 		}
 	}
@@ -1210,7 +1210,7 @@ func _prepareUpdateVolumeParams(req *gcpgenserver.VolumeUpdateV1beta, params gcp
 			}
 
 			if len(blockDevice.HostGroups) > 0 {
-				blockDeviceReq.HostGroups = DeduplicateSlice(blockDevice.HostGroups)
+				blockDeviceReq.HostGroups = utils.DeduplicateSlice(blockDevice.HostGroups)
 			}
 
 			blockDevices = append(blockDevices, blockDeviceReq)
@@ -1221,7 +1221,7 @@ func _prepareUpdateVolumeParams(req *gcpgenserver.VolumeUpdateV1beta, params gcp
 		// Fallback: Use BlockProperties if BlockDevices are not provided
 		reqBlockProperties, _ := req.BlockProperties.Get()
 		param.BlockProperties = &common.BlockPropertiesRequest{
-			HostGroupUUIDs: DeduplicateSlice(reqBlockProperties.HostGroupIds),
+			HostGroupUUIDs: utils.DeduplicateSlice(reqBlockProperties.HostGroupIds),
 		}
 		if reqBlockProperties.OsType.IsSet() {
 			osType := reqBlockProperties.GetOsType().Value

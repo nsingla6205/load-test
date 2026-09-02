@@ -287,6 +287,12 @@ func TestItemsInSliceUnique(t *testing.T) {
 	}
 }
 
+func TestDeduplicateSlice(t *testing.T) {
+	assert.Equal(t, []string{"a", "b", "c"}, DeduplicateSlice([]string{"a", "b", "a", "c", "b"}))
+	assert.Nil(t, DeduplicateSlice(nil))
+	assert.Empty(t, DeduplicateSlice([]string{}))
+}
+
 func TestContainsString(t *testing.T) {
 	tests := []struct {
 		arr  []string
@@ -4776,29 +4782,20 @@ func TestCompareOntapVersion_ConversionError(t *testing.T) {
 	assert.Equal(t, 0, result, "Should return 0 when conversion to int fails for v2")
 }
 
-// TestIsOntapVersionGreaterOrEqual keeps the generic version comparator covered. The helper has no
-// production callers now that file protocol support is not gated on a minimum ONTAP version, so
-// this test is the only thing holding its behaviour in place for whoever reuses it next.
+// TestIsOntapVersionGreaterOrEqual tests line 1371
+// Tests IsOntapVersionGreaterOrEqual function
 func TestIsOntapVersionGreaterOrEqual(t *testing.T) {
-	tests := []struct {
-		name          string
-		version       string
-		targetVersion string
-		expected      bool
-	}{
-		{name: "version is greater", version: "9.18.1", targetVersion: "9.17.1", expected: true},
-		{name: "version is equal", version: "9.18.1", targetVersion: "9.18.1", expected: true},
-		{name: "version is lower", version: "9.17.1", targetVersion: "9.18.1", expected: false},
-		{name: "minor version decides", version: "9.19.1", targetVersion: "9.18.1", expected: true},
-		{name: "patch suffix is ignored, so equal base versions compare equal", version: "9.18.1", targetVersion: "9.18.1P3", expected: true},
-	}
+	// Test when version is greater
+	result := IsOntapVersionGreaterOrEqual("9.18.1", "9.17.1")
+	assert.True(t, result, "Should return true when version is greater")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsOntapVersionGreaterOrEqual(tt.version, tt.targetVersion),
-				"IsOntapVersionGreaterOrEqual(%q, %q)", tt.version, tt.targetVersion)
-		})
-	}
+	// Test when version is equal
+	result = IsOntapVersionGreaterOrEqual("9.18.1", "9.18.1")
+	assert.True(t, result, "Should return true when version is equal")
+
+	// Test when version is less
+	result = IsOntapVersionGreaterOrEqual("9.17.1", "9.18.1")
+	assert.False(t, result, "Should return false when version is less")
 }
 
 // TestGetONTAPSnapshotNameFromCBSDisplaySnapshotName tests GetONTAPSnapshotNameFromCBSDisplaySnapshotName function

@@ -1248,6 +1248,17 @@ type UpdateHostGroupParams struct {
 	Description   *string
 	AccountName   string
 	HostGroupUUID string
+	Name          string
+	OperationID   string
+	Deadline      time.Time
+}
+
+// DeleteHostGroupParams describes parameters supplied to DeleteHostGroup.
+type DeleteHostGroupParams struct {
+	Name        string
+	AccountName string
+	OperationID string
+	Deadline    time.Time
 }
 
 type CreateHostGroupParams struct {
@@ -1258,6 +1269,8 @@ type CreateHostGroupParams struct {
 	OSType        string
 	AccountName   string
 	TrialMode     *TrialModeParams
+	OperationID   string
+	Deadline      time.Time
 }
 
 type SnapshotsInternalDeleteParams struct {

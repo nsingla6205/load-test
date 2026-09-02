@@ -2776,9 +2776,9 @@ func (_c *MockOrchestratorFactory_DeleteHost_Call) RunAndReturn(run func(context
 	return _c
 }
 
-// DeleteHostGroup provides a mock function with given fields: ctx, hostGroupUUID, accountID
-func (_m *MockOrchestratorFactory) DeleteHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error) {
-	ret := _m.Called(ctx, hostGroupUUID, accountID)
+// DeleteHostGroup provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) DeleteHostGroup(ctx context.Context, params *common.DeleteHostGroupParams) (*models.HostGroup, error) {
+	ret := _m.Called(ctx, params)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteHostGroup")
@@ -2786,19 +2786,19 @@ func (_m *MockOrchestratorFactory) DeleteHostGroup(ctx context.Context, hostGrou
 
 	var r0 *models.HostGroup
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.HostGroup, error)); ok {
-		return rf(ctx, hostGroupUUID, accountID)
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DeleteHostGroupParams) (*models.HostGroup, error)); ok {
+		return rf(ctx, params)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.HostGroup); ok {
-		r0 = rf(ctx, hostGroupUUID, accountID)
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DeleteHostGroupParams) *models.HostGroup); ok {
+		r0 = rf(ctx, params)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.HostGroup)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, hostGroupUUID, accountID)
+	if rf, ok := ret.Get(1).(func(context.Context, *common.DeleteHostGroupParams) error); ok {
+		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -2813,15 +2813,14 @@ type MockOrchestratorFactory_DeleteHostGroup_Call struct {
 
 // DeleteHostGroup is a helper method to define mock.On call
 //   - ctx context.Context
-//   - hostGroupUUID string
-//   - accountID string
-func (_e *MockOrchestratorFactory_Expecter) DeleteHostGroup(ctx interface{}, hostGroupUUID interface{}, accountID interface{}) *MockOrchestratorFactory_DeleteHostGroup_Call {
-	return &MockOrchestratorFactory_DeleteHostGroup_Call{Call: _e.mock.On("DeleteHostGroup", ctx, hostGroupUUID, accountID)}
+//   - params *common.DeleteHostGroupParams
+func (_e *MockOrchestratorFactory_Expecter) DeleteHostGroup(ctx interface{}, params interface{}) *MockOrchestratorFactory_DeleteHostGroup_Call {
+	return &MockOrchestratorFactory_DeleteHostGroup_Call{Call: _e.mock.On("DeleteHostGroup", ctx, params)}
 }
 
-func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) Run(run func(ctx context.Context, hostGroupUUID string, accountID string)) *MockOrchestratorFactory_DeleteHostGroup_Call {
+func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) Run(run func(ctx context.Context, params *common.DeleteHostGroupParams)) *MockOrchestratorFactory_DeleteHostGroup_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(*common.DeleteHostGroupParams))
 	})
 	return _c
 }
@@ -2831,7 +2830,7 @@ func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) Return(_a0 *models.HostG
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) RunAndReturn(run func(context.Context, string, string) (*models.HostGroup, error)) *MockOrchestratorFactory_DeleteHostGroup_Call {
+func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) RunAndReturn(run func(context.Context, *common.DeleteHostGroupParams) (*models.HostGroup, error)) *MockOrchestratorFactory_DeleteHostGroup_Call {
 	_c.Call.Return(run)
 	return _c
 }

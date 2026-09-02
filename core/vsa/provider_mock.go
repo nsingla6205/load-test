@@ -5469,6 +5469,64 @@ func (_c *MockProvider_IgroupGet_Call) RunAndReturn(run func(*string, *string) (
 	return _c
 }
 
+// IgroupList provides a mock function with given fields: svm
+func (_m *MockProvider) IgroupList(svm *string) ([]*ontap_rest.Igroup, error) {
+	ret := _m.Called(svm)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IgroupList")
+	}
+
+	var r0 []*ontap_rest.Igroup
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*string) ([]*ontap_rest.Igroup, error)); ok {
+		return rf(svm)
+	}
+	if rf, ok := ret.Get(0).(func(*string) []*ontap_rest.Igroup); ok {
+		r0 = rf(svm)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*ontap_rest.Igroup)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*string) error); ok {
+		r1 = rf(svm)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_IgroupList_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IgroupList'
+type MockProvider_IgroupList_Call struct {
+	*mock.Call
+}
+
+// IgroupList is a helper method to define mock.On call
+//   - svm *string
+func (_e *MockProvider_Expecter) IgroupList(svm interface{}) *MockProvider_IgroupList_Call {
+	return &MockProvider_IgroupList_Call{Call: _e.mock.On("IgroupList", svm)}
+}
+
+func (_c *MockProvider_IgroupList_Call) Run(run func(svm *string)) *MockProvider_IgroupList_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_IgroupList_Call) Return(_a0 []*ontap_rest.Igroup, _a1 error) *MockProvider_IgroupList_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_IgroupList_Call) RunAndReturn(run func(*string) ([]*ontap_rest.Igroup, error)) *MockProvider_IgroupList_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InitiateSplitVolume provides a mock function with given fields: volumeUUID
 func (_m *MockProvider) InitiateSplitVolume(volumeUUID string) (string, error) {
 	ret := _m.Called(volumeUUID)

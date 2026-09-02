@@ -61,7 +61,7 @@ func (h Handler) V1betaBatchListBackups(ctx context.Context, req *gcpgenserver.B
 		}, nil
 	}
 
-	uuids := DeduplicateSlice(req.BackupUUIDs)
+	uuids := utils.DeduplicateSlice(req.BackupUUIDs)
 	if len(uuids) > env.MaxBatchBackupUUIDs {
 		return &gcpgenserver.V1betaBatchListBackupsBadRequest{
 			Code:    http.StatusBadRequest,

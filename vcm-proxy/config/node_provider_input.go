@@ -28,11 +28,30 @@ func (s *Store) NodeProviderInput() (vsa.NodeProviderInput, error) {
 	if !seed.DeploymentId.IsSet() || seed.DeploymentId.Value == "" {
 		return vsa.NodeProviderInput{}, fmt.Errorf("%w: VCM deploymentId is required", datamodel.ErrInvalidConfig)
 	}
-	return vsa.NodeProviderInput{
+	input := vsa.NodeProviderInput{
 		Nodes:            nodes,
 		DeploymentName:   seed.DeploymentId.Value,
 		OntapCredentials: creds,
-	}, nil
+	}
+	applyVCMCertAuthNodeDialWorkaround(&input)
+	return input, nil
+}
+
+// applyVCMCertAuthNodeDialWorkaround mirrors the VCM create-pool ONTAP dial path.
+// VCM has no Cloud DNS records for per-node mgmt FQDNs, so cert-auth REST calls dial
+// the nodemgmt IP directly (HostDNSName = IP) and skip server-cert verification.
+// TODO(vcm-dns): remove once DNS / SNI handling lands.
+func applyVCMCertAuthNodeDialWorkaround(input *vsa.NodeProviderInput) {
+	if input == nil || input.OntapCredentials == nil || input.OntapCredentials.AuthType != env.USER_CERTIFICATE {
+		return
+	}
+	input.InsecureSkipVerify = true
+	for _, node := range input.Nodes {
+		if node == nil || node.EndpointAddress == "" {
+			continue
+		}
+		node.HostDNSName = node.EndpointAddress
+	}
 }
 
 func seedAndLayout(config vcmserver.SetConfigRequestV1) (vcmserver.SeedConfigV1, vcmserver.ClusterLayoutV1, error) {

@@ -202,18 +202,28 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfi
 	return runner, nil
 }
 
-// registerWorkflows registers VCM's PoolWorkflow and its activities plus the
-// in-process VLM workflows/activities on the same worker, so PoolWorkflow's
-// child-workflow dispatch resolves locally.
+// registerWorkflows registers VCM workflows and activities, plus in-process VLM workflows, on the worker.
 func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg := runner.Registrar()
 	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
-	reg.RegisterActivity((&activities.PoolActivity{}).IdentifyVMs)
-	reg.RegisterActivity((&activities.VCMCredentialActivity{}).ResolveOntapAdminPassword)
-	reg.RegisterActivity((&activities.VCMCredentialActivity{}).ResolveOntapCertificate)
-	reg.RegisterActivity((&activities.SvmActivity{}).CreateQoSPolicyAndApplyToSVM)
-	// Durable job state activity.
+	reg.RegisterWorkflow(vcm_workflows.VcmCreateHostGroupWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmDeleteHostGroupWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmUpdateHostGroupWorkflow)
+
+	var poolActivity activities.PoolActivity
+	var credentialActivity activities.VCMCredentialActivity
+	var svmActivity activities.SvmActivity
+	hostGroupActivity := vcmjob.HostGroupActivity{}
 	jobActivity := &vcmjob.JobActivity{Store: store}
+
+	reg.RegisterActivity(poolActivity.IdentifyVMs)
+	reg.RegisterActivity(credentialActivity.ResolveOntapAdminPassword)
+	reg.RegisterActivity(credentialActivity.ResolveOntapCertificate)
+	reg.RegisterActivity(svmActivity.CreateQoSPolicyAndApplyToSVM)
+	reg.RegisterActivity(svmActivity.GetSvmByName)
+	reg.RegisterActivity(hostGroupActivity.CreateIgroup)
+	reg.RegisterActivity(hostGroupActivity.UpdateIgroup)
+	reg.RegisterActivity(hostGroupActivity.DeleteIgroup)
 	reg.RegisterActivity(jobActivity.GetJob)
 	reg.RegisterActivity(jobActivity.UpdateJobProgress)
 

@@ -11,6 +11,7 @@ import (
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
@@ -29,22 +30,34 @@ func TestJobErrorFields(t *testing.T) {
 		assert.False(t, retriable)
 	})
 
-	t.Run("wrapped custom error surfaces tracking id and retryability", func(t *testing.T) {
+	t.Run("wrapped custom error surfaces tracking id and underlying provider text", func(t *testing.T) {
 		custom := vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("bad input"))
 		wrapped := fmt.Errorf("provisioning failed: %w", custom)
 		tid, msg, retriable := jobErrorFields(wrapped)
 		assert.Equal(t, vsaerrors.ErrInputValidationError, tid)
-		assert.Equal(t, wrapped.Error(), msg)
+		assert.Equal(t, "bad input", msg)
 		assert.Equal(t, custom.IsRetriable(), retriable)
 	})
 
-	t.Run("orchestrator application error carries tracking id in details", func(t *testing.T) {
+	t.Run("orchestrator application error persists underlying cause text", func(t *testing.T) {
 		appErr := orchestrator.NewNonRetryableApplicationError(
 			"perm failure", vsaerrors.CustomErrorType, errors.New("cause"), vsaerrors.ErrInputValidationError)
 		tid, msg, retriable := jobErrorFields(appErr)
 		assert.Equal(t, vsaerrors.ErrInputValidationError, tid)
-		assert.Equal(t, "perm failure", msg)
+		assert.Equal(t, "cause", msg)
 		assert.False(t, retriable, "non-retryable application error must not be marked retriable")
+	})
+
+	t.Run("orchestrator application error from apperror persists original provider text", func(t *testing.T) {
+		originalErr := errors.New("snapshot with that name already exists")
+		custom := vsaerrors.NewVCPError(vsaerrors.ErrCreateSnapshotConflict, originalErr)
+		appErr := apperror.WrapAsAppError(custom, true)
+
+		tid, msg, retriable := jobErrorFields(appErr)
+		assert.Equal(t, vsaerrors.ErrCreateSnapshotConflict, tid)
+		assert.Equal(t, originalErr.Error(), msg)
+		assert.NotEqual(t, custom.Error(), msg)
+		assert.False(t, retriable)
 	})
 }
 

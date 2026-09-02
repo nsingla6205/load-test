@@ -290,6 +290,20 @@ func ItemsInSliceUnique(in []string) bool {
 	return true
 }
 
+// DeduplicateSlice returns a copy of elements with duplicate strings removed, preserving the order of first occurrence.
+func DeduplicateSlice(elements []string) []string {
+	uniqueElements := make(map[string]bool, len(elements))
+	var deduplicatedElements []string
+
+	for _, element := range elements {
+		if !uniqueElements[element] {
+			uniqueElements[element] = true
+			deduplicatedElements = append(deduplicatedElements, element)
+		}
+	}
+	return deduplicatedElements
+}
+
 // ContainsString checks if items in the slice match the inputted string, returns false if not
 func ContainsString(arr []string, elem string) bool {
 	for _, obj := range arr {

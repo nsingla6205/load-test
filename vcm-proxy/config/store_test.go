@@ -353,7 +353,6 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 	require.NoError(t, store.CreateJob(ctx, job))
 	require.NoError(t, store.UpdateJobProgress(ctx, vcmdb.UpdateJobProgressParams{
 		JobID:     job.ID,
-		Step:      "CREATE_CLUSTER",
 		State:     vcmdb.JobStateProcessing,
 		Retriable: true,
 	}))
@@ -361,7 +360,7 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 	stored, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
 	assert.Equal(t, vcmdb.JobStateProcessing, stored.State)
-	assert.Equal(t, "CREATE_CLUSTER", stored.CurrentStep)
+	assert.Empty(t, stored.CurrentStep)
 	assert.True(t, stored.Retriable)
 
 	ongoing, err := store.ListOngoingJobs(ctx)

@@ -839,6 +839,24 @@
     "retriable": false,
     "http_code": 400
   },
+  "5069": {
+    "description": "Host group delete blocked by volume mappings",
+    "message": "Host group is in use by one or more volumes and cannot be deleted.",
+    "retriable": false,
+    "http_code": 400
+  },
+  "5070": {
+    "description": "Host group not found",
+    "message": "Host group not found.",
+    "retriable": false,
+    "http_code": 404
+  },
+  "5071": {
+    "description": "Host group already exists with different configuration",
+    "message": "A host group with this name already exists with a different OS type or host list. Use a different name.",
+    "retriable": false,
+    "http_code": 409
+  },
   "5101": {
     "description": "Unclassified LDAP error",
     "message": "An error occurred during LDAP configuration. Please verify your settings and try again.",

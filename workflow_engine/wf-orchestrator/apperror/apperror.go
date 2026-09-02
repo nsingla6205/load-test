@@ -27,8 +27,8 @@ func WrapAsAppError(err error, nonRetryable bool) error {
 	}
 	if nonRetryable {
 		return orchestrator.NewNonRetryableApplicationError(
-			err.Error(), vsaerrors.CustomErrorType, err, customErr.TrackingID)
+			err.Error(), vsaerrors.CustomErrorType, customErr, customErr.TrackingID)
 	}
-	return orchestrator.NewApplicationError(
-		err.Error(), vsaerrors.CustomErrorType, customErr.TrackingID)
+	return orchestrator.NewApplicationErrorWithCause(
+		err.Error(), vsaerrors.CustomErrorType, customErr, customErr.TrackingID)
 }

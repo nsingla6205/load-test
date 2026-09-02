@@ -3,8 +3,10 @@ package errors
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"testing"
 
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/temporal"
 )
 
@@ -441,17 +443,718 @@ func TestWrapAsNonRetryableTemporalApplicationError(t *testing.T) {
 	}
 }
 
+func TestExtractGoWorkflowCustomError_WhenDetailsMissingUsesCauseChain(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   "Error creating snapshot - snapshot already exists as part of volume clone",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	originalErr := New("snapshot with that name already exists")
+	customErr := NewVCPError(ErrCreateSnapshotConflict, originalErr)
+	appErr := temporal.NewNonRetryableApplicationError(customErr.Error(), CustomErrorType, customErr)
+
+	result := ExtractGoWorkflowCustomError(appErr)
+	if result == nil {
+		t.Fatal("expected non-nil CustomError")
+	}
+	if result.TrackingID != ErrCreateSnapshotConflict {
+		t.Errorf("expected tracking ID %d, got %d", ErrCreateSnapshotConflict, result.TrackingID)
+	}
+	if result.OriginalErr == nil || result.OriginalErr.Error() != originalErr.Error() {
+		t.Errorf("expected original error %q, got %v", originalErr.Error(), result.OriginalErr)
+	}
+
+	legacy := ExtractCustomError(appErr)
+	if legacy.TrackingID != ErrInternalServerError {
+		t.Errorf("ExtractCustomError should not unwrap cause; got tracking ID %d", legacy.TrackingID)
+	}
+}
+
 func TestExtractCustomError_WithTemporalApplicationError(t *testing.T) {
-	// Test with temporal.ApplicationError of CustomErrorType
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[1001] = ErrorMessage{Message: "test error"}
+
 	appErr := temporal.NewApplicationError("wrapped", CustomErrorType, 1001, "details")
 	result := ExtractCustomError(appErr)
 	if result == nil {
 		t.Fatalf("Expected non-nil CustomError")
 	}
-	// When Details() succeeds, it should return the trackingID from the details
-	// But since we're testing the fallback case when Details() fails, we expect ErrInternalServerError
+	if result.TrackingID != 1001 {
+		t.Errorf("Expected TrackingID 1001, got %d", result.TrackingID)
+	}
+	if result.OriginalErr == nil || result.OriginalErr.Error() != "details" {
+		t.Errorf("Expected OriginalErr 'details', got %v", result.OriginalErr)
+	}
+}
+
+func TestExtractJobFailureDetails_FromNonRetryableTemporalApplicationError(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   "Error creating snapshot - snapshot already exists as part of volume clone",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	originalErr := New("snapshot with that name already exists")
+	customErr := NewVCPError(ErrCreateSnapshotConflict, originalErr)
+	appErr := WrapAsNonRetryableTemporalApplicationError(customErr)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrCreateSnapshotConflict {
+		t.Errorf("Expected tracking ID %d, got %d", ErrCreateSnapshotConflict, trackingID)
+	}
+	if retriable {
+		t.Error("Expected non-retriable failure")
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("Expected original message %q, got %q", originalErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_NonRetryableWrapperOverridesCatalogRetriable(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	retriableTrue := true
+	errorMap[9999] = ErrorMessage{
+		Message:   "retryable catalog failure",
+		Retriable: &retriableTrue,
+		HttpCode:  func(i int) *int { return &i }(503),
+	}
+
+	originalErr := New("provider unavailable")
+	customErr := NewVCPError(9999, originalErr)
+	appErr := WrapAsNonRetryableTemporalApplicationError(customErr)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != 9999 {
+		t.Errorf("expected tracking ID 9999, got %d", trackingID)
+	}
+	if retriable {
+		t.Error("expected non-retryable wrapper to override catalog retriable=true")
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("expected original message %q, got %q", originalErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_OrchestratorNonRetryableWrapperOverridesCatalogRetriable(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	retriableTrue := true
+	errorMap[9999] = ErrorMessage{
+		Message:   "retryable catalog failure",
+		Retriable: &retriableTrue,
+		HttpCode:  func(i int) *int { return &i }(503),
+	}
+
+	originalErr := New("provider unavailable")
+	customErr := NewVCPError(9999, originalErr)
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		customErr.Error(), CustomErrorType, customErr, 9999)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != 9999 {
+		t.Errorf("expected tracking ID 9999, got %d", trackingID)
+	}
+	if retriable {
+		t.Error("expected orchestrator non-retryable wrapper to override catalog retriable=true")
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("expected original message %q, got %q", originalErr.Error(), msg)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_NonRetryableWrapperOverridesCatalogRetriable(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	retriableTrue := true
+	errorMap[9999] = ErrorMessage{
+		Message:   "retryable catalog failure",
+		Retriable: &retriableTrue,
+		HttpCode:  func(i int) *int { return &i }(503),
+	}
+
+	nestedCustom := NewVCPError(9999, nil)
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		"perm failure", CustomErrorType, nestedCustom, 9999)
+
+	result := ExtractGoWorkflowCustomError(appErr)
+	if result.TrackingID != 9999 {
+		t.Errorf("expected tracking ID 9999, got %d", result.TrackingID)
+	}
+	if result.Retriable {
+		t.Error("expected non-retryable wrapper to override catalog retriable=true")
+	}
+}
+
+func TestExtractJobFailureDetails_FromOrchestratorApplicationError(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	catalogMsg := "Error creating snapshot - snapshot already exists as part of volume clone"
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   catalogMsg,
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	originalErr := New("snapshot with that name already exists")
+	customErr := NewVCPError(ErrCreateSnapshotConflict, originalErr)
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		customErr.Error(), CustomErrorType, customErr, ErrCreateSnapshotConflict)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrCreateSnapshotConflict {
+		t.Errorf("Expected tracking ID %d, got %d", ErrCreateSnapshotConflict, trackingID)
+	}
+	if retriable {
+		t.Error("Expected non-retriable failure")
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("Expected original message %q, got %q", originalErr.Error(), msg)
+	}
+	if msg == catalogMsg {
+		t.Errorf("Expected provider text, got catalog message %q", catalogMsg)
+	}
+}
+
+func TestExtractJobFailureDetails_InternalServerErrorWithOriginalErr(t *testing.T) {
+	providerErr := New("provider failure: code=503: unavailable")
+	customErr := NewVCPError(ErrInternalServerError, providerErr)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(customErr)
+	if trackingID != ErrInternalServerError {
+		t.Errorf("Expected tracking ID %d, got %d", ErrInternalServerError, trackingID)
+	}
+	if retriable {
+		t.Error("Expected non-retriable internal server error")
+	}
+	if msg != providerErr.Error() {
+		t.Errorf("Expected provider message %q, got %q", providerErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_SerializedChainPreservesColonRichProviderText(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	catalogMsg := "Error creating snapshot - snapshot already exists as part of volume clone"
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   catalogMsg,
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	providerErr := New("ONTAP error: volume snap-1: name already exists")
+	chain := &serializedWorkflowErr{
+		msg: catalogMsg + " (type: CustomError, retryable: false)",
+		cause: &serializedWorkflowErr{
+			msg:   catalogMsg,
+			cause: providerErr,
+		},
+	}
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(chain)
+	if trackingID != ErrCreateSnapshotConflict {
+		t.Errorf("Expected tracking ID %d, got %d", ErrCreateSnapshotConflict, trackingID)
+	}
+	if retriable {
+		t.Error("Expected non-retriable failure")
+	}
+	if msg != providerErr.Error() {
+		t.Errorf("Expected full provider message %q, got %q", providerErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_AmbiguousCatalogMessageDoesNotGuessTrackingID(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	sharedMsg := "An internal error occurred."
+	errorMap[1001] = ErrorMessage{Message: sharedMsg, Retriable: func(b bool) *bool { return &b }(false)}
+	errorMap[1002] = ErrorMessage{Message: sharedMsg, Retriable: func(b bool) *bool { return &b }(true)}
+
+	providerErr := New("database timeout while saving job")
+	chain := &serializedWorkflowErr{
+		msg:   sharedMsg,
+		cause: providerErr,
+	}
+
+	trackingID, _, msg := ExtractJobFailureDetails(chain)
+	if trackingID != 0 {
+		t.Errorf("Expected ambiguous catalog text to leave tracking ID unset, got %d", trackingID)
+	}
+	if msg != providerErr.Error() {
+		t.Errorf("Expected provider message %q, got %q", providerErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_NestedWorkflowWrapperPreservesProviderText(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   "Error creating snapshot - snapshot already exists as part of volume clone",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	originalErr := New("snapshot with that name already exists")
+	customErr := NewVCPError(ErrCreateSnapshotConflict, originalErr)
+	wrapped := fmt.Errorf("identify VMs / populate VLM config: %w", customErr)
+
+	trackingID, _, msg := ExtractJobFailureDetails(wrapped)
+	if trackingID != ErrCreateSnapshotConflict {
+		t.Errorf("Expected tracking ID %d, got %d", ErrCreateSnapshotConflict, trackingID)
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("Expected original message %q, got %q", originalErr.Error(), msg)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_FromOrchestratorApplicationError(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrInputValidationError] = ErrorMessage{
+		Message:   "Input is invalid.",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(400),
+	}
+
+	originalErr := New("cause details")
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		"perm failure", CustomErrorType, originalErr, ErrInputValidationError)
+
+	result := ExtractGoWorkflowCustomError(appErr)
+	if result.TrackingID != ErrInputValidationError {
+		t.Errorf("Expected tracking ID %d, got %d", ErrInputValidationError, result.TrackingID)
+	}
+	if result.OriginalErr == nil || result.OriginalErr.Error() != originalErr.Error() {
+		t.Errorf("Expected original error %q, got %v", originalErr.Error(), result.OriginalErr)
+	}
+	if result.Retriable {
+		t.Error("Expected non-retryable failure")
+	}
+}
+
+func TestExtractJobFailureDetails_Nil(t *testing.T) {
+	trackingID, retriable, msg := ExtractJobFailureDetails(nil)
+	if trackingID != 0 || retriable || msg != "" {
+		t.Fatalf("expected zero values for nil error, got (%d, %v, %q)", trackingID, retriable, msg)
+	}
+}
+
+func TestExtractJobFailureDetails_PlainError(t *testing.T) {
+	trackingID, retriable, msg := ExtractJobFailureDetails(New("generic failure"))
+	if trackingID != 0 {
+		t.Errorf("expected tracking ID 0, got %d", trackingID)
+	}
+	if retriable {
+		t.Error("expected non-retriable plain error")
+	}
+	if msg != "generic failure" {
+		t.Errorf("expected plain message %q, got %q", "generic failure", msg)
+	}
+}
+
+func TestExtractJobFailureDetails_OrchestratorPlainCauseUsesTypedRecoveryPath(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrInputValidationError] = ErrorMessage{
+		Message:   "Input is invalid.",
+		Retriable: func(b bool) *bool { return &b }(true),
+		HttpCode:  func(i int) *int { return &i }(400),
+	}
+
+	plainCause := New("cause details")
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		"perm failure", CustomErrorType, plainCause, ErrInputValidationError)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrInputValidationError {
+		t.Errorf("expected tracking ID %d, got %d", ErrInputValidationError, trackingID)
+	}
+	if retriable {
+		t.Error("expected orchestrator non-retryable flag to override catalog retriable")
+	}
+	if msg != plainCause.Error() {
+		t.Errorf("expected cause message %q, got %q", plainCause.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_FallsBackToCatalogMessageWithoutChainOrOriginal(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	catalogMsg := "Input is invalid."
+	errorMap[ErrInputValidationError] = ErrorMessage{
+		Message:   catalogMsg,
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(400),
+	}
+
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		"", CustomErrorType, nil, ErrInputValidationError)
+
+	trackingID, _, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrInputValidationError {
+		t.Errorf("expected tracking ID %d, got %d", ErrInputValidationError, trackingID)
+	}
+	if msg != catalogMsg {
+		t.Errorf("expected catalog message %q, got %q", catalogMsg, msg)
+	}
+}
+
+func TestExtractJobFailureDetails_SerializedCatalogSetsRetriable(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	catalogMsg := "retryable catalog failure"
+	retriableTrue := true
+	errorMap[9999] = ErrorMessage{
+		Message:   catalogMsg,
+		Retriable: &retriableTrue,
+		HttpCode:  func(i int) *int { return &i }(500),
+	}
+
+	providerErr := New("provider detail")
+	chain := &serializedWorkflowErr{msg: catalogMsg, cause: providerErr}
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(chain)
+	if trackingID != 9999 {
+		t.Errorf("expected tracking ID 9999, got %d", trackingID)
+	}
+	if !retriable {
+		t.Error("expected retriable flag from unique catalog match")
+	}
+	if msg != providerErr.Error() {
+		t.Errorf("expected provider message %q, got %q", providerErr.Error(), msg)
+	}
+}
+
+func TestExtractJobFailureDetails_InternalServerOriginalErrWithoutChainMessage(t *testing.T) {
+	err := silentErr{}
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(err)
+	if trackingID != 0 {
+		t.Errorf("expected tracking ID 0, got %d", trackingID)
+	}
+	if retriable {
+		t.Error("expected non-retriable failure")
+	}
+	if msg != "" {
+		t.Errorf("expected empty message from silent error, got %q", msg)
+	}
+}
+
+func TestExtractJobFailureDetails_InternalServerWithoutChainOrOriginal(t *testing.T) {
+	appErr := orchestrator.NewApplicationError("", CustomErrorType, ErrInternalServerError)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != 0 {
+		t.Errorf("expected tracking ID 0, got %d", trackingID)
+	}
+	if retriable {
+		t.Error("expected non-retriable failure")
+	}
+	if msg != "" {
+		t.Errorf("expected empty fallback message, got %q", msg)
+	}
+}
+
+func TestExtractJobFailureDetails_StripEngineSuffixOnFallbackMessage(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrInputValidationError] = ErrorMessage{
+		Message:   "Input is invalid.",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(400),
+	}
+
+	appErr := orchestrator.NewApplicationError(
+		"boom (type: CustomError, retryable: false)", CustomErrorType, ErrInputValidationError)
+
+	trackingID, _, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrInputValidationError {
+		t.Errorf("expected tracking ID %d, got %d", ErrInputValidationError, trackingID)
+	}
+	if msg != "boom" {
+		t.Errorf("expected stripped fallback message %q, got %q", "boom", msg)
+	}
+}
+
+func TestStripMessageAfterValidatedSuffix_PreservesProviderTextWithTypeFragment(t *testing.T) {
+	providerMsg := "invalid field (type: string) at index 2"
+	got := stripMessageAfterValidatedSuffix(providerMsg, workflowEngineErrorTypeMarker, workflowEngineErrorSuffixEndings)
+	if got != providerMsg {
+		t.Errorf("expected provider message preserved, got %q", got)
+	}
+}
+
+func TestStripMessageAfterValidatedSuffix_RemovesWorkflowEngineSuffix(t *testing.T) {
+	const want = "catalog failure"
+	got := stripMessageAfterValidatedSuffix(
+		want+" (type: CustomError, retryable: false)",
+		workflowEngineErrorTypeMarker,
+		workflowEngineErrorSuffixEndings,
+	)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestStripMessageAfterValidatedSuffix_UsesMarkerParameter(t *testing.T) {
+	const marker = " [engine:"
+	const want = "provider failure"
+	got := stripMessageAfterValidatedSuffix(want+marker+"CustomError, retryable: true)", marker, []string{"retryable: true)"})
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExtractJobFailureDetails_RetryableOrchestratorApplicationError(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrGCPResourceFetchError] = ErrorMessage{
+		Message:   "An internal error occurred.",
+		Retriable: func(b bool) *bool { return &b }(true),
+		HttpCode:  func(i int) *int { return &i }(500),
+	}
+
+	originalErr := New("secret manager fetch failed")
+	customErr := NewVCPError(ErrGCPResourceFetchError, originalErr)
+	appErr := orchestrator.NewApplicationErrorWithCause(
+		customErr.Error(), CustomErrorType, customErr, customErr.TrackingID)
+
+	trackingID, retriable, msg := ExtractJobFailureDetails(appErr)
+	if trackingID != ErrGCPResourceFetchError {
+		t.Errorf("expected tracking ID %d, got %d", ErrGCPResourceFetchError, trackingID)
+	}
+	if !retriable {
+		t.Error("expected retryable failure from catalog entry")
+	}
+	if msg != originalErr.Error() {
+		t.Errorf("expected provider message %q, got %q", originalErr.Error(), msg)
+	}
+	if msg == customErr.Message {
+		t.Errorf("expected raw provider text, not catalog message %q", customErr.Message)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_Nil(t *testing.T) {
+	result := ExtractGoWorkflowCustomError(nil)
+	if result == nil {
+		t.Fatal("expected non-nil CustomError")
+	}
 	if result.TrackingID != ErrInternalServerError {
-		t.Errorf("Expected TrackingID %d, got %d", ErrInternalServerError, result.TrackingID)
+		t.Errorf("expected tracking ID %d, got %d", ErrInternalServerError, result.TrackingID)
+	}
+	if result.OriginalErr != nil {
+		t.Errorf("expected nil original error, got %v", result.OriginalErr)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_DirectCustomError(t *testing.T) {
+	originalErr := New("provider detail")
+	customErr := NewVCPError(ErrInputValidationError, originalErr)
+
+	result := ExtractGoWorkflowCustomError(customErr)
+	if result != customErr {
+		t.Fatal("expected direct CustomError instance to be returned unchanged")
+	}
+	if result.OriginalErr != originalErr {
+		t.Errorf("expected original error preserved, got %v", result.OriginalErr)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_FromTemporalApplicationErrorWithDetails(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[1001] = ErrorMessage{Message: "catalog message"}
+
+	appErr := temporal.NewApplicationError("wrapped", CustomErrorType, 1001, "provider detail")
+	result := ExtractGoWorkflowCustomError(appErr)
+	if result.TrackingID != 1001 {
+		t.Errorf("expected tracking ID 1001, got %d", result.TrackingID)
+	}
+	if result.OriginalErr == nil || result.OriginalErr.Error() != "provider detail" {
+		t.Errorf("expected provider detail original error, got %v", result.OriginalErr)
+	}
+}
+
+func TestExtractGoWorkflowCustomError_OrchestratorNestedCustomWithoutOriginalErr(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrInputValidationError] = ErrorMessage{
+		Message:   "Input is invalid.",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(400),
+	}
+
+	nestedCustom := NewVCPError(ErrInputValidationError, nil)
+	appErr := orchestrator.NewNonRetryableApplicationError(
+		"perm failure", CustomErrorType, nestedCustom, ErrInputValidationError)
+
+	result := ExtractGoWorkflowCustomError(appErr)
+	if result != nestedCustom {
+		t.Fatal("expected nested CustomError from cause chain to be returned directly")
+	}
+	if result.OriginalErr != nil {
+		t.Errorf("expected nested custom without original provider text, got %v", result.OriginalErr)
+	}
+}
+
+func TestOriginalErrFromCause_NilPlainAndNestedCustom(t *testing.T) {
+	if got := originalErrFromCause(nil); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+	plain := New("plain cause")
+	if got := originalErrFromCause(plain); got != plain {
+		t.Fatalf("expected plain cause unchanged, got %v", got)
+	}
+	nestedCustom := NewVCPError(ErrInputValidationError, nil)
+	if got := originalErrFromCause(nestedCustom); got != nestedCustom {
+		t.Fatalf("expected nested custom error, got %v", got)
+	}
+	nestedWithOriginal := NewVCPError(ErrInputValidationError, New("provider detail"))
+	if got := originalErrFromCause(nestedWithOriginal); got == nil || got.Error() != "provider detail" {
+		t.Fatalf("expected nested original error, got %v", got)
+	}
+}
+
+type silentErr struct{}
+
+func (silentErr) Error() string { return "" }
+
+type serializedWorkflowErr struct {
+	msg   string
+	cause error
+}
+
+func (e *serializedWorkflowErr) Error() string { return e.msg }
+func (e *serializedWorkflowErr) Unwrap() error { return e.cause }
+
+func TestWrapAsNonRetryableTemporalApplicationError_PreservesCause(t *testing.T) {
+	originalErrorMap := make(map[int]ErrorMessage)
+	for k, v := range errorMap {
+		originalErrorMap[k] = v
+	}
+	t.Cleanup(func() {
+		errorMap = originalErrorMap
+	})
+	errorMap[ErrCreateSnapshotConflict] = ErrorMessage{
+		Message:   "Error creating snapshot - snapshot already exists as part of volume clone",
+		Retriable: func(b bool) *bool { return &b }(false),
+		HttpCode:  func(i int) *int { return &i }(409),
+	}
+
+	originalErr := New("snapshot with that name already exists")
+	customErr := NewVCPError(ErrCreateSnapshotConflict, originalErr)
+
+	wrapped := WrapAsNonRetryableTemporalApplicationError(customErr)
+	appErr, ok := wrapped.(*temporal.ApplicationError)
+	if !ok {
+		t.Fatalf("expected temporal.ApplicationError, got %T", wrapped)
+	}
+	if !appErr.NonRetryable() {
+		t.Fatal("expected non-retryable temporal application error")
+	}
+
+	var nestedCustom *CustomError
+	if !As(appErr.Unwrap(), &nestedCustom) {
+		t.Fatal("expected custom error in unwrap chain")
+	}
+	if nestedCustom.OriginalErr != originalErr {
+		t.Fatalf("expected original error preserved in chain, got %v", nestedCustom.OriginalErr)
 	}
 }
 

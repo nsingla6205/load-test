@@ -43,7 +43,7 @@ type OrchestratorFactory interface {
 	DeleteHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
 	CreateHostGroup(ctx context.Context, params *commonparams.CreateHostGroupParams) (*models.HostGroup, error)
 	GetHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error)
-	DeleteHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error)
+	DeleteHostGroup(ctx context.Context, params *commonparams.DeleteHostGroupParams) (*models.HostGroup, error)
 	UpdateHostGroup(ctx context.Context, params *commonparams.UpdateHostGroupParams) (*models.HostGroup, string, error)
 	GetMultipleHostGroups(ctx context.Context, accountName string, hostGroupUUIDs []string) ([]*models.HostGroup, error)
 	GetHostGroupsByUUIDs(ctx context.Context, hostGroupUUIDs []string) ([]*models.HostGroup, error)

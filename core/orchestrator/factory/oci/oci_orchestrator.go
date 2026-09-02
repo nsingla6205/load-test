@@ -143,7 +143,9 @@ func (o *OCIOrchestrator) GetHostGroup(ctx context.Context, hostGroupUUID string
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
-func (o *OCIOrchestrator) DeleteHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error) {
+func (o *OCIOrchestrator) DeleteHostGroup(ctx context.Context, params *commonparams.DeleteHostGroupParams) (*models.HostGroup, error) {
+	_ = ctx
+	_ = params
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 

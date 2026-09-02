@@ -210,7 +210,10 @@ func TestOCIOrchestrator_DeleteHostGroup(t *testing.T) {
 		orch := &OCIOrchestrator{}
 		ctx := context.Background()
 
-		result, err := orch.DeleteHostGroup(ctx, "hostgroup-uuid", "account-id")
+		result, err := orch.DeleteHostGroup(ctx, &commonparams.DeleteHostGroupParams{
+			Name:        "hostgroup-uuid",
+			AccountName: "account-id",
+		})
 
 		assert.Error(tt, err)
 		assert.True(tt, errors.IsNotImplementedYetErr(err))

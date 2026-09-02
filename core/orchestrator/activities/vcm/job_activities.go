@@ -6,6 +6,7 @@ import (
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
@@ -13,26 +14,33 @@ type JobActivity struct {
 	Store vcmdb.VCMDatastore
 }
 
-// mapErrorToJobProgressParams sets state to ERROR and fills tracking_id, error_message,
-// and retriable from err, using CustomError fields when err wraps one.
+// mapErrorToJobProgressParams maps err into ERROR job progress fields.
 func mapErrorToJobProgressParams(params vcmdb.UpdateJobProgressParams, err error) vcmdb.UpdateJobProgressParams {
 	params.State = vcmdb.JobStateError
 	if err == nil {
 		return params
 	}
-	var customError *vsaerrors.CustomError
-	if vsaerrors.As(err, &customError) {
-		params.TrackingID = customError.TrackingID
-		params.Retriable = customError.Retriable
-		if customError.OriginalErr != nil {
-			params.ErrorMessage = customError.OriginalErr.Error()
-		} else {
-			params.ErrorMessage = customError.Message
-		}
-		return params
+	trackingID, retriable, errorMessage := vsaerrors.ExtractJobFailureDetails(err)
+	params.TrackingID = trackingID
+	params.Retriable = retriable
+	params.ErrorMessage = errorMessage
+	return params
+}
+
+// JobProgressParams builds UpdateJobProgressParams from workflow state, error, and optional response payload.
+func JobProgressParams(jobID string, state vcmdb.JobState, workflowErr error, responsePayload *string) vcmdb.UpdateJobProgressParams {
+	params := vcmdb.UpdateJobProgressParams{JobID: jobID}
+	switch {
+	case workflowErr != nil:
+		return mapErrorToJobProgressParams(params, workflowErr)
+	case state != "":
+		params.State = state
+	default:
+		params.State = vcmdb.JobStateDone
 	}
-	params.TrackingID = 0
-	params.ErrorMessage = err.Error()
+	if responsePayload != nil && vcmdb.HasPersistableResponsePayload(*responsePayload) {
+		params.ResponsePayload = *responsePayload
+	}
 	return params
 }
 
@@ -58,6 +66,9 @@ func (a JobActivity) UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJ
 	}
 	if params.State == "" && params.ErrorMessage != "" {
 		params.State = vcmdb.JobStateError
+	}
+	if params.ErrorMessage != "" {
+		util.GetLogger(ctx).ErrorContext(ctx, "VCM job failed", "jobId", params.JobID, "error", params.ErrorMessage)
 	}
 	return a.Store.UpdateJobProgress(ctx, params)
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
@@ -194,6 +195,10 @@ const (
 	ErrONTAPJobNotFound                = 5066
 	ErrONTAPJobInvalidUUID             = 5067
 	ErrOntapExpertModePasswordError    = 5068
+	ErrHostGroupHasLUNMaps             = 5069
+	ErrHostGroupNotFound               = 5070
+	ErrHostGroupAlreadyExists          = 5071
+
 	// Unclassified ONTAP errors per domain (fallback when no rule matches)
 	ErrLDAPUnclassified     = 5101
 	ErrSMBUnclassified      = 5102
@@ -777,6 +782,160 @@ func GetErrorMessageByTrackingID(trackingID int) *ErrorMessage {
 	return &ErrorMessage{HttpCode: httpCode, Message: "undefined error"}
 }
 
+const workflowEngineErrorTypeMarker = " (type:"
+
+var workflowEngineErrorSuffixEndings = []string{"retryable: true)", "retryable: false)"}
+
+// stripMessageAfterValidatedSuffix returns msg with the trailing substring from the last marker removed when that substring ends with a validSuffixEndings entry; otherwise msg is unchanged.
+func stripMessageAfterValidatedSuffix(msg, marker string, validSuffixEndings []string) string {
+	idx := strings.LastIndex(msg, marker)
+	if idx < 0 {
+		return msg
+	}
+	suffix := msg[idx:]
+	for _, ending := range validSuffixEndings {
+		if strings.HasSuffix(suffix, ending) {
+			return strings.TrimSpace(msg[:idx])
+		}
+	}
+	return msg
+}
+
+// uniqueCatalogEntryForMessage returns the catalog entry when exactly one tracking ID matches msg.
+func uniqueCatalogEntryForMessage(msg string) (int, ErrorMessage, bool) {
+	msg = stripMessageAfterValidatedSuffix(strings.TrimSpace(msg), workflowEngineErrorTypeMarker, workflowEngineErrorSuffixEndings)
+	var (
+		foundID  int
+		foundMsg ErrorMessage
+		count    int
+	)
+	for id, errMsg := range errorMap {
+		if errMsg.Message != msg {
+			continue
+		}
+		count++
+		if count == 1 {
+			foundID = id
+			foundMsg = errMsg
+		}
+	}
+	if count != 1 {
+		return 0, ErrorMessage{}, false
+	}
+	return foundID, foundMsg, true
+}
+
+// analyzeFailureChain walks err and recovers catalog tracking ID and the deepest non-catalog message.
+func analyzeFailureChain(err error) (trackingID int, retriable bool, rawMessage string, foundTrackingID bool) {
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		fullMsg := stripMessageAfterValidatedSuffix(strings.TrimSpace(current.Error()), workflowEngineErrorTypeMarker, workflowEngineErrorSuffixEndings)
+		if fullMsg == "" {
+			continue
+		}
+		id, errMsg, ok := uniqueCatalogEntryForMessage(fullMsg)
+		if !ok {
+			rawMessage = fullMsg
+			continue
+		}
+		trackingID = id
+		foundTrackingID = true
+		if errMsg.Retriable != nil {
+			retriable = *errMsg.Retriable
+		}
+		continue
+	}
+	return trackingID, retriable, rawMessage, foundTrackingID
+}
+
+// applicationError matches the wf-orchestrator ApplicationError surface needed here without
+// importing wf-orchestrator (lib is leaf-level; apperror already bridges lib → orchestrator).
+type applicationError interface {
+	Type() string
+	NonRetryable() bool
+	ExtractDetails(dest interface{}) error
+	Unwrap() error
+}
+
+func asApplicationError(err error) (applicationError, bool) {
+	if err == nil {
+		return nil, false
+	}
+	var appErr applicationError
+	if As(err, &appErr) {
+		return appErr, true
+	}
+	return nil, false
+}
+
+func customErrorApplicationErrorNonRetryable(err error) bool {
+	if appErr, ok := asApplicationError(err); ok && appErr.Type() == CustomErrorType && appErr.NonRetryable() {
+		return true
+	}
+	var applicationErr *temporal.ApplicationError
+	if As(err, &applicationErr) && applicationErr.Type() == CustomErrorType && applicationErr.NonRetryable() {
+		return true
+	}
+	return false
+}
+
+func customErrorRetriableFromFailure(err error, custom *CustomError) bool {
+	if custom == nil || customErrorApplicationErrorNonRetryable(err) {
+		return false
+	}
+	return custom.Retriable
+}
+
+func applyApplicationErrorRetryPolicy(err error, custom *CustomError) *CustomError {
+	if custom == nil || !customErrorApplicationErrorNonRetryable(err) || !custom.Retriable {
+		return custom
+	}
+	result := *custom
+	result.Retriable = false
+	return &result
+}
+
+// ExtractJobFailureDetails returns trackingID, retriable, and raw errorMessage for durable VCM job persistence.
+func ExtractJobFailureDetails(err error) (trackingID int, retriable bool, errorMessage string) {
+	if err == nil {
+		return 0, false, ""
+	}
+
+	var explicitCustom *CustomError
+	if As(err, &explicitCustom) && explicitCustom.OriginalErr != nil {
+		return explicitCustom.TrackingID, customErrorRetriableFromFailure(err, explicitCustom), explicitCustom.OriginalErr.Error()
+	}
+
+	chainTrackingID, chainRetriable, chainRawMessage, foundChainTrackingID := analyzeFailureChain(err)
+	customErr := ExtractGoWorkflowCustomError(err)
+
+	if customErr.TrackingID != ErrInternalServerError {
+		errorMessage = chainRawMessage
+		if customErr.OriginalErr != nil {
+			errorMessage = customErr.OriginalErr.Error()
+		}
+		if errorMessage == "" {
+			errorMessage = customErr.Message
+		}
+		return customErr.TrackingID, customErr.Retriable, errorMessage
+	}
+
+	var panicError *temporal.PanicError
+	if As(err, &panicError) && customErr.OriginalErr != nil {
+		return customErr.TrackingID, customErr.Retriable, customErr.OriginalErr.Error()
+	}
+
+	if chainRawMessage != "" {
+		if foundChainTrackingID {
+			return chainTrackingID, chainRetriable, chainRawMessage
+		}
+		return 0, false, chainRawMessage
+	}
+	if customErr.OriginalErr != nil {
+		return 0, false, customErr.OriginalErr.Error()
+	}
+	return 0, false, stripMessageAfterValidatedSuffix(err.Error(), workflowEngineErrorTypeMarker, workflowEngineErrorSuffixEndings)
+}
+
 // WrapAsTemporalApplicationError wraps a given error as a Temporal application error if it is a CustomError.
 // Otherwise, it returns the original error unchanged.
 func WrapAsTemporalApplicationError(err error) error {
@@ -832,6 +991,70 @@ func ExtractCustomerFacingErrorMessage(ctx interface{}, err error) string {
 	return errorMessage
 }
 
+// ExtractGoWorkflowCustomError recovers a CustomError from a go-workflows failure chain.
+func ExtractGoWorkflowCustomError(err error) *CustomError {
+	if err == nil {
+		return NewVCPError(ErrInternalServerError, nil)
+	}
+
+	var customErr *CustomError
+	if As(err, &customErr) {
+		return applyApplicationErrorRetryPolicy(err, customErr)
+	}
+
+	if appErr, ok := asApplicationError(err); ok && appErr.Type() == CustomErrorType {
+		var trackingID int
+		if appErr.ExtractDetails(&trackingID) == nil {
+			return newCustomErrorFromAppError(trackingID, originalErrFromCause(appErr.Unwrap()), appErr.NonRetryable())
+		}
+	}
+
+	var applicationErr *temporal.ApplicationError
+	if As(err, &applicationErr) && applicationErr.Type() == CustomErrorType {
+		var (
+			trackingID   int
+			errorDetails string
+		)
+		if applicationErr.Details(&trackingID, &errorDetails) == nil {
+			var originalErr error
+			if errorDetails != "" {
+				originalErr = New(errorDetails)
+			}
+			return newCustomErrorFromAppError(trackingID, originalErr, applicationErr.NonRetryable())
+		}
+	}
+
+	var panicError *temporal.PanicError
+	if As(err, &panicError) {
+		return NewVCPError(ErrInternalServerError, Newf("Panic error occurred in activity: error: %v\nstackTrace: %v", panicError.Error(), panicError.StackTrace()))
+	}
+
+	return NewVCPError(ErrInternalServerError, err)
+}
+
+func newCustomErrorFromAppError(trackingID int, originalErr error, nonRetryable bool) *CustomError {
+	result := NewVCPError(trackingID, originalErr)
+	if nonRetryable {
+		result.Retriable = false
+	}
+	return result
+}
+
+func originalErrFromCause(cause error) error {
+	if cause == nil {
+		return nil
+	}
+	var nestedCustom *CustomError
+	if As(cause, &nestedCustom) {
+		if nestedCustom.OriginalErr != nil {
+			return nestedCustom.OriginalErr
+		}
+		return nestedCustom
+	}
+	return cause
+}
+
+// ExtractCustomError recovers a CustomError from a Temporal SDK application error.
 func ExtractCustomError(err error) *CustomError {
 	var applicationErr *temporal.ApplicationError
 	var panicError *temporal.PanicError

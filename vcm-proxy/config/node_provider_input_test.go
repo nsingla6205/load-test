@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -287,4 +288,201 @@ func TestNodeProviderInput_CertificateRequiresCertPrivateKeySecretId(t *testing.
 	require.Error(t, err)
 	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
 	assert.Contains(t, err.Error(), "certPrivateKeySecretId")
+}
+
+func TestNodeProviderInput_CertificateAuth_AppliesDialWorkaround(t *testing.T) {
+	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials = []vcmserver.OntapCredentialV1{
+				certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "cert-1", "key-1"),
+			}
+		})
+		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
+				VmLifs: []vcmserver.VmLifV1{
+					{
+						Name:     vcmserver.NewOptString("vm1"),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+					},
+					{
+						Name:     vcmserver.NewOptString("vm2"),
+						Nodemgmt: vcmserver.NewOptString("198.18.0.6"),
+					},
+				},
+			})
+		})
+	})
+
+	input, err := store.NodeProviderInput()
+	require.NoError(t, err)
+	assert.True(t, input.InsecureSkipVerify)
+	require.Len(t, input.Nodes, 2)
+	assert.Equal(t, "198.18.0.5", input.Nodes[0].HostDNSName)
+	assert.Equal(t, "198.18.0.5", input.Nodes[0].EndpointAddress)
+	assert.Equal(t, "198.18.0.6", input.Nodes[1].HostDNSName)
+}
+
+func TestNodeProviderInput_SecretManagerAuth_DoesNotApplyDialWorkaround(t *testing.T) {
+	input, err := configuredStore(t, nil).NodeProviderInput()
+	require.NoError(t, err)
+	assert.False(t, input.InsecureSkipVerify)
+	require.Len(t, input.Nodes, 1)
+	assert.Empty(t, input.Nodes[0].HostDNSName)
+}
+
+func TestApplyVCMCertAuthNodeDialWorkaround(t *testing.T) {
+	t.Run("certificate auth sets skip verify and host DNS to endpoint IP", func(t *testing.T) {
+		input := &vsa.NodeProviderInput{
+			OntapCredentials: &datamodel.PoolCredentials{AuthType: env.USER_CERTIFICATE},
+			Nodes: []*datamodel.Node{
+				{Name: "vm1", EndpointAddress: "198.18.0.5"},
+				nil,
+				{Name: "vm3", EndpointAddress: ""},
+				{Name: "vm4", EndpointAddress: "198.18.0.6"},
+			},
+		}
+
+		applyVCMCertAuthNodeDialWorkaround(input)
+
+		assert.True(t, input.InsecureSkipVerify)
+		assert.Equal(t, "198.18.0.5", input.Nodes[0].HostDNSName)
+		assert.Empty(t, input.Nodes[2].HostDNSName)
+		assert.Equal(t, "198.18.0.6", input.Nodes[3].HostDNSName)
+	})
+
+	t.Run("non certificate auth is unchanged", func(t *testing.T) {
+		input := &vsa.NodeProviderInput{
+			OntapCredentials: &datamodel.PoolCredentials{AuthType: env.USERNAME_PWD_SEC_MGR},
+			Nodes:            []*datamodel.Node{{Name: "vm1", EndpointAddress: "198.18.0.5"}},
+		}
+
+		applyVCMCertAuthNodeDialWorkaround(input)
+
+		assert.False(t, input.InsecureSkipVerify)
+		assert.Empty(t, input.Nodes[0].HostDNSName)
+	})
+
+	t.Run("nil input is safe", func(t *testing.T) {
+		assert.NotPanics(t, func() { applyVCMCertAuthNodeDialWorkaround(nil) })
+	})
+}
+
+func TestSelectOntapCredentials(t *testing.T) {
+	t.Run("prefers VCM_ADMIN credential entry", func(t *testing.T) {
+		creds := []vcmserver.OntapCredentialV1{
+			passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "admin", "admin-secret"),
+			passwordOntapCredential(vcmserver.OntapCredentialV1RoleVCMADMIN, "vcm", "vcm-secret"),
+		}
+
+		entry, err := selectOntapCredentials(creds)
+		require.NoError(t, err)
+		assert.Equal(t, vcmserver.OntapCredentialV1RoleVCMADMIN, entry.Role)
+		assert.Equal(t, "vcm-secret", entry.PasswordAuthCreds.Value.PasswordSecretId.Or(""))
+	})
+
+	t.Run("treats empty role as default", func(t *testing.T) {
+		creds := []vcmserver.OntapCredentialV1{
+			passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "admin", "admin-secret"),
+			passwordOntapCredential("", "vcm", "empty-role-secret"),
+		}
+
+		entry, err := selectOntapCredentials(creds)
+		require.NoError(t, err)
+		assert.Equal(t, vcmserver.OntapCredentialV1Role(""), entry.Role)
+		assert.Equal(t, "empty-role-secret", entry.PasswordAuthCreds.Value.PasswordSecretId.Or(""))
+	})
+
+	t.Run("falls back to first when no default", func(t *testing.T) {
+		creds := []vcmserver.OntapCredentialV1{
+			passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "first", "first-secret"),
+			passwordOntapCredential(vcmserver.OntapCredentialV1RoleONTAPMODE, "second", "second-secret"),
+		}
+
+		entry, err := selectOntapCredentials(creds)
+		require.NoError(t, err)
+		assert.Equal(t, vcmserver.OntapCredentialV1RoleADMIN, entry.Role)
+		assert.Equal(t, "first-secret", entry.PasswordAuthCreds.Value.PasswordSecretId.Or(""))
+	})
+
+	t.Run("empty list returns error", func(t *testing.T) {
+		_, err := selectOntapCredentials(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ontapCredentials")
+	})
+}
+
+func TestPoolCredentialsFromSetConfig(t *testing.T) {
+	t.Run("certificate auth sets CaURI from env", func(t *testing.T) {
+		withCAEnv(t, "proj-123", "pool-npd", "ca-npd")
+
+		creds, err := poolCredentialsFromSetConfig([]vcmserver.OntapCredentialV1{
+			certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "cert-1", "key-1"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, env.USER_CERTIFICATE, creds.AuthType)
+		assert.Equal(t, "proj-123/pool-npd/ca-npd", creds.CaURI)
+	})
+
+	t.Run("password auth maps secret manager fields", func(t *testing.T) {
+		creds, err := poolCredentialsFromSetConfig(defaultOntapCredentials("secret-1"))
+		require.NoError(t, err)
+		assert.Equal(t, env.USERNAME_PWD_SEC_MGR, creds.AuthType)
+		assert.Equal(t, "secret-1", creds.SecretID)
+		assert.Equal(t, "root", creds.Username)
+	})
+}
+
+func TestClusterNodesFromIpConfig(t *testing.T) {
+	t.Run("unset ipConfig returns error", func(t *testing.T) {
+		_, err := clusterNodesFromIpConfig(vcmserver.OptIpConfigV1{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ipConfig")
+	})
+
+	t.Run("no nodemgmt LIFs returns error", func(t *testing.T) {
+		opt := vcmserver.OptIpConfigV1{}
+		opt.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{Name: vcmserver.NewOptString("mediator"), Rsm: vcmserver.NewOptString("198.18.16.41")},
+				{Name: vcmserver.NewOptString("vm1")},
+			},
+		})
+
+		_, err := clusterNodesFromIpConfig(opt)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nodemgmt LIF")
+	})
+
+	t.Run("builds nodes from nodemgmt addresses", func(t *testing.T) {
+		opt := vcmserver.OptIpConfigV1{}
+		opt.SetTo(vcmserver.IpConfigV1{
+			VmLifs: []vcmserver.VmLifV1{
+				{
+					Name:     vcmserver.NewOptString("vm1"),
+					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+				},
+			},
+		})
+
+		nodes, err := clusterNodesFromIpConfig(opt)
+		require.NoError(t, err)
+		require.Len(t, nodes, 1)
+		assert.Equal(t, "vm1", nodes[0].Name)
+		assert.Equal(t, "198.18.0.5", nodes[0].EndpointAddress)
+	})
+}
+
+func withCAEnv(t *testing.T, projectID, poolName, caName string) {
+	t.Helper()
+	origProject := env.CaPoolDeployedProjectID
+	origPool := env.CaPoolName
+	origCA := env.CaName
+	env.CaPoolDeployedProjectID = projectID
+	env.CaPoolName = poolName
+	env.CaName = caName
+	t.Cleanup(func() {
+		env.CaPoolDeployedProjectID = origProject
+		env.CaPoolName = origPool
+		env.CaName = origCA
+	})
 }

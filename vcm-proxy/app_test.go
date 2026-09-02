@@ -391,14 +391,11 @@ func TestRunServer(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+	runner, err := gowfbackend.NewRunner(ctx)
+	require.NoError(t, err)
 
 	errCh := make(chan error, 1)
 	go func() {
-		runner, err := gowfbackend.NewRunner(ctx)
-		if err != nil {
-			errCh <- err
-			return
-		}
 		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, runner, log.NewLogger())
 	}()
 
@@ -439,14 +436,11 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+	runner, err := gowfbackend.NewRunner(ctx)
+	require.NoError(t, err)
 
 	errCh := make(chan error, 1)
 	go func() {
-		runner, err := gowfbackend.NewRunner(ctx)
-		if err != nil {
-			errCh <- err
-			return
-		}
 		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, runner, log.NewLogger())
 	}()
 
@@ -463,4 +457,18 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 	cancel()
 	require.NoError(t, <-errCh)
 	require.True(t, serverState.IsShuttingDown())
+}
+
+func TestRegisterWorkflows(t *testing.T) {
+	t.Setenv("PROVIDER", vcmCloudProvider)
+
+	runner, err := gowfbackend.NewRunner(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, runner.Stop()) })
+
+	registerWorkflows(runner, vcmconfig.NewStore(log.NewLogger(), 0))
+
+	uiHandler, err := runner.DiagnosticsHandler()
+	require.NoError(t, err)
+	require.NotNil(t, uiHandler)
 }

@@ -384,7 +384,10 @@ func TestDeleteHostGroups(t *testing.T) {
 		deleteHostGroup = func(ctx context.Context, storage database.Storage, hostGroupUUID string, accountID string) (*models.HostGroup, error) {
 			return nil, customerrors.NewNotFoundErr("host group", nil)
 		}
-		_, err = orch.DeleteHostGroup(ctx, account.Name, "non-existent-uuid")
+		_, err = orch.DeleteHostGroup(ctx, &common.DeleteHostGroupParams{
+			Name:        "non-existent-uuid",
+			AccountName: account.Name,
+		})
 		assert.EqualError(tt, err, "host group not found")
 	})
 }

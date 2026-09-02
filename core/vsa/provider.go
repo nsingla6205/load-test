@@ -63,6 +63,7 @@ type Provider interface {
 	IgroupCreate(params IgroupCreateParams) (string, error)
 	IgroupDelete(uuid string) error
 	IgroupGet(name, svm *string) (*ontapRest.Igroup, error)
+	IgroupList(svm *string) ([]*ontapRest.Igroup, error)
 	IgroupExists(name string, svm *string) (bool, *ontapRest.Igroup, error)
 	LunCreate(params LunCreateParams) (*LunResponse, error)
 	LunGet(params LunGetParams) (*LunResponse, error)

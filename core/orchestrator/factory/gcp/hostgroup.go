@@ -99,8 +99,8 @@ func convertDatastoreHostGroupToModel(hostGroup *datamodel.HostGroup, accountNam
 }
 
 // DeleteHostGroup deletes the host group with the specified UUID
-func (o *GCPOrchestrator) DeleteHostGroup(ctx context.Context, accountName string, hostGroupUUID string) (*models.HostGroup, error) {
-	return deleteHostGroup(ctx, o.storage, hostGroupUUID, accountName)
+func (o *GCPOrchestrator) DeleteHostGroup(ctx context.Context, params *common.DeleteHostGroupParams) (*models.HostGroup, error) {
+	return deleteHostGroup(ctx, o.storage, params.Name, params.AccountName)
 }
 
 func _deleteHostGroup(ctx context.Context, storage database.Storage, hostGroupUUID string, accountID string) (*models.HostGroup, error) {

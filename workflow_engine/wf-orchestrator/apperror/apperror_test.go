@@ -54,10 +54,24 @@ func TestWrapAsAppError_CustomError_Retryable(t *testing.T) {
 	assert.False(t, appErr.NonRetryable(), "nonRetryable=false must produce a retryable application error")
 	assert.Equal(t, vsaerrors.CustomErrorType, appErr.Type())
 	assert.Equal(t, custom.Error(), appErr.Error())
+	require.ErrorIs(t, appErr.Unwrap(), custom, "retryable wrappers must preserve the CustomError cause")
 
 	var tid int
 	require.NoError(t, appErr.ExtractDetails(&tid), "the tracking id must be carried as details")
 	assert.Equal(t, custom.TrackingID, tid)
+}
+
+func TestExtractJobFailureDetails_RetryableViaApperrorWrapAsAppError(t *testing.T) {
+	originalErr := errors.New("secret manager fetch failed")
+	customErr := vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, originalErr)
+	appErr := WrapAsAppError(customErr, false)
+
+	trackingID, retriable, msg := vsaerrors.ExtractJobFailureDetails(appErr)
+
+	require.Equal(t, vsaerrors.ErrGCPResourceFetchError, trackingID)
+	assert.True(t, retriable, "expected retryable failure from catalog entry")
+	assert.Equal(t, originalErr.Error(), msg)
+	assert.NotEqual(t, customErr.Message, msg, "expected raw provider text, not catalog message")
 }
 
 func TestWrapAsAppError_WrappedCustomError_IsDetected(t *testing.T) {

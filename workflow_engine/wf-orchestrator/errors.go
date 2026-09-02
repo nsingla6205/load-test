@@ -57,6 +57,11 @@ func NewApplicationError(msg, errType string, details interface{}) error {
 	return &ApplicationError{message: msg, errType: errType, details: details}
 }
 
+// NewApplicationErrorWithCause creates a retryable application error with a cause and details.
+func NewApplicationErrorWithCause(msg, errType string, cause error, details interface{}) error {
+	return &ApplicationError{message: msg, errType: errType, details: details, cause: cause}
+}
+
 // NewNonRetryableApplicationError creates a non-retryable structured error.
 // Signature mirrors temporal.NewNonRetryableApplicationError(msg, errType, cause, details...).
 func NewNonRetryableApplicationError(msg, errType string, cause error, details ...interface{}) error {

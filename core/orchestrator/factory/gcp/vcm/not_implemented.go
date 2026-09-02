@@ -119,7 +119,7 @@ func (notImplementedOrchestrator) GetHostGroup(context.Context, string, string) 
 	return nil, customerrors.NewNotImplementedYetErr()
 }
 
-func (notImplementedOrchestrator) DeleteHostGroup(context.Context, string, string) (*models.HostGroup, error) {
+func (notImplementedOrchestrator) DeleteHostGroup(context.Context, *commonparams.DeleteHostGroupParams) (*models.HostGroup, error) {
 	return nil, customerrors.NewNotImplementedYetErr()
 }
 

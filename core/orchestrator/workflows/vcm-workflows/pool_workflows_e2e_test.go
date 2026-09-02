@@ -19,8 +19,11 @@ import (
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
+	"gorm.io/datatypes"
 )
 
 // e2eJobStore is an in-memory vcmdb.VCMDatastore used to drive the durable
@@ -72,6 +75,10 @@ func (s *e2eJobStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJo
 			job.ResponsePayload = params.ResponsePayload
 		}
 	}
+	return nil
+}
+
+func (s *e2eJobStore) SetJobCleanupMetadata(_ context.Context, _ string, _ datatypes.JSON) error {
 	return nil
 }
 
@@ -144,9 +151,16 @@ func runPoolWorkflowE2EWithReg(t *testing.T, store vcmdb.VCMDatastore, params *c
 // the real activity so the workflow's dispatch-by-value resolves to them, while
 // the real (cloud-touching) implementations stay unregistered.
 
-type fakePoolActivity struct{}
+// stubPoolActivity stands in for PoolActivity.IdentifyVMs in e2e tests; set
+// identifyErr to simulate a provisioning failure without a separate stub type.
+type stubPoolActivity struct {
+	identifyErr error
+}
 
-func (fakePoolActivity) IdentifyVMs(_ context.Context, req activities.IdentifyVMsRequest) (*vlm.VLMConfig, error) {
+func (a stubPoolActivity) IdentifyVMs(_ context.Context, req activities.IdentifyVMsRequest) (*vlm.VLMConfig, error) {
+	if a.identifyErr != nil {
+		return nil, a.identifyErr
+	}
 	cfg := &vlm.VLMConfig{}
 	cfg.VsaCluster.ClusterName = "cluster-e2e"
 	// InvokeCreateSVM requires a non-empty deployment id on the VLM config.
@@ -184,7 +198,7 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
 
 	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
-		reg.RegisterActivity(fakePoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
 		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
 		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
 		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
@@ -219,7 +233,7 @@ func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
 	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
 
 	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
-		reg.RegisterActivity(fakePoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
 		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
 		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
 		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
@@ -293,5 +307,37 @@ func TestPoolWorkflowE2E_ProvisionFails_MarksJobError(t *testing.T) {
 	last, ok := store.lastUpdate()
 	require.True(t, ok)
 	assert.Equal(t, vcmdb.JobStateError, last.State, "a failed provision must leave the job in ERROR")
-	assert.NotEmpty(t, last.ErrorMessage, "the terminal ERROR must carry the failure message")
+	assert.Contains(t, last.ErrorMessage, "resolve ONTAP admin password",
+		"the terminal ERROR must carry the underlying failure text, not a catalog message")
+}
+
+func TestPoolWorkflowE2E_ProvisionFails_PersistsRawProviderError(t *testing.T) {
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
+
+	originalErr := errors.New("snapshot with that name already exists")
+	customErr := vsaerrors.NewVCPError(vsaerrors.ErrCreateSnapshotConflict, originalErr)
+	catalogMsg := vsaerrors.GetErrorMessageByTrackingID(vsaerrors.ErrCreateSnapshotConflict).Message
+	activityErr := apperror.WrapAsAppError(customErr, true)
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+
+	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{identifyErr: activityErr}.IdentifyVMs)
+	})
+	require.Error(t, err)
+
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateError, last.State)
+	assert.Equal(t, vsaerrors.ErrCreateSnapshotConflict, last.TrackingID)
+	assert.Equal(t, originalErr.Error(), last.ErrorMessage,
+		"job error_message must store raw provider text")
+	assert.NotEqual(t, catalogMsg, last.ErrorMessage,
+		"job error_message must not store the customer-facing catalog text")
+	assert.False(t, last.Retriable)
 }
