@@ -26,6 +26,11 @@ var (
 	enableVolDeleteProtection        = env.GetBool("VOL_DEL_PROTECTION_ENABLED", true)
 )
 
+const (
+	restoreVolumeStateFromJobChangeID = "restoreVolumeStateFromJob"
+	restoreVolumeStateFromJobVersion  = workflow.Version(1)
+)
+
 type volumeDeleteWorkflow struct {
 	// add fields needed for volume workflow
 	BaseWorkflow
@@ -275,8 +280,19 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 					log.Errorf("Failed to update volume state in DB to error: %v", err2)
 				}
 			} else {
-				// Updating volume state to previous state before deletion was initiated
-				err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, volume.State, volume.StateDetails).Get(ctx, nil)
+				previousState, previousStateDetails := volume.State, volume.StateDetails
+				restoreFromJobVersion := workflow.GetVersion(ctx, restoreVolumeStateFromJobChangeID,
+					workflow.DefaultVersion, restoreVolumeStateFromJobVersion)
+				if restoreFromJobVersion != workflow.DefaultVersion {
+					var job *datamodel.Job
+					if jobErr := workflow.ExecuteActivity(ctx, activities.CommonActivities.GetJob, wf.ID).Get(ctx, &job); jobErr != nil {
+						log.Errorf("Failed to load delete job for state restore: %v", jobErr)
+					} else if job != nil && job.JobAttributes != nil && job.JobAttributes.PreviousState != "" {
+						previousState = job.JobAttributes.PreviousState
+						previousStateDetails = job.JobAttributes.PreviousStateDetails
+					}
+				}
+				err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, previousState, previousStateDetails).Get(ctx, nil)
 				if err2 != nil {
 					log.Errorf("Failed to restore volume state to previous state: %v", err2)
 				}

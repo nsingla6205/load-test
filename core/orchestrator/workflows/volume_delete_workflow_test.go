@@ -70,6 +70,10 @@ func (s *VolumeDeleteTestSuite) SetupTest() {
 	s.env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
+		JobAttributes: &datamodel.JobAttributes{
+			PreviousState:        datamodel.LifeCycleStateREADY,
+			PreviousStateDetails: "ready-details",
+		},
 	}, nil).Maybe()
 }
 
@@ -2147,6 +2151,8 @@ func (s *VolumeDeleteTestSuite) Test_DeleteVolumeWorkflow_RestoreVolumeStateToPr
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, "volume-uuid", datamodel.LifeCycleStateREADY, "ready-details").Return(nil).Maybe()
 	// Also mock the error state update in case the error is not recognized (should not be called)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, "volume-uuid", datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails).Return(nil).Maybe()
+	s.env.OnGetVersion(restoreVolumeStateFromJobChangeID, workflow.DefaultVersion, restoreVolumeStateFromJobVersion).
+		Return(workflow.DefaultVersion)
 
 	// Execute workflow with volume that has State and StateDetails set
 	volume := &datamodel.Volume{
@@ -2238,6 +2244,48 @@ func (s *VolumeDeleteTestSuite) Test_DeleteVolumeWorkflow_RestoreVolumeStateToPr
 	// Check that it was called with READY state (the else branch) and not ERROR state (the if branch)
 	s.env.AssertCalled(s.T(), "UpdateVolumeStateInDB", mock.Anything, "volume-uuid", datamodel.LifeCycleStateREADY, "ready-details")
 	s.env.AssertNotCalled(s.T(), "UpdateVolumeStateInDB", mock.Anything, "volume-uuid", datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails)
+}
+
+func (s *VolumeDeleteTestSuite) Test_DeleteVolumeWorkflow_RestoreVolumeStateFromJob_WhenResolvedVolumeIsDeleting() {
+	mockStorage := database.NewMockStorage(s.T())
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	deleteActivity := activities.VolumeDeleteActivity{SE: mockStorage}
+	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+
+	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(deleteActivity.DeleteSnapmirrorInONTAP)
+	s.env.RegisterActivity(volumeCreateActivity.GetVolumeByVolumeID)
+	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
+
+	splitStateError := vsaerrors.NewVCPError(vsaerrors.ErrDeleteVolumeWhenInSplitState, errors.New("volume has clones/replication"))
+	wrappedError := vsaerrors.WrapAsTemporalApplicationError(splitStateError)
+
+	volume := &datamodel.Volume{
+		BaseModel:        datamodel.BaseModel{UUID: "volume-uuid"},
+		State:            datamodel.LifeCycleStateDeleting,
+		StateDetails:     datamodel.LifeCycleStateDeletingDetails,
+		Pool:             &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}},
+		Account:          &datamodel.Account{Name: "test_account"},
+		VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-external-uuid"},
+	}
+
+	s.env.OnActivity(volumeCreateActivity.GetVolumeByVolumeID, mock.Anything, "volume-uuid").Return(volume, nil)
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil, wrappedError)
+	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, "volume-uuid", datamodel.LifeCycleStateREADY, "ready-details").Return(nil).Maybe()
+	s.env.OnGetVersion(restoreVolumeStateFromJobChangeID, workflow.DefaultVersion, restoreVolumeStateFromJobVersion).
+		Return(restoreVolumeStateFromJobVersion)
+
+	s.env.ExecuteWorkflow(DeleteVolumeWorkflow, volume.UUID)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+
+	s.env.AssertCalled(s.T(), "UpdateVolumeStateInDB", mock.Anything, "volume-uuid", datamodel.LifeCycleStateREADY, "ready-details")
+	s.env.AssertNotCalled(s.T(), "UpdateVolumeStateInDB", mock.Anything, "volume-uuid", datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails)
 }
 
 // Test_DeleteVolumeWorkflow_LargeVolumeCreateJobType tests line 202: setting createJobType to JobTypeCreateLargeVolume for large volumes
