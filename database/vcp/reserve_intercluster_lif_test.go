@@ -48,7 +48,7 @@ func seedICLif(t *testing.T, store *DataStoreRepository, poolID, ipRangeID, acco
 		PoolID:    sql.NullInt64{Int64: poolID, Valid: poolID != 0},
 		IPRangeID: sql.NullInt64{Int64: ipRangeID, Valid: ipRangeID != 0},
 		LifDetails: &datamodel.LifDetails{
-			ProtocolType: "intercluster",
+			ProtocolType: lifTypeInterclusterDB,
 		},
 	}
 	require.NoError(t, store.db.GORM().Create(lif).Error, "Failed to seed IC lif")
@@ -88,7 +88,10 @@ func Test_ReserveInterclusterLifIPs(t *testing.T) {
 		assert.Equal(t, 1, lifs[2].LifDetails.HAPairIndex)
 		assert.Equal(t, 1, lifs[3].LifDetails.HAPairIndex)
 		for _, lif := range lifs {
+			assert.Equal(t, lifTypeInterclusterDB, lif.Type)
 			assert.Equal(t, "255.255.255.255", lif.SubnetMask)
+			require.NotNil(t, lif.LifDetails)
+			assert.Equal(t, lifTypeInterclusterDB, lif.LifDetails.ProtocolType)
 		}
 	})
 

@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	lifTypeInterclusterDB       = "intercluster"
+	lifTypeInterclusterDB       = "interclusterLIF"
 	interclusterLIFIPsPerHAPair = 2
 	// hostRouteNetmask matches data LIF rows (vsa.DefaultNetmask): a /32 host
 	// route on the individual LIF IP, not the carved block's prefix mask.

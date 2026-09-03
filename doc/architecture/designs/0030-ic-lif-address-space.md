@@ -311,7 +311,7 @@ CREATE UNIQUE INDEX idx_lifs_ip_range_ip_active
     WHERE deleted_at IS NULL AND ip_range_id IS NOT NULL;
 ```
 
-**Idempotency (Temporal retry):** if `lifs` already exist for `pool_id` + `type=intercluster` + `ip_range_id`, return existing IPs.
+**Idempotency (Temporal retry):** if `lifs` already exist for `pool_id` + `type=interclusterLIF` + `ip_range_id`, return existing IPs.
 
 ```mermaid
 sequenceDiagram
@@ -400,7 +400,7 @@ type IPRange struct {
 | `pool_id` | nullable, indexed |
 | `ip_range_id` | nullable, indexed |
 | `node_id` | nullable at reservation |
-| `type` | `'intercluster'` |
+| `type` | `'interclusterLIF'` |
 | `lif_details` | `protocol_type`, `ha_pair_index` |
 
 ---
@@ -427,7 +427,7 @@ type IPRange struct {
 
 ## 9. Pool delete
 
-Soft-delete intercluster `lifs` where `pool_id` + `type=intercluster`.
+Soft-delete intercluster `lifs` where `pool_id` + `type=interclusterLIF`.
 
 Optionally soft-delete `ip_ranges` when no other pools reference the carved block (subnet lifecycle TBD).
 
