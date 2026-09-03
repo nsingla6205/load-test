@@ -53,7 +53,7 @@ func (j *MountJobActivity) CheckMountJob(ctx context.Context, dbReplication *dat
 		logger.Infof("Transfer aborted, No data transfer is in progress for replication %s", dbReplication.UUID)
 		return nil
 	}
-	if snapmirror.MirrorState == datamodel.OntapSnapmirrored && (snapmirror.RelationshipStatus == datamodel.SnapmirrorRelationshipIdle || snapmirror.RelationshipStatus == datamodel.SnapmirrorRelationshipSuccess) {
+	if snapmirror.MirrorState == datamodel.OntapSnapmirrored {
 		logger.Infof("Status is snapmirrored. External_UUID: %s", replication.ExternalUUID)
 		return nil
 	} else {
