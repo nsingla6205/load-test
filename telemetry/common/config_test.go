@@ -180,6 +180,24 @@ func TestEnableGcbdrBmfBillingWithEnvironmentVariable(t *testing.T) {
 	}
 }
 
+func TestEnableCrossProjectBackupUsedMetricDefaultValue(t *testing.T) {
+	config := LoadConfig()
+
+	if config.EnableCrossProjectBackupUsedMetric {
+		t.Fatalf("Expected EnableCrossProjectBackupUsedMetric to default to false, got %v", config.EnableCrossProjectBackupUsedMetric)
+	}
+}
+
+func TestEnableCrossProjectBackupUsedMetricWithEnvironmentVariable(t *testing.T) {
+	t.Setenv("ENABLE_CROSS_PROJECT_BACKUP_USED_METRIC", "true")
+
+	config := LoadConfig()
+
+	if !config.EnableCrossProjectBackupUsedMetric {
+		t.Fatalf("Expected EnableCrossProjectBackupUsedMetric to be true when env var is 'true', got %v", config.EnableCrossProjectBackupUsedMetric)
+	}
+}
+
 func TestShutdownConfigDefaults(t *testing.T) {
 	config := LoadConfig()
 	if config.ShutdownBudget != DefaultShutdownBudget {

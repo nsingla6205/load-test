@@ -110,7 +110,11 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 		backupMetadata := assembleBackupMetadata(backup, config)
 
 		metric := setupHydratedMetric(timestamp, backupMetadata, metadata.BackupLogicalSize, float64(backup.LatestLogicalBackupSize))
-		metrics = append(metrics, metric)
+		if shouldEmitBackupUsed(backup, config) {
+			metrics = append(metrics, metric)
+		} else {
+			logger.Debug("Skipping backup_used metric for cross-project backup", "backupUUID", backup.UUID, "backupVaultID", backup.BackupVault.UUID)
+		}
 
 		skipBilling := false
 
@@ -301,7 +305,11 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 		backupMetadata.SetAccountName(effectiveAccount)
 
 		metric := setupHydratedMetric(timestamp, backupMetadata, metadata.BackupLogicalSize, float64(totalSize))
-		metrics = append(metrics, metric)
+		if shouldEmitBackupUsed(canonicalBackup, config) {
+			metrics = append(metrics, metric)
+		} else {
+			logger.Debug("Skipping backup_used metric for cross-project backup", "backupUUID", canonicalBackup.UUID, "backupVaultID", canonicalBackup.BackupVault.UUID)
+		}
 
 		skipBilling := false
 
@@ -401,6 +409,17 @@ func isAccountDisabled(accountStateMap map[string]string, accountName string) bo
 	}
 	state, ok := accountStateMap[accountName]
 	return ok && state == datamodel.AccountStateHyperscalerDisabled
+}
+
+// shouldEmitBackupUsed reports whether the backup_used observation metric should be emitted
+// for this backup. Cross-project (GCBDR) vault backups are suppressed unless
+// EnableCrossProjectBackupUsedMetric is set.
+func shouldEmitBackupUsed(backup *datamodel.Backup, config *common.TelemetryConfig) bool {
+	isCrossProjectVault := backup.BackupVault != nil && backup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject
+	if !isCrossProjectVault {
+		return true
+	}
+	return config != nil && config.EnableCrossProjectBackupUsedMetric
 }
 
 // resolveBillingAccount returns the account we bill a backup to. For cross-project vaults

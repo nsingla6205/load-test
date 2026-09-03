@@ -1800,9 +1800,9 @@ func TestGetBackupMetrics_GcbdrBackupBilling_SkipsAndIncludes(t *testing.T) {
 					},
 				},
 			},
-			expectedHydratedMetricsCount:  1,
+			expectedHydratedMetricsCount:  0,
 			expectedDataModelMetricsCount: 0,
-			description:                   "GCBDR backup should skip HydratedMetricsDataModel when GCBDR billing is disabled",
+			description:                   "GCBDR backup should not emit backup_used unless EnableCrossProjectBackupUsedMetric is enabled, and should not emit billing metrics when GCBDR billing is disabled",
 		},
 		{
 			name:                     "GCBDR billing enabled - include GCBDR backup billing metrics",
@@ -1824,9 +1824,9 @@ func TestGetBackupMetrics_GcbdrBackupBilling_SkipsAndIncludes(t *testing.T) {
 					},
 				},
 			},
-			expectedHydratedMetricsCount:  1,
+			expectedHydratedMetricsCount:  0,
 			expectedDataModelMetricsCount: 1,
-			description:                   "GCBDR backup should create both metrics when GCBDR billing is enabled",
+			description:                   "GCBDR backup should create a billing metric without emitting backup_used when GCBDR billing is enabled",
 		},
 		{
 			name:                     "GCBDR billing disabled - non-GCBDR backups still billed",
@@ -1880,6 +1880,114 @@ func TestGetBackupMetrics_GcbdrBackupBilling_SkipsAndIncludes(t *testing.T) {
 			assert.Len(t, result.HydratedMetricsDataModel, tt.expectedDataModelMetricsCount,
 				"HydratedMetricsDataModel count mismatch: %s", tt.description)
 
+			for i, metric := range result.HydratedMetrics {
+				assert.Equal(t, metadata.BackupLogicalSize, metric.MeasuredType,
+					"HydratedMetrics[%d] should have BackupLogicalSize type", i)
+			}
+		})
+	}
+}
+
+// TestGetBackupMetrics_CrossProjectBackupUsedMetric_Flag covers EnableCrossProjectBackupUsedMetric
+// across both emission paths: the backup_used observation metric is suppressed for cross-project
+// (GCBDR) vaults unless the flag is set, and non-cross-project vaults are never affected.
+func TestGetBackupMetrics_CrossProjectBackupUsedMetric_Flag(t *testing.T) {
+	tests := []struct {
+		name                      string
+		enableCrossProjectMetric  bool
+		enableGcbdrBackupBilling  bool
+		vaultServiceType          string
+		expectedBackupUsedMetrics int
+		description               string
+	}{
+		{
+			name:                      "flag disabled suppresses backup_used for cross-project vault (per-volume path)",
+			enableCrossProjectMetric:  false,
+			enableGcbdrBackupBilling:  false,
+			vaultServiceType:          datamodel.ServiceTypeCrossProject,
+			expectedBackupUsedMetrics: 0,
+			description:               "cross-project vault must not emit backup_used when the flag is off",
+		},
+		{
+			name:                      "flag enabled emits backup_used for cross-project vault (per-volume path)",
+			enableCrossProjectMetric:  true,
+			enableGcbdrBackupBilling:  false,
+			vaultServiceType:          datamodel.ServiceTypeCrossProject,
+			expectedBackupUsedMetrics: 1,
+			description:               "cross-project vault must emit backup_used when the flag is on",
+		},
+		{
+			name:                      "flag disabled suppresses backup_used for cross-project vault (per-vault path)",
+			enableCrossProjectMetric:  false,
+			enableGcbdrBackupBilling:  true,
+			vaultServiceType:          datamodel.ServiceTypeCrossProject,
+			expectedBackupUsedMetrics: 0,
+			description:               "cross-project vault must not emit backup_used when the flag is off",
+		},
+		{
+			name:                      "flag enabled emits backup_used for cross-project vault (per-vault path)",
+			enableCrossProjectMetric:  true,
+			enableGcbdrBackupBilling:  true,
+			vaultServiceType:          datamodel.ServiceTypeCrossProject,
+			expectedBackupUsedMetrics: 1,
+			description:               "cross-project vault must emit backup_used when the flag is on",
+		},
+		{
+			name:                      "non-cross-project vault emits backup_used regardless of the flag",
+			enableCrossProjectMetric:  false,
+			enableGcbdrBackupBilling:  false,
+			vaultServiceType:          datamodel.ServiceTypeGCNV,
+			expectedBackupUsedMetrics: 1,
+			description:               "the flag must only gate cross-project vaults",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newMockBackupStorage()
+			ctx := context.Background()
+			config := &common.TelemetryConfig{
+				RegionName:                         "us-east-1",
+				EnableFilesBackupBilling:           true,
+				EnableGcbdrBackupBilling:           tt.enableGcbdrBackupBilling,
+				EnableCrossProjectBackupUsedMetric: tt.enableCrossProjectMetric,
+			}
+
+			backups := []*datamodel.Backup{
+				{
+					BaseModel:               datamodel.BaseModel{ID: 1, UUID: "backup-flag-1"},
+					VolumeUUID:              "volume-flag-1",
+					LatestLogicalBackupSize: 1024,
+					Attributes: &datamodel.BackupAttributes{
+						AccountIdentifier: "VolumeOwnerProject",
+						VolumeName:        "vol1",
+					},
+					BackupVault: &datamodel.BackupVault{
+						BaseModel:   datamodel.BaseModel{UUID: "vault-flag-1"},
+						Name:        "vault1",
+						ServiceType: tt.vaultServiceType,
+						Account: &datamodel.Account{
+							BaseModel: datamodel.BaseModel{UUID: "acct-flag-1"},
+							Name:      "VaultOwnerProject",
+						},
+					},
+				},
+			}
+
+			for _, method := range []string{"GetBackupMetrics", "GetBackupChainMetrics"} {
+				m.On(method, mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+					return p.Offset == 0
+				})).Return(backups, nil)
+				m.On(method, mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+					return p.Offset > 0
+				})).Return([]*datamodel.Backup{}, nil)
+			}
+
+			result, err := GetBackupMetrics(ctx, m, config, time.Now())
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			assert.Len(t, result.HydratedMetrics, tt.expectedBackupUsedMetrics, tt.description)
 			for i, metric := range result.HydratedMetrics {
 				assert.Equal(t, metadata.BackupLogicalSize, metric.MeasuredType,
 					"HydratedMetrics[%d] should have BackupLogicalSize type", i)
@@ -2110,10 +2218,10 @@ func TestGetBackupMetricsPerVolume_SetsBackupModeOnCrossRegionTransferMetric(t *
 	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
-		RegionName:                           "us-west1",
-		EnableFilesBackupBilling:             true,
-		EnableExpertModeBackupBilling:        true,
-		EnableGcbdrBackupBilling:             false,
+		RegionName:                            "us-west1",
+		EnableFilesBackupBilling:              true,
+		EnableExpertModeBackupBilling:         true,
+		EnableGcbdrBackupBilling:              false,
 		EnableCrossRegionBackupBillingMetrics: true,
 	}
 
@@ -2348,9 +2456,8 @@ func TestGetBackupMetrics_SkipsDisabledAccount_PerVolumePath(t *testing.T) {
 
 // TestGetBackupMetricsPerVault_SkipsDisabledCrossProjectVaultOwner reproduces the RCA
 // scenario: a CrossProject vault owned by a HYPERSCALERDISABLED account still holds an
-// AVAILABLE backup. The BackupLogicalSize metric is attributed to the (disabled) vault
-// owner, so it must be skipped to stop the perpetual 404 pushes. A parallel enabled case
-// confirms normal emission (billed to the vault owner) is unaffected.
+// AVAILABLE backup. Billing is attributed to the vault owner and must be skipped when that
+// owner is disabled. The backup_used metric is never emitted for cross-project vaults.
 func TestGetBackupMetricsPerVault_SkipsDisabledCrossProjectVaultOwner(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -2404,14 +2511,13 @@ func TestGetBackupMetricsPerVault_SkipsDisabledCrossProjectVaultOwner(t *testing
 			result, err := GetBackupMetrics(ctx, m, config, time.Now())
 			assert.NoError(t, err)
 			require.NotNil(t, result)
+			assert.Empty(t, result.HydratedMetrics, "backup_used must not be emitted for a cross-project vault")
 
 			if tt.expectEmitted {
-				assert.Len(t, result.HydratedMetrics, 1)
 				require.Len(t, result.HydratedMetricsDataModel, 1)
 				assert.Equal(t, tt.vaultOwner, result.HydratedMetricsDataModel[0].ConsumerID,
 					"enabled cross-project backup should bill to the vault owner")
 			} else {
-				assert.Empty(t, result.HydratedMetrics, "no performance metric should be emitted for a disabled vault owner")
 				assert.Empty(t, result.HydratedMetricsDataModel, "no billing metric should be emitted for a disabled vault owner")
 			}
 		})
@@ -2468,7 +2574,7 @@ func TestGetBackupMetricsPerVault_DisabledVolumeOwner_EnabledVaultOwner_StillEmi
 	assert.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Len(t, result.HydratedMetrics, 1, "cross-project backup with enabled vault owner should still emit even when the volume owner is disabled")
+	assert.Empty(t, result.HydratedMetrics, "backup_used must not be emitted for a cross-project vault")
 	require.Len(t, result.HydratedMetricsDataModel, 1)
 	assert.Equal(t, enabledVaultOwner, result.HydratedMetricsDataModel[0].ConsumerID,
 		"billing must be attributed to the enabled vault owner, not the disabled volume owner")
@@ -2613,8 +2719,8 @@ func TestGetBackupMetrics_MultiVaultSameVolume_EmitsPerVaultBillingRows(t *testi
 	require.Len(t, result.HydratedMetricsDataModel, 3,
 		"should emit one billing row per (volume, vault) — 3 vaults for the same volume")
 
-	// 3 observation metrics matching the billing rows
-	require.Len(t, result.HydratedMetrics, 3)
+	// Cross-project vaults do not emit backup_used observation metrics.
+	assert.Empty(t, result.HydratedMetrics)
 
 	// Row 0: Vault1 — B1(100) + B2(200) = 300, billed to Project1
 	assert.Equal(t, "Project1", result.HydratedMetricsDataModel[0].ConsumerID)
@@ -2748,7 +2854,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionSkipped_FlagDisabled(t *testing.T)
 
 	result, err := GetBackupMetrics(ctx, m, config, time.Now())
 	assert.NoError(t, err)
-	require.Len(t, result.HydratedMetrics, 1, "observation metric always emitted")
+	require.Len(t, result.HydratedMetrics, 1, "one BackupLogicalSize observation metric")
 	assert.Empty(t, result.HydratedMetricsDataModel, "billing skipped when CRB flag disabled")
 }
 
@@ -2966,7 +3072,8 @@ func TestGetBackupMetricsPerVault_GcbdrFlagDisabled_SkipsCrossProject(t *testing
 
 	result, err := getBackupMetricsPerVault(ctx, m, config, time.Now())
 	assert.NoError(t, err)
-	require.Len(t, result.HydratedMetrics, 1, "observation metric always emitted")
+	assert.Empty(t, result.HydratedMetrics,
+		"backup_used suppressed for cross-project vault when EnableCrossProjectBackupUsedMetric is false")
 	assert.Empty(t, result.HydratedMetricsDataModel,
 		"cross-project billing skipped when EnableGcbdrBackupBilling is false")
 }
