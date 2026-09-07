@@ -84,6 +84,19 @@ linters:
               desc: "lib/** must not import database/**."
             - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
               desc: "lib/** must not import hyperscaler/**."
+        vcm-proxy-restrictions:
+          files:
+            - "**/vcm-proxy/**/*.go"
+            - "**/vcm-proxy/*.go"
+          deny:
+            - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy"
+              desc: "vcm-proxy must not import google-proxy."
+            - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy"
+              desc: "vcm-proxy must not import oci-proxy."
+            - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
+              desc: "vcm-proxy must not import the google-proxy client."
+            - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
+              desc: "vcm-proxy must not import the oci-proxy client."
     revive:
       severity: warning
       rules:
