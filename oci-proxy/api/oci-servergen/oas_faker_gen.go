@@ -130,6 +130,16 @@ func (s *CreatePoolRequest) SetFake() {
 	}
 	{
 		{
+			s.RootBackupPolicyOcid.SetFake()
+		}
+	}
+	{
+		{
+			s.BootBackupPolicyOcid.SetFake()
+		}
+	}
+	{
+		{
 			s.NsgIds = nil
 			for i := 0; i < 0; i++ {
 				var elem string

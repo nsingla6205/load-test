@@ -933,6 +933,8 @@ func prepareVLMConfig(
 		Creator:                    ociCreator,
 		DefinedTags:                definedTags,
 		CmekOcid:                   params.KmsKeyId,
+		RootBackupPolicyOcid:       params.RootBackupPolicyOcid,
+		BootBackupPolicyOcid:       params.BootBackupPolicyOcid,
 		CustomerNSGs:               params.NsgIds,
 		CustomerSecurityAttributes: params.SecurityAttributes,
 	}

@@ -191,6 +191,14 @@ type CreatePoolRequest struct {
 	// Optional OCI Vault Master Encryption Key OCID used to encrypt pool data
 	// at rest. When omitted, the service default encryption is used.
 	KmsKeyId OptString `json:"kmsKeyId"`
+	// Optional OCI volume backup policy OCID applied to root (data) block volumes
+	// during VSA cluster deployment. When omitted, VLM uses its default backup
+	// policy behavior.
+	RootBackupPolicyOcid OptString `json:"rootBackupPolicyOcid"`
+	// Optional OCI volume backup policy OCID applied to boot volumes during VSA
+	// cluster deployment. When omitted, VLM uses its default backup policy
+	// behavior.
+	BootBackupPolicyOcid OptString `json:"bootBackupPolicyOcid"`
 	// Optional list of OCI Network Security Group OCIDs to attach to the pool's
 	// VNICs. When omitted or empty, no NSGs are attached and only subnet-level
 	// security rules apply.
@@ -301,6 +309,16 @@ func (s *CreatePoolRequest) GetKmsKeyId() OptString {
 	return s.KmsKeyId
 }
 
+// GetRootBackupPolicyOcid returns the value of RootBackupPolicyOcid.
+func (s *CreatePoolRequest) GetRootBackupPolicyOcid() OptString {
+	return s.RootBackupPolicyOcid
+}
+
+// GetBootBackupPolicyOcid returns the value of BootBackupPolicyOcid.
+func (s *CreatePoolRequest) GetBootBackupPolicyOcid() OptString {
+	return s.BootBackupPolicyOcid
+}
+
 // GetNsgIds returns the value of NsgIds.
 func (s *CreatePoolRequest) GetNsgIds() []string {
 	return s.NsgIds
@@ -409,6 +427,16 @@ func (s *CreatePoolRequest) SetTieringConfig(val OptTieringConfig) {
 // SetKmsKeyId sets the value of KmsKeyId.
 func (s *CreatePoolRequest) SetKmsKeyId(val OptString) {
 	s.KmsKeyId = val
+}
+
+// SetRootBackupPolicyOcid sets the value of RootBackupPolicyOcid.
+func (s *CreatePoolRequest) SetRootBackupPolicyOcid(val OptString) {
+	s.RootBackupPolicyOcid = val
+}
+
+// SetBootBackupPolicyOcid sets the value of BootBackupPolicyOcid.
+func (s *CreatePoolRequest) SetBootBackupPolicyOcid(val OptString) {
+	s.BootBackupPolicyOcid = val
 }
 
 // SetNsgIds sets the value of NsgIds.

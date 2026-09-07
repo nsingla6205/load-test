@@ -60,16 +60,20 @@ const (
 	errMsgMissingRequiredNodeCapacityField = "missing required nodeCapacity field on UpdatePool"
 	errMsgDuplicateNodeUUID                = "duplicate node_uuid in nodeCapacities on UpdatePool"
 
-	errMsgEmptyTieringSecretID    = "tieringConfig.secretId must not be empty"
-	errMsgInvalidTieringSecretID  = "tieringConfig.secretId must be a valid OCID"
-	errMsgInvalidTieringSecretVer = "tieringConfig.secretVersion must be a positive integer"
-	errMsgEmptyTieringNamespace   = "tieringConfig.namespace must not be empty"
-	errMsgEmptyTieringBucketName  = "tieringConfig.bucketName must not be empty"
-	errMsgEmptyTieringServerName  = "tieringConfig.serverName must not be empty"
-	errMsgEmptyKmsKeyId           = "kmsKeyId must not be empty when provided"
-	errMsgInvalidKmsKeyId         = "kmsKeyId must be a valid OCID"
-	errMsgEmptyNsgID              = "nsgIds[%d] must not be empty"
-	errMsgInvalidNsgID            = "nsgIds[%d] must be a valid OCID"
+	errMsgEmptyTieringSecretID        = "tieringConfig.secretId must not be empty"
+	errMsgInvalidTieringSecretID      = "tieringConfig.secretId must be a valid OCID"
+	errMsgInvalidTieringSecretVer     = "tieringConfig.secretVersion must be a positive integer"
+	errMsgEmptyTieringNamespace       = "tieringConfig.namespace must not be empty"
+	errMsgEmptyTieringBucketName      = "tieringConfig.bucketName must not be empty"
+	errMsgEmptyTieringServerName      = "tieringConfig.serverName must not be empty"
+	errMsgEmptyKmsKeyId               = "kmsKeyId must not be empty when provided"
+	errMsgInvalidKmsKeyId             = "kmsKeyId must be a valid OCID"
+	errMsgEmptyRootBackupPolicyOcid   = "rootBackupPolicyOcid must not be empty when provided"
+	errMsgInvalidRootBackupPolicyOcid = "rootBackupPolicyOcid must be a valid OCID"
+	errMsgEmptyBootBackupPolicyOcid   = "bootBackupPolicyOcid must not be empty when provided"
+	errMsgInvalidBootBackupPolicyOcid = "bootBackupPolicyOcid must be a valid OCID"
+	errMsgEmptyNsgID                  = "nsgIds[%d] must not be empty"
+	errMsgInvalidNsgID                = "nsgIds[%d] must be a valid OCID"
 
 	// ociAdminTempPassword complexity policy. Messages intentionally never echo
 	// the password value, which is plain text.
@@ -135,6 +139,12 @@ func normalizeCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociser
 
 	if req.KmsKeyId.Set {
 		req.KmsKeyId.Value = strings.TrimSpace(req.KmsKeyId.Value)
+	}
+	if req.RootBackupPolicyOcid.Set {
+		req.RootBackupPolicyOcid.Value = strings.TrimSpace(req.RootBackupPolicyOcid.Value)
+	}
+	if req.BootBackupPolicyOcid.Set {
+		req.BootBackupPolicyOcid.Value = strings.TrimSpace(req.BootBackupPolicyOcid.Value)
 	}
 	for i := range req.NsgIds {
 		req.NsgIds[i] = strings.TrimSpace(req.NsgIds[i])
@@ -368,6 +378,22 @@ func validateCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserv
 			return errors.New(errMsgInvalidKmsKeyId)
 		}
 	}
+	if req.RootBackupPolicyOcid.Set {
+		if req.RootBackupPolicyOcid.Value == "" {
+			return errors.New(errMsgEmptyRootBackupPolicyOcid)
+		}
+		if !isValidOCID(req.RootBackupPolicyOcid.Value) {
+			return errors.New(errMsgInvalidRootBackupPolicyOcid)
+		}
+	}
+	if req.BootBackupPolicyOcid.Set {
+		if req.BootBackupPolicyOcid.Value == "" {
+			return errors.New(errMsgEmptyBootBackupPolicyOcid)
+		}
+		if !isValidOCID(req.BootBackupPolicyOcid.Value) {
+			return errors.New(errMsgInvalidBootBackupPolicyOcid)
+		}
+	}
 	for i, nsgID := range req.NsgIds {
 		if nsgID == "" {
 			return fmt.Errorf(errMsgEmptyNsgID, i)
@@ -472,6 +498,8 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 		DataNICSubnetID:      req.DataNicSubnetId,
 		HAPairs:              uint64(req.DataEndpointCount / 2),
 		KmsKeyId:             req.KmsKeyId.Value,
+		RootBackupPolicyOcid: req.RootBackupPolicyOcid.Value,
+		BootBackupPolicyOcid: req.BootBackupPolicyOcid.Value,
 		// Optional fault domain overrides; empty values trigger auto-selection downstream.
 		PrimaryFaultDomain:   strings.TrimSpace(req.PrimaryFaultDomain.Value),
 		SecondaryFaultDomain: strings.TrimSpace(req.SecondaryFaultDomain.Value),

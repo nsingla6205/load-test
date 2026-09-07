@@ -86,6 +86,8 @@ type CreatePoolParams struct {
 	HAPairs              uint64
 
 	KmsKeyId             string
+	RootBackupPolicyOcid string
+	BootBackupPolicyOcid string
 	NsgIds               []string
 	SecurityAttributes   map[string]map[string]interface{}
 	FabricPoolConfig     *FabricPoolConfig

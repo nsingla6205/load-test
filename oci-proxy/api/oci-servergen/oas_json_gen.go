@@ -257,6 +257,18 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.RootBackupPolicyOcid.Set {
+			e.FieldStart("rootBackupPolicyOcid")
+			s.RootBackupPolicyOcid.Encode(e)
+		}
+	}
+	{
+		if s.BootBackupPolicyOcid.Set {
+			e.FieldStart("bootBackupPolicyOcid")
+			s.BootBackupPolicyOcid.Encode(e)
+		}
+	}
+	{
 		if s.NsgIds != nil {
 			e.FieldStart("nsgIds")
 			e.ArrStart()
@@ -274,7 +286,7 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreatePoolRequest = [22]string{
+var jsonFieldsNameOfCreatePoolRequest = [24]string{
 	0:  "poolOCID",
 	1:  "compartmentOCID",
 	2:  "resourceName",
@@ -295,8 +307,10 @@ var jsonFieldsNameOfCreatePoolRequest = [22]string{
 	17: "dataNicSubnetId",
 	18: "tieringConfig",
 	19: "kmsKeyId",
-	20: "nsgIds",
-	21: "securityAttributes",
+	20: "rootBackupPolicyOcid",
+	21: "bootBackupPolicyOcid",
+	22: "nsgIds",
+	23: "securityAttributes",
 }
 
 // Decode decodes CreatePoolRequest from json.
@@ -523,6 +537,26 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"kmsKeyId\"")
+			}
+		case "rootBackupPolicyOcid":
+			if err := func() error {
+				s.RootBackupPolicyOcid.Reset()
+				if err := s.RootBackupPolicyOcid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rootBackupPolicyOcid\"")
+			}
+		case "bootBackupPolicyOcid":
+			if err := func() error {
+				s.BootBackupPolicyOcid.Reset()
+				if err := s.BootBackupPolicyOcid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"bootBackupPolicyOcid\"")
 			}
 		case "nsgIds":
 			if err := func() error {

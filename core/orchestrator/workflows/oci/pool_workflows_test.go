@@ -5760,6 +5760,41 @@ func TestPrepareVLMConfig_PropagatesKmsKeyIdAsCmekOcid(t *testing.T) {
 	})
 }
 
+func TestPrepareVLMConfig_PropagatesBackupPolicyOcids(t *testing.T) {
+	t.Run("non-empty backup policy OCIDs are propagated to vlm.OCIConfig", func(tt *testing.T) {
+		setTestOCIImageEnv(tt)
+		const rootPolicy = "ocid1.volumebackuppolicy.oc1.iad.root-policy"
+		const bootPolicy = "ocid1.volumebackuppolicy.oc1.iad.boot-policy"
+		params, pool := validPrepareVLMConfigInputs()
+		params.RootBackupPolicyOcid = rootPolicy
+		params.BootBackupPolicyOcid = bootPolicy
+
+		cfg, err := prepareVLMConfig(params, pool, nil)
+		require.NoError(tt, err)
+		require.NotNil(tt, cfg)
+
+		ociCfg, ociErr := cfg.Deployment.ProviderConfig.AsOCI()
+		require.NoError(tt, ociErr)
+		assert.Equal(tt, rootPolicy, ociCfg.RootBackupPolicyOcid,
+			"CreatePoolParams.RootBackupPolicyOcid must round-trip into vlm.OCIConfig.RootBackupPolicyOcid")
+		assert.Equal(tt, bootPolicy, ociCfg.BootBackupPolicyOcid,
+			"CreatePoolParams.BootBackupPolicyOcid must round-trip into vlm.OCIConfig.BootBackupPolicyOcid")
+	})
+
+	t.Run("empty backup policy OCIDs are propagated as empty (no defaulting)", func(tt *testing.T) {
+		setTestOCIImageEnv(tt)
+		params, pool := validPrepareVLMConfigInputs()
+
+		cfg, err := prepareVLMConfig(params, pool, nil)
+		require.NoError(tt, err)
+
+		ociCfg, ociErr := cfg.Deployment.ProviderConfig.AsOCI()
+		require.NoError(tt, ociErr)
+		assert.Equal(tt, "", ociCfg.RootBackupPolicyOcid)
+		assert.Equal(tt, "", ociCfg.BootBackupPolicyOcid)
+	})
+}
+
 func TestPrepareVLMConfig_PropagatesNsgIdsAsCustomerNSGs(t *testing.T) {
 	setTestOCIImageEnv(t)
 	nsgs := []string{

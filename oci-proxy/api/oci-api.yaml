@@ -100,6 +100,8 @@ paths:
                     bucketName: "bucket-aryan-test"
                     serverName: "idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com"
                   kmsKeyId: "ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq"
+                  rootBackupPolicyOcid: "ocid1.volumebackuppolicy.oc1.iad.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  bootBackupPolicyOcid: "ocid1.volumebackuppolicy.oc1.iad.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                   nsgIds:
                     - "ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva"
                   securityAttributes:
@@ -2378,6 +2380,18 @@ components:
           description: |
             Optional OCI Vault Master Encryption Key OCID used to encrypt pool data
             at rest. When omitted, the service default encryption is used.
+        rootBackupPolicyOcid:
+          type: string
+          description: |
+            Optional OCI volume backup policy OCID applied to root (data) block volumes
+            during VSA cluster deployment. When omitted, VLM uses its default backup
+            policy behavior.
+        bootBackupPolicyOcid:
+          type: string
+          description: |
+            Optional OCI volume backup policy OCID applied to boot volumes during VSA
+            cluster deployment. When omitted, VLM uses its default backup policy
+            behavior.
         nsgIds:
           type: array
           description: |

@@ -3399,6 +3399,76 @@ func TestValidateCreatePoolRequest(t *testing.T) {
 			wantErr: errMsgInvalidKmsKeyId,
 		},
 		{
+			name: "rootBackupPolicyOcid unset is allowed (no validation triggered)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.RootBackupPolicyOcid = ociserver.OptString{Set: false}
+			},
+			wantErr: "",
+		},
+		{
+			name: "rootBackupPolicyOcid set with valid OCID passes",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.RootBackupPolicyOcid = ociserver.NewOptString("ocid1.volumebackuppolicy.oc1.iad.root")
+			},
+			wantErr: "",
+		},
+		{
+			name: "rootBackupPolicyOcid set but empty rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.RootBackupPolicyOcid = ociserver.NewOptString("")
+			},
+			wantErr: errMsgEmptyRootBackupPolicyOcid,
+		},
+		{
+			name: "rootBackupPolicyOcid set whitespace-only rejected (TrimSpace)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.RootBackupPolicyOcid = ociserver.NewOptString("  \t\n ")
+			},
+			wantErr: errMsgEmptyRootBackupPolicyOcid,
+		},
+		{
+			name: "rootBackupPolicyOcid set with malformed OCID rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.RootBackupPolicyOcid = ociserver.NewOptString("not-an-ocid")
+			},
+			wantErr: errMsgInvalidRootBackupPolicyOcid,
+		},
+		{
+			name: "bootBackupPolicyOcid unset is allowed (no validation triggered)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.BootBackupPolicyOcid = ociserver.OptString{Set: false}
+			},
+			wantErr: "",
+		},
+		{
+			name: "bootBackupPolicyOcid set with valid OCID passes",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.BootBackupPolicyOcid = ociserver.NewOptString("ocid1.volumebackuppolicy.oc1.iad.boot")
+			},
+			wantErr: "",
+		},
+		{
+			name: "bootBackupPolicyOcid set but empty rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.BootBackupPolicyOcid = ociserver.NewOptString("")
+			},
+			wantErr: errMsgEmptyBootBackupPolicyOcid,
+		},
+		{
+			name: "bootBackupPolicyOcid set whitespace-only rejected (TrimSpace)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.BootBackupPolicyOcid = ociserver.NewOptString("  \t\n ")
+			},
+			wantErr: errMsgEmptyBootBackupPolicyOcid,
+		},
+		{
+			name: "bootBackupPolicyOcid set with malformed OCID rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.BootBackupPolicyOcid = ociserver.NewOptString("not-an-ocid")
+			},
+			wantErr: errMsgInvalidBootBackupPolicyOcid,
+		},
+		{
 			name: "nsgIds nil is allowed (no validation triggered)",
 			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
 				r.NsgIds = nil
@@ -3533,6 +3603,8 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 		},
 	}
 	req.KmsKeyId = ociserver.NewOptString("  ocid1.key.oc1.iad.kkk  ")
+	req.RootBackupPolicyOcid = ociserver.NewOptString("  ocid1.volumebackuppolicy.oc1.iad.root  ")
+	req.BootBackupPolicyOcid = ociserver.NewOptString("  ocid1.volumebackuppolicy.oc1.iad.boot  ")
 	req.NsgIds = []string{
 		"  ocid1.networksecuritygroup.oc1.iad.nsg-a\t",
 		"\nocid1.networksecuritygroup.oc1.iad.nsg-b  ",
@@ -3567,6 +3639,10 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 	assert.Equal(t, "compat.objectstorage.us-ashburn-1.oraclecloud.com", req.TieringConfig.Value.ServerName)
 	assert.Equal(t, "ocid1.key.oc1.iad.kkk", req.KmsKeyId.Value,
 		"KmsKeyId must be trimmed in place so the orchestrator forwards the canonical OCID to VLM")
+	assert.Equal(t, "ocid1.volumebackuppolicy.oc1.iad.root", req.RootBackupPolicyOcid.Value,
+		"RootBackupPolicyOcid must be trimmed in place so the orchestrator forwards the canonical OCID to VLM")
+	assert.Equal(t, "ocid1.volumebackuppolicy.oc1.iad.boot", req.BootBackupPolicyOcid.Value,
+		"BootBackupPolicyOcid must be trimmed in place so the orchestrator forwards the canonical OCID to VLM")
 	assert.Equal(t, []string{
 		"ocid1.networksecuritygroup.oc1.iad.nsg-a",
 		"ocid1.networksecuritygroup.oc1.iad.nsg-b",
@@ -3667,6 +3743,35 @@ func TestCreatePool_MapsKmsKeyIdToCmekOcid(t *testing.T) {
 
 	req := validCreatePoolRequest()
 	req.KmsKeyId = ociserver.NewOptString(cmek)
+
+	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+	assert.NoError(t, err)
+	_, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
+	assert.True(t, ok)
+}
+
+func TestCreatePool_MapsBackupPolicyOcidsToCreatePoolParams(t *testing.T) {
+	const rootPolicy = "ocid1.volumebackuppolicy.oc1.iad.root-policy"
+	const bootPolicy = "ocid1.volumebackuppolicy.oc1.iad.boot-policy"
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().CreatePool(
+		mock.Anything,
+		mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
+			return p != nil &&
+				p.RootBackupPolicyOcid == rootPolicy &&
+				p.BootBackupPolicyOcid == bootPolicy
+		}),
+	).Return(&models.Pool{
+		BaseModel: models.BaseModel{UUID: "pool-backup-policy", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		Name:      "backup-policy-pool",
+		State:     "CREATING",
+	}, "wf-backup-policy", nil)
+	h := Handler{Orchestrator: mockOrchestrator}
+
+	req := validCreatePoolRequest()
+	req.RootBackupPolicyOcid = ociserver.NewOptString(rootPolicy)
+	req.BootBackupPolicyOcid = ociserver.NewOptString(bootPolicy)
 
 	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
 
