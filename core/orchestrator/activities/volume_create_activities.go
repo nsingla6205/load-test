@@ -2500,9 +2500,62 @@ func fetchBackupVaultOrFallbackToRemoteVCP(ctx context.Context, se database.Stor
 		return backupVault, nil
 	}
 
+	pathInfo, err = rewriteGCBDRRemoteBackupPath(ctx, se, pathInfo, volumeRegion, backupPathAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	// If not found in local VCP, fetch from remote VCP/SDE
 	logger.Infof("Backup vault '%s' not found in VCP, fetching from remote VCP/SDE", pathInfo.VaultName)
 	return FetchBackupVaultFromRemoteVCP(ctx, pathInfo, volume)
+}
+
+// rewriteGCBDRRemoteBackupPath replaces a GCBDR cross-region source vault name
+// with its destination vault name before the remote-region lookup.
+func rewriteGCBDRRemoteBackupPath(ctx context.Context, se database.Storage, pathInfo *BackupPathInfo, volumeRegion string, backupPathAccount *datamodel.Account) (*BackupPathInfo, error) {
+	if pathInfo == nil || backupPathAccount == nil || pathInfo.Region == volumeRegion {
+		return pathInfo, nil
+	}
+
+	logger := util.GetLogger(ctx)
+	sourceVault, err := se.GetBackupVaultByNameAndOwnerID(ctx, pathInfo.VaultName, fmt.Sprintf("%d", backupPathAccount.ID))
+	if err != nil {
+		if !errors.IsNotFoundErr(err) {
+			logger.Warnf("Unable to check whether remote restore vault '%s' is a Cross Project cross-region vault; preserving the requested backup path: %v", pathInfo.VaultName, err)
+		}
+		return pathInfo, nil
+	}
+	if sourceVault == nil {
+		return pathInfo, nil
+	}
+
+	if sourceVault.ServiceType != datamodel.ServiceTypeCrossProject ||
+		sourceVault.BackupVaultType != datamodel.BackupVaultTypeCrossRegion {
+		return pathInfo, nil
+	}
+
+	if sourceVault.CrossRegionBackupVaultName == nil ||
+		strings.TrimSpace(*sourceVault.CrossRegionBackupVaultName) == "" {
+		return nil, fmt.Errorf("Cross Project cross-region backup vault '%s' does not have a destination backup vault path", sourceVault.Name)
+	}
+
+	destinationBackupPath := fmt.Sprintf("%s/backups/%s",
+		strings.TrimSuffix(strings.TrimSpace(*sourceVault.CrossRegionBackupVaultName), "/"),
+		pathInfo.BackupName)
+	destinationPathInfo, err := parseBackupPath(destinationBackupPath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid destination backup vault path for Cross Project vault '%s': %w", sourceVault.Name, err)
+	}
+	if destinationPathInfo.ProjectName != pathInfo.ProjectName || destinationPathInfo.Region != pathInfo.Region {
+		return nil, fmt.Errorf(
+			"Cross Project destination backup vault path for '%s' does not match requested project and region",
+			sourceVault.Name,
+		)
+	}
+
+	logger.Infof("Using Cross Project destination backup vault '%s' for remote restore lookup instead of source vault '%s'",
+		destinationPathInfo.VaultName, pathInfo.VaultName)
+	return destinationPathInfo, nil
 }
 
 // ConvertGoogleProxyBackupVaultToDatamodel converts googleproxyclient.BackupVaultV1beta directly to datamodel.BackupVault
