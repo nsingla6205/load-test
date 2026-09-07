@@ -39,6 +39,7 @@ enableAdminTempPassword: "true"
 ociSvmNamePrefix: "oci-svm-"
 ociSvmNameMaxInputLength: 32
 ociAdminTempPasswordExpiryHours: 24
+ociAdminTempPasswordGenerationAttempts: 7
 enableOciTempPasswordResetCron: "true"
 ociTempPasswordVerificationCronExpression: "0 0 * * *"
 # Global for image registry (standalone chart)

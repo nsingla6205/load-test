@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -20,10 +21,23 @@ import (
 // with mixed classes satisfies ONTAP's default password complexity policy.
 const ociAdminTempPasswordLength = 12
 
+// defaultMaxTempPasswordGenerationAttempts is the fallback retry cap when
+// OCI_ADMIN_TEMP_PASSWORD_GENERATION_ATTEMPTS is unset or misconfigured.
+const defaultMaxTempPasswordGenerationAttempts = 7
+
 // defaultOciAdminTempPasswordExpiryHours is the fallback expiry window (in
 // hours) for the temporary ociadmin password when
 // OCI_ADMIN_TEMP_PASSWORD_EXPIRY_HOURS is unset or misconfigured.
 const defaultOciAdminTempPasswordExpiryHours = 24
+
+// maxTempPasswordGenerationAttempts bounds how many times ResetPassword regenerates
+// a temporary password when the random draw fails validateOciAdminTempPassword.
+// utils.GenerateStrongPassword guarantees length and character classes but not the
+// "no run of identical characters" rule enforced on caller-supplied passwords, so a
+// rare draw (e.g. one containing "aaa") can fail validation. Read once at startup
+// from OCI_ADMIN_TEMP_PASSWORD_GENERATION_ATTEMPTS (default 7). A non-positive
+// value falls back to the default so generation never runs unbounded or not at all.
+var maxTempPasswordGenerationAttempts = resolveMaxTempPasswordGenerationAttempts()
 
 // ociAdminTempPasswordExpiryHours is the number of hours after which the
 // temporary ociadmin password is considered expired. Read once at startup from
@@ -31,6 +45,16 @@ const defaultOciAdminTempPasswordExpiryHours = 24
 // caller stays configurable. A non-positive value falls back to the default so
 // the response never advertises an already-expired password.
 var ociAdminTempPasswordExpiryHours = resolveOciAdminTempPasswordExpiryHours()
+
+// resolveMaxTempPasswordGenerationAttempts reads and validates the configured
+// retry cap, falling back to the default when unset or non-positive.
+func resolveMaxTempPasswordGenerationAttempts() int {
+	attempts := env.GetInt("OCI_ADMIN_TEMP_PASSWORD_GENERATION_ATTEMPTS", defaultMaxTempPasswordGenerationAttempts)
+	if attempts <= 0 {
+		return defaultMaxTempPasswordGenerationAttempts
+	}
+	return attempts
+}
 
 // resolveOciAdminTempPasswordExpiryHours reads and validates the configured
 // expiry window, falling back to the default when unset or non-positive.
@@ -71,7 +95,7 @@ func (h *Handler) ResetPassword(ctx context.Context, req ociserver.OptResetPassw
 		tempPassword = strings.TrimSpace(req.Value.TempPassword.Value)
 	}
 	if tempPassword == "" {
-		generated, genErr := utils.GenerateStrongPassword(ociAdminTempPasswordLength)
+		generated, genErr := generateCompliantOciAdminTempPassword()
 		if genErr != nil {
 			logger.Error("Failed to generate temporary password", "poolOCID", poolOCID, "error", genErr.Error())
 			return newResetPasswordInternalServerError(opcWorkRequestID, poolOCID), nil
@@ -111,6 +135,32 @@ func (h *Handler) ResetPassword(ctx context.Context, req ociserver.OptResetPassw
 			PasswordExpiresAt: ociserver.NewOptDateTime(passwordExpiresAt),
 		},
 	}, nil
+}
+
+// generateCompliantOciAdminTempPassword returns a generated temporary admin
+// password that satisfies validateOciAdminTempPassword — the same complexity
+// policy enforced on caller-supplied passwords. utils.GenerateStrongPassword does
+// not preclude runs of identical characters, so a rare draw can fail the validator;
+// this regenerates up to maxTempPasswordGenerationAttempts times and returns the
+// first compliant password. If a genuine generation error occurs it is returned
+// immediately; if every attempt produces a non-compliant password (astronomically
+// unlikely, indicative of a broken RNG) the last validation error is wrapped and
+// returned so the caller surfaces a 500 rather than forwarding a bad password.
+func generateCompliantOciAdminTempPassword() (string, error) {
+	var lastValidationErr error
+	for attempt := 0; attempt < maxTempPasswordGenerationAttempts; attempt++ {
+		candidate, err := utils.GenerateStrongPassword(ociAdminTempPasswordLength)
+		if err != nil {
+			return "", err
+		}
+		if validationErr := validateOciAdminTempPassword(candidate, ociExpertModeUsername); validationErr != nil {
+			lastValidationErr = validationErr
+			continue
+		}
+		return candidate, nil
+	}
+	return "", fmt.Errorf("failed to generate a compliant temporary password after %d attempts: %w",
+		maxTempPasswordGenerationAttempts, lastValidationErr)
 }
 
 func newResetPasswordBadRequest(opcWorkRequestID, poolOCID, errMsg string) *ociserver.ResetPasswordBadRequest {

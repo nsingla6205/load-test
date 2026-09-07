@@ -12,9 +12,21 @@ import (
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
 )
+
+// setGenerateStrongPassword overrides the package-level utils.GenerateStrongPassword
+// seam for the duration of a test and restores it on cleanup, so tests can force
+// the generate-then-validate retry path deterministically without depending on the
+// real (random) generator.
+func setGenerateStrongPassword(t *testing.T, fn func(length int) (string, error)) {
+	t.Helper()
+	orig := utils.GenerateStrongPassword
+	utils.GenerateStrongPassword = fn
+	t.Cleanup(func() { utils.GenerateStrongPassword = orig })
+}
 
 const testResetWorkflowID = "wf-reset-pw-001"
 
@@ -35,6 +47,15 @@ func setOciAdminTempPasswordExpiryHours(t *testing.T, hours int) {
 	orig := ociAdminTempPasswordExpiryHours
 	ociAdminTempPasswordExpiryHours = hours
 	t.Cleanup(func() { ociAdminTempPasswordExpiryHours = orig })
+}
+
+// setMaxTempPasswordGenerationAttempts overrides the package-level retry cap
+// for the duration of a test and restores it on cleanup.
+func setMaxTempPasswordGenerationAttempts(t *testing.T, attempts int) {
+	t.Helper()
+	orig := maxTempPasswordGenerationAttempts
+	maxTempPasswordGenerationAttempts = attempts
+	t.Cleanup(func() { maxTempPasswordGenerationAttempts = orig })
 }
 
 func defaultResetPasswordParams() ociserver.ResetPasswordParams {
@@ -147,6 +168,38 @@ func TestResetPassword_ExpiryConfigurable(t *testing.T) {
 	assert.False(t, expiresAt.After(after.Add(48*time.Hour)))
 }
 
+// TestResolveMaxTempPasswordGenerationAttempts verifies the env-backed resolver
+// falls back to the default for unset/non-positive values.
+func TestResolveMaxTempPasswordGenerationAttempts(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		setEnv   bool
+		want     int
+	}{
+		{name: "unset uses default", setEnv: false, want: defaultMaxTempPasswordGenerationAttempts},
+		{name: "custom positive value", setEnv: true, envValue: "3", want: 3},
+		{name: "zero falls back to default", setEnv: true, envValue: "0", want: defaultMaxTempPasswordGenerationAttempts},
+		{name: "negative falls back to default", setEnv: true, envValue: "-2", want: defaultMaxTempPasswordGenerationAttempts},
+		{name: "non-numeric falls back to default", setEnv: true, envValue: "abc", want: defaultMaxTempPasswordGenerationAttempts},
+	}
+
+	const envKey = "OCI_ADMIN_TEMP_PASSWORD_GENERATION_ATTEMPTS"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnv {
+				t.Setenv(envKey, tt.envValue)
+			} else {
+				if orig, ok := os.LookupEnv(envKey); ok {
+					t.Cleanup(func() { _ = os.Setenv(envKey, orig) })
+				}
+				assert.NoError(t, os.Unsetenv(envKey))
+			}
+			assert.Equal(t, tt.want, resolveMaxTempPasswordGenerationAttempts())
+		})
+	}
+}
+
 // TestResolveOciAdminTempPasswordExpiryHours verifies the env-backed resolver
 // falls back to the default for unset/non-positive values.
 func TestResolveOciAdminTempPasswordExpiryHours(t *testing.T) {
@@ -211,6 +264,84 @@ func TestResetPassword_GeneratesWhenEmpty(t *testing.T) {
 		"the generated password echoed to the caller must match the one dispatched")
 	// The generated password must itself satisfy the complexity policy.
 	assert.NoError(t, validateOciAdminTempPassword(accepted.Response.TempPassword, ociExpertModeUsername))
+}
+
+// TestResetPassword_RegeneratesUntilCompliant verifies that when the generator
+// produces a password that violates the complexity policy (a run of identical
+// characters, which GenerateStrongPassword does not preclude), the handler
+// regenerates and forwards only a compliant password.
+func TestResetPassword_RegeneratesUntilCompliant(t *testing.T) {
+	setEnableAdminTempPassword(t, true)
+
+	// The first two draws contain a run of 3 identical characters ("aaa"/"bbb")
+	// and must be rejected by validateOciAdminTempPassword; the third is compliant.
+	draws := []string{"Netaaap1234X", "Netbbbp1234X", "Netapp1234Xy"}
+	var calls int
+	setGenerateStrongPassword(t, func(length int) (string, error) {
+		p := draws[calls]
+		calls++
+		return p, nil
+	})
+
+	var forwarded string
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().
+		ResetAdminPasswordForPool(mock.Anything, mock.MatchedBy(func(p *commonparams.ResetOciAdminPasswordParams) bool {
+			if p == nil || p.TempPassword == "" {
+				return false
+			}
+			forwarded = p.TempPassword
+			return true
+		})).
+		Return(testResetWorkflowID, nil)
+
+	h := Handler{Orchestrator: mockOrchestrator}
+	ctx := contextWithOpcRequestID(context.Background(), defaultTestOPC)
+
+	res, err := h.ResetPassword(ctx, ociserver.OptResetPasswordRequest{}, defaultResetPasswordParams())
+	assert.NoError(t, err)
+
+	accepted, ok := res.(*ociserver.ResetPasswordAcceptedResponseHeaders)
+	assert.True(t, ok, "expected *ResetPasswordAcceptedResponseHeaders, got %T", res)
+	assert.Equal(t, 3, calls, "generator must be retried until it yields a compliant password")
+	assert.Equal(t, "Netapp1234Xy", accepted.Response.TempPassword,
+		"only the compliant password may be returned")
+	assert.Equal(t, forwarded, accepted.Response.TempPassword,
+		"the forwarded password must match the compliant one echoed to the caller")
+	// The password actually forwarded must satisfy the complexity policy.
+	assert.NoError(t, validateOciAdminTempPassword(accepted.Response.TempPassword, ociExpertModeUsername))
+}
+
+// TestResetPassword_GenerationExhaustionReturns500 verifies that if every
+// generation attempt yields a non-compliant password, the handler gives up after
+// the capped number of attempts and returns 500 without ever calling the
+// orchestrator (a nil Orchestrator would panic if it were invoked).
+func TestResetPassword_GenerationExhaustionReturns500(t *testing.T) {
+	setEnableAdminTempPassword(t, true)
+	setMaxTempPasswordGenerationAttempts(t, defaultMaxTempPasswordGenerationAttempts)
+
+	var calls int
+	setGenerateStrongPassword(t, func(length int) (string, error) {
+		calls++
+		// Always violates the no-consecutive-identical-characters rule.
+		return "Netaaap1234X", nil
+	})
+
+	h := Handler{}
+	ctx := contextWithOpcRequestID(context.Background(), defaultTestOPC)
+
+	res, err := h.ResetPassword(ctx, ociserver.OptResetPasswordRequest{}, defaultResetPasswordParams())
+	assert.NoError(t, err)
+
+	resp, ok := res.(*ociserver.ResetPasswordInternalServerError)
+	assert.True(t, ok, "expected *ResetPasswordInternalServerError, got %T", res)
+	assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
+	assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
+	assert.Equal(t, "Internal server error", resp.Response.ErrorMessage,
+		"internal details must not leak")
+	assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
+	assert.Equal(t, maxTempPasswordGenerationAttempts, calls,
+		"generator must be retried exactly the capped number of times before giving up")
 }
 
 // TestResetPassword_InvalidSuppliedPassword ensures a non-compliant supplied

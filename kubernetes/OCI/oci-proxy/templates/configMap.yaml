@@ -54,6 +54,8 @@ data:
   OCI_SVM_NAME_MAX_INPUT_LENGTH: "{{ index .Values "ociSvmNameMaxInputLength" }}"
   # Expiry window (hours) reported as passwordExpiresAt by the reset-password API.
   OCI_ADMIN_TEMP_PASSWORD_EXPIRY_HOURS: "{{ index .Values "ociAdminTempPasswordExpiryHours" }}"
+  # Retry cap when generating a policy-compliant temporary admin password.
+  OCI_ADMIN_TEMP_PASSWORD_GENERATION_ATTEMPTS: "{{ index .Values "ociAdminTempPasswordGenerationAttempts" }}"
   ENABLE_OCI_TEMP_PASSWORD_RESET_CRON: "{{ index .Values "enableOciTempPasswordResetCron" }}"
   OCI_TEMP_PASSWORD_VERIFICATION_CRON_EXPRESSION: "{{ index .Values "ociTempPasswordVerificationCronExpression" }}"
   config.yaml: |
