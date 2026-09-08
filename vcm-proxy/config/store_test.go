@@ -57,6 +57,16 @@ func (s *stubDBOpener) callCount() int {
 	return s.calls
 }
 
+type stubOngoingJobResumer struct {
+	calls atomic.Int32
+	err   error
+}
+
+func (s *stubOngoingJobResumer) ResumeOngoingJobs(context.Context) error {
+	s.calls.Add(1)
+	return s.err
+}
+
 func openSQLiteStore(ctx context.Context) (vcmdb.Storage, error) {
 	return vcmdb.Open(ctx, vcmdb.Config{
 		Driver: vcmdb.DriverSQLite,
@@ -871,4 +881,32 @@ func TestStore_Apply_EmptyNodesClearsStoredNodes(t *testing.T) {
 	nodes := layoutOf(store.CurrentSetConfig()).Nodes
 	require.NotNil(t, nodes)
 	assert.Empty(t, nodes)
+}
+
+func TestStore_Apply_ResumesOngoingJobsAfterDatabaseIsReady(t *testing.T) {
+	resumer := &stubOngoingJobResumer{}
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	store.SetOngoingJobResumer(resumer)
+
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), ""))
+
+	waitFor(t, func() bool {
+		return store.Configured() && resumer.calls.Load() == 1
+	})
+}
+
+func TestStore_Apply_DoesNotResumeJobsWhenDatabaseValidationFails(t *testing.T) {
+	resumer := &stubOngoingJobResumer{}
+	opener := &stubDBOpener{err: errors.New("connection refused")}
+	store := NewStoreWithOpener(log.NewLogger(), opener)
+	store.SetOngoingJobResumer(resumer)
+
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), ""))
+
+	waitFor(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return opener.callCount() == 1 && !store.validating
+	})
+	assert.Zero(t, resumer.calls.Load())
 }

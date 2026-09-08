@@ -64,6 +64,7 @@ type Store struct {
 	dbStore         vcmdb.Storage
 	logger          log.Logger
 	opener          DBOpener
+	jobResumer      OngoingJobResumer
 	validateTimeout time.Duration
 	validateDBFunc  func(ctx context.Context, gen uint64, db vcmserver.StateDbConfigV1)
 }
@@ -97,6 +98,18 @@ func newStore(logger log.Logger, opener DBOpener, validateTimeout time.Duration)
 // Configured reports whether the current dbConfig has passed reachability validation.
 func (s *Store) Configured() bool {
 	return s.configured.Load()
+}
+
+// OngoingJobResumer resumes durable jobs after the configured database is ready.
+type OngoingJobResumer interface {
+	ResumeOngoingJobs(ctx context.Context) error
+}
+
+// SetOngoingJobResumer configures the process-restart recovery callback.
+func (s *Store) SetOngoingJobResumer(resumer OngoingJobResumer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.jobResumer = resumer
 }
 
 // storage returns a snapshot of the configured DB handle without holding dbMu
@@ -407,9 +420,25 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.Stat
 
 	if s.reconnectGen.Load() == gen {
 		s.configured.Store(true)
+		s.dispatchOngoingJobResume(parent)
 	} else {
 		_ = store.Close()
 	}
+}
+
+func (s *Store) dispatchOngoingJobResume(ctx context.Context) {
+	s.mu.RLock()
+	resumer := s.jobResumer
+	s.mu.RUnlock()
+	if resumer == nil {
+		return
+	}
+
+	go func() {
+		if err := resumer.ResumeOngoingJobs(context.WithoutCancel(ctx)); err != nil {
+			s.logger.ErrorContext(ctx, "failed to resume ongoing VCM jobs", "error", err)
+		}
+	}()
 }
 
 // VLMConfigRebuildStarter dispatches the VLM config rebuild workflow.

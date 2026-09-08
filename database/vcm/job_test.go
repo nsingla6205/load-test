@@ -31,10 +31,11 @@ func TestJobLifecycle(t *testing.T) {
 	store := openJobTestStore(t)
 	deadlineAt := time.Date(2026, 7, 30, 14, 30, 0, 0, time.UTC)
 	job := &Job{
-		ID:         "550e8400-e29b-41d4-a716-446655440000",
-		ResourceID: "550e8400-e29b-41d4-a716-446655440001",
-		Type:       string(datamodel.JobTypeCreatePool),
-		DeadlineAt: deadlineAt,
+		ID:             "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID:     "550e8400-e29b-41d4-a716-446655440001",
+		Type:           string(datamodel.JobTypeCreatePool),
+		RequestPayload: `{"deploymentId":"deployment-1"}`,
+		DeadlineAt:     deadlineAt,
 	}
 
 	require.NoError(t, store.CreateJob(ctx, job))
@@ -43,6 +44,7 @@ func TestJobLifecycle(t *testing.T) {
 	created, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
 	assert.Equal(t, deadlineAt, created.DeadlineAt)
+	assert.Equal(t, job.RequestPayload, created.RequestPayload)
 	assert.Empty(t, created.CurrentStep)
 	assert.False(t, created.IsTerminal())
 
@@ -147,6 +149,10 @@ func TestJobPersistsFailureDetails(t *testing.T) {
 	assert.Equal(t, trackingID, failed.TrackingID)
 	assert.Equal(t, "validation failed", failed.ErrorMessage)
 	assert.False(t, failed.Retriable)
+
+	ongoing, err := store.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, ongoing)
 }
 
 func TestJobStoreErrors(t *testing.T) {
