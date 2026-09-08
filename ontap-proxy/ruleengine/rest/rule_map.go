@@ -4,6 +4,70 @@ import (
 	. "github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/ruleengine/dsl"
 )
 
+// volumeSpaceRemoveFields is the single source of truth for the pre-efficiency footprint / physical
+// space fields stripped from ONTAP storage-volume responses. Critically it includes $.space.used
+// (ONTAP's post-efficiency physical footprint), which must never be exposed — customers should only
+// see the logical (df-like) figure in $.space.logical_space.used, which is intentionally retained.
+// Every volume create/update/delete ModifyResponse references this exact slice so the deny-list
+// can never silently diverge across endpoints. GET responses use volumeListSpaceRemoveFields, which
+// additionally strips the logical_space config toggles.
+var volumeSpaceRemoveFields = []string{
+	"$.efficiency",
+	"$.space.physical_used",
+	"$.space.physical_used_percent",
+	"$.space.used",
+	"$.space.percent_used",
+	"$.space.footprint",
+	"$.space.local_tier_footprint",
+	"$.space.effective_total_footprint",
+	"$.space.delayed_free_footprint",
+	"$.space.volume_guarantee_footprint",
+	"$.space.snapmirror_destination_footprint",
+	"$.space.file_operation_metadata",
+	"$.space.metadata",
+	"$.space.total_metadata",
+	"$.space.total_metadata_footprint",
+	"$.space.dedupe_metafiles_footprint",
+	"$.space.dedupe_metafiles_temporary_footprint",
+	"$.space.cross_volume_dedupe_metafiles_footprint",
+	"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
+}
+
+// volumeListSpaceRemoveFields is volumeSpaceRemoveFields plus the logical_space config toggles, used
+// by the GET (list + by-uuid) volume responses.
+var volumeListSpaceRemoveFields = append(
+	append([]string{}, volumeSpaceRemoveFields...),
+	"$.space.logical_space.enforcement",
+	"$.space.logical_space.reporting",
+)
+
+// privateCLIVolumeRemoveFields is the private-CLI (flat, non-$.space) equivalent of the volume
+// deny-list. It strips the CLI-shaped physical/efficiency fields, including $.used (the pre-efficiency
+// physical figure), while leaving the logical view intact.
+var privateCLIVolumeRemoveFields = []string{
+	"$.percent_used",
+	"$.physical_used",
+	"$.physical_used_percent",
+	"$.used",
+	"$.total_metadata",
+	"$.total_metadata_footprint",
+	"$.space_guarantee",
+	"$.space_guarantee_enabled",
+	"$.space_slo",
+	"$.is_space_slo_enabled",
+	"$.sis_space_saved",
+	"$.sis_space_saved_percent",
+	"$.dedupe_space_saved",
+	"$.dedupe_space_saved_percent",
+	"$.dedupe_space_shared",
+	"$.compression_space_saved",
+	"$.compression_space_saved_percent",
+	"$.performance_tier_inactive_user_data",
+	"$.performance_tier_inactive_user_data_percent",
+	"$.snapshot_used",
+	"$.overprovisioned",
+}
+
 // GetProxyRules returns the rule map for the proxy.
 // This uses the DSL-based rule engine for cleaner rule definitions.
 func GetProxyRules() map[string]Rule {
@@ -13,27 +77,7 @@ func GetProxyRules() map[string]Rule {
 			GET: Allow{
 				Name: "Allow volume listing",
 				ModifyResponse: RemoveFields{
-					Fields: []string{
-						"$.efficiency",
-						"$.space.physical_used",
-						"$.space.physical_used_percent",
-						"$.space.footprint",
-						"$.space.local_tier_footprint",
-						"$.space.effective_total_footprint",
-						"$.space.delayed_free_footprint",
-						"$.space.volume_guarantee_footprint",
-						"$.space.snapmirror_destination_footprint",
-						"$.space.file_operation_metadata",
-						"$.space.metadata",
-						"$.space.total_metadata",
-						"$.space.total_metadata_footprint",
-						"$.space.dedupe_metafiles_footprint",
-						"$.space.dedupe_metafiles_temporary_footprint",
-						"$.space.cross_volume_dedupe_metafiles_footprint",
-						"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
-						"$.space.logical_space.enforcement",
-						"$.space.logical_space.reporting",
-					},
+					Fields: volumeListSpaceRemoveFields,
 				},
 			},
 			POST: When{
@@ -58,25 +102,7 @@ func GetProxyRules() map[string]Rule {
 						},
 					},
 					ModifyResponse: RemoveFields{
-						Fields: []string{
-							"$.efficiency",
-							"$.space.physical_used",
-							"$.space.physical_used_percent",
-							"$.space.footprint",
-							"$.space.local_tier_footprint",
-							"$.space.effective_total_footprint",
-							"$.space.delayed_free_footprint",
-							"$.space.volume_guarantee_footprint",
-							"$.space.snapmirror_destination_footprint",
-							"$.space.file_operation_metadata",
-							"$.space.metadata",
-							"$.space.total_metadata",
-							"$.space.total_metadata_footprint",
-							"$.space.dedupe_metafiles_footprint",
-							"$.space.dedupe_metafiles_temporary_footprint",
-							"$.space.cross_volume_dedupe_metafiles_footprint",
-							"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
-						},
+						Fields: volumeSpaceRemoveFields,
 					},
 				},
 			},
@@ -89,27 +115,7 @@ func GetProxyRules() map[string]Rule {
 			GET: Allow{
 				Name: "Allow specific volume details",
 				ModifyResponse: RemoveFields{
-					Fields: []string{
-						"$.efficiency",
-						"$.space.physical_used",
-						"$.space.physical_used_percent",
-						"$.space.footprint",
-						"$.space.local_tier_footprint",
-						"$.space.effective_total_footprint",
-						"$.space.delayed_free_footprint",
-						"$.space.volume_guarantee_footprint",
-						"$.space.snapmirror_destination_footprint",
-						"$.space.file_operation_metadata",
-						"$.space.metadata",
-						"$.space.total_metadata",
-						"$.space.total_metadata_footprint",
-						"$.space.dedupe_metafiles_footprint",
-						"$.space.dedupe_metafiles_temporary_footprint",
-						"$.space.cross_volume_dedupe_metafiles_footprint",
-						"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
-						"$.space.logical_space.enforcement",
-						"$.space.logical_space.reporting",
-					},
+					Fields: volumeListSpaceRemoveFields,
 				},
 			},
 			POST: DenyAll{},
@@ -126,25 +132,7 @@ func GetProxyRules() map[string]Rule {
 				IsTrue: Allow{
 					Name: "Allow volume modification",
 					ModifyResponse: RemoveFields{
-						Fields: []string{
-							"$.efficiency",
-							"$.space.physical_used",
-							"$.space.physical_used_percent",
-							"$.space.footprint",
-							"$.space.local_tier_footprint",
-							"$.space.effective_total_footprint",
-							"$.space.delayed_free_footprint",
-							"$.space.volume_guarantee_footprint",
-							"$.space.snapmirror_destination_footprint",
-							"$.space.file_operation_metadata",
-							"$.space.metadata",
-							"$.space.total_metadata",
-							"$.space.total_metadata_footprint",
-							"$.space.dedupe_metafiles_footprint",
-							"$.space.dedupe_metafiles_temporary_footprint",
-							"$.space.cross_volume_dedupe_metafiles_footprint",
-							"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
-						},
+						Fields: volumeSpaceRemoveFields,
 					},
 				},
 			},
@@ -154,25 +142,7 @@ func GetProxyRules() map[string]Rule {
 				IsTrue: Allow{
 					Name: "Allow volume deletion",
 					ModifyResponse: RemoveFields{
-						Fields: []string{
-							"$.efficiency",
-							"$.space.physical_used",
-							"$.space.physical_used_percent",
-							"$.space.footprint",
-							"$.space.local_tier_footprint",
-							"$.space.effective_total_footprint",
-							"$.space.delayed_free_footprint",
-							"$.space.volume_guarantee_footprint",
-							"$.space.snapmirror_destination_footprint",
-							"$.space.file_operation_metadata",
-							"$.space.metadata",
-							"$.space.total_metadata",
-							"$.space.total_metadata_footprint",
-							"$.space.dedupe_metafiles_footprint",
-							"$.space.dedupe_metafiles_temporary_footprint",
-							"$.space.cross_volume_dedupe_metafiles_footprint",
-							"$.space.cross_volume_dedupe_metafiles_temporary_footprint",
-						},
+						Fields: volumeSpaceRemoveFields,
 					},
 				},
 			},
@@ -299,28 +269,7 @@ func GetProxyRules() map[string]Rule {
 			GET: Allow{
 				Name: "Allow private CLI volume listing",
 				ModifyResponse: RemoveFields{
-					Fields: []string{
-						"$.percent_used",
-						"$.physical_used",
-						"$.physical_used_percent",
-						"$.total_metadata",
-						"$.total_metadata_footprint",
-						"$.space_guarantee",
-						"$.space_guarantee_enabled",
-						"$.space_slo",
-						"$.is_space_slo_enabled",
-						"$.sis_space_saved",
-						"$.sis_space_saved_percent",
-						"$.dedupe_space_saved",
-						"$.dedupe_space_saved_percent",
-						"$.dedupe_space_shared",
-						"$.compression_space_saved",
-						"$.compression_space_saved_percent",
-						"$.performance_tier_inactive_user_data",
-						"$.performance_tier_inactive_user_data_percent",
-						"$.snapshot_used",
-						"$.overprovisioned",
-					},
+					Fields: privateCLIVolumeRemoveFields,
 				},
 			},
 			POST: When{

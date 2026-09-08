@@ -2122,13 +2122,16 @@ func TestStorageVolumesResponseFiltering_AllowsTieringFootprint(t *testing.T) {
 		`"space":{` +
 		`"size":1073741824,` +
 		`"physical_used":100,` +
+		`"used":900,` +
+		`"percent_used":5,` +
 		`"footprint":200,` +
 		`"effective_total_footprint":300,` +
 		`"total_metadata_footprint":400,` +
 		`"total_footprint":500,` +
 		`"local_tier_footprint":600,` +
 		`"capacity_tier_footprint":700,` +
-		`"performance_tier_footprint":800` +
+		`"performance_tier_footprint":800,` +
+		`"logical_space":{"used":700,"used_percent":70,"enforcement":true,"reporting":true}` +
 		`}}`
 
 	makeResp := func(b string) *http.Response {
@@ -2144,13 +2147,17 @@ func TestStorageVolumesResponseFiltering_AllowsTieringFootprint(t *testing.T) {
 		// apply per-record so tiering fields survive inside records[*].space while the rest
 		// (efficiency, physical_used, footprint, etc.) are stripped from every record.
 		const listBody = `{"records":[` +
-			`{"name":"vol1","space":{"size":1073741824,"physical_used":100,"footprint":200,` +
+			`{"name":"vol1","space":{"size":1073741824,"physical_used":100,` +
+			`"used":900,"footprint":200,` +
 			`"effective_total_footprint":300,"total_metadata_footprint":400,"total_footprint":500,` +
-			`"local_tier_footprint":600,"capacity_tier_footprint":700,"performance_tier_footprint":800},` +
+			`"local_tier_footprint":600,"capacity_tier_footprint":700,"performance_tier_footprint":800,` +
+			`"logical_space":{"used":700,"enforcement":true,"reporting":true}},` +
 			`"efficiency":{"savings":10}},` +
-			`{"name":"vol2","space":{"size":2147483648,"physical_used":101,"footprint":201,` +
+			`{"name":"vol2","space":{"size":2147483648,"physical_used":101,` +
+			`"used":901,"footprint":201,` +
 			`"effective_total_footprint":301,"total_metadata_footprint":401,"total_footprint":501,` +
-			`"local_tier_footprint":601,"capacity_tier_footprint":701,"performance_tier_footprint":801},` +
+			`"local_tier_footprint":601,"capacity_tier_footprint":701,"performance_tier_footprint":801,` +
+			`"logical_space":{"used":701,"enforcement":true,"reporting":true}},` +
 			`"efficiency":{"savings":11}}` +
 			`],"num_records":2}`
 
@@ -2182,6 +2189,13 @@ func TestStorageVolumesResponseFiltering_AllowsTieringFootprint(t *testing.T) {
 		assert.NotContains(t, got, `"local_tier_footprint"`)
 		assert.NotContains(t, got, `"effective_total_footprint"`)
 		assert.NotContains(t, got, `"total_metadata_footprint"`)
+
+		// The pre-efficiency space.used is stripped so customers only see the logical
+		// (df-like) figure. space.logical_space.used must survive.
+		assert.NotContains(t, got, `"used":900`)
+		assert.NotContains(t, got, `"used":901`)
+		assert.Contains(t, got, `"used":700`)
+		assert.Contains(t, got, `"used":701`)
 	})
 
 	t.Run("WhenSpecificVolume_ShouldRetainTieringFootprintAndStripOthers", func(t *testing.T) {
@@ -2203,7 +2217,168 @@ func TestStorageVolumesResponseFiltering_AllowsTieringFootprint(t *testing.T) {
 		assert.NotContains(t, got, `"footprint":`)
 		assert.NotContains(t, got, `"local_tier_footprint"`)
 		assert.NotContains(t, got, `"effective_total_footprint"`)
+
+		// The pre-efficiency space.used and space.percent_used are stripped; logical used and
+		// logical used_percent survive.
+		assert.NotContains(t, got, `"used":900`)
+		assert.NotContains(t, got, `"percent_used"`)
+		assert.Contains(t, got, `"used":700`)
+		assert.Contains(t, got, `"used_percent":70`)
 	})
+}
+
+// volOntapResp is a representative ONTAP volume object carrying the pre-efficiency space.used
+// (physical footprint) plus tiering footprints and logical_space.used. Reused by the
+// create/update/delete response-filtering tests.
+const volOntapResp = `{"name":"vol1","space":{"size":1073741824,"physical_used":100,"used":900,"percent_used":5,` +
+	`"footprint":200,"local_tier_footprint":600,"capacity_tier_footprint":700,` +
+	`"performance_tier_footprint":800,"total_footprint":500,` +
+	`"logical_space":{"used":700,"used_percent":70,"enforcement":true,"reporting":true}},"efficiency":{"savings":10}}`
+
+func makeRespWithReq(body string, req *http.Request) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewBufferString(body)),
+		Request:    req,
+	}
+}
+
+func assertVolumeSpaceUsedStripped(t *testing.T, got string) {
+	t.Helper()
+	// Pre-efficiency physical fields stripped.
+	assert.NotContains(t, got, `"used":900`, "space.used (physical) must be stripped")
+	assert.NotContains(t, got, `"percent_used"`, "space.percent_used (pre-efficiency %) must be stripped")
+	assert.NotContains(t, got, `"physical_used"`)
+	assert.NotContains(t, got, `"efficiency"`)
+	assert.NotContains(t, got, `"footprint":`)
+	assert.NotContains(t, got, `"local_tier_footprint"`)
+	// Logical (df-like) figure/percent and tiering footprints retained.
+	assert.Contains(t, got, `"used":700`, "logical_space.used must survive")
+	assert.Contains(t, got, `"used_percent":70`, "logical_space.used_percent must survive")
+	assert.Contains(t, got, `"capacity_tier_footprint":700`)
+	assert.Contains(t, got, `"total_footprint":500`)
+}
+
+// TestVolumeResponseFiltering_MutatingAndPrivateCLI exercises ProcessResponse on the volume
+// create/update/delete responses and the private-CLI volume GET. GET collection + by-uuid are
+// already covered by TestStorageVolumesResponseFiltering_AllowsTieringFootprint; these close the
+// gap so a missed $.space.used (or $.used) on those endpoints fails CI.
+func TestVolumeResponseFiltering_MutatingAndPrivateCLI(t *testing.T) {
+	t.Run("WhenVolumeCreate_ShouldStripSpaceUsed", func(t *testing.T) {
+		orig := validateVolumeCreation
+		defer func() { validateVolumeCreation = orig }()
+		validateVolumeCreation = func(r *http.Request) (bool, string) { return true, "" }
+
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/volumes",
+			bytes.NewBufferString(`{"name":"vol1","size":1073741824}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp := makeRespWithReq(volOntapResp, req)
+
+		_, err := GetProxyRules()["/api/storage/volumes"].POST.ProcessResponse(resp)
+		assert.NoError(t, err)
+		out, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assertVolumeSpaceUsedStripped(t, string(out))
+	})
+
+	t.Run("WhenVolumeUpdate_ShouldStripSpaceUsed", func(t *testing.T) {
+		orig := validateVolumeModification
+		defer func() { validateVolumeModification = orig }()
+		validateVolumeModification = func(r *http.Request) (bool, string) { return true, "" }
+
+		req := httptest.NewRequest(http.MethodPatch, "/api/storage/volumes/uuid-1",
+			bytes.NewBufferString(`{"size":2147483648}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp := makeRespWithReq(volOntapResp, req)
+
+		_, err := GetProxyRules()["/api/storage/volumes/{uuid}"].PATCH.ProcessResponse(resp)
+		assert.NoError(t, err)
+		out, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assertVolumeSpaceUsedStripped(t, string(out))
+	})
+
+	t.Run("WhenVolumeDelete_ShouldStripSpaceUsed", func(t *testing.T) {
+		orig := validateVolumeDeletion
+		defer func() { validateVolumeDeletion = orig }()
+		validateVolumeDeletion = func(r *http.Request) (bool, string) { return true, "" }
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/storage/volumes/uuid-1", nil)
+		resp := makeRespWithReq(volOntapResp, req)
+
+		_, err := GetProxyRules()["/api/storage/volumes/{uuid}"].DELETE.ProcessResponse(resp)
+		assert.NoError(t, err)
+		out, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assertVolumeSpaceUsedStripped(t, string(out))
+	})
+
+	t.Run("WhenPrivateCLIVolumeGET_ShouldStripFlatUsed", func(t *testing.T) {
+		// Private CLI uses a flat (non-$.space) shape; $.used is the pre-efficiency figure.
+		const cliResp = `{"records":[{"volume":"vol1","size":1073741824,"used":900,` +
+			`"physical_used":100,"percent_used":42,"overprovisioned":true}],"num_records":1}`
+		req := httptest.NewRequest(http.MethodGet, "/api/private/cli/volume", nil)
+		resp := makeRespWithReq(cliResp, req)
+
+		_, err := GetProxyRules()["/api/private/cli/volume"].GET.ProcessResponse(resp)
+		assert.NoError(t, err)
+		out, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		got := string(out)
+
+		assert.NotContains(t, got, `"used":900`, "private CLI $.used (physical) must be stripped")
+		assert.NotContains(t, got, `"physical_used"`)
+		assert.NotContains(t, got, `"percent_used"`)
+		assert.NotContains(t, got, `"overprovisioned"`)
+		// Non-deny-listed fields survive.
+		assert.Contains(t, got, `"volume":"vol1"`)
+		assert.Contains(t, got, `"size":1073741824`)
+	})
+}
+
+// TestVolumeRemoveFieldsSingleSource guards the DRY invariant: every volume ModifyResponse must
+// reference the shared field-list vars, so the pre-efficiency space.used ($.used for private CLI)
+// deny-list can never silently diverge across the create/update/delete/GET endpoints.
+func TestVolumeRemoveFieldsSingleSource(t *testing.T) {
+	rules := GetProxyRules()
+
+	removeFieldsOf := func(t *testing.T, a dsl.IAction) []string {
+		t.Helper()
+		switch v := a.(type) {
+		case dsl.Allow:
+			rf, ok := v.ModifyResponse.(dsl.RemoveFields)
+			assert.Truef(t, ok, "expected RemoveFields ModifyResponse, got %T", v.ModifyResponse)
+			return rf.Fields
+		case dsl.When:
+			al, ok := v.IsTrue.(dsl.Allow)
+			assert.Truef(t, ok, "expected When.IsTrue to be Allow, got %T", v.IsTrue)
+			rf, ok := al.ModifyResponse.(dsl.RemoveFields)
+			assert.Truef(t, ok, "expected RemoveFields ModifyResponse, got %T", al.ModifyResponse)
+			return rf.Fields
+		default:
+			t.Fatalf("unexpected action type %T", a)
+			return nil
+		}
+	}
+
+	// GET (list + by-uuid) use the list variant (base + logical_space config toggles).
+	assert.Equal(t, volumeListSpaceRemoveFields, removeFieldsOf(t, rules["/api/storage/volumes"].GET))
+	assert.Equal(t, volumeListSpaceRemoveFields, removeFieldsOf(t, rules["/api/storage/volumes/{uuid}"].GET))
+	// create/update/delete use the base variant.
+	assert.Equal(t, volumeSpaceRemoveFields, removeFieldsOf(t, rules["/api/storage/volumes"].POST))
+	assert.Equal(t, volumeSpaceRemoveFields, removeFieldsOf(t, rules["/api/storage/volumes/{uuid}"].PATCH))
+	assert.Equal(t, volumeSpaceRemoveFields, removeFieldsOf(t, rules["/api/storage/volumes/{uuid}"].DELETE))
+	// private CLI GET uses the flat variant.
+	assert.Equal(t, privateCLIVolumeRemoveFields, removeFieldsOf(t, rules["/api/private/cli/volume"].GET))
+
+	// Critical invariants regardless of future edits.
+	assert.Contains(t, volumeSpaceRemoveFields, "$.space.used", "physical space.used must stay stripped")
+	assert.Contains(t, volumeSpaceRemoveFields, "$.space.percent_used", "pre-efficiency space.percent_used must stay stripped")
+	assert.Contains(t, privateCLIVolumeRemoveFields, "$.used", "private CLI physical used must stay stripped")
+	assert.Contains(t, privateCLIVolumeRemoveFields, "$.percent_used", "private CLI physical percent_used must stay stripped")
+	assert.NotContains(t, volumeListSpaceRemoveFields, "$.space.logical_space.used", "logical used must never be stripped")
+	assert.NotContains(t, volumeListSpaceRemoveFields, "$.space.logical_space.used_percent", "logical used_percent must never be stripped")
 }
 
 func TestSystemNodeRunRule_Blocked(t *testing.T) {
