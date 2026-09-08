@@ -62,6 +62,10 @@ vendor/
 *.temp
 *.dump
 
+# Python generated files
+__pycache__/
+*.py[cod]
+
 # Build directories
 bin/
 build/

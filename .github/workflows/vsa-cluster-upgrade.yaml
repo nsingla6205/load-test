@@ -1,0 +1,356 @@
+name: VSA Cluster Upgrade
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which catalog to load: config.autopush.yaml, config.stage.yaml, or config.prod.yaml"
+        required: true
+        type: choice
+        default: autopush
+        options:
+          - autopush
+          - stage
+          - prod
+      project:
+        description: "SDE producer project id (config.projects key), e.g. netapp-au-se1-autopush-sde-tst"
+        required: true
+        type: string
+        default: netapp-au-se1-autopush-sde-tst
+      action:
+        description: "Operation to run"
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - register-image
+          - canary-upgrade
+          - regional-upgrade
+          - pool-status
+          - batch-status
+      from_ontap:
+        description: "Exact source ONTAP versions to select, comma-separated (e.g. 9.17.1P1,9.17.1P2). Empty selects all eligible pools."
+        required: false
+        type: string
+        default: ""
+      gke_cluster:
+        description: "Optional GKE cluster override; otherwise catalog/discovery is used"
+        required: false
+        type: string
+        default: ""
+      # One input because workflow_dispatch allows at most 10.
+      target_image:
+        description: "Comma-separated target image overrides, e.g. ontap_version=9.18.1,vsa_image_path=GCNV/...tgz,vsa_name=x-9-18-1,mediator_name=cvo-mediator-x-9-18-1. Empty uses config."
+        required: false
+        type: string
+        default: ""
+      progress_id:
+        description: "jobId for pool-status or batchUpgradeId for batch-status"
+        required: false
+        type: string
+        default: ""
+      force_upgrade:
+        description: "Use the target VSA and mediator values explicitly (required for a non-deployment-default target)"
+        required: false
+        type: boolean
+        default: false
+      # A choice, because GitHub expressions have no arithmetic: the job timeout is
+      # looked up from this value in the fromJSON map below.
+      poll_timeout_minutes:
+        description: "How long to poll upgrade progress before giving up"
+        required: false
+        type: choice
+        default: "240"
+        options:
+          - "60"
+          - "120"
+          - "240"
+          - "480"
+          - "720"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: vsa-cluster-upgrade-${{ inputs.environment }}-${{ inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  autopush:
+    name: ${{ inputs.environment }} ${{ inputs.project }} / ${{ inputs.action }}
+    runs-on: [self-hosted, linux]
+    # Must outlive the CLI poll budget, otherwise the job is killed mid-upgrade.
+    timeout-minutes: ${{ (inputs.action == 'dry-run' || inputs.action == 'register-image') && 30 || fromJSON('{"60":80,"120":140,"240":260,"480":500,"720":740}')[inputs.poll_timeout_minutes] }}
+
+    steps:
+      - name: Validate dispatch
+        shell: bash
+        env:
+          POLL_TIMEOUT_MINUTES: ${{ inputs.poll_timeout_minutes }}
+        run: |
+          set -euo pipefail
+          case "${{ inputs.action }}" in
+            dry-run|register-image|canary-upgrade|regional-upgrade) ;;
+            pool-status|batch-status)
+              if [[ -z "${{ inputs.progress_id }}" ]]; then
+                echo "::error::progress_id is required for ${{ inputs.action }}"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::unknown action ${{ inputs.action }}"
+              exit 1
+              ;;
+          esac
+
+          if ! [[ "$POLL_TIMEOUT_MINUTES" =~ ^[0-9]+$ ]] || [[ "$POLL_TIMEOUT_MINUTES" -lt 1 ]]; then
+            echo "::error::poll_timeout_minutes must be a positive integer, got '$POLL_TIMEOUT_MINUTES'"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: automations/cluster-upgrade/requirements.txt
+
+      - name: Install automation dependencies
+        run: pip install -r automations/cluster-upgrade/requirements.txt
+
+      - name: Resolve producer from config
+        id: project
+        shell: bash
+        env:
+          PROJECT_ID: ${{ inputs.project }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import yaml
+
+          env = os.environ["ENVIRONMENT"]
+          config_path = Path(f"automations/cluster-upgrade/config.{env}.yaml")
+          config = yaml.safe_load(config_path.read_text())
+          project_id = os.environ["PROJECT_ID"]
+          file_env = (config.get("environment") or "").strip()
+          if file_env and file_env != env:
+              raise SystemExit(f"{config_path} is environment={file_env}, dispatch was {env}")
+          entry = (config.get("projects") or {}).get(project_id)
+          if not isinstance(entry, dict):
+              known = ", ".join(sorted((config.get("projects") or {})))
+              raise SystemExit(f"unknown project {project_id}; config has: {known}")
+          region = (entry.get("region") or "").strip()
+          cluster = (entry.get("cluster") or "").strip()
+          service_account = (entry.get("service_account") or "").strip()
+          if not region:
+              raise SystemExit(f"project {project_id} is missing region")
+          if not service_account:
+              raise SystemExit(f"project {project_id} is missing service_account")
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a") as fh:
+              fh.write(f"project_id={project_id}\n")
+              fh.write(f"gcp_region={region}\n")
+              fh.write(f"catalog_cluster={cluster}\n")
+              fh.write(f"service_account={service_account}\n")
+          PY
+
+      # WIF authenticates as the producer-project SA from config.projects.<id>.service_account.
+      # That same SA signs the core-api JWT (iam.serviceAccounts.signJwt) and runs kubectl.
+      # Each regional SA must allow this workflow's WIF principal as workloadIdentityUser.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ steps.project.outputs.service_account }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin,kubectl
+
+      - name: Resolve project number and GKE cluster
+        id: gke
+        shell: bash
+        env:
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+          GCP_REGION: ${{ steps.project.outputs.gcp_region }}
+          INPUT_CLUSTER: ${{ inputs.gke_cluster }}
+          CATALOG_CLUSTER: ${{ steps.project.outputs.catalog_cluster }}
+        run: |
+          set -euo pipefail
+          PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+          CLUSTER="$INPUT_CLUSTER"
+          [[ -n "$CLUSTER" ]] || CLUSTER="$CATALOG_CLUSTER"
+
+          if [[ -z "$CLUSTER" ]]; then
+            mapfile -t CANDIDATES < <(
+              gcloud container clusters list \
+                --project "$PROJECT_ID" \
+                --filter="location:$GCP_REGION AND NOT name~backup-restore" \
+                --format='value(name)'
+            )
+            if [[ "${#CANDIDATES[@]}" -ne 1 ]]; then
+              echo "::error::Expected one GKE cluster in $PROJECT_ID/$GCP_REGION; found ${#CANDIDATES[@]}. Set cluster in config or supply gke_cluster."
+              printf '%s\n' "${CANDIDATES[@]}"
+              exit 1
+            fi
+            CLUSTER="${CANDIDATES[0]}"
+          fi
+
+          echo "project_number=$PROJECT_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+
+      - name: Connect to producer GKE
+        shell: bash
+        run: |
+          gcloud container clusters get-credentials "${{ steps.gke.outputs.cluster }}" \
+            --region "${{ steps.project.outputs.gcp_region }}" \
+            --project "${{ steps.project.outputs.project_id }}"
+          kubectl auth can-i get services -n vcp
+
+      # Supervised because kubectl port-forward drops connections and a regional
+      # batch upgrade is polled for hours.
+      - name: Port-forward core-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/core-api-port-forward.log"
+          : > "$LOG"
+          setsid bash -c '
+            while true; do
+              kubectl -n vcp port-forward svc/core-service 8080:8080 >>"'"$LOG"'" 2>&1 || true
+              echo "$(date -Is) port-forward exited, restarting in 5s" >>"'"$LOG"'"
+              sleep 5
+            done
+          ' >/dev/null 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/core-api-port-forward.pid"
+
+          for _ in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$LOG"
+          exit 1
+
+      # Mutating actions execute and then poll to a terminal status. The CLI exits
+      # non-zero on FAILED/CANCELLED and writes failure details to the run summary.
+      - name: Run cluster upgrade automation
+        shell: bash
+        env:
+          PROJECT: ${{ inputs.project }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          ACTION: ${{ inputs.action }}
+          FROM_ONTAP: ${{ inputs.from_ontap }}
+          PROGRESS_ID: ${{ inputs.progress_id }}
+          FORCE_UPGRADE: ${{ inputs.force_upgrade }}
+          TARGET_IMAGE: ${{ inputs.target_image }}
+          POLL_TIMEOUT_MINUTES: ${{ inputs.poll_timeout_minutes }}
+          VCP_PROJECT_NUMBER: ${{ steps.gke.outputs.project_number }}
+        run: |
+          set -euo pipefail
+          BASE=(
+            python -u automations/cluster-upgrade/scripts/cluster_upgrade.py
+            --config "automations/cluster-upgrade/config.${ENVIRONMENT}.yaml"
+            --environment "$ENVIRONMENT"
+            --project "$PROJECT"
+          )
+
+          # Expand the single target_image input into the CLI overrides.
+          if [[ -n "$TARGET_IMAGE" ]]; then
+            trim() {
+              local text="$1"
+              text="${text#"${text%%[![:space:]]*}"}"
+              text="${text%"${text##*[![:space:]]}"}"
+              printf '%s' "$text"
+            }
+
+            IFS=',' read -ra PAIRS <<< "$TARGET_IMAGE"
+            for pair in "${PAIRS[@]}"; do
+              if [[ "$pair" != *=* ]]; then
+                echo "::error::invalid target_image entry '$pair'; expected key=value"
+                exit 1
+              fi
+              key="$(trim "${pair%%=*}")"
+              value="$(trim "${pair#*=}")"
+              if [[ -z "$key" || -z "$value" ]]; then
+                echo "::error::invalid target_image entry '$pair'; key and value must be non-empty"
+                exit 1
+              fi
+              case "$key" in
+                ontap_version)  BASE+=(--target-ontap-version "$value") ;;
+                vsa_image_path) BASE+=(--target-vsa-image-path "$value") ;;
+                vsa_name)       BASE+=(--target-vsa-name "$value") ;;
+                mediator_name)  BASE+=(--target-mediator-name "$value") ;;
+                *)
+                  echo "::error::unknown target_image key '$key'"
+                  exit 1
+                  ;;
+              esac
+            done
+          fi
+
+          FORCE_ARGS=()
+          if [[ "$FORCE_UPGRADE" == "true" ]]; then
+            FORCE_ARGS+=(--force-upgrade)
+          fi
+          POLL_ARGS=(--timeout "$(( POLL_TIMEOUT_MINUTES * 60 ))")
+
+          case "$ACTION" in
+            dry-run)
+              "${BASE[@]}" --dry-run
+              ;;
+            register-image)
+              "${BASE[@]}" register-image
+              ;;
+            canary-upgrade)
+              "${BASE[@]}" batch-upgrade \
+                --selection-type percentage \
+                --percentage 100 \
+                --max-clusters 1 \
+                --max-concurrency 1 \
+                --failure-threshold 1 \
+                --ontap-versions "$FROM_ONTAP" \
+                "${FORCE_ARGS[@]}" "${POLL_ARGS[@]}"
+              ;;
+            regional-upgrade)
+              "${BASE[@]}" batch-upgrade \
+                --selection-type percentage \
+                --percentage 100 \
+                --max-concurrency 5 \
+                --failure-threshold 1 \
+                --ontap-versions "$FROM_ONTAP" \
+                "${FORCE_ARGS[@]}" "${POLL_ARGS[@]}"
+              ;;
+            pool-status)
+              "${BASE[@]}" pool-status --job-id "$PROGRESS_ID" --wait "${POLL_ARGS[@]}"
+              ;;
+            batch-status)
+              "${BASE[@]}" batch-status --batch-id "$PROGRESS_ID" --wait "${POLL_ARGS[@]}"
+              ;;
+          esac
+
+      - name: Show port-forward log
+        if: failure()
+        run: cat "$RUNNER_TEMP/core-api-port-forward.log" || true
+
+      - name: Stop core-api port-forward
+        if: always()
+        shell: bash
+        run: |
+          PID_FILE="$RUNNER_TEMP/core-api-port-forward.pid"
+          if [[ -f "$PID_FILE" ]]; then
+            PGID="$(cat "$PID_FILE")"
+            # setsid makes the supervisor its own group leader, so kill the group
+            # to also stop the kubectl child.
+            kill -TERM -- "-$PGID" 2>/dev/null || kill -TERM "$PGID" 2>/dev/null || true
+          fi

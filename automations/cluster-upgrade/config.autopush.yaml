@@ -1,0 +1,133 @@
+# Rollout + producer catalog for autopush (tst).
+# Select a producer with --environment autopush --project <sde-project-id>.
+#
+# project_number and cluster are filled from gcloud where this account has access.
+# Empty cluster: GH discovers the producer GKE cluster. Empty number: GH uses
+# `gcloud projects describe`. JWT still needs a number (config or VCP_PROJECT_NUMBER).
+
+environment: autopush
+audience: https://cloudvolumesgcp-api.netapp.com
+
+# Laptop: kubectl port-forward to core_api.base_url.
+# In-cluster (GH / a pod): core_api.cluster_endpoint.
+core_api:
+  base_url: http://localhost:8080
+  cluster_endpoint: http://core-service.vcp.svc.cluster.local:8080
+
+target_image:
+  ontap_version: "9.18.1"
+  vsa_image_path: GCNV/9.18.1/upgrade/cot.image.ONTAP-9.18.1.tgz
+  vsa_name: x-9-18-1
+  mediator_name: cvo-mediator-x-9-18-1
+  is_active: true
+
+# Informational — dry-run warns if GET /v1/imageVersions current does not match
+deployment:
+  vsa_image_name: x-9-18-1
+  ontap_version_details: "9.18.1"
+
+batch:
+  max_concurrency: 5
+  failure_threshold: 1   # SRE default. API default is 0 (no abort).
+
+# Optional: VCP Postgres for discover (psql). Password via PGPASSWORD.
+# database:
+#   host: 127.0.0.1
+#   port: 5432
+#   name: vcp
+#   user: vcp
+
+# Explicit pool UUIDs for poolList batch mode
+pool_ids: []
+
+projects:
+  netapp-us-c1-autopush-sde-tst:
+    region: us-central1
+    short_name: us-c1
+    project_number: "254387308849"
+    cluster: us-c1-ap-sde-tst-ap-tst-us-central1-sde
+    service_account: otel-collector-sa@netapp-us-c1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-us-e4-autopush-sde-tst:
+    region: us-east4
+    short_name: us-e4
+    project_number: "402007546452"
+    cluster: cv-tst-us-e4-sde
+    service_account: otel-collector-sa@netapp-us-e4-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-us-w2-autopush-sde-tst:
+    region: us-west2
+    short_name: us-w2
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-us-w2-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-us-w3-autopush-sde-tst:
+    region: us-west3
+    short_name: us-w3
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-us-w3-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-us-w4-autopush-sde-tst:
+    region: us-west4
+    short_name: us-w4
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-us-w4-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-eu-w1-autopush-sde-tst:
+    region: europe-west1
+    short_name: eu-w1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-eu-w2-autopush-sde-tst:
+    region: europe-west2
+    short_name: eu-w2
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w2-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-eu-w3-autopush-sde-tst:
+    region: europe-west3
+    short_name: eu-w3
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w3-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-eu-w4-autopush-sde-tst:
+    region: europe-west4
+    short_name: eu-w4
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w4-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-eu-c2-autopush-sde-tst:
+    region: europe-central2
+    short_name: eu-c2
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-c2-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-au-se1-autopush-sde-tst:
+    region: australia-southeast1
+    short_name: au-se1
+    project_number: "266893635349"
+    cluster: cv-tst-au-se1-sde
+    service_account: otel-collector-sa@netapp-au-se1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-as-se1-autopush-sde-tst:
+    region: asia-southeast1
+    short_name: as-se1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-as-se1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-as-ne1-autopush-sde-tst:
+    region: asia-northeast1
+    short_name: as-ne1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-as-ne1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-na-ne1-autopush-sde-tst:
+    region: northamerica-northeast1
+    short_name: na-ne1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-na-ne1-autopush-sde-tst.iam.gserviceaccount.com
+  netapp-sa-e1-autopush-sde-tst:
+    region: southamerica-east1
+    short_name: sa-e1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-sa-e1-autopush-sde-tst.iam.gserviceaccount.com

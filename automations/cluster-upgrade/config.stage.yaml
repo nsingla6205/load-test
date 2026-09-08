@@ -1,0 +1,133 @@
+# Rollout + producer catalog for staging.
+# Select a producer with --environment stage --project <sde-project-id>.
+#
+# project_number and cluster are filled from gcloud where this account has access.
+# Empty cluster: GH discovers the producer GKE cluster. Empty number: GH uses
+# `gcloud projects describe`. JWT still needs a number (config or VCP_PROJECT_NUMBER).
+
+environment: stage
+audience: https://cloudvolumesgcp-api.netapp.com
+
+# Laptop: kubectl port-forward to core_api.base_url.
+# In-cluster (GH / a pod): core_api.cluster_endpoint.
+core_api:
+  base_url: http://localhost:8080
+  cluster_endpoint: http://core-service.vcp.svc.cluster.local:8080
+
+target_image:
+  ontap_version: "9.18.1"
+  vsa_image_path: GCNV/9.18.1/upgrade/cot.image.ONTAP-9.18.1.tgz
+  vsa_name: x-9-18-1
+  mediator_name: cvo-mediator-x-9-18-1
+  is_active: true
+
+# Informational — dry-run warns if GET /v1/imageVersions current does not match
+deployment:
+  vsa_image_name: x-9-18-1
+  ontap_version_details: "9.18.1"
+
+batch:
+  max_concurrency: 5
+  failure_threshold: 1   # SRE default. API default is 0 (no abort).
+
+# Optional: VCP Postgres for discover (psql). Password via PGPASSWORD.
+# database:
+#   host: 127.0.0.1
+#   port: 5432
+#   name: vcp
+#   user: vcp
+
+# Explicit pool UUIDs for poolList batch mode
+pool_ids: []
+
+projects:
+  netapp-us-c1-staging-sde:
+    region: us-central1
+    short_name: us-c1
+    project_number: "325185952627"
+    cluster: cv-g1p-stage-us-central1-sde
+    service_account: otel-collector-sa@netapp-us-c1-staging-sde.iam.gserviceaccount.com
+  netapp-us-e4-staging-sde:
+    region: us-east4
+    short_name: us-e4
+    project_number: "560533117250"
+    cluster: us-e4-gke-stg
+    service_account: otel-collector-sa@netapp-us-e4-staging-sde.iam.gserviceaccount.com
+  netapp-us-w2-staging-sde:
+    region: us-west2
+    short_name: us-w2
+    project_number: "67333888141"
+    cluster: us-w2-gke-stg
+    service_account: otel-collector-sa@netapp-us-w2-staging-sde.iam.gserviceaccount.com
+  netapp-us-w3-staging-sde:
+    region: us-west3
+    short_name: us-w3
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-us-w3-staging-sde.iam.gserviceaccount.com
+  netapp-us-w4-staging-sde:
+    region: us-west4
+    short_name: us-w4
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-us-w4-staging-sde.iam.gserviceaccount.com
+  netapp-eu-w1-staging-sde:
+    region: europe-west1
+    short_name: eu-w1
+    project_number: "673187685882"
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w1-staging-sde.iam.gserviceaccount.com
+  netapp-eu-w2-staging-sde:
+    region: europe-west2
+    short_name: eu-w2
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w2-staging-sde.iam.gserviceaccount.com
+  netapp-eu-w3-staging-sde:
+    region: europe-west3
+    short_name: eu-w3
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w3-staging-sde.iam.gserviceaccount.com
+  netapp-eu-w4-staging-sde:
+    region: europe-west4
+    short_name: eu-w4
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-w4-staging-sde.iam.gserviceaccount.com
+  netapp-eu-c2-staging-sde:
+    region: europe-central2
+    short_name: eu-c2
+    project_number: "533719285891"
+    cluster: ""
+    service_account: otel-collector-sa@netapp-eu-c2-staging-sde.iam.gserviceaccount.com
+  netapp-au-se1-staging-sde:
+    region: australia-southeast1
+    short_name: au-se1
+    project_number: "270506857689"
+    cluster: ""
+    service_account: otel-collector-sa@netapp-au-se1-staging-sde.iam.gserviceaccount.com
+  netapp-as-se1-staging-sde:
+    region: asia-southeast1
+    short_name: as-se1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-as-se1-staging-sde.iam.gserviceaccount.com
+  netapp-as-ne1-staging-sde:
+    region: asia-northeast1
+    short_name: as-ne1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-as-ne1-staging-sde.iam.gserviceaccount.com
+  netapp-na-ne1-staging-sde:
+    region: northamerica-northeast1
+    short_name: na-ne1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-na-ne1-staging-sde.iam.gserviceaccount.com
+  netapp-sa-e1-staging-sde:
+    region: southamerica-east1
+    short_name: sa-e1
+    project_number: ""
+    cluster: ""
+    service_account: otel-collector-sa@netapp-sa-e1-staging-sde.iam.gserviceaccount.com
