@@ -41,6 +41,7 @@ data:
   METRICS_DB_MAX_IDLE_CONNS: {{$.Values.workerConfig.database.metricsDbMaxIdleConns | quote }}
   METRICS_DB_CONN_MAX_LIFETIME: {{$.Values.workerConfig.database.metricsDbMaxConnLifetime | quote }}
   METRICS_DB_CLEANUP_ENABLED: {{$.Values.workerConfig.database.metricsDbCleanupEnabled | quote }}
+  AGGREGATED_USAGE_RETENTION_DAYS: {{$.Values.workerConfig.database.aggregatedUsageRetentionDays | quote }}
   ENABLE_POLLER_REBALANCING: {{$.Values.workerConfig.database.enablePollerRebalancing | quote }}
   {{- if not $.Values.global.cloudSqlIamAuthEnabled }}
   DB_HOST: {{$.Values.workerConfig.database.host | quote }}

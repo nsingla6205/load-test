@@ -45,7 +45,7 @@ func CleanupHydratedMetricsTableWorkflow(ctx workflow.Context) error {
 	return nil
 }
 
-// CleanupAggregatedUsageTableWorkflow performs cleanup of aggregated_usage records older than 1 week
+// CleanupAggregatedUsageTableWorkflow performs cleanup of aggregated_usage records older than the configured retention period.
 func CleanupAggregatedUsageTableWorkflow(ctx workflow.Context) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting CleanupAggregatedUsageTableWorkflow")

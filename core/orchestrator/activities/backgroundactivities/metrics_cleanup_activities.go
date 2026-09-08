@@ -6,8 +6,11 @@ import (
 
 	metricsdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
+
+const defaultAggregatedUsageRetentionDays = 30
 
 type MetricsCleanupActivity struct {
 	SE        database.Storage
@@ -43,7 +46,7 @@ func (m *MetricsCleanupActivity) CleanupHydratedMetricsTableActivity(ctx context
 	return nil
 }
 
-// CleanupAggregatedUsageTableActivity removes aggregated_usage records older than 1 week
+// CleanupAggregatedUsageTableActivity removes aggregated_usage records older than the configured retention period.
 func (m *MetricsCleanupActivity) CleanupAggregatedUsageTableActivity(ctx context.Context) error {
 	logger := util.GetLogger(ctx)
 
@@ -51,9 +54,13 @@ func (m *MetricsCleanupActivity) CleanupAggregatedUsageTableActivity(ctx context
 	startTime := time.Now()
 	logger.Infof("Starting cleanup of aggregated_usage table - Start timestamp: %s", startTime.Format("2006-01-02 15:04:05.000 MST"))
 
-	// Calculate cutoff time (1 week ago) and record time range for deletion
-	cutoffTime := time.Now().AddDate(0, 0, -7) // 1 week ago
-	logger.Infof("Cleanup configuration - Deleting records older than: %s", cutoffTime.Format("2006-01-02 15:04:05.000 MST"))
+	retentionDays := env.GetInt("AGGREGATED_USAGE_RETENTION_DAYS", defaultAggregatedUsageRetentionDays)
+	if retentionDays < 1 {
+		logger.Warnf("AGGREGATED_USAGE_RETENTION_DAYS=%d is non-positive; using default retention of %d days", retentionDays, defaultAggregatedUsageRetentionDays)
+		retentionDays = defaultAggregatedUsageRetentionDays
+	}
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+	logger.Infof("Cleanup configuration - Retaining aggregated_usage for %d days; deleting records older than: %s", retentionDays, cutoffTime.Format("2006-01-02 15:04:05.000 MST"))
 
 	// Perform deletion
 	queryStartTime := time.Now()

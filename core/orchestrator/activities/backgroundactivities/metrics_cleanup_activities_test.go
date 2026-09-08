@@ -58,19 +58,21 @@ func TestMetricsCleanupActivity_CleanupHydratedMetricsTableActivity_Error(t *tes
 }
 
 func TestMetricsCleanupActivity_CleanupAggregatedUsageTableActivity_Success(t *testing.T) {
+	t.Setenv("AGGREGATED_USAGE_RETENTION_DAYS", "30")
+
 	// Setup
 	mockDB := metricsdb.NewMockStorage(t)
 	activity := &MetricsCleanupActivity{MetricsDB: mockDB}
 	ctx := context.Background()
 
-	// Expected cutoff time (approximately 1 week ago)
+	// Expected cutoff time (approximately 30 days ago)
 	expectedRowsDeleted := int64(500)
 
 	// Mock the delete operation
 	mockDB.On("DeleteAggregatedUsageOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
-		// Verify cutoff is approximately 1 week ago (within 1 minute tolerance)
-		weekAgo := time.Now().AddDate(0, 0, -7)
-		diff := cutoff.Sub(weekAgo).Abs()
+		// Verify cutoff is approximately 30 days ago (within 1 minute tolerance)
+		monthAgo := time.Now().AddDate(0, 0, -30)
+		diff := cutoff.Sub(monthAgo).Abs()
 		return diff < time.Minute
 	})).Return(expectedRowsDeleted, nil)
 
@@ -78,6 +80,22 @@ func TestMetricsCleanupActivity_CleanupAggregatedUsageTableActivity_Success(t *t
 	err := activity.CleanupAggregatedUsageTableActivity(ctx)
 
 	// Assert
+	assert.NoError(t, err)
+	mockDB.AssertExpectations(t)
+}
+
+func TestMetricsCleanupActivity_CleanupAggregatedUsageTableActivity_NonPositiveRetentionUsesDefault(t *testing.T) {
+	t.Setenv("AGGREGATED_USAGE_RETENTION_DAYS", "0")
+
+	mockDB := metricsdb.NewMockStorage(t)
+	activity := &MetricsCleanupActivity{MetricsDB: mockDB}
+	mockDB.On("DeleteAggregatedUsageOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
+		defaultCutoff := time.Now().AddDate(0, 0, -30)
+		return cutoff.Sub(defaultCutoff).Abs() < time.Minute
+	})).Return(int64(0), nil)
+
+	err := activity.CleanupAggregatedUsageTableActivity(context.Background())
+
 	assert.NoError(t, err)
 	mockDB.AssertExpectations(t)
 }
