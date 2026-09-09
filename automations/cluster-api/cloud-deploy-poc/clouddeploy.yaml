@@ -1,0 +1,25 @@
+apiVersion: deploy.cloud.google.com/v1
+kind: DeliveryPipeline
+metadata:
+  name: gcnv-vsa-cluster-api-stg-us-e4
+description: Read-only and approved VSA Cluster API operations
+serialPipeline:
+  stages:
+    - targetId: gcnv-vsa-cluster-api-stg-us-e4
+      profiles:
+        - target-1
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: gcnv-vsa-cluster-api-stg-us-e4
+description: us-e4 staging VSA Cluster API jobs
+gke:
+  cluster: projects/netapp-us-e4-staging-sde/locations/us-east4/clusters/us-e4-gke-stg
+executionConfigs:
+  - usages:
+      - RENDER
+      - DEPLOY
+    workerPool: projects/netapp-us-e4-staging-sde/locations/us-east4/workerPools/cloud-deploy-worker-pool
+    serviceAccount: cloud-deploy@netapp-us-e4-staging-sde.iam.gserviceaccount.com
+    artifactStorage: gs://us-east4.deploy-artifacts.netapp-us-e4-staging-sde.appspot.com

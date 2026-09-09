@@ -14,6 +14,16 @@ core_api:
   base_url: http://localhost:8080
   cluster_endpoint: http://core-service.vcp.svc.cluster.local:8080
 
+# Reviewed image catalog. --ontap-version picks an entry, so adding a release is
+# a config change instead of image paths typed at dispatch time.
+image_versions:
+  "9.18.1":
+    vsa_image_path: GCNV/9.18.1/upgrade/cot.image.ONTAP-9.18.1.tgz
+    vsa_name: x-9-18-1
+    mediator_name: cvo-mediator-x-9-18-1
+    is_active: true
+
+# Target used when --ontap-version is omitted.
 target_image:
   ontap_version: "9.18.1"
   vsa_image_path: GCNV/9.18.1/upgrade/cot.image.ONTAP-9.18.1.tgz
@@ -21,7 +31,7 @@ target_image:
   mediator_name: cvo-mediator-x-9-18-1
   is_active: true
 
-# Informational — dry-run warns if GET /v1/imageVersions current does not match
+# Informational — list-images and verify compare this with GET /v1/imageVersions
 deployment:
   vsa_image_name: x-9-18-1
   ontap_version_details: "9.18.1"
@@ -29,6 +39,18 @@ deployment:
 batch:
   max_concurrency: 5
   failure_threshold: 1   # SRE default. API default is 0 (no abort).
+  # Blast-radius ceiling for percentage selection. 0 leaves it to --max-clusters;
+  # a non-zero value caps every wave regardless of what was dispatched.
+  max_clusters_cap: 0
+
+# Poll budget for upgrade operations. Dispatch cannot extend it.
+poll:
+  timeout_minutes: 720
+  interval_seconds: 120
+
+# Production write operations must carry a change record.
+governance:
+  require_change_ticket: true
 
 # Optional: VCP Postgres for discover (psql). Password via PGPASSWORD.
 # database:

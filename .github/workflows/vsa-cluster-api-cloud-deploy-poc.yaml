@@ -1,0 +1,153 @@
+name: VSA Cluster API Cloud Deploy POC
+
+on:
+  push:
+    branches:
+      - VSCP-8017-wif-provider-fix
+  workflow_dispatch:
+    inputs:
+      poc_image:
+        description: "Admitted BusyBox-compatible image including @sha256 digest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcnv-vsa-cluster-api-stg-us-e4
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: netapp-us-e4-staging-sde
+  REGION: us-east4
+  DELIVERY_PIPELINE: gcnv-vsa-cluster-api-stg-us-e4
+  SOURCE_DIR: automations/cluster-api/cloud-deploy-poc
+  SOURCE_STAGING_DIR: gs://us-east4.deploy-artifacts.netapp-us-e4-staging-sde.appspot.com/cluster-api-poc-source
+
+jobs:
+  read-only-check:
+    name: us-e4 staging read-only check
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 40
+    steps:
+      - name: Repair self-hosted workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="${GITHUB_WORKSPACE:-.}"
+          if [[ -d "$workspace" ]]; then
+            sudo -n chown -R "$(id -u):$(id -g)" "$workspace" || true
+            sudo -n rm -f "$workspace/.git/index.lock" || true
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/${{ vars.AR_GCP_PROJ_NUM }}/locations/global/workloadIdentityPools/${{ vars.AR_WLI_POOL }}/providers/${{ vars.AR_WLI_PROV }}"
+          service_account: vcp-ci@gcnv-artifact-registry-nonprod.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate admitted image
+        shell: bash
+        env:
+          POC_IMAGE: ${{ inputs.poc_image || 'docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$POC_IMAGE" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::poc_image must be a digest-pinned BusyBox-compatible image"
+            exit 1
+          fi
+
+      - name: Create Cloud Deploy release
+        id: release
+        shell: bash
+        env:
+          POC_IMAGE: ${{ inputs.poc_image || 'docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662' }}
+        run: |
+          set -euo pipefail
+          # Cloud Deploy caps rollout ids ("<release>-to-<target>-0001") at 63 characters.
+          RELEASE="gcnv-release-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
+          gcloud deploy releases create "$RELEASE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --delivery-pipeline="$DELIVERY_PIPELINE" \
+            --source="$SOURCE_DIR" \
+            --gcs-source-staging-dir="$SOURCE_STAGING_DIR" \
+            --skaffold-file=skaffold.yaml \
+            --images="cluster-api-poc-image=$POC_IMAGE" \
+            --deploy-parameters="job_name=$RELEASE" \
+            --annotations="github-run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Wait for rollout
+        shell: bash
+        env:
+          RELEASE: ${{ steps.release.outputs.release }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))
+          rollout=""
+
+          while [[ -z "$rollout" && "$SECONDS" -lt "$deadline" ]]; do
+            rollout="$(gcloud deploy rollouts list \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --delivery-pipeline="$DELIVERY_PIPELINE" \
+              --release="$RELEASE" \
+              --format='value(name)' \
+              --limit=1)"
+            [[ -n "$rollout" ]] || sleep 10
+          done
+
+          if [[ -z "$rollout" ]]; then
+            echo "::error::No rollout was created for release $RELEASE"
+            exit 1
+          fi
+          rollout="${rollout##*/}"
+
+          while [[ "$SECONDS" -lt "$deadline" ]]; do
+            state="$(gcloud deploy rollouts describe "$rollout" \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --delivery-pipeline="$DELIVERY_PIPELINE" \
+              --release="$RELEASE" \
+              --format='value(state)')"
+            echo "rollout=$rollout state=$state"
+
+            case "$state" in
+              SUCCEEDED)
+                {
+                  echo "### Cloud Deploy POC"
+                  echo "- Release: \`$RELEASE\`"
+                  echo "- Rollout: \`$rollout\`"
+                  echo "- Result: **SUCCEEDED**"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              FAILED|HALTED|CANCELLED|APPROVAL_REJECTED)
+                gcloud deploy rollouts describe "$rollout" \
+                  --project="$PROJECT_ID" \
+                  --region="$REGION" \
+                  --delivery-pipeline="$DELIVERY_PIPELINE" \
+                  --release="$RELEASE" \
+                  --format=yaml
+                echo "::error::Cloud Deploy rollout ended in $state"
+                exit 1
+                ;;
+              PENDING_APPROVAL)
+                echo "::notice::Rollout is waiting for Cloud Deploy approval"
+                ;;
+            esac
+            sleep 15
+          done
+
+          echo "::error::Timed out waiting for rollout $rollout"
+          exit 1

@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-api-poc
+  namespace: vcp
+data:
+  check.sh: |
+    #!/bin/sh
+    set -eu
+
+    METADATA_URL="http://metadata.google.internal/computeMetadata/v1"
+    CORE_URL="http://core-service.vcp.svc.cluster.local:8080"
+    SERVICE_ACCOUNT="otel-collector-sa@netapp-us-e4-staging-sde.iam.gserviceaccount.com"
+    PROJECT_NUMBER="560533117250"
+    AUDIENCE="https://cloudvolumesgcp-api.netapp.com"
+
+    metadata() {
+      wget -qO- --header="Metadata-Flavor: Google" "${METADATA_URL}/$1"
+    }
+
+    echo "Checking core-api health"
+    HEALTH="$(wget -qO- "${CORE_URL}/health")"
+    [ "$HEALTH" = "{}" ] || {
+      echo "Unexpected health response"
+      exit 1
+    }
+
+    TOKEN_RESPONSE="$(metadata instance/service-accounts/default/token)"
+    ACCESS_TOKEN="$(printf '%s' "$TOKEN_RESPONSE" |
+      sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    [ -n "$ACCESS_TOKEN" ] || {
+      echo "Metadata server did not return an access token"
+      exit 1
+    }
+
+    NOW="$(date +%s)"
+    EXP="$((NOW + 2700))"
+    PAYLOAD="$(printf \
+      '{"sub":"%s","aud":"%s","iss":"%s","iat":%s,"exp":%s,"Google":{"project_number":%s}}' \
+      "$SERVICE_ACCOUNT" "$AUDIENCE" "$SERVICE_ACCOUNT" "$NOW" "$EXP" "$PROJECT_NUMBER")"
+    ESCAPED_PAYLOAD="$(printf '%s' "$PAYLOAD" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    REQUEST_BODY="$(printf '{"payload":"%s"}' "$ESCAPED_PAYLOAD")"
+
+    SIGN_RESPONSE="$(wget -qO- \
+      --header="Authorization: Bearer ${ACCESS_TOKEN}" \
+      --header="Content-Type: application/json" \
+      --post-data="$REQUEST_BODY" \
+      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${SERVICE_ACCOUNT}:signJwt")"
+    JWT="$(printf '%s' "$SIGN_RESPONSE" |
+      sed -n 's/.*"signedJwt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    [ -n "$JWT" ] || {
+      echo "IAM Credentials did not return signedJwt"
+      exit 1
+    }
+
+    echo "Checking authenticated imageVersions endpoint"
+    IMAGE_VERSIONS="$(wget -qO- \
+      --header="Authorization: ${JWT}" \
+      "${CORE_URL}/v1/imageVersions")"
+    printf '%s' "$IMAGE_VERSIONS" | grep -q '"versions"' || {
+      echo "imageVersions response was not recognized"
+      exit 1
+    }
+
+    VERSION_COUNT="$(printf '%s' "$IMAGE_VERSIONS" | grep -o '"ontapVersion"' | wc -l)"
+    echo "POC passed: health OK; JWT accepted; image version count=${VERSION_COUNT}"

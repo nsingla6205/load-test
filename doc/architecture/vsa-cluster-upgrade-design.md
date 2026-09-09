@@ -78,7 +78,8 @@ In the VCP system, **Cluster ID is the same as Pool UUID**. This means:
 10. [Handling Disabled Clusters](#handling-disabled-clusters)
 11. [License Updates](#license-updates)
 12. [Error Handling and Rollback](#error-handling-and-rollback)
-13. [Implementation Plan](#implementation-plan)
+13. [Operational Automation](#operational-automation)
+14. [Implementation Plan](#implementation-plan)
 
 ## Architecture Overview
 
@@ -97,6 +98,197 @@ Database ← Activities ← Child Workflows ← VLM Workflows
 3. **Workflow Engine**: Temporal-based workflow execution
 4. **VLM Client**: Interface to VLM service for cluster operations
 5. **Database Layer**: Persistent storage for upgrade state and metadata
+
+## Operational Automation
+
+The upgrade engine remains in VCP. GitHub Actions is only the authenticated
+kickoff and status surface; it does not connect to a producer GKE control plane
+and does not port-forward `core-service`.
+
+```mermaid
+flowchart LR
+    GH["GitHub Actions"] -->|"WIF"| CICD["vcp-ci"]
+    CICD -->|"create and poll release"| Deploy["Cloud Deploy"]
+    Deploy -->|"apply ephemeral Job"| GKE["Producer GKE"]
+    GKE --> Job["Cluster API Job"]
+    Job -->|"Workload Identity and signJwt"| RuntimeSA["Regional runtime GSA"]
+    Job -->|"ClusterIP HTTP"| Core["core-service"]
+    Core --> Temporal["Temporal upgrade workflows"]
+```
+
+### Operation catalog
+
+The automation is a generic authenticated client for core-api, not an
+upgrade-only script. Upgrade is one entry in a catalog, so the same auth,
+polling, reporting and safety behaviour applies to any operation SRE needs to
+run against a producer project.
+
+```mermaid
+flowchart TD
+    WF["workflow_dispatch<br/>operation + selection"]
+    subgraph Api["cluster_api.py — CLI and transport"]
+        CLI["Dispatch: flags built from the catalog"]
+        AUTH["signJwt with refresh before exp"]
+        REQ["Request, retry-tolerant responses, correlation id"]
+        POLL["Progress polling to terminal status"]
+        OUT["Run summary, error annotations, exit code"]
+    end
+    subgraph Catalog["operations.py"]
+        REG["Registry: name, params, safety class, handler"]
+    end
+    subgraph Domain["Domain modules"]
+        UPG["cluster_upgrade.py<br/>upgrade, upgrade-cluster, verify, discover"]
+    end
+    WF --> CLI
+    CLI --> REG
+    UPG -->|"registers"| REG
+    REG --> AUTH --> REQ --> POLL --> OUT
+    REQ -->|"HTTP"| Core["core-service /v1"]
+```
+
+Layers:
+
+| Layer | Location | Responsibility |
+|---|---|---|
+| CLI and transport | `automations/cluster-api/scripts/cluster_api.py` | Dispatch plus producer resolution from the environment catalog, JWT minting with pre-expiry refresh, request execution, progress polling, run summary and exit codes |
+| Catalog | `automations/cluster-api/scripts/operations.py` | Registry, shared helpers, and image ops until they get a dedicated module |
+| Upgrade module | `automations/cluster-api/scripts/cluster_upgrade.py` | `upgrade`, `upgrade-cluster`, `verify`, `discover` |
+| Dispatch surface | `.github/workflows/vsa-cluster-api.yaml` | Maps the ten allowed dispatch inputs onto the selected operation's flags |
+
+The initial catalog covers the runbook's four steps plus two retained helpers:
+
+| Operation | Safety | Core API |
+|---|---|---|
+| `list-images` | read | `GET /health`, `GET /v1/imageVersions` |
+| `verify` | read | `GET /v1/imageVersions`, plus the progress endpoint for a supplied id |
+| `discover` | read | VCP Postgres (no core-api); pool inventory for an explicit `poolList` |
+| `register-image` | mutate | `POST /v1/imageVersions`, skipped when the version is already registered |
+| `upgrade` | mutate | `POST /v1/clusters/batchUpgrade`, then polls to a terminal status |
+| `upgrade-cluster` | mutate | `POST /v1/clusters/{clusterId}/upgrade`, then polls to a terminal status |
+
+Safety classes are enforced by the entry points rather than being descriptive.
+A `read` operation runs unattended. A `mutate` operation honours a dry run that
+prints the exact request body without sending it, and is refused where
+`governance.require_change_ticket` is set (production) unless a change record is
+supplied. The change record travels as request metadata alongside the
+dispatching actor, and the GitHub run id is sent as `x-correlation-id` so a
+rollout is traceable in VCP logs. `destructive` is reserved and unused; nothing
+in the catalog deletes an image version or cancels a workflow.
+
+Extending the catalog means adding a domain module (upgrade work stays in
+`cluster_upgrade.py`) that registers one decorated handler; the CLI loads that
+module and derives flags from the declared parameters. Only the workflow's
+operation list needs a corresponding entry. Candidate additions are pool
+inventory (`GET /v1/pools`), host and address-range reads, and image
+deactivation, which would be the first `destructive` entry.
+
+Two constraints shape what `verify` can assert. `UpgradeProgress_v1` exposes
+`clusterId`, `status` and `currentStep` only, so per-pool ONTAP version
+confirmation is not available from core-api and remains an ONTAP-side check
+that the automation reports rather than performs. Batch selection filters
+`ontapVersions` with SQL `IN` against `build_info->>'ontapVersion'`, not a
+prefix match, so every source version must be listed exactly as stored
+(`9.17.1P1`, not `9.17.1`).
+
+Dispatch inputs are capped at ten by GitHub, so only per-run decisions are
+dispatch fields: environment, project, operation, target ONTAP version, pool
+list, percentage, concurrency, progress id, change ticket, and dry run.
+Failure threshold, the percentage blast-radius cap, the poll budget, and the
+producer GKE cluster are reviewed values in `config.<environment>.yaml`, which
+also means a dispatch cannot widen them.
+
+### Read-only Cloud Deploy POC
+
+The first implementation uses delivery pipeline
+`gcnv-vsa-cluster-api-stg-us-e4` in `netapp-us-e4-staging-sde`, region
+`us-east4`, releases named `gcnv-release-<run>-<attempt>`, with a dedicated
+standard GKE target for `netapp-us-e4-staging-sde/us-e4-gke-stg`. The target
+uses that project's private `cloud-deploy-worker-pool`; the public default pool
+cannot reach the private GKE API, and pools peered to other VPCs cannot route to
+this cluster.
+
+- Workflow:
+  `.github/workflows/vsa-cluster-api-cloud-deploy-poc.yaml`
+- Cloud Deploy source:
+  `automations/cluster-api/cloud-deploy-poc/`
+- The required `poc_image` dispatch input must be a BusyBox-compatible image
+  admitted in us-e4 and pinned by `@sha256`.
+- The ephemeral Job calls only `GET /health` and
+  `GET /v1/imageVersions`. It never submits an upgrade.
+- The POC KSA `vcp/cluster-api-poc` maps to the existing
+  `otel-collector-sa@netapp-us-e4-staging-sde.iam.gserviceaccount.com`.
+- Each release substitutes a unique Job name, has a five-minute execution
+  deadline, no retries, and TTL cleanup.
+
+The POC passes only when Cloud Deploy reports `SUCCEEDED`, the Job reaches
+`core-service` by cluster DNS, self-signs a JWT through IAM Credentials, and
+the authenticated image-version response is recognized. The JWT is never
+logged.
+
+### Production runtime identity
+
+Productionization uses a keyless GSA in every producer project:
+
+`cluster-api-sa@PROJECT_ID.iam.gserviceaccount.com`
+
+It requires exactly these IAM relationships:
+
+1. `roles/iam.serviceAccountTokenCreator` on itself, granted to itself, for
+   `iam.serviceAccounts.signJwt`.
+2. `roles/iam.workloadIdentityUser` on the GSA, granted to
+   `serviceAccount:PROJECT_ID.svc.id.goog[vcp/cluster-api]`.
+3. `roles/storage.objectViewer` for objects under
+   `gs://vsa-reporting-bucket-prod-us-c1/vsa-cluster-upgrade/*`, preferably
+   enforced with:
+   `resource.name.startsWith("projects/_/buckets/vsa-reporting-bucket-prod-us-c1/objects/vsa-cluster-upgrade/")`.
+
+Enable `iamcredentials.googleapis.com`, create no user-managed keys, and add
+the GSA email to Core's `gcpAuthAcceptedServiceAccounts` before rolling Core.
+Persist the service account and bindings in the IAM source of truth because
+manual grants are removed by the IAM reconciler.
+
+The runtime GSA needs no GKE role, Kubernetes RBAC, or port-forward
+permission. Cloud Deploy applies the Job; the running pod calls
+`http://core-service.vcp.svc.cluster.local:8080`. The GitHub WIF identity and
+Cloud Deploy execution identity must not receive Token Creator on the runtime
+GSA.
+
+The customer project list is read from the generation-pinned object:
+
+`gs://vsa-reporting-bucket-prod-us-c1/vsa-cluster-upgrade/unique-customer-projects.csv`
+
+It has one exact header, `Customer_Projects`, and values are numeric GCP
+project numbers treated as strings. The automation must fail closed for a
+missing, stale, malformed, duplicate, or changed object.
+
+### Approved batch execution
+
+A successful read-only POC does not automatically submit an upgrade. Batch
+execution is a separate, manually approved dispatch with these defaults:
+
+- `selectionType=poolList` with explicit, unique pool UUIDs;
+- `maxConcurrency=1` (stage maximum `2`);
+- `failureThreshold=1`;
+- `forceUpgrade=false`;
+- one `x-correlation-id` and change ticket in request metadata;
+- status polling every 30–60 seconds with JWT refresh and a bounded timeout.
+
+The automation records `batchUpgradeId` and supports a status-only resume. It
+does not automatically resubmit, retry failed pools, terminate Temporal
+workflows, or edit database rows.
+
+### Customer-scoped dispatch limitation
+
+The intended dispatch scopes are `all`, `customers`, `non-customers`, and
+`specific-customer-projects`. All must resolve to an explicit reviewed
+`poolList`.
+
+The current batch API cannot inventory eligible pools with their customer GCP
+project number. Therefore `customers` and `non-customers` remain disabled
+until a read-only candidate-inventory API exposes pool UUID, customer project
+number, lifecycle state, current build/version, eligibility reason, and
+active-upgrade state using the same precheck code as batch execution.
+`specific-customer-projects` is allowed only with already reviewed pool UUIDs.
 
 ## API Design
 

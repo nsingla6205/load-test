@@ -1,4 +1,4 @@
-name: VSA Cluster Upgrade
+name: VSA Cluster API Operations
 
 on:
   workflow_dispatch:
@@ -17,97 +17,143 @@ on:
         required: true
         type: string
         default: netapp-au-se1-autopush-sde-tst
-      action:
-        description: "Operation to run"
+      # Operations come from domain modules registered via operations.py.
+      # Upgrade handlers live in scripts/cluster_upgrade.py.
+      operation:
+        description: "Core API operation to run"
         required: true
         type: choice
-        default: dry-run
+        default: list-images
         options:
-          - dry-run
+          - list-images
+          - verify
           - register-image
-          - canary-upgrade
-          - regional-upgrade
-          - pool-status
-          - batch-status
-      from_ontap:
-        description: "Exact source ONTAP versions to select, comma-separated (e.g. 9.17.1P1,9.17.1P2). Empty selects all eligible pools."
+          - upgrade
+      ontap_version:
+        description: "Target ONTAP version, e.g. 9.18.1. Must exist in config image_versions. Empty uses the deployment default."
         required: false
         type: string
         default: ""
-      gke_cluster:
-        description: "Optional GKE cluster override; otherwise catalog/discovery is used"
+      pool_ids:
+        description: "upgrade: explicit pool UUIDs, comma or space separated (poolList selection). Takes precedence over percentage."
         required: false
         type: string
         default: ""
-      # One input because workflow_dispatch allows at most 10.
-      target_image:
-        description: "Comma-separated target image overrides, e.g. ontap_version=9.18.1,vsa_image_path=GCNV/...tgz,vsa_name=x-9-18-1,mediator_name=cvo-mediator-x-9-18-1. Empty uses config."
+      percentage:
+        description: "upgrade: percentage of eligible pools to select (1-100) when no pool_ids are given"
         required: false
         type: string
         default: ""
+      max_concurrency:
+        description: "upgrade: pools upgraded in parallel"
+        required: false
+        type: choice
+        default: "1"
+        options:
+          - "1"
+          - "2"
+          - "5"
+          - "10"
       progress_id:
-        description: "jobId for pool-status or batchUpgradeId for batch-status"
+        description: "verify: batchUpgradeId or jobId to confirm as COMPLETED"
         required: false
         type: string
         default: ""
-      force_upgrade:
-        description: "Use the target VSA and mediator values explicitly (required for a non-deployment-default target)"
+      change_ticket:
+        description: "Change record for write operations; required in prod"
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Write operations print the request they would send instead of sending it"
         required: false
         type: boolean
         default: false
-      # A choice, because GitHub expressions have no arithmetic: the job timeout is
-      # looked up from this value in the fromJSON map below.
-      poll_timeout_minutes:
-        description: "How long to poll upgrade progress before giving up"
-        required: false
-        type: choice
-        default: "240"
-        options:
-          - "60"
-          - "120"
-          - "240"
-          - "480"
-          - "720"
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: vsa-cluster-upgrade-${{ inputs.environment }}-${{ inputs.project }}
+  group: vsa-cluster-api-${{ inputs.environment }}-${{ inputs.project }}
   cancel-in-progress: false
 
 jobs:
-  autopush:
-    name: ${{ inputs.environment }} ${{ inputs.project }} / ${{ inputs.action }}
+  run-operation:
+    name: ${{ inputs.environment }} ${{ inputs.project }} / ${{ inputs.operation }}
     runs-on: [self-hosted, linux]
-    # Must outlive the CLI poll budget, otherwise the job is killed mid-upgrade.
-    timeout-minutes: ${{ (inputs.action == 'dry-run' || inputs.action == 'register-image') && 30 || fromJSON('{"60":80,"120":140,"240":260,"480":500,"720":740}')[inputs.poll_timeout_minutes] }}
+    # An upgrade polls to a terminal status, so the job must outlive the CLI poll
+    # budget in config.<env>.yaml (poll.timeout_minutes, 720 by default).
+    timeout-minutes: ${{ inputs.operation == 'upgrade' && 740 || 30 }}
 
     steps:
       - name: Validate dispatch
         shell: bash
         env:
-          POLL_TIMEOUT_MINUTES: ${{ inputs.poll_timeout_minutes }}
+          OPERATION: ${{ inputs.operation }}
+          ONTAP_VERSION: ${{ inputs.ontap_version }}
+          POOL_IDS: ${{ inputs.pool_ids }}
+          PERCENTAGE: ${{ inputs.percentage }}
+          PROGRESS_ID: ${{ inputs.progress_id }}
+          CHANGE_TICKET: ${{ inputs.change_ticket }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          case "${{ inputs.action }}" in
-            dry-run|register-image|canary-upgrade|regional-upgrade) ;;
-            pool-status|batch-status)
-              if [[ -z "${{ inputs.progress_id }}" ]]; then
-                echo "::error::progress_id is required for ${{ inputs.action }}"
+          case "$OPERATION" in
+            list-images) ;;
+            verify)
+              if [[ -z "$PROGRESS_ID" ]]; then
+                echo "::notice::no progress_id given; verify will only check the image catalog"
+              fi
+              ;;
+            register-image)
+              if [[ -z "$ONTAP_VERSION" ]]; then
+                echo "::error::register-image needs ontap_version"
+                exit 1
+              fi
+              ;;
+            upgrade)
+              if [[ -n "$POOL_IDS" && -n "$PERCENTAGE" ]]; then
+                echo "::error::pass pool_ids or percentage, not both"
+                exit 1
+              fi
+              if [[ -z "$POOL_IDS" && -z "$PERCENTAGE" ]]; then
+                echo "::error::upgrade needs pool_ids or percentage"
+                exit 1
+              fi
+              if [[ -n "$PERCENTAGE" ]] && { ! [[ "$PERCENTAGE" =~ ^[0-9]+$ ]] || [[ "$PERCENTAGE" -lt 1 ]] || [[ "$PERCENTAGE" -gt 100 ]]; }; then
+                echo "::error::percentage must be 1-100, got '$PERCENTAGE'"
                 exit 1
               fi
               ;;
             *)
-              echo "::error::unknown action ${{ inputs.action }}"
+              echo "::error::unknown operation $OPERATION"
               exit 1
               ;;
           esac
 
-          if ! [[ "$POLL_TIMEOUT_MINUTES" =~ ^[0-9]+$ ]] || [[ "$POLL_TIMEOUT_MINUTES" -lt 1 ]]; then
-            echo "::error::poll_timeout_minutes must be a positive integer, got '$POLL_TIMEOUT_MINUTES'"
-            exit 1
+          # Mirrors governance.require_change_ticket in config.prod.yaml so a
+          # missing change record fails before any cluster access.
+          case "$OPERATION" in
+            register-image|upgrade)
+              if [[ "$ENVIRONMENT" == "prod" && "$DRY_RUN" != "true" && -z "$CHANGE_TICKET" ]]; then
+                echo "::error::$OPERATION in prod needs change_ticket"
+                exit 1
+              fi
+              ;;
+          esac
+
+      # Self-hosted runners reuse the workspace. Files owned by another user
+      # (e.g. .cursor/agents) make actions/checkout fail on git reset / rmdir.
+      - name: Repair self-hosted workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          ws="${GITHUB_WORKSPACE:-.}"
+          if [[ -d "$ws" ]]; then
+            sudo -n chown -R "$(id -u):$(id -g)" "$ws" || true
+            sudo -n rm -f "$ws/.git/index.lock" || true
           fi
 
       - name: Checkout repository
@@ -118,10 +164,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: automations/cluster-upgrade/requirements.txt
+          cache-dependency-path: automations/cluster-api/requirements.txt
 
       - name: Install automation dependencies
-        run: pip install -r automations/cluster-upgrade/requirements.txt
+        run: pip install -r automations/cluster-api/requirements.txt
 
       - name: Resolve producer from config
         id: project
@@ -137,7 +183,7 @@ jobs:
           import yaml
 
           env = os.environ["ENVIRONMENT"]
-          config_path = Path(f"automations/cluster-upgrade/config.{env}.yaml")
+          config_path = Path(f"automations/cluster-api/config.{env}.yaml")
           config = yaml.safe_load(config_path.read_text())
           project_id = os.environ["PROJECT_ID"]
           file_env = (config.get("environment") or "").strip()
@@ -165,10 +211,15 @@ jobs:
       # WIF authenticates as the producer-project SA from config.projects.<id>.service_account.
       # That same SA signs the core-api JWT (iam.serviceAccounts.signJwt) and runs kubectl.
       # Each regional SA must allow this workflow's WIF principal as workloadIdentityUser.
+      #
+      # Uses the AR_WLI_POOL provider (same as build_common/weekly cleanup), not
+      # GCP_WORKLOAD_IDENTITY_PROVIDER: that pool lives in gcnv-vsa-prod, and
+      # constraints/iam.allowedPolicyMemberDomains rejects its principals in SDE
+      # producer projects, which are in a different org.
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          workload_identity_provider: "projects/${{ vars.AR_GCP_PROJ_NUM }}/locations/global/workloadIdentityPools/${{ vars.AR_WLI_POOL }}/providers/${{ vars.AR_WLI_PROV }}"
           service_account: ${{ steps.project.outputs.service_account }}
 
       - name: Set up Cloud SDK
@@ -182,13 +233,11 @@ jobs:
         env:
           PROJECT_ID: ${{ steps.project.outputs.project_id }}
           GCP_REGION: ${{ steps.project.outputs.gcp_region }}
-          INPUT_CLUSTER: ${{ inputs.gke_cluster }}
           CATALOG_CLUSTER: ${{ steps.project.outputs.catalog_cluster }}
         run: |
           set -euo pipefail
           PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
-          CLUSTER="$INPUT_CLUSTER"
-          [[ -n "$CLUSTER" ]] || CLUSTER="$CATALOG_CLUSTER"
+          CLUSTER="$CATALOG_CLUSTER"
 
           if [[ -z "$CLUSTER" ]]; then
             mapfile -t CANDIDATES < <(
@@ -198,7 +247,7 @@ jobs:
                 --format='value(name)'
             )
             if [[ "${#CANDIDATES[@]}" -ne 1 ]]; then
-              echo "::error::Expected one GKE cluster in $PROJECT_ID/$GCP_REGION; found ${#CANDIDATES[@]}. Set cluster in config or supply gke_cluster."
+              echo "::error::Expected one GKE cluster in $PROJECT_ID/$GCP_REGION; found ${#CANDIDATES[@]}. Set projects.$PROJECT_ID.cluster in config.${{ inputs.environment }}.yaml."
               printf '%s\n' "${CANDIDATES[@]}"
               exit 1
             fi
@@ -242,100 +291,61 @@ jobs:
           cat "$LOG"
           exit 1
 
-      # Mutating actions execute and then poll to a terminal status. The CLI exits
+      # Write operations execute and then poll to a terminal status. The CLI exits
       # non-zero on FAILED/CANCELLED and writes failure details to the run summary.
-      - name: Run cluster upgrade automation
+      # Operation parameters are declared in operations.py, so this step only maps
+      # dispatch inputs onto the flags of the selected operation.
+      - name: Run core-api operation
         shell: bash
         env:
           PROJECT: ${{ inputs.project }}
           ENVIRONMENT: ${{ inputs.environment }}
-          ACTION: ${{ inputs.action }}
-          FROM_ONTAP: ${{ inputs.from_ontap }}
+          OPERATION: ${{ inputs.operation }}
+          ONTAP_VERSION: ${{ inputs.ontap_version }}
+          POOL_IDS: ${{ inputs.pool_ids }}
+          PERCENTAGE: ${{ inputs.percentage }}
+          MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
           PROGRESS_ID: ${{ inputs.progress_id }}
-          FORCE_UPGRADE: ${{ inputs.force_upgrade }}
-          TARGET_IMAGE: ${{ inputs.target_image }}
-          POLL_TIMEOUT_MINUTES: ${{ inputs.poll_timeout_minutes }}
+          CHANGE_TICKET: ${{ inputs.change_ticket }}
+          DRY_RUN: ${{ inputs.dry_run }}
           VCP_PROJECT_NUMBER: ${{ steps.gke.outputs.project_number }}
+          VCP_CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           BASE=(
-            python -u automations/cluster-upgrade/scripts/cluster_upgrade.py
-            --config "automations/cluster-upgrade/config.${ENVIRONMENT}.yaml"
+            python -u automations/cluster-api/scripts/cluster_api.py
+            --config "automations/cluster-api/config.${ENVIRONMENT}.yaml"
             --environment "$ENVIRONMENT"
             --project "$PROJECT"
           )
+          [[ -z "$ONTAP_VERSION" ]] || BASE+=(--ontap-version "$ONTAP_VERSION")
+          [[ -z "$CHANGE_TICKET" ]] || BASE+=(--change-ticket "$CHANGE_TICKET")
+          [[ "$DRY_RUN" != "true" ]] || BASE+=(--dry-run)
 
-          # Expand the single target_image input into the CLI overrides.
-          if [[ -n "$TARGET_IMAGE" ]]; then
-            trim() {
-              local text="$1"
-              text="${text#"${text%%[![:space:]]*}"}"
-              text="${text%"${text##*[![:space:]]}"}"
-              printf '%s' "$text"
-            }
-
-            IFS=',' read -ra PAIRS <<< "$TARGET_IMAGE"
-            for pair in "${PAIRS[@]}"; do
-              if [[ "$pair" != *=* ]]; then
-                echo "::error::invalid target_image entry '$pair'; expected key=value"
-                exit 1
-              fi
-              key="$(trim "${pair%%=*}")"
-              value="$(trim "${pair#*=}")"
-              if [[ -z "$key" || -z "$value" ]]; then
-                echo "::error::invalid target_image entry '$pair'; key and value must be non-empty"
-                exit 1
-              fi
-              case "$key" in
-                ontap_version)  BASE+=(--target-ontap-version "$value") ;;
-                vsa_image_path) BASE+=(--target-vsa-image-path "$value") ;;
-                vsa_name)       BASE+=(--target-vsa-name "$value") ;;
-                mediator_name)  BASE+=(--target-mediator-name "$value") ;;
-                *)
-                  echo "::error::unknown target_image key '$key'"
-                  exit 1
-                  ;;
-              esac
-            done
-          fi
-
-          FORCE_ARGS=()
-          if [[ "$FORCE_UPGRADE" == "true" ]]; then
-            FORCE_ARGS+=(--force-upgrade)
-          fi
-          POLL_ARGS=(--timeout "$(( POLL_TIMEOUT_MINUTES * 60 ))")
-
-          case "$ACTION" in
-            dry-run)
-              "${BASE[@]}" --dry-run
+          case "$OPERATION" in
+            list-images)
+              "${BASE[@]}" list-images
+              ;;
+            verify)
+              ARGS=()
+              [[ -z "$PROGRESS_ID" ]] || ARGS+=(--progress-id "$PROGRESS_ID")
+              "${BASE[@]}" verify "${ARGS[@]}"
               ;;
             register-image)
               "${BASE[@]}" register-image
               ;;
-            canary-upgrade)
-              "${BASE[@]}" batch-upgrade \
-                --selection-type percentage \
-                --percentage 100 \
-                --max-clusters 1 \
-                --max-concurrency 1 \
-                --failure-threshold 1 \
-                --ontap-versions "$FROM_ONTAP" \
-                "${FORCE_ARGS[@]}" "${POLL_ARGS[@]}"
-              ;;
-            regional-upgrade)
-              "${BASE[@]}" batch-upgrade \
-                --selection-type percentage \
-                --percentage 100 \
-                --max-concurrency 5 \
-                --failure-threshold 1 \
-                --ontap-versions "$FROM_ONTAP" \
-                "${FORCE_ARGS[@]}" "${POLL_ARGS[@]}"
-              ;;
-            pool-status)
-              "${BASE[@]}" pool-status --job-id "$PROGRESS_ID" --wait "${POLL_ARGS[@]}"
-              ;;
-            batch-status)
-              "${BASE[@]}" batch-status --batch-id "$PROGRESS_ID" --wait "${POLL_ARGS[@]}"
+            upgrade)
+              # Naming a target ONTAP version pins that build instead of the
+              # deployment default, which is what forceUpgrade means to the API.
+              ARGS=(--max-concurrency "$MAX_CONCURRENCY")
+              [[ -z "$ONTAP_VERSION" ]] || ARGS+=(--force-upgrade)
+              if [[ -n "$POOL_IDS" ]]; then
+                read -ra POOLS <<< "${POOL_IDS//,/ }"
+                ARGS+=(--pool-ids "${POOLS[@]}")
+              else
+                ARGS+=(--percentage "$PERCENTAGE")
+              fi
+              "${BASE[@]}" upgrade "${ARGS[@]}"
               ;;
           esac
 

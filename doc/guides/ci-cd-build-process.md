@@ -7,7 +7,7 @@ This repo has **two unrelated “build” pipelines**. Mixing them up is the usu
 | **VCP software** | Docker images + Helm charts for `core`, proxies, `vcp-worker`, … | PR on every change; tagged images on every merge; weekly RC cut |
 | **VSA / ONTAP compute images** | GCE images + upgrade tarball (`x-9-18-1`, `cot.image.ONTAP-….tgz`) | **Not on a cron in this repo.** Manual `workflow_dispatch` after seclab publishes a build |
 
-The ONTAP bits that `automations/cluster-upgrade` registers (`target_image`) come from the **second** pipeline. Deploying a new VCP Helm chart comes from the **first**.
+The ONTAP bits that `automations/cluster-api` registers (`target_image`) come from the **second** pipeline. Deploying a new VCP Helm chart comes from the **first**.
 
 ---
 
@@ -111,7 +111,7 @@ Only autopush re-runs Chain of Trust. Staging copies autopush; prod copies stagi
 
 ### 2.3 Relation to cluster upgrade automation
 
-[`automations/cluster-upgrade/README.md`](../../automations/cluster-upgrade/README.md): registering `image_versions` is not enough. A live upgrade target is:
+[`automations/cluster-api/README.md`](../../automations/cluster-api/README.md): registering `image_versions` is not enough. A live upgrade target is:
 
 1. Image copied into that environment’s bucket
 2. Helm env `VSA_IMAGE_NAME`, `VSA_MEDIATOR_IMAGE_NAME`, `ONTAP_VERSION_DETAILS`

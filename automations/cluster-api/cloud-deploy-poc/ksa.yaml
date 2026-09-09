@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-api-poc
+  namespace: vcp
+  annotations:
+    iam.gke.io/gcp-service-account: otel-collector-sa@netapp-us-e4-staging-sde.iam.gserviceaccount.com
+automountServiceAccountToken: false

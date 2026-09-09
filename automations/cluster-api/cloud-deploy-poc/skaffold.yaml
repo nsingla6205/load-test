@@ -1,0 +1,13 @@
+apiVersion: skaffold/v4beta7
+kind: Config
+metadata:
+  name: vsa-cluster-api-poc
+manifests:
+  rawYaml:
+    - ksa.yaml
+    - script-configmap.yaml
+    - job.yaml
+deploy:
+  kubectl: {}
+profiles:
+  - name: target-1
