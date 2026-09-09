@@ -50,11 +50,11 @@ func ManageBackupConfigWorkflow(ctx workflow.Context, volume *datamodel.ExpertMo
 	wf.Status = workflows.WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
-		log.Errorf("Failed to update job status to PROCESSING: %v", err)
+		log := workflow.GetLogger(ctx)
+		log.Error("Failed to update job status to PROCESSING", "error", err)
 		jobErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		if jobErr != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", jobErr)
+			log.Error("Failed to update job status to ERROR", "error", jobErr)
 		}
 		return err
 	}
@@ -62,10 +62,10 @@ func ManageBackupConfigWorkflow(ctx workflow.Context, volume *datamodel.ExpertMo
 	_, cerr := wf.Run(ctx, volume, params)
 	if cerr != nil {
 		wf.Status = workflows.WorkflowStatusFailed
-		log := util.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		jobErr := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), cerr)
 		if jobErr != nil {
-			log.Errorf("Failed to update job status to ERROR: %v", jobErr)
+			log.Error("Failed to update job status to ERROR", "error", jobErr)
 		}
 		return cerr
 	}
@@ -88,7 +88,7 @@ func (wf *manageBackupConfigWorkflow) Setup(ctx workflow.Context, input interfac
 }
 
 func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.ExpertModeVolumes)
 	params := args[1].(*commonparams.ManageBackupConfigForExpertModeVolumeParams)
 
@@ -139,7 +139,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		if err != nil {
 			if restoreErr := workflow.ExecuteActivity(ctx, expertModeActivity.UpdateExpertModeVolumeStateInDB,
 				volume.UUID, datamodel.LifeCycleStateAvailable).Get(ctx, nil); restoreErr != nil {
-				log.Errorf("Failed to restore expert mode volume %s state to AVAILABLE after failure: %v", volume.UUID, restoreErr)
+				log.Error("Failed to restore expert mode volume state to AVAILABLE after failure", "volumeUUID", volume.UUID, "error", restoreErr)
 			}
 		}
 	}()
@@ -153,7 +153,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		var token string
 		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, params.AccountName).Get(ctx, &token)
 		if err != nil {
-			log.Errorf("Failed to get auth token for account %s: %v", params.AccountName, err)
+			log.Error("Failed to get auth token for account", "accountName", params.AccountName, "error", err)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 		ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
@@ -175,8 +175,8 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 	}
 	if isLeavingVault {
 		oldVaultID := volume.BackupConfig.BackupVaultID
-		log.Infof("Vault change detected for expert mode volume %s (old=%s new=%q); tearing down SnapMirror",
-			volume.UUID, oldVaultID, *params.BackupVaultID)
+		log.Info("Vault change detected for expert mode volume; tearing down SnapMirror",
+			"volumeUUID", volume.UUID, "oldVaultID", oldVaultID, "newVaultID", *params.BackupVaultID)
 
 		commonActivity := &activities.CommonActivities{}
 		deleteActivity := &activities.VolumeDeleteActivity{}
@@ -225,7 +225,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			}
 		}
 
-		log.Infof("Vault change SnapMirror teardown complete for expert mode volume %s", volume.UUID)
+		log.Info("Vault change SnapMirror teardown complete for expert mode volume", "volumeUUID", volume.UUID)
 	}
 
 	// Steps 2-6 only run when a real vault UUID is being set. When BackupVaultID is nil
@@ -255,7 +255,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			if len(backupVault.BucketDetails) > 0 {
 				tenancyDetails.RegionalTenantProject = backupVault.BucketDetails[0].TenantProjectNumber
 			} else {
-				log.Errorf("GCBDR vault %s has no bucket details with tenant project", backupVault.UUID)
+				log.Error("GCBDR vault has no bucket details with tenant project", "backupVaultUUID", backupVault.UUID)
 				return nil, workflows.ConvertToVSAError(fmt.Errorf("GCBDR vault has no tenant project information"))
 			}
 		}
@@ -320,16 +320,16 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 				// details already resolved, then the remote vault update.
 				if backupVault.ServiceType == activities.GCBDRServiceType {
 					if volume.Pool == nil {
-						log.Errorf("Pool details not available for volume %s", volume.UUID)
+						log.Error("Pool details not available for volume", "volumeUUID", volume.UUID)
 						return nil, workflows.ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
 					}
 					err = workflow.ExecuteActivity(ctx, volumeActivity.SetupCrossProjectBackupPermissions,
 						volumeForActivities.Pool, bucketDetails).Get(ctx, nil)
 					if err != nil {
-						log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+						log.Error("Failed to setup cross-project backup permissions", "error", err)
 						return nil, workflows.ConvertToVSAError(err)
 					}
-					log.Infof("Granted pool SA access to GCBDR bucket %s for volume %s", bucketDetails.BucketName, volume.UUID)
+					log.Info("Granted pool SA access to GCBDR bucket", "bucketName", bucketDetails.BucketName, "volumeUUID", volume.UUID)
 				}
 			}
 
@@ -351,16 +351,16 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			// a pool attaching to an already-provisioned vault still receives the IAM grant.
 			if backupVault.ServiceType == activities.GCBDRServiceType {
 				if volume.Pool == nil {
-					log.Errorf("Pool details not available for volume %s", volume.UUID)
+					log.Error("Pool details not available for volume", "volumeUUID", volume.UUID)
 					return nil, workflows.ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
 				}
 				err = workflow.ExecuteActivity(ctx, volumeActivity.SetupCrossProjectBackupPermissions,
 					volumeForActivities.Pool, bucketDetails).Get(ctx, nil)
 				if err != nil {
-					log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+					log.Error("Failed to setup cross-project backup permissions", "error", err)
 					return nil, workflows.ConvertToVSAError(err)
 				}
-				log.Infof("Granted pool SA access to GCBDR bucket %s for volume %s", bucketDetails.BucketName, volume.UUID)
+				log.Info("Granted pool SA access to GCBDR bucket", "bucketName", bucketDetails.BucketName, "volumeUUID", volume.UUID)
 			}
 		}
 
@@ -374,7 +374,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			}
 			// Allow time for the service account to become ready.
 			if err = workflow.Sleep(ctx, 90*time.Second); err != nil {
-				log.Errorf("Sleep interrupted after cross-region backup permissions: %v", err)
+				log.Error("Sleep interrupted after cross-region backup permissions", "error", err)
 			}
 		}
 
@@ -445,7 +445,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 
 		err = workflow.ExecuteActivity(ctx, expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB, volume).Get(ctx, nil)
 		if err != nil {
-			log.Errorf("Failed to persist backup config for volume %s: %v", volume.UUID, err)
+			log.Error("Failed to persist backup config for volume", "volumeUUID", volume.UUID, "error", err)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 	}
@@ -454,7 +454,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 	err = workflow.ExecuteActivity(ctx, expertModeActivity.UpdateExpertModeVolumeStateInDB,
 		volume.UUID, datamodel.LifeCycleStateAvailable).Get(ctx, nil)
 	if err != nil {
-		log.Errorf("Failed to update expert mode volume %s state to AVAILABLE: %v", volume.UUID, err)
+		log.Error("Failed to update expert mode volume state to AVAILABLE", "volumeUUID", volume.UUID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -466,7 +466,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 	if params.BackupPolicyID != nil {
 		effectivePolicy = *params.BackupPolicyID
 	}
-	workflow.GetLogger(ctx).Info("Successfully managed backup config for expert mode volume",
+	log.Info("Successfully managed backup config for expert mode volume",
 		"volumeUUID", volume.UUID, "vaultID", effectiveVault, "policyID", effectivePolicy)
 
 	return nil, nil
@@ -579,7 +579,7 @@ func serviceAccountActivityContext(ctx workflow.Context) (workflow.Context, erro
 // provisionHmacForDedicatedCapacityBackupBucket creates SA, HMAC keys, Secret Manager secret, then reuses
 // the shared bucket-create path for dedicated-capacity (non-FLEX) expert mode pools.
 func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupConfigActivity *expertmodeactivities.ExpertModeBackupConfigActivity, updateActivity *activities.VolumeUpdateActivity, resourceName *commonparams.ResourceNames, tenancyDetails *commonparams.TenancyInfo, region string, kmsGrant *string) (*commonparams.BucketDetails, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	adcActivity := &activities.ADCActivity{}
 
 	saCtx, err := serviceAccountActivityContext(ctx)
@@ -590,14 +590,14 @@ func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupC
 	var serviceAccount *hyperscalermodels.ServiceAccount
 	err = workflow.ExecuteActivity(saCtx, backupConfigActivity.CreateDedicatedCapacityBackupServiceAccount, resourceName, tenancyDetails).Get(saCtx, &serviceAccount)
 	if err != nil {
-		log.Errorf("Failed to create dedicated-capacity backup service account: %v", err)
+		log.Error("Failed to create dedicated-capacity backup service account", "error", err)
 		return nil, err
 	}
 
 	var isCreated bool
 	err = workflow.ExecuteActivity(saCtx, adcActivity.IsServiceAccountCreated, serviceAccount.Email).Get(saCtx, &isCreated)
 	if err != nil {
-		log.Errorf("Failed to check if backup service account is created: %v", err)
+		log.Error("Failed to check if backup service account is created", "error", err)
 		return nil, err
 	}
 	if !isCreated {
@@ -607,20 +607,20 @@ func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupC
 	err = workflow.ExecuteActivity(saCtx, adcActivity.AttachRolesToServiceAccount,
 		tenancyDetails.RegionalTenantProject, serviceAccount.Email, commonparams.BackupHMACServiceAccountRoles).Get(saCtx, nil)
 	if err != nil {
-		log.Errorf("Failed to attach roles to dedicated-capacity backup service account: %v", err)
+		log.Error("Failed to attach roles to dedicated-capacity backup service account", "error", err)
 		return nil, err
 	}
 
 	var credentialDetails *commonparams.BucketDetails
 	err = workflow.ExecuteActivity(ctx, backupConfigActivity.GetDedicatedCapacityBackupHmacSecret, resourceName).Get(ctx, &credentialDetails)
 	if err != nil {
-		log.Errorf("Failed to check for existing dedicated-capacity backup HMAC secret: %v", err)
+		log.Error("Failed to check for existing dedicated-capacity backup HMAC secret", "error", err)
 		return nil, err
 	}
 
 	if credentialDetails == nil {
 		if err = workflow.Sleep(ctx, 60*time.Second); err != nil {
-			log.Errorf("Sleep interrupted before dedicated-capacity backup HMAC key creation: %v", err)
+			log.Error("Sleep interrupted before dedicated-capacity backup HMAC key creation", "error", err)
 			return nil, err
 		}
 
@@ -641,14 +641,14 @@ func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupC
 			ProjectNumber:  tenancyDetails.RegionalTenantProject,
 		}).Get(hmacCtx, &encodedHmacKeys)
 		if err != nil {
-			log.Errorf("Failed to create dedicated-capacity backup HMAC keys: %v", err)
+			log.Error("Failed to create dedicated-capacity backup HMAC keys", "error", err)
 			return nil, err
 		}
 
 		err = workflow.ExecuteActivity(ctx, backupConfigActivity.StoreDedicatedCapacityBackupHmacSecret,
 			resourceName, encodedHmacKeys).Get(ctx, &credentialDetails)
 		if err != nil {
-			log.Errorf("Failed to store dedicated-capacity backup HMAC secret: %v", err)
+			log.Error("Failed to store dedicated-capacity backup HMAC secret", "error", err)
 			return nil, err
 		}
 	}
@@ -657,7 +657,7 @@ func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupC
 	err = workflow.ExecuteActivity(ctx, updateActivity.CreateBucketForBackupVault,
 		resourceName, tenancyDetails, region, kmsGrant).Get(ctx, &bucketDetails)
 	if err != nil {
-		log.Errorf("Failed to create dedicated-capacity backup bucket: %v", err)
+		log.Error("Failed to create dedicated-capacity backup bucket", "error", err)
 		return nil, err
 	}
 
