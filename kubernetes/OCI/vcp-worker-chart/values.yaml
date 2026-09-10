@@ -100,12 +100,12 @@ workerConfig:
   # Minimum HA pairs that trigger the large-capacity VLM cluster-deploy timeout.
   numberOfHaPairsLargeCapacity: 6
   # VLM CreateVSAClusterDeployment workflow timeout (minutes) for large-capacity pools.
-  vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 120
+  vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 150
   # When true, apply ConfigMap VLM_*_WF_TIMEOUT_MINUTES overrides at worker start.
   enableVlmWorkflowTimeoutOverrides: true
   # VLM workflow execution timeouts (minutes). Empty keeps WorkflowExecutionTimeoutMap
   # defaults from clients/vlm/config.go. Set a positive integer to override.
-  vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes: ""
+  vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes: "150"
   vlmCreateVSASVMWorkflowTimeoutMinutes: ""
   vlmDeleteVSAClusterDeploymentWorkflowTimeoutMinutes: ""
   vlmUpdateVSAClusterDeploymentWorkflowTimeoutMinutes: ""

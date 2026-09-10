@@ -54,6 +54,7 @@ workerConfig:
   maxConcurrentActivities: "1000"
   maxConcurrentWorkflow: "1000"
   maxConcurrentWorkflowTaskPollers: "2"
+  createClusterOptimization: "false"
   vsaVlmEncryptionKey: ""  # Must match vcp-worker-chart (ignored if useExistingSecret)
   useExistingSecret: false
   existingSecretName: ""

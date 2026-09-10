@@ -20,6 +20,7 @@ data:
   MAX_CONCURRENT_ACTIVITIES: {{ $.Values.workerConfig.maxConcurrentActivities | quote }}
   MAX_CONCURRENT_WORKFLOW: {{ $.Values.workerConfig.maxConcurrentWorkflow | quote }}
   MAX_CONCURRENT_WORKFLOW_TASK_POLLERS: {{ $.Values.workerConfig.maxConcurrentWorkflowTaskPollers | quote }}
+  CREATE_CLUSTER_OPTIMIZATION: {{ $.Values.workerConfig.createClusterOptimization | default "false" | quote }}
   ENABLE_GLOBAL_GCP_CLIENTS: {{ $.Values.workerConfig.enableGlobalGcpClients | quote }}
   USE_VM_RESERVATIONS: {{ $.Values.workerConfig.useVmReservations | quote }}
   OCI_REGION: {{ $.Values.workerConfig.ociRegion | default "us-ashburn-1" | quote }}
