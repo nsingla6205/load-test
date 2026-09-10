@@ -197,7 +197,6 @@ require (
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core v0.0.0 // indirect
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -205,7 +204,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
-	gorm.io/datatypes v1.2.7 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
@@ -224,7 +222,11 @@ require (
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/lib v0.0.0
 )
 
-require github.com/cschleiden/go-workflows v1.4.1
+require (
+	github.com/cschleiden/go-workflows v1.4.1
+	github.com/sirupsen/logrus v1.9.3
+	gorm.io/datatypes v1.2.7
+)
 
 replace github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core => ../vcp-core
 
