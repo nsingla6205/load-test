@@ -15,8 +15,8 @@ loggerLevel: "info"
 # OCI object store
 objectStoreProvider: "oci"
 
-createPoolWorkflowTimeoutMinutes: "150"
-createPoolWorkflowTimeoutMinutesLV: "150"
+createPoolWorkflowTimeoutMinutes: "240"
+createPoolWorkflowTimeoutMinutesLV: "240"
 updatePoolWorkflowTimeoutMinutes: "750"
 updatePoolWorkflowTimeoutMinutesLV: "750"
 deletePoolWorkflowTimeoutMinutes: "60"
