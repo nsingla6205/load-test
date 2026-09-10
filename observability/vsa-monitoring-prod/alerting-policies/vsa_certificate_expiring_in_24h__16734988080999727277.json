@@ -1,0 +1,47 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/16734988080999727277",
+  "display_name": "vsa_certificate_expiring_in_24h",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-08-23T13:39:11.839264013Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:07:52.289941494Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "vsa_certificate_expiring_in_24h",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/16734988080999727277/conditions/13952588164604439624",
+      "condition_prometheus_query_language": {
+        "query": "(\n      min by (location) (\n        max_over_time({\"__name__\"=\"custom.googleapis.com/security_certificate_expiry_time\",\"monitored_resource\"=\"k8s_cluster\"}[10m])\n      )\n      - time()\n    ) / 86400 < 1",
+        "duration": "900s",
+        "evaluation_interval": "600s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels} ",
+    "mime_type": "text/markdown",
+    "subject": "vsa_certificate_expiring_in_24h",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

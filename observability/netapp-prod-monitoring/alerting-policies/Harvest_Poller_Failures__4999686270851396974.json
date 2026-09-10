@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4999686270851396974",
+  "display_name": "Harvest Poller Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-26T10:00:36.553222630Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-09-10T03:29:11.836670076Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/metadata_component_status\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "900s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "metric.label.name",
+              "metric.label.reason",
+              "metric.label.type",
+              "metric.label.poller",
+              "metric.label.hostname",
+              "metric.label.target",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Harvest Poller Failures",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4999686270851396974/conditions/14529025179713671061"
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "Harvest Poller Failures",
+    "links": []
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

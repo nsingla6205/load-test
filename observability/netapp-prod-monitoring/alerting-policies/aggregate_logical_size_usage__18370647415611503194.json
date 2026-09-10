@@ -1,0 +1,44 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18370647415611503194",
+  "display_name": "aggregate_logical_size_usage",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-27T14:39:29.480757267Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-11T15:09:11.075883823Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "display_name": "aggregate_logical_size_usage",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18370647415611503194/conditions/12698415280472318546",
+      "condition_prometheus_query_language": {
+        "query": "avg by (ontap_aggregate_uuid, location)(avg_over_time(custom_googleapis_com:aggregate_logical_size_usage{monitored_resource=\"k8s_pod\"}[1h])) / avg by (ontap_aggregate_uuid, location)(avg_over_time(custom_googleapis_com:aggregate_logical_size_volume_allocation_limit{monitored_resource=\"k8s_pod\"}[1h])) > 0.8",
+        "duration": "21600s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100295\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+%282025%29+ONTAP+-+Stamp+Re-balance+for+high+Allocation+or+high+Physical+Utilization",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

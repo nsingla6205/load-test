@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7258257418422354348",
+  "display_name": "NVRAM Battery Warning",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:40.217162513Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T09:04:36.346361108Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"callhome.battery.warning\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.cluster",
+              "metric.label.node",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7258257418422354348/conditions/8899307864974018582"
+    }
+  ],
+  "documentation": {
+    "content": "Correct any environmental issues, such as a high ambient temperature. If the condition persists, replace the NVRAM card/battery. If you need assistance, contact NetApp technical support.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "user_labels": {
+    "notification-channel": "none"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "notification_channels": []
+}

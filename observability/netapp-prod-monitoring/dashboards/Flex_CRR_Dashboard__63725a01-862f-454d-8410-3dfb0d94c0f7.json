@@ -1,0 +1,766 @@
+{
+  "name": "projects/93478785040/dashboards/63725a01-862f-454d-8410-3dfb0d94c0f7",
+  "display_name": "Flex CRR Dashboard",
+  "etag": "a497e56810e9feb6fed5da9ba04b721c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "y_pos": 8,
+        "width": 23,
+        "height": 13,
+        "widget": {
+          "title": "Peering Cluster Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (location, remoteLocation) (custom_googleapis_com:quark_crr_cluster_peering_state{monitored_resource=\"k8s_cluster\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "remoteLocation",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 53,
+        "width": 23,
+        "height": 16,
+        "widget": {
+          "title": "Transfer Bytes from Source",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (sourceUUID) (custom_googleapis_com:quark_vol_repl_transfer_bytes_total{monitored_resource=\"k8s_cluster\", type=\"CRR\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\", sourceUUID=~\"${sourceVolUUID.value}\", destinationUUID=~\"${destinationVolUUID.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 53,
+        "width": 23,
+        "height": 16,
+        "widget": {
+          "title": "Transfer Seconds from Source",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "sum by (sourceUUID) (custom_googleapis_com:quark_vol_repl_transfer_secs_total{monitored_resource=\"k8s_cluster\", type=\"CRR\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\", sourceUUID=~\"${sourceVolUUID.value}\",destinationUUID=~\"${destinationVolUUID.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 8,
+        "width": 23,
+        "height": 13,
+        "widget": {
+          "title": "CRR Cluster Info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1",
+                  "prometheus_query": "(custom_googleapis_com:quark_crr_cluster_peering_state{monitored_resource=\"k8s_cluster\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\"})",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "destinationPool",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "remoteLocation",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "sourcePool",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 69,
+        "width": 23,
+        "height": 19,
+        "widget": {
+          "title": "Vol Replication Health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:quark_vol_repl_health{monitored_resource=\"k8s_cluster\", type=\"CRR\", sourceUUID=~\"${sourceVolUUID.value}\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\",destinationUUID=~\"${destinationVolUUID.value}\" }",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "destinationUUID",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "sourceUUID",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "objectStore",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 53,
+        "widget": {
+          "title": "CRR Cluster Information",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 53,
+        "width": 48,
+        "height": 73,
+        "widget": {
+          "title": "Volume Replication Info",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 69,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Volume Replication Status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (sourceUUID) (custom_googleapis_com:quark_vol_repl_status{monitored_resource=\"k8s_cluster\", type=\"CRR\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\", sourceUUID=~\"${sourceVolUUID.value}\", destinationUUID=~\"${destinationVolUUID.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "0-Idle, 1-Transferring",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 88,
+        "width": 23,
+        "height": 19,
+        "widget": {
+          "title": "Volume Replication State ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name) (custom_googleapis_com:quark_vol_repl_state{monitored_resource=\"k8s_cluster\", type=\"CRR\", sourceUUID=~\"${sourceVolUUID.value}\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\",destinationUUID=~\"${destinationVolUUID.value}\" })",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "0- Uninitialized, 1-Mirrored, 2- Broken",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "width": 10,
+        "height": 8,
+        "widget": {
+          "title": "Peered Connections",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (custom_googleapis_com:quark_crr_cluster_peering_state{monitored_resource=\"k8s_cluster\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\"} == 1) ",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 37,
+        "width": 10,
+        "height": 8,
+        "widget": {
+          "title": "Peering Connections",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (custom_googleapis_com:quark_crr_cluster_peering_state{monitored_resource=\"k8s_cluster\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\"} != 1)",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Lag Time",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "custom_googleapis_com:quark_vol_repl_last{monitored_resource=\"k8s_cluster\", type=\"CRR\", sourceUUID=~\"${sourceVolUUID.value}\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\", destinationUUID=~\"${destinationVolUUID.value}\"}",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "destinationUUID",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "replicationPolicy",
+                "visible": true
+              },
+              {
+                "column": "replicationSchedule",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "sourceUUID",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 126,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Misc Info",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 126,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Transfer Bytes Per Location",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location) (custom_googleapis_com:quark_vol_repl_transfer_bytes_total{monitored_resource=\"k8s_cluster\", type=\"CRR\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\", sourceUUID=~\"${sourceVolUUID.value}\", destinationUUID=~\"${destinationVolUUID.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 107,
+        "width": 23,
+        "height": 19,
+        "widget": {
+          "title": "Volume Replication State Info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(custom_googleapis_com:quark_vol_repl_state{monitored_resource=\"k8s_cluster\", type=\"CRR\", sourceUUID=~\"${sourceVolUUID.value}\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\",destinationUUID=~\"${destinationVolUUID.value}\" })",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "destinationUUID",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "replicationPolicy",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "sourceUUID",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 37,
+        "width": 46,
+        "height": 16,
+        "widget": {
+          "title": "Volume - SP info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:ntapvol_size_total{monitored_resource=\"k8s_cluster\", service_name=\"quark-metrics-service\",ownerID!=\"\",  project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", quarkVolumeUUID=~\"${sourceVolUUID.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "kubernetes_namespace",
+                "visible": false
+              },
+              {
+                "column": "kubernetes_service_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "ownerID",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "quarkStoragePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "quarkVolumeUUID",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 21,
+        "width": 46,
+        "height": 16,
+        "widget": {
+          "title": "Service Mesh Health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:quark_crr_cluster_peering_svc_mesh{monitored_resource=\"k8s_cluster\",cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", project_id=~\"${project.value}\",sourcePool=~\"${sourceVolUUID.value}\", destinationPool=~\"${destinationVolUUID.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "project_id",
+      "template_variable": "project",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "cluster_name",
+      "template_variable": "cluster",
+      "filter_type": 1
+    },
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    },
+    {
+      "label_key": "sourceUUID",
+      "template_variable": "sourceVolUUID",
+      "filter_type": 2
+    },
+    {
+      "label_key": "destinationUUID",
+      "template_variable": "destinationVolUUID",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": "",
+    "quark": ""
+  }
+}

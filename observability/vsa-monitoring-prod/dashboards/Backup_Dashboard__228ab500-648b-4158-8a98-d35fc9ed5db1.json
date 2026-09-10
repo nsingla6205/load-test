@@ -1,0 +1,1034 @@
+{
+  "name": "projects/697731967255/dashboards/228ab500-648b-4158-8a98-d35fc9ed5db1",
+  "display_name": "Backup Dashboard",
+  "etag": "0b198cc9c19bbd933a060693c6f1438d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 21,
+        "widget": {
+          "title": "Dashboard Details",
+          "text": {
+            "content": "This dashboard give a high level summary of who is executing, where and which workflows accross the fleet.\nProvides health of the **Backup** service at a glance\n\n# High Level Dashboards\n\n    1. Customer centric views\n    2. Region specific views\n    3. Backup Workflow centric views\n\n\n## Workflow Summary\n\n    1. Usage of the Backup workflows accross the fleet\n    2. Availability of the Backup Workflows\n    3. Error rate in each Backup Workflow\n    4. Latency in executing the Backup workflows",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 21,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Usage Across the fleet ",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 24,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "**Description**: Top 30 Customers for backup jobs\n\n**Unit**: Count (of backup jobs)\n\n* Health Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 24,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "**Description**: Top 30 Customers for backup jobs(historical)\n\n**Unit**: Count (of backup jobs)\n\n* Health Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Customer Total Requests",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"projectNumber\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "workflowType",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Customer Total Requests (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"projectNumber\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 46,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "text": {
+            "content": "Description: Top 30 regions for backup jobs\n\nUnit: Count (of backup jobs)\n\nHealth Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 53,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Total Requests Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 53,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Total Requests Per Region (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 67,
+        "width": 48,
+        "height": 6,
+        "widget": {
+          "text": {
+            "content": "Description: Logical Backup Size\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 73,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Backup Size Per Customer",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"account_name\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/gcnv_backup_size_bytes\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 73,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Backup Size Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/gcnv_backup_size_bytes\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 92,
+        "width": 24,
+        "height": 4,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Count of backup enabled volumes per customer. \n- **Unit**: Count (backup enabled volumes)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 92,
+        "width": 24,
+        "height": 4,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Types of Backup Workflows Used by Customers \n- **Unit**: Count (bakcup workflows)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 96,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Customers with Backup configured",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/gcnv_vsa_cbs_volume\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "account_name",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 96,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Total Requests By Operations (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"Job_Type\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 110,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Backup Insights",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 113,
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "text": {
+            "content": "### Backup Health and Lag Time by Source Volume\n- **Description**: This table panel displays the average health status and average lag time of SnapMirror relationships, grouped by source volume.\n- **How to Read**: The table lists each source volume along with the average health status and average lag time.Providing a snapshot of the health and performance of SnapMirror relationships for each source volume.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 122,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backup Health",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_healthy\",\"monitored_resource\"=\"k8s_cluster\",\"destination_details\"=~\".*vsa-backup.*\"}[${__interval}]))\n#avg by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_healthy\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"^vsa-backup.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 122,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backup Lag",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_lag_time\",\"monitored_resource\"=\"k8s_cluster\",\"destination_details\"=~\"^vsa-backup.*\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 138,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Last Transfer Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_last_transfer_size\",\"monitored_resource\"=\"k8s_cluster\",\"destination_details\"=~\"^vsa-backup.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 138,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Last Transfer Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "min",
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_last_transfer_duration\",\"monitored_resource\"=\"k8s_cluster\",\"destination_details\"=~\"^vsa-backup.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 154,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Availability of Workflows",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 157,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Availability of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "100 * (\n  1 - (\n    sum by (Job_Type) (rate({__name__=\"custom.googleapis.com/ogen.server.request_count_total\", monitored_resource=\"k8s_cluster\", Job_Type=~\".*BACKUP.*\", Job_State!=\"DONE\"}[${__interval}])) \n    / \n    sum by (Job_Type) (rate({__name__=\"custom.googleapis.com/ogen.server.request_count_total\", monitored_resource=\"k8s_cluster\", Job_Type=~\".*BACKUP.*\"}[${__interval}]))\n  )\n)\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 173,
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "Availability of Workflows",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"!=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 188,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Error Rate in each workflow",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 191,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Error Rate of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"=monitoring.regex.full_match(\"500\") metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*BACKUP*.\")",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.001,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 207,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Latency in Workflow Execution",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 210,
+        "width": 48,
+        "height": 6,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Top 30 backup workflows based on their 99th percentile latency\n- **Unit**: \n  - **Latency**: Minutes (min)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 216,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Latency of Workflows",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, histogram_quantile(0.99,sum by (workflowType,le)(increase(custom_googleapis_com:activity_end_to_end_latency_bucket{monitored_resource=\"k8s_cluster\", \"workflowType\"=~\".*Backup.*\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "workflowType",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 216,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Latency of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "topk(30, histogram_quantile(0.99,sum by (workflowType,le)(increase(custom_googleapis_com:activity_end_to_end_latency_bucket{monitored_resource=\"k8s_cluster\",\"workflowType\"=~\".*Backup.*\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "projectNumber",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

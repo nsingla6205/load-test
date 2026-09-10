@@ -1,0 +1,386 @@
+{
+  "name": "projects/93478785040/dashboards/f1ad8b2d-7f4b-4f7a-bdd1-061eea038fa0",
+  "display_name": "zzzQuark CRR",
+  "etag": "66d17951493617948eb12bb7e53ee47c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 35,
+        "widget": {
+          "title": "CRR total bytes transfer",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ntapvol_replication_transfer_progress_total\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "quarkVolumeUUID",
+                "visible": true
+              },
+              {
+                "column": "quarkDestinationVolUUID",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "quarkStoragePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "ownerID",
+                "visible": false
+              },
+              {
+                "column": "quarkSmRelUUID",
+                "visible": false
+              },
+              {
+                "column": "sdeSPUUID",
+                "visible": false
+              },
+              {
+                "column": "sdeVolUUID",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "quark_netapp_io_app",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 35,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Requests (API Config paths) - Replications",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests_total\" resource.type=\"k8s_pod\" metric.label.\"url\"=\"/v2/VolumeReplications\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"code\"",
+                        "metric.label.\"url\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 35,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Requests (CRUD operations) - Replications",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\" metric.label.\"API\"=monitoring.regex.full_match(\"v1beta_[A-Za-z]+Replication[A-Za-z]+\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"API\"",
+                        "metric.label.\"status\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 51,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ntapvol_replication_progress_last_updated [RATE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ntapvol_replication_progress_last_updated\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 51,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Quark Cluster Peering State",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/quark_crr_peering_state\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"state\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 67,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Replication State",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/quark_vol_repl_state\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 67,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "TransferBytes-Quark Volume",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "custom_googleapis_com:quark_vol_repl_total_transfer_bytes{monitored_resource=\"k8s_cluster\"}",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 83,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "quark_vol_repl_total_transfer_secs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "sum by (destinationUUID)(custom_googleapis_com:quark_vol_repl_total_transfer_secs{monitored_resource=\"k8s_cluster\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

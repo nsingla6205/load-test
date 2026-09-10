@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15669875070064498277",
+  "display_name": "CMEK Policy",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-15T07:10:54.455714991Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-03-04T22:12:52.205022011Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/cmek-policy\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - logging/user/cmek-policy",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15669875070064498277/conditions/8677189025417756387"
+    }
+  ],
+  "documentation": {
+    "content": "https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=573214765",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/13473687690535857627",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

@@ -1,0 +1,67 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2624094023777254434",
+  "display_name": "CVT Job Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-05-05T23:45:36.745047379Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-05-05T23:46:34.994397556Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_collector_job_failure_count\"",
+        "comparison": 1,
+        "threshold_value": 3.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          },
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - cvt_collector_job_failure_count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2624094023777254434/conditions/1584351944790726534"
+    }
+  ],
+  "documentation": {
+    "subject": "CVT Job Failures",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

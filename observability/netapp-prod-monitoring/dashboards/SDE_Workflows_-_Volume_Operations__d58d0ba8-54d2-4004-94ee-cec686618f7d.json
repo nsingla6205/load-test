@@ -1,0 +1,222 @@
+{
+  "name": "projects/93478785040/dashboards/d58d0ba8-54d2-4004-94ee-cec686618f7d",
+  "display_name": "SDE Workflows - Volume Operations",
+  "etag": "295a27675313595b7476e8abc4b50933",
+  "mosaic_layout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "http_requests for sde-master-cvp-1p [MAX]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests\" resource.type=\"k8s_cluster\" metric.label.\"service_name\"=\"sde-master-cvp-1p\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "http_requests for sde-master-cvs [MAX]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests\" resource.type=\"k8s_cluster\" metric.label.\"service_name\"=\"sde-master-cvs\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "http_requests for sde-master-cvi [MEAN]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests\" resource.type=\"k8s_cluster\" metric.label.\"service_name\"=\"sde-master-cvi\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 12,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "http_requests for sde-master-VPS [MEAN]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests\" resource.type=\"k8s_cluster\" metric.label.\"service_name\"=\"sde-master-VPS\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "code",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "method",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "url",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "gcnv": ""
+  }
+}

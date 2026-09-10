@@ -1,0 +1,44 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13798936959421320342",
+  "display_name": "GCNV Quota usage - Routers",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-01T13:19:37.538488768Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-01T12:52:31.081438770Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Quota usage reached defined threshold",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13798936959421320342/conditions/8317006904644673367",
+      "condition_monitoring_query_language": {
+        "query": "fetch consumer_quota|{metric serviceruntime.googleapis.com/quota/allocation/usage|filter metric.quota_metric=='compute.googleapis.com/routers'|map add [metric.limit_name: 'ROUTERS-per-project']|align next_older(1d)|group_by [resource.project_id,resource.service,metric.quota_metric,metric.limit_name],.max;metric serviceruntime.googleapis.com/quota/limit|filter metric.quota_metric=='compute.googleapis.com/routers'&&metric.limit_name=='ROUTERS-per-project'|align next_older(1d)|group_by [resource.project_id,resource.service,metric.quota_metric,metric.limit_name],.min}|ratio|every 30s|condition gt(val(), 0.8 '1')",
+        "duration": "60s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluation_missing_data": 0
+      }
+    }
+  ],
+  "documentation": {
+    "content": "To resolve this issue, click [here](https://console.cloud.google.com/iam-admin/quotas?service=${resource.label.service}&metric=${metric.label.quota_metric}&limit=${metric.label.limit_name}&project=netapp-us-c1-sde&fromNotifications=1) to review quota usage and optionally request a quota increase.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "notification_channels": [],
+  "severity": 0
+}

@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11652680557842991672",
+  "display_name": "Snapshots missing during migration",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-13T16:16:00.771757077Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-11T15:24:35.809629935Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"logging.googleapis.com/user/hydrate-missing-snapshots-cvi\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metadata.system_labels.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "hydrate missing snapshots during migration",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11652680557842991672/conditions/11652680557842991273"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100285\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+SDE+-+Snapshots+missing+during+migration",
+    "mime_type": "text/markdown",
+    "subject": "Snapshot missing during migration ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/13473687690535857627",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

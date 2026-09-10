@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3871455105200184666",
+  "display_name": "Volume Allocation Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-13T02:28:37.418521148Z",
+    "mutated_by": "sowmiyaa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-09T04:59:51.457664581Z",
+    "mutated_by": "santhoshburla@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/vps_allocate_volume_failure\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - vps_allocate_volume_failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3871455105200184666/conditions/17339388375890724428"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook%3A+Volume+Allocation+Failures",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

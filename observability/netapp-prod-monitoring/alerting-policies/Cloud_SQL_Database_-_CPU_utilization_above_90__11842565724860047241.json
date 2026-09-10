@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11842565724860047241",
+  "display_name": "Cloud SQL Database - CPU utilization above 90%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-23T03:36:18.314335220Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-02-23T03:58:50.951091838Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_database\" AND metric.type = \"cloudsql.googleapis.com/database/cpu/utilization\"",
+        "comparison": 1,
+        "threshold_value": 0.9,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.database_id",
+              "resource.label.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Database - CPU utilization",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11842565724860047241/conditions/11842565724860046872"
+    }
+  ],
+  "documentation": {
+    "content": "# Runbook: Debugging High CPU Utilization in GCP Cloud SQL\n\n\nThis runbook provides a structured approach for investigating and resolving high CPU utilization (90%+) on a Google Cloud Platform (GCP) Cloud SQL database instance. The primary metric used for monitoring is **Cloud SQL Database > database > CPU utilization**.\n\n\n## I. Initial Assessment and Triage\n\n\n1.  **Verify CPU Utilization**: Confirm the CPU utilization is consistently at or above 90% in the Cloud Monitoring dashboard.\n2.  **Check Instance Status**: Verify the Cloud SQL instance is in a RUNNING state.\n3.  **Check Instance Configuration**: Note the current machine type (vCPUs and Memory) and database version.\n4.  **Check Other Metrics**: Check related metrics in Cloud Monitoring:\n    *   **Active Connections**: Is there a sudden spike?\n    *   **IOPS/Throughput**: Is disk activity also high?\n    *   **Replication Lag** (if applicable)\n5.  **Identify Time of Spike**: Determine if the high CPU is intermittent or sustained, and note the start time.\n\n\n## II. Database-Specific Diagnostics\n\n\nHigh CPU is typically caused by inefficient queries, a large number of concurrent connections, or intense background processes (like maintenance or backups).\n\n\n### A. Investigate Active Queries\n\n\n1.  **Identify Top CPU Consumers:** Connect to the database and run the appropriate command to identify currently running queries and their execution time.\n    *   **PostgreSQL:** `SELECT pid, usename, client_addr, query_start, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active' ORDER BY duration DESC;`\n2.  **Analyze and Explain:** For any query running for an unusually long time, capture the query text.\n    *   Use `EXPLAIN ANALYZE` (PostgreSQL) or `EXPLAIN` to inspect the query plan and identify missing indexes or poor join strategies.\n3.  **Action - Terminate or Limit:**\n    *   If a single query is clearly abusive and can be safely terminated, use the appropriate command:\n        *   **PostgreSQL:** `SELECT pg_cancel_backend(pid);`\n    *   Implement query timeouts or resource limits for applications if repeated occurrences are observed.\n\n\n### B. Review Slow Query Logs\n\n\n1.  **Locate Slow Queries:** Check the Cloud SQL logs viewer for slow query logs during the affected time window.\n2.  **Optimize:** Prioritize the optimization of the most frequently occurring or slowest-running queries by adding appropriate indexes.\n    *   *Note*: Adding indexes to large tables can be resource-intensive; consider scheduling during a maintenance window.\n\n\n### C. Check for High Connection Count\n\n\n1.  **Monitor Connection Metric:** Check the **Active Connections** metric in Cloud Monitoring.\n2.  **Verify Connection Pool:** If a large number of connections are observed, check the application's connection pool settings. Excessive spawning of new connections without proper reuse can overload the DB instance.\n3.  **Action - Restrict Connections:** Temporarily restrict the max allowed connections if the situation is critical, or work with the application team to reduce connection pressure.\n\n\n## III. Instance and Maintenance Review\n\n\n### A. Backup and Maintenance\n\n\n1.  **Check Backup Status:** In the Cloud SQL console, check if an automated backup or point-in-time recovery (PITR) operation was running during the high CPU period. These operations can be CPU intensive.\n    *   If a backup is running, wait for it to complete. If this is a recurring issue, consider adjusting the backup window.\n2.  **Check Maintenance Window:** Review the scheduled maintenance window. If an update or maintenance task coincided with the spike, this may be the cause.\n\n\n### B. Instance Scaling\n\n\nIf the database load is legitimate and optimization efforts are insufficient, the instance may be undersized.\n\n\n1.  **Review Resource Utilization History:** Look at the CPU utilization over the last week/month to identify if this is a recent issue or a long-term trend of resource saturation.\n2.  **Vertical Scaling (Upgrade):** Schedule a maintenance window to increase the number of vCPUs and/or RAM.\n    *   *Recommendation*: If the CPU is pegged at 90%+, consider upgrading by at least 50% (e.g., from 4 vCPUs to 6 vCPUs).\n\n\n## IV. Post-Resolution Monitoring\n\n\nOnce the CPU utilization has dropped below 50% (or an acceptable baseline):\n\n\n1.  **Sustained Monitoring:** Monitor the CPU utilization for at least 2 hours to confirm the fix is stable.\n2.  **Document and Post-Mortem:**\n    *   Document the cause of the high CPU (e.g., \"Non-indexed query on table_x\").\n    *   Document the corrective actions taken (e.g., \"Terminated PID 12345, added index idx_x\").\n    *   If the resolution involves a code change or scaling, ensure the relevant teams are aware.\n\n\n## V. Escalation\n\n\nIf the high CPU utilization persists after executing Sections I, II, and III, escalate to the next level of support or open a case with Google Cloud Support, providing the following information:\n\n\n*   Cloud SQL Instance Name and Project ID\n*   Time window of the high CPU utilization\n*   Database Engine and Version\n*   Outputs from the active query analysis (Section II.A)\n*   Steps already taken and their outcomes\n*   Relevant monitoring screenshots\n*   Cloud SQL logs (File Cloud SQL Logs File)",
+    "mime_type": "text/markdown",
+    "subject": "Cloud SQL Database - CPU utilization above 90%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

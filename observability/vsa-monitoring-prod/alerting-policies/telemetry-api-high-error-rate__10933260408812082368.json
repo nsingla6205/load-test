@@ -1,0 +1,52 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/10933260408812082368",
+  "display_name": "telemetry-api-high-error-rate",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-19T05:07:22.318048239Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:19:54.057637866Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "telemetry-api-high-error-rate Threshold Breach",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/10933260408812082368/conditions/17941423676302341239",
+      "condition_prometheus_query_language": {
+        "query": "sum(rate({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_api_requests_total\",\"monitored_resource\"=\"generic_task\",\"status_code\"=~\"5..\"}[5m]))  by (location,project_id,endpoint,method,status_code)/sum(rate({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_api_requests_total\",\"monitored_resource\"=\"generic_task\"}[5m]))  by (location,project_id,endpoint,method,status_code) > 0.05",
+        "duration": "300s",
+        "evaluation_interval": "30s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Alert triggered when the error rate (5xx errors / total requests) exceeds 5% for 5 minutes. This indicates a high rate of server errors that requires immediate investigation. Please check the API service health and review error logs.\n\n**Runbook:** [View Documentation](https://confluence.ngage.netapp.com/spaces/VSCP/pages/1416362540/Runbook+Telemetry+API+High+Error+Rate)",
+    "mime_type": "text/markdown",
+    "subject": "Alert: telemetry-api-high-error-rate",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/4693604034135020068",
+    "projects/vsa-monitoring-prod/notificationChannels/17268834121449248920",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "user_labels": {
+    "stack": "vcp-billing",
+    "service": "telemetry",
+    "telemetry": "api-metrics"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "auto_close": "1800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

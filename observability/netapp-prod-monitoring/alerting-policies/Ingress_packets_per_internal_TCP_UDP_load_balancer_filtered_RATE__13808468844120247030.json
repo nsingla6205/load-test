@@ -1,0 +1,59 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13808468844120247030",
+  "display_name": "Ingress packets per internal TCP/UDP load balancer (filtered) [RATE]",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-13T20:19:48.847221350Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-05-28T23:41:15.544954722Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"internal_tcp_lb_rule\" AND resource.labels.project_id = \"u81f20b9888b07c41-tp\" AND metric.type = \"loadbalancing.googleapis.com/l3/internal/ingress_packets_count\"",
+        "comparison": 3,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Internal Passthrough TCP Network Load Balancer Rule - Ingress packets per internal TCP/UDP load balancer",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13808468844120247030/conditions/15725916067028817002"
+    }
+  ],
+  "documentation": {
+    "content": "Please follow the Runbook https://confluence.ngage.netapp.com/spaces/COPS/pages/1421369399/Runbook+-+Atom+-+Volume+online+but+unable+to+mount\n\nReference Ticket https://partnerissuetracker.corp.google.com/issues/481744830\nReference CX Ticket https://partnerissuetracker.corp.google.com/issues/481630169",
+    "mime_type": "text/markdown",
+    "subject": "Airtel Customer LB Low Ingress Packet Drops",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

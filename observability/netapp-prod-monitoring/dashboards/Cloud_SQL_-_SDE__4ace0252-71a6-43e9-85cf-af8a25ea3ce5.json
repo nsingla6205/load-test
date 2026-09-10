@@ -1,0 +1,1047 @@
+{
+  "name": "projects/93478785040/dashboards/4ace0252-71a6-43e9-85cf-af8a25ea3ce5",
+  "display_name": "Cloud SQL - SDE",
+  "etag": "d0174de4b8c0c4efd01afa4f3d295051",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 31,
+        "width": 12,
+        "height": 25,
+        "widget": {
+          "title": "Server up ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(40, avg by (database_id)(avg_over_time(cloudsql_googleapis_com:database_up{monitored_resource=\"cloudsql_database\"}[${__interval}]))) *100\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 3,
+        "width": 12,
+        "height": 28,
+        "widget": {
+          "title": "Cloud SQL Database - Uptime",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(40, sum by (region)(rate(cloudsql_googleapis_com:database_uptime{monitored_resource=\"cloudsql_database\"}[${__interval}]))) *100\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 56,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Cloud SQL SLO ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "select_slo_compliance(\"projects/93478785040/services/DatlfCklSQ2UJcQikycB5Q/serviceLevelObjectives/mxaBm-JQTEm0408gItMwNA\")",
+                    "aggregation": {
+                      "per_series_aligner": 4,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "10^2.%",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 3,
+        "width": 36,
+        "height": 28,
+        "widget": {
+          "title": "Cloud SQL Database - Uptime (chart)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(40, sum by (region)(rate(cloudsql_googleapis_com:database_uptime{monitored_resource=\"cloudsql_database\"}[${__interval}]))) *100\n#This query may not fully reflect the original configuration.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 31,
+        "width": 36,
+        "height": 25,
+        "widget": {
+          "title": "Server up (Chart)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(40, avg by (database_id)(avg_over_time(cloudsql_googleapis_com:database_up{monitored_resource=\"cloudsql_database\"}[${__interval}]))) *100\n#This query may not fully reflect the original configuration.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud SQL Database - CPU utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/cpu/utilization\" resource.type=\"cloudsql_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metadata.system_labels.\"name\"",
+                        "metadata.system_labels.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.5,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 0.75,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 0.95,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud SQL Database - CPU utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/cpu/utilization\" resource.type=\"cloudsql_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"database_id\"",
+                        "metadata.system_labels.\"name\"",
+                        "metadata.system_labels.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 110,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Deadlocks count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/deadlock_count\" resource.type=\"cloudsql_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"database\"",
+                        "resource.label.\"database_id\"",
+                        "resource.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "target_axis": 1,
+                "label": "",
+                "value": 0.0,
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 110,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Deadlocks count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/deadlock_count\" resource.type=\"cloudsql_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"database\"",
+                        "resource.label.\"database_id\"",
+                        "resource.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 91,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud SQL Database - Memory utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/memory/utilization\" resource.type=\"cloudsql_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"database_id\"",
+                        "resource.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 95.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 75.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 50.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 91,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud SQL Database - Memory utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "topk(30, avg by (\"database_id\",\"region\")(avg_over_time({\"__name__\"=\"cloudsql.googleapis.com/database/memory/utilization\",\"monitored_resource\"=\"cloudsql_database\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "database_id",
+                "visible": true
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "DB Availability",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 72,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "DB Resource Utilization",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 107,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Deadlocks and Latency",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 126,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "Cloud SQL Instance Database - Latency [99TH PERCENTILE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/aggregate/latencies\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"database\"",
+                        "resource.label.\"location\"",
+                        "metric.label.\"client_addr\"",
+                        "metric.label.\"user\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1000000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 126,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "Cloud SQL Instance Database - Latency [99TH PERCENTILE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/aggregate/latencies\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"database\"",
+                        "resource.label.\"location\"",
+                        "metric.label.\"client_addr\"",
+                        "metric.label.\"user\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "database",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "client_addr",
+                "visible": true
+              },
+              {
+                "column": "user",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 141,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Per query latency [99TH PERCENTILE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"querystring\"",
+                        "metric.label.\"user\"",
+                        "metric.label.\"client_addr\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\"",
+                        "resource.label.\"resource_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 10000000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 141,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Per query latency [99TH PERCENTILE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"querystring\"",
+                        "metric.label.\"user\"",
+                        "metric.label.\"client_addr\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\"",
+                        "resource.label.\"resource_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "querystring",
+                "visible": true
+              },
+              {
+                "column": "user",
+                "visible": true
+              },
+              {
+                "column": "client_addr",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "database",
+                "visible": true
+              },
+              {
+                "column": "resource_id",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 161,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Cloud SQL Instance Database - Execution time [99TH PERCENTILE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"user\"",
+                        "metric.label.\"client_addr\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1000000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 161,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Cloud SQL Instance Database - Execution time [99TH PERCENTILE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"user\"",
+                        "metric.label.\"client_addr\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 158,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Query Execution Times",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 179,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per query execution times [99TH PERCENTILE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/execution_time\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"querystring\"",
+                        "metric.label.\"user\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1000000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 179,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per query execution times [99TH PERCENTILE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/execution_time\" resource.type=\"cloudsql_instance_database\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"querystring\"",
+                        "metric.label.\"user\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"database\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "querystring",
+                "visible": true
+              },
+              {
+                "column": "user",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "database",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "infra": "",
+    "gcnv": ""
+  },
+  "dashboard_filters": []
+}

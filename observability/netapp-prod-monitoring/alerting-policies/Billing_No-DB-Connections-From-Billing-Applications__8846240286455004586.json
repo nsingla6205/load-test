@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8846240286455004586",
+  "display_name": "Billing: No-DB-Connections-From-Billing-Applications",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-02-17T12:12:43.540027789Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-17T12:12:43.540027789Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/pgxpool_total_conns\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - pgxpool_total_conns",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8846240286455004586/conditions/8846240286455001645"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: Yet to Create\n\n1. Check if the CVT Pipeline/Qstack Usage/ Qstack Billing Pod logs for any DB error",
+    "mime_type": "text/markdown",
+    "subject": "Billing: No-DB-Connections-From-Billing-Applications",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

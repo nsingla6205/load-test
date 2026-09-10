@@ -1,0 +1,44 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4641880334957234708",
+  "display_name": "GCNV Quota usage - Compute Engine API - Interconnect attachments total Mbps",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-01T13:15:09.239874051Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-30T13:11:49.324244752Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Quota usage reached defined threshold",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4641880334957234708/conditions/15953968646306859040",
+      "condition_monitoring_query_language": {
+        "query": "fetch consumer_quota |{metric serviceruntime.googleapis.com/quota/allocation/usage|filter metric.quota_metric=='compute.googleapis.com/interconnect_attachments_total_mbps'|map add [metric.limit_name: 'INTERCONNECT-ATTACHMENTS-TOTAL-MBPS-per-project-region']|align next_older(1d)|group_by [resource.project_id,resource.service,metric.quota_metric,metric.limit_name,resource.location],.max;metric serviceruntime.googleapis.com/quota/limit|filter metric.quota_metric=='compute.googleapis.com/interconnect_attachments_total_mbps'&&metric.limit_name=='INTERCONNECT-ATTACHMENTS-TOTAL-MBPS-per-project-region'|align next_older(1d)|group_by [resource.project_id,resource.service,metric.quota_metric,metric.limit_name,resource.location],.min}|ratio|every 30s|condition gt(val(), 0.8 '1')",
+        "duration": "60s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluation_missing_data": 0
+      }
+    }
+  ],
+  "documentation": {
+    "content": "To resolve this issue, click [here](https://console.cloud.google.com/iam-admin/quotas?service=${resource.label.service}&metric=${metric.label.quota_metric}&limit=${metric.label.limit_name}&dimensions=%7B%22region%22%3A%22${resource.label.location}%22%7D&project=netapp-us-c1-sde&fromNotifications=1) to review quota usage and optionally request a quota increase.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "notification_channels": [],
+  "severity": 0
+}

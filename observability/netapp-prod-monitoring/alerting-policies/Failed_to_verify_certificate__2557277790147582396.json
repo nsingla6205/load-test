@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2557277790147582396",
+  "display_name": "Failed to verify certificate",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-09-03T09:36:43.382546811Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-20T19:25:48.726925975Z",
+    "mutated_by": "sharatch@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"logging.googleapis.com/user/failed-certificate-verification\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 4,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "failed-certificate-verification",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2557277790147582396/conditions/2557277790147581599"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+GCNV+-+Alert+Failed+to+verify+certificate",
+    "mime_type": "text/markdown",
+    "subject": "Failed to verify certificate",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

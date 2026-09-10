@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10258543822671690233",
+  "display_name": "First Volume Creation Failure",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-07-22T12:36:05.877937330Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-06-09T14:16:09.198734184Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/vol-create-error-count\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "First Volume Create Error",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10258543822671690233/conditions/10258543822671688818"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+First+Volume+Creation+Failure\n",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/11088599153676089097",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12576452339198532927",
+  "display_name": "Giveback of Storage Pool Failed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:09.772355722Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T07:54:00.478844663Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"gb.netra.ca.check.failed\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.cluster",
+              "metric.label.node",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12576452339198532927/conditions/11099190445060491622"
+    }
+  ],
+  "documentation": {
+    "content": "Perform the following corrective actions:\n\n1. Verify that your intercluster LIF is online and functional by using the \"network interface show\" command.\n2. Check network connectivity to the object store server by using the\"'ping\" command over the destination node intercluster LIF.\n3. Verify that the configuration of your object store has not changed and that login and connectivity information is still accurate by using the \"aggregate object-store config show\" command.\n\nAlternatively, you can override the error by specifying false for the \"require-partner-waiting\" parameter of the giveback command.\n\nContact NetApp technical support for more information or assistance.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "user_labels": {
+    "notification-channel": "none"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "notification_channels": []
+}

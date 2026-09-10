@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10622476785828705695",
+  "display_name": "Cloud SQL Instance Database - High Per query latency",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-23T05:22:06.718106683Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-02-23T05:22:06.718106683Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_instance_database\" AND metric.type = \"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\"",
+        "comparison": 1,
+        "threshold_value": 10000000.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.querystring",
+              "metric.label.user",
+              "resource.label.location",
+              "resource.label.database"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Instance Database - Per query latency",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10622476785828705695/conditions/10622476785828704454"
+    }
+  ],
+  "documentation": {
+    "content": "# **GCP Cloud PostgreSQL High Per Query Latency Debugging Runbook**\n\nThis runbook outlines the steps to diagnose and resolve alerts indicating high per-query latency on a Google Cloud PostgreSQL database instance.\n\n# **1\\. Initial Triage and Alert Confirmation**\n\n## **1.1. Confirm the Alert**\n\n* **Check Alerting System:** Verify the alert source (e.g., Cloud Monitoring, custom monitoring) and its current status.  \n* **Confirm Metrics:** Check the specific metrics that triggered the alert, focusing on:  \n  * `cloudsql.googleapis.com/database/postgresql/query_latency`: Per-query latency.  \n  * `cloudsql.googleapis.com/database/postgresql/active_connections`: Number of active connections.  \n  * `cloudsql.googleapis.com/database/cpu/utilization`: CPU utilization.\n\n## **1.2. Gather Context**\n\n* **Time of Incident:** Note the exact start time of the latency increase.  \n* **Recent Changes:** Check for any recent deployments, schema changes, configuration updates, or sudden increases in application traffic.  \n* **Scope:** Is the issue affecting all queries or specific types of queries? Is it affecting all applications connecting to the database?\n\n# **2\\. System Resource Check**\n\nHigh query latency can often be a symptom of resource contention.\n\n## **2.1. CPU and Memory**\n\n* **Cloud Monitoring Dashboards:** Review the following metrics for the database instance:  \n  * `cloudsql.googleapis.com/database/cpu/utilization`: High CPU utilization (consistently above 80%) can indicate a bottleneck.  \n  * `cloudsql.googleapis.com/database/memory/usage`: Check for high memory usage, which could lead to excessive disk I/O (swapping).\n\n## **2.2. Disk I/O**\n\n* **I/O Utilization:** Check `cloudsql.googleapis.com/database/disk/read_operations_count` and `cloudsql.googleapis.com/database/disk/write_operations_count`. High values or a sudden spike might indicate an I/O bottleneck, especially if combined with high memory usage.\n\n## **2.3. Connections**\n\n* **Connection Count:** Review `cloudsql.googleapis.com/database/postgresql/active_connections` and compare it to the configured `max_connections`. Hitting the maximum connection limit can lead to connection throttling and queued queries, increasing perceived latency.\n\n# **3\\. Database-Specific Diagnosis**\n\nIf system resources appear normal or are fully utilized, the issue is likely within the database workload.\n\n## **3.1. Identify Slow Queries**\n\nUse the PostgreSQL Slow Query Log, if enabled, or the Cloud SQL Query Insights dashboard.\n\n| Tool | Action | Expected Output |\n| :---- | :---- | :---- |\n| Cloud SQL Query Insights | Analyze the **Top N** queries during the incident window. | Identify one or more queries with disproportionately high average latency. |\n| PostgreSQL Logs | Search for queries exceeding the `log_min_duration_statement` threshold. | Raw slow query data including execution time and query text. |\n\n## **3.2. Check Running Queries**\n\nConnect to the database and check currently running queries using the following PostgreSQL view:\n\n```\nSELECT\n    pid,\n    age(clock_timestamp(), query_start),\n    usename,\n    query\nFROM pg_stat_activity\nWHERE state != 'idle'\nORDER BY query_start DESC;\n```\n\n* **Look for:** Long-running transactions, queries stuck in a `waiting` state (check the `wait_event` column), or queries consuming a lot of resources.\n\n## **3.3. Analyze Wait Events**\n\nIf queries are blocked, check `pg_stat_activity` for the `wait_event_type` and `wait_event`.\n\n* **Lock-related waits (e.g., `Lock` wait event type):** Indicates contention. Identify the blocking query.  \n* **I/O waits (e.g., `IO` wait event type):** Confirms an I/O bottleneck, potentially related to large sequential scans.\n\n# **4\\. Remediation Steps**\n\nAddress the root cause identified in the diagnosis phase.\n\n## **4.1. Indexing and Query Tuning**\n\nIf a specific query is identified as the culprit:\n\n* **Generate an Explain Plan:** Run `EXPLAIN (ANALYZE, BUFFERS) <Slow Query>` to understand how the query is executing.  \n* **Identify Missing Indexes:** Look for sequential scans on large tables. Create necessary indexes.  \n* **Optimize Query Structure:** Tune the query (e.g., rewrite JOINs, reduce data returned).\n\n## **4.2. Connection Management**\n\nIf connection limit is reached or contention is high:\n\n* **Implement a Connection Pooler:** Use PgBouncer or a similar tool to manage application connections more efficiently.  \n* **Increase `max_connections`:** If resource utilization allows, temporarily increase the `max_connections` limit on the Cloud SQL instance. **Caution:** This requires an instance restart.\n\n## **4.3. Resource Scaling**\n\nIf high CPU or I/O is the root cause and query tuning is not immediately feasible:\n\n* **Upgrade Instance:** Scale up the Cloud SQL instance's CPU and Memory.  \n* **Increase Disk Throughput:** Increase the disk size (for standard storage) or upgrade the storage tier to improve I/O performance.\n\n## **4.4. Lock Resolution (If applicable)**\n\nIf a blocking lock is identified:\n\n1. **Contact Application Owner:** Notify the owner of the application running the blocking transaction.  \n2. **Terminate Blocking Query:** As a last resort and with extreme caution, terminate the blocking PID:\n\n```\nSELECT pg_terminate_backend(<PID_of_blocking_query>);\n```\n\n# **5\\. Post-Incident Review**\n\n* **Monitor:** Ensure the latency metrics have returned to baseline and remain stable.  \n* **Document:** Update the incident timeline and resolution details in the incident report (e.g., FileIncident Report Document).  \n* **Preventive Measures:** Schedule a follow-up action to implement permanent fixes, such as optimizing the identified query or adding capacity. This can be tracked in the follow-up meeting Calendar event.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {},
+  "notification_channels": []
+}

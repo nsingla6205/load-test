@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13482144495803925090",
+  "display_name": "Excessive Login Attempts on ONTAP",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-01-16T12:47:24.654483888Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-03-10T10:51:43.964986238Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"global\" AND metric.type = \"custom.googleapis.com/gin\" AND metric.labels.cmd = \"Login Attempt\"",
+        "comparison": 1,
+        "threshold_value": 3.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.user_name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Excessive Login Attempts on ONTAP",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13482144495803925090/conditions/8340764825573430384"
+    }
+  ],
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4609840841954334010",
+    "projects/netapp-prod-monitoring/notificationChannels/517120862665976764",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,705 @@
+{
+  "name": "projects/93478785040/dashboards/53c04531-b09a-4ee3-b0d9-3605d81e643a",
+  "display_name": "Rollback Dashboard",
+  "etag": "d780909010cf3e859b8a845ade7d7b6b",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Quark Cluster Rollback Monitoring",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 23,
+        "height": 18,
+        "widget": {
+          "title": "Quark Cluster Rollback State ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "#Rollback clusters\navg_over_time(\n  custom_googleapis_com:quark_health_rollback_status{monitored_resource=\"k8s_cluster\", rbFrom!=\" \"}[${__interval}]\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "# Normal state clusters\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800#\ncount(avg_over_time(\n  custom_googleapis_com:quark_health_rollback_status{monitored_resource=\"k8s_cluster\", rbFrom=\" \"}[${__interval}]\n)) ",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 4,
+        "width": 25,
+        "height": 18,
+        "widget": {
+          "title": "Quark Cluster Rollback State ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/quark_health_rollback_status\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "rbFrom",
+                "visible": true
+              },
+              {
+                "column": "rbTo",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "chartType",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 22,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Quark CR Feature Monitoring",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 26,
+        "width": 26,
+        "height": 21,
+        "widget": {
+          "title": "Quark CR Feature Setting",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_quark_feature_setting_value\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"featureName\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 26,
+        "y_pos": 26,
+        "width": 22,
+        "height": 21,
+        "widget": {
+          "title": "Unique Quark CR Feature Setting",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_quark_feature_setting_value\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"featureName\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 47,
+        "width": 26,
+        "height": 22,
+        "widget": {
+          "title": "Quark CR Feature Reconciled",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_quark_feature_setting_reconciled\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"featureName\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 26,
+        "y_pos": 47,
+        "width": 22,
+        "height": 22,
+        "widget": {
+          "title": "Quark CR Feature Reconciled Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "#Clusters with features not reconciled\nsum by (cluster_name)(avg_over_time(custom_googleapis_com:netapp_volume_controller_quark_feature_setting_reconciled{monitored_resource=\"k8s_cluster\"}[${__interval}])) == 0\n\n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "#Clusters with features reconciled\nsum by (cluster_name)(avg_over_time(custom_googleapis_com:netapp_volume_controller_quark_feature_setting_reconciled{monitored_resource=\"k8s_cluster\"}[${__interval}])) != 0\n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 69,
+        "width": 27,
+        "height": 18,
+        "widget": {
+          "title": "Count of Quark CR Not Reconciled Features",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (featureName)(avg_over_time(custom_googleapis_com:netapp_volume_controller_quark_feature_setting_reconciled{monitored_resource=\"k8s_cluster\"}[${__interval}])) != 0",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 87,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Quark Storage Pool Feature Monitoring",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 91,
+        "width": 25,
+        "height": 17,
+        "widget": {
+          "title": "Storage Pool Feature Flag Setting",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_sp_feature_setting_value\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 10,
+                      "cross_series_reducer": 2,
+                      "group_by_fields": [
+                        "metric.label.\"featureName\"",
+                        "metric.label.\"storagePoolUUID\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "featureName",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 25,
+        "y_pos": 91,
+        "width": 23,
+        "height": 17,
+        "widget": {
+          "title": "Storage Pool Feature Flag Reconciled",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_sp_feature_setting_reconciled\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 10,
+                      "cross_series_reducer": 2,
+                      "group_by_fields": [
+                        "metric.label.\"featureName\"",
+                        "metric.label.\"storagePoolUUID\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "featureName",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 108,
+        "width": 25,
+        "height": 18,
+        "widget": {
+          "title": "Storage Pool Feature Flag Warnings",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/netapp_volume_controller_sp_feature_warning\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"storagePoolUUID\"",
+                        "resource.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "${resource.labels.cluster_name}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 25,
+        "y_pos": 108,
+        "width": 23,
+        "height": 18,
+        "widget": {
+          "title": "Quark Cluster And Version",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/quark_health_cluster_version\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 126,
+        "width": 25,
+        "height": 16,
+        "widget": {
+          "title": "Sp Version",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/podrick_ntapsp_version\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 25,
+        "y_pos": 126,
+        "width": 23,
+        "height": 16,
+        "widget": {
+          "title": "Quark Clusters (Rollback state)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"kubernetes.io/container/memory/request_bytes\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "Normal State Clusters",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"compute.googleapis.com/instance/cpu/reserved_cores\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "Rollback State Clusters",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "y_axis": {
+              "label": " ",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 142,
+        "width": 48,
+        "height": 25,
+        "widget": {
+          "title": "Quark Cluster Rollback State ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "#Rollback clusters\navg_over_time(\n  custom_googleapis_com:quark_health_rollback_status{monitored_resource=\"k8s_cluster\", rbFrom!=\" \"}[${__interval}]\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "#Normal state clusters\ncount(avg_over_time(\n  custom_googleapis_com:quark_health_rollback_status{monitored_resource=\"k8s_cluster\", rbFrom=\" \"}[${__interval}]\n)) ",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

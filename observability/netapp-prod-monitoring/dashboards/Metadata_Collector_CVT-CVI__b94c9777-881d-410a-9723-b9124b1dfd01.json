@@ -1,0 +1,1279 @@
+{
+  "name": "projects/93478785040/dashboards/b94c9777-881d-410a-9723-b9124b1dfd01",
+  "display_name": "Metadata Collector (CVT-CVI)",
+  "etag": "9bd5d115b2898b6c319b2563780c2138",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "y_pos": 24,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Metadata Cache Miss",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cache_miss_warning\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 24,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Cache Server Connection Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cache_server_error\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "CVI Connection Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvi_connection_error\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 140,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cache Augmented Syslog Message Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_ontap_msg_handler_augmented_syslog_processed_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 124,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Syslog Message Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_ontap_msg_handler_raw_syslog_receive_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 140,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Formatted Augmented Syslog Message Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_ontap_msg_handler_parsed_fluentd_syslog_send_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 124,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Syslog Messages",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_ontap_msg_handler_raw_syslog_received_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 108,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CPU Utilization (Seconds)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/process_cpu_seconds_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 92,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Physical Memory Usage",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/process_resident_memory_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 92,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Virtual Memory Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/process_virtual_memory_max_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 92,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Virtual Memory Usage",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/process_virtual_memory_bytes\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 108,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Start Time (Epoch)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/process_start_time_seconds\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 12,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Rabbitmq Connection Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/rabbitmq_connection_error\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 48,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Redis \"Data Not Found\" Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/redis_data_not_found\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 12,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Redis Connection Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/redis_errors_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 48,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Redis Successful Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/successful_redis_operation\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 36,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Redis Data Format Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/unable_to_unmarshal_data\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 36,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Logging Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/logging_errors_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 60,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CVT API Operation Duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_api_operation_duration\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"cluster_name\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 76,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CVT Successful Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_api_operation_success_count\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 60,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CVT General Operation Duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvt_general_operation_duration\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"cluster_name\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Postgress Connection Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/postgress_connection_status\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 156,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Retrieve Storage Capacity Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/collector_aggregates_storage_capacity_failed\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 156,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Retrieve Storage Capacity Successful",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/collector_aggregates_storage_capacity_successful\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 172,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Retrieve Storage Efficiency Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/collector_aggregates_storage_efficiency_failed\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 172,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Retrieve Storage Efficiency Successful",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/collector_aggregates_storage_efficiency_successful\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 156,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Aggregate Metrics (CVT-collector)",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 92,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Process Metrics",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 124,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Log Generation Metrics (CVT)",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 76,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CVI Request Duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvi_request_duration_seconds\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 18,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "microservices": "",
+    "gcnv-po": "",
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

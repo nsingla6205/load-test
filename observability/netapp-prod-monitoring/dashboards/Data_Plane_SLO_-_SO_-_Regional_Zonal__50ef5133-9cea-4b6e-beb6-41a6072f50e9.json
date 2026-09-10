@@ -1,0 +1,499 @@
+{
+  "name": "projects/93478785040/dashboards/50ef5133-9cea-4b6e-beb6-41a6072f50e9",
+  "display_name": "Data Plane SLO - SO - Regional/Zonal",
+  "etag": "20ce7505dd63ed5009fc0eb086d14075",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 13,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Regional)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'true'\n| filter_ratio_by [], value.volume_online_percentage_so_v2 >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 3
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 42,
+        "width": 48,
+        "height": 21,
+        "widget": {
+          "title": "Out-of-SLO Volumes in last 30 days",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/volume_online_percentage_so_v2'\n| filter value.volume_online_percentage_so_v2 < 99.99\n| top_by [], 100, mean(value.volume_online_percentage_so_v2)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "resource.project_id",
+                "visible": false
+              },
+              {
+                "column": "resource.instance_id",
+                "visible": false
+              },
+              {
+                "column": "resource.zone",
+                "visible": false
+              },
+              {
+                "column": "resource.monitored_resource_container",
+                "visible": false
+              },
+              {
+                "column": "metric.location",
+                "visible": true
+              },
+              {
+                "column": "metric.regionalHA",
+                "visible": false
+              },
+              {
+                "column": "metric.volume_UUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 29,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Fleet-wide Regional SLO-Eligible Volume count in last 30 days",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/volume_online_percentage_so_v2'\n| filter metric.regionalHA = 'true'\n| align mean_aligner()\n| window 5m\n| group_by [],\n    [value_volume_online_percentage_so_count:\n       count(value.volume_online_percentage_so_v2)]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 13,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Zonal)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'false'\n| filter_ratio_by [], value.volume_online_percentage_so_v2 >= 99.9\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 3
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 29,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Fleet-wide Zonal SLO-Eligible Volume count in last 30 days",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/volume_online_percentage_so_v2'\n| filter metric.regionalHA = 'false'\n| align mean_aligner()\n| window 5m\n| group_by [],\n    [value_volume_online_percentage_so_count:\n       count(value.volume_online_percentage_so_v2)]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Zonal SLA Definition",
+          "text": {
+            "content": "### Fleet Wide SLA (99%)\n\nVolume count (SLA >= 99.99%) / Total Volume count\n\n### Per Volume SLA (99.9%)\n\nTotal online minutes / Total minutes\n\n*30 Days Moving Window*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Regional SLA Definition",
+          "text": {
+            "content": "### Fleet Wide SLA (99%)\n\nVolume count (SLA >= 99.99%) / Total Volume count\n\n### Per Volume SLA (99.99%)\n\nTotal online minutes / Total minutes\n\n*30 Days Moving Window*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 63,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Regional) - Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'true'\n| filter_ratio_by [metric.location],\n    value.volume_online_percentage_so_v2 >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 63,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Zonal) - Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'false'\n| filter_ratio_by [metric.location],\n    value.volume_online_percentage_so_v2 >= 99.9\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 79,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "Volume Status (As reported by Quark)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/podrick_ntapvol_state\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 99,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Regional)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'true'\n| filter_ratio_by [], value.volume_online_percentage_so_v2 >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 99,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Zonal)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'false'\n| filter_ratio_by [], value.volume_online_percentage_so_v2 >= 99.9\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 115,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Regional) - Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'true'\n| filter_ratio_by [metric.location],\n    value.volume_online_percentage_so_v2 >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 115,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance (Zonal) - Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so_v2\n| align mean_aligner()\n| filter metric.regionalHA = 'false'\n| filter_ratio_by [metric.location],\n    value.volume_online_percentage_so_v2 >= 99.9\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 131,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Projects with Offline Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"uuid\",\"accountName\")(\n    avg_over_time({\"__name__\"=\"custom.googleapis.com/eligibility/v2/volume\",\"monitored_resource\"=\"gce_instance\",\"storageClass\"=\"software\"}[${__interval}])\n)\nand on (uuid)\nsum by (\"volumeUUID\")(\n    avg_over_time({\"__name__\"=\"custom.googleapis.com/podrick_ntapvol_state\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]) < 1\n)",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  }
+}

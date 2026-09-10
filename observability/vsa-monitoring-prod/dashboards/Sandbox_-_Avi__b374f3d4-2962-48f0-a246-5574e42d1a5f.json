@@ -1,0 +1,542 @@
+{
+  "name": "projects/697731967255/dashboards/b374f3d4-2962-48f0-a246-5574e42d1a5f",
+  "display_name": "Sandbox - Avi",
+  "etag": "7baa90c74589f1bf4cb026f9333c0f13",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "y_pos": 58,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane SLI",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) == 1 / avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))) * 100",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 42,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Offline Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg by (\"volume\",\"name\",\"svm\",\"cluster\",\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\".*_root\"}[${__interval}])) != 1\n\navg by (\"volume\",\"name\",\"cluster\",\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[5m])) != 1\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "Dashboard Details",
+          "text": {
+            "content": "This dashboard has details on offline volumes\n\nThe following details are available\n\n1. Data Plane SLO\n2. Service wide average availability of volumes\n3. List of volumes which are currently offline\n",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 42,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane SLA Compliance (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])\n/\n(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}]) >= 99.99) * 100",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes Below SLO",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\",\"volume\"!~\"cep_.*\"}[${__interval}]) < 99.99",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Data Plane SLA Compliance (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\n/ \n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 74,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane SLA Compliance (30d) ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) > 0\n/\navg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))) * 100 \n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 58,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Volumes",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "count_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 90,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Data Plane SLA Compliance (30d) - Volume Status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\n/ \n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 74,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Data Plane SLA Compliance (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\n/ \n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 106,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Data Plane SLA Compliance (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\n/ \n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/vsa_volume_availability\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 90,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Offline Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg by (\"volume\",\"name\",\"svm\",\"cluster\",\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\".*_root\"}[${__interval}])) != 1\n\navg by (\"volume\",\"name\",\"cluster\",\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[5m])) != 1\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 10,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Latency SLA (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/volume_latency_percentage\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\r\n/ \r\n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/volume_latency_percentage\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 122,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "MQL Query",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch global::custom.googleapis.com/vsa-dp-slo/v1/volume_online_percentage\n| align mean_aligner()\n| filter_ratio_by [], value.volume_online_percentage >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 10,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "MQL Query",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch global::custom.googleapis.com/v4/vsa_volume_availability\n| align mean_aligner()\n| filter_ratio_by [], value.vsa_volume_availability >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

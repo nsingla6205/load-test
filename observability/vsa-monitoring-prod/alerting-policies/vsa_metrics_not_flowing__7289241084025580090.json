@@ -1,0 +1,58 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/7289241084025580090",
+  "display_name": "vsa_metrics_not_flowing",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-08-28T10:10:22.138420470Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:11:04.897978668Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/aggr_labels\"",
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ]
+      },
+      "display_name": "vsa_metrics_not_flowing",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/7289241084025580090/conditions/955074094069533391"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "VSA  Metrics Not Flowing",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

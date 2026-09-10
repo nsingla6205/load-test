@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10353277209629674993",
+  "display_name": "SDS Internal Server Errors [5xx]",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-07-16T09:02:52.833551587Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T05:03:24.293307556Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/SDS_http_requests_total\" AND metric.labels.code = monitoring.regex.full_match(\"5.*\")",
+        "comparison": 1,
+        "threshold_value": 20.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - SDS_http_requests_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10353277209629674993/conditions/10353277209629675258"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100301",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

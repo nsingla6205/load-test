@@ -1,0 +1,668 @@
+{
+  "name": "projects/697731967255/dashboards/b005cc60-297c-4a89-849b-f595f633a4af",
+  "display_name": "Cluster Health Dashboards",
+  "etag": "a7d66395ff5a59f4744ee5c2885dd534",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 19,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Data Path Metrics",
+          "section_header": {
+            "subtitle": "REST APIs",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 125,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "EMS Events",
+          "section_header": {
+            "subtitle": "EMS",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 44,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Unhealthy Nodes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"name\",\"state\",\"location\",${__groupby})(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"healthy\"!=\"true\",\"state\"!=\"up\",\"pool_name\"!~\"cep-.*\"}[5m])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "severity",
+                "visible": false
+              },
+              {
+                "column": "message",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 65,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Unhealthy Partner Nodes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"name\",\"partner_healthy\",\"ha_partner\",\"state\",\"location\",\"project\",\"nvlog_backing_type\",\"ha_takeover_state\",\"ha_interconnect_state\",\"ha_giveback_state\",${__groupby})(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"partner_healthy\"!=\"true\",\"pool_name\"!~\"cep-.*\"}[5m])))\n\n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "healthy",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "partner_healthy",
+                "visible": true
+              },
+              {
+                "column": "ha_partner",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 86,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Unhealthy Primary and Partner Nodes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"name\",\"partner_healthy\",\"ha_partner\",\"state\",\"location\",\"project\",\"nvlog_backing_type\",\"ha_takeover_state\",\"ha_interconnect_state\",\"ha_giveback_state\",${__groupby} )(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"partner_healthy\"!=\"true\",\"state\"!=\"up\",\"pool_name\"!~\"cep-.*\"}[5m])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "healthy",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "partner_healthy",
+                "visible": true
+              },
+              {
+                "column": "ha_partner",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 129,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "EMS Severity: Alert",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"alert\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\"",
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 129,
+        "width": 23,
+        "height": 19,
+        "widget": {
+          "title": "EMS Severity: Alert (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"alert\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\"",
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 148,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "EMS Severity: Emergency",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"emergency\" metric.label.\"message\"!=\"object.store.unavailable\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\"",
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 148,
+        "width": 23,
+        "height": 19,
+        "widget": {
+          "title": "EMS Severity: Emergency (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"emergency\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\"",
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 39,
+        "width": 48,
+        "height": 5,
+        "widget": {
+          "title": "Nodes not in Ready state",
+          "text": {
+            "content": "List of all the nodes which are not in a ready state",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 60,
+        "width": 48,
+        "height": 5,
+        "widget": {
+          "title": "Partner Nodes not in Ready state",
+          "text": {
+            "content": "List of all the nodes which are not in a ready state",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 81,
+        "width": 48,
+        "height": 5,
+        "widget": {
+          "title": "Both Nodes not in Ready state",
+          "text": {
+            "content": "List of all the nodes which are not in a ready state",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 109,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Node Status (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"state\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 102,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "title": "How to use the below chart",
+          "text": {
+            "content": "To utilize the chart provided below, please choose a single Node from the preceding tables or apply the filter located at the top of the page.\n\nThis visualization facilitates the analysis of a node's historical status, allowing you to track transitions such as shifts from up to degraded and back to up.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "How to use this Dashboard",
+          "text": {
+            "content": "### Description: This dashboard provides data on cluster health \n\n**Source**: The metrics are collected from ONTAP REST APIs and EMS events\n\n1. Nodes not in Ready state \n2. Partner Nodes not in Ready state\n3. Both Nodes and Partner nodes not in Ready state\n4. Historical charts for the status of the Node (When the node transition from one state to another)\n5. How long the Node was in a particular state\n6. EMS Events of Severity type [Emergency and Alerts]\n7. Node Panic, Node OO Quorum, HA interconnect down events, etc.\n\nNOTE: **Prober projects flitered out where possible.** \n\n**Filters**: Node, State, Project (Customer), location",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 23,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Percentage of Nodes in Degraded State",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\" metric.label.\"state\"=\"degraded\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.05,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 171,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/7070764568975697850"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 171,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/1556301816146846387"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 167,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Alerts",
+          "section_header": {
+            "subtitle": "Cluster Health Alerts",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "state",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "project",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

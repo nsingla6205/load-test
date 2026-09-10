@@ -1,0 +1,68 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/16256771414453151169",
+  "display_name": "ems_asup_transmission_failure",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T05:56:04.465744092Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:29:58.720859445Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"asup.aods.response.timeOut\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.pool_name",
+              "resource.label.location",
+              "metric.label.parameters",
+              "metric.label.message",
+              "metric.label.severity"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_asup_transmission_failure",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/16256771414453151169/conditions/18184479804561228087"
+    }
+  ],
+  "documentation": {
+    "content": "Check the internet connectivity of the cluster.\n\nThe cluster vserver must be connected to global dns 8.8.8.8 and 8.8.4.4.\ndns show\n\nThe name server status must be up.\ndns check -vserver -name-server 8.8.8.8\n\ndns check -vserver -name-server 8.8.4.4\n\n# ONTAP Runbook: ASUP.AODS.RESPONSE.TIMEOUT\n\nAn ONTAP EMS event indicating an AutoSupport (ASUP) transmission failure, such as `asup.aods.response.timeOut` or `asup.smtp.drop`, signifies that the storage system has exhausted its retry attempts to send diagnostic data to NetApp support or an internal mail host. This error specifically occurs when the system fails to receive a response from the AutoSupport OnDemand Server (AODS) within the designated 30-second system time limit. While these alerts can be transient and resolve automatically, persistent failures prevent proactive system monitoring and must be addressed.\n\n## Immediate Troubleshooting Steps\n\n1. **Check Configuration Status:** Execute `system node autosupport check show-details` to identify if the failure is specific to HTTPS or SMTP and to view detailed configuration errors.\n2. **Verify Management Interface:** Ensure the node management logical interface (LIF) is operational and its administrative status is \"up\". If a management LIF is down, the node cannot establish the network path for transmission.\n3. **Validate Network Path:** Use `network traceroute` to analyze the path to the support destination or internal SMTP server. Verify that the system can ping external hosts by name to confirm DNS functionality.\n4. **Review System Logs:** Inspect the `notifyd.log` for specific protocol rejection messages, such as \"5.7.0 Message Size Violation\" or TLS handshake timeouts.\n5. **Audit Service Policies:** Verify that Intercluster LIFs are not incorrectly assigned to management service policies, which can disrupt intended routing paths.\n\n## Common Causes & Solutions\n\n| Cause | Diagnostic Symptom | Resolution |\n| :--- | :--- | :--- |\n| **SMTP Size Violation** | Notifyd.log reports \"SMTP 550 5.7.0 Message Size Violation\". | Increase attachment size limits on the mail server or switch to HTTPS transport. |\n| **LIF Status Down** | `network interface show` shows management LIF is down. | Verify the physical health of the hosting port (e.g., e0M) and restore connectivity. |\n| **Certificate Mismatch** | EMS logs show \"unknown message digest algorithm\" or \"missing cert\". | Update ONTAP to a version supporting SHA-256 or install required Root CA certificates. |\n| **Service Policy Error** | Connectivity timeouts for HTTPS PUT/POST despite correct network settings. | Correct the service policy assignment for Intercluster and Management LIFs. |\n| **Firewall Blocking** | \"Operation timed out\" or \"Failed to connect to port 443/25\". | Ensure outbound ports 443 (HTTPS), 25 (SMTP), or 587 (SMTPS) are open on all firewalls. |\n| **Hardware Failure** | \"netif.linkErrors\" on e0M or link defaulting to 10Mb half-duplex. | Investigate potential faulty controllers or management switch infrastructure. |\n\n## Useful Commands\n\n* **Check Detailed Status:**  \n  `system node autosupport check show-details`\n* **Trigger Test Message:**  \n  `system node autosupport invoke -node * -type test`\n* **View Transmission History:**  \n  `system node autosupport history show`\n* **Verify DNS Functionality:**  \n  `vserver services name-service dns check -vserver <vserver_name>`\n\n## Emergency Workarounds\n\nIf HTTPS transmission fails consistently due to certificate or proxy issues, switching the transport protocol to SMTP (or vice versa) can restore connectivity while long-term fixes are implemented. For critical issues, administrators can manually download a full AutoSupport file and upload it to the NetApp support portal to ensure diagnostic data is received.\n\n\nBelow destinations must be listed.\nautosupport destinations show\n\nhttp://suppport.netapp.com/put/AsupPut http://suppport.netapp.com/asupprod/post/1.0/postAsup\n\nOnce all the above issues are rectified, trigger a test ASUP.\nautosupport invoke -node * -type all -message \"TEST\"\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_asup_transmission_failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

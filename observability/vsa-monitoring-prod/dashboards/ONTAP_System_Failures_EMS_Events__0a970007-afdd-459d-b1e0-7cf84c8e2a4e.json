@@ -1,0 +1,2097 @@
+{
+  "name": "projects/697731967255/dashboards/0a970007-afdd-459d-b1e0-7cf84c8e2a4e",
+  "display_name": "ONTAP: System Failures (EMS Events)",
+  "etag": "221e81ad571c640459281bad2250548e",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "EMS Events",
+          "text": {
+            "content": "**Description:** EMS Events provide us with the events related to failures on ONTAP level. \n\n**Check Disk for Boot FS:** This message occurs when a consistency check of the boot media (compact flash or other type) has shown a problem and has not been corrected automatically. \n\n**Disk Bypass:** This message occurs when a disk drive failure occurred and the Embedded Switched Hub (ESH) removed the disk drive from the loop electronically\u00c3\u00a2\u00c2\u0080\u00c2\u0094\u00c3\u00a2\u00c2\u0080\u00c2\u008bbypassing the disk drive on one or possibly both ports.\n\n**Disk Configuration:** This message occurs when the system detects a configuration problem with a disk drive, Fibre Channel switch, or host bus adapter (HBA). A cabling issue might be causing the problem.\n\n**Disk Disable:** This message occurs when a disk drive failure occurred and the I/O Module (IOM) removed the disk drive from the system by disabling the PHY on one or possibly both ports.\n\n**Disk Not Spinning:** This message occurs when a disk drive fails to start.\n\n**Disk Redundant Fault:** This message occurs when redundant access to disk storage is lost.\n\n**Disk Scrub:** This message occurs when the weekly scheduled disk scrub detects checksum errors.\n\n**Disk Scrub Completed:** This message occurs when a disk scrub finishes bypassing media errors and places the aggregate in a normal state.\n\n**Disk Scrub Parity:** This message occurs when the scheduled disk scrub detects parity inconsistencies.\n\n**Enclosure Access:** This message occurs when contact to one or more disk shelf enclosure services (environmental monitoring) is lost, possibly due to storage cabling, adapter, or configuration problems\n\n**Disk Label:** This message occurs when a disk drive fails due to unexpected RAID metadata.\n\n**Disk Label V:** This message occurs when a disk drive fails due to a version number in its RAID metadata that is inconsistent with the operating system version installed.\n\n**Raid Inconsistencies Set Error:** This message occurs when Data ONTAP\u00c3\u0082\u00c2\u00ae marks an on-disk data block with an error. This is useful for tracking pseudo bad and unverified blocks.\n\n**Userdata Volume Inconsistencies:** This message occurs when the WAFL\u00c3\u0082\u00c2\u00ae kernel discovers an inconsistent volume with bad user data blocks.\n\n**Data Loss Possibility:** This message occurs when a Cloud Volumes ONTAP node configured for high write speed unexpectedly shuts down, possibly resulting in a loss of data. This is expected because the NVRAM data does not have a chance to be flushed during the unforeseen shutdown.\n\n**Raid Inconsistencies Buffer:** This message occurs when the WAFL\u00c3\u0082\u00c2\u00ae kernel detects an inconsistent block on a disk. Access to the block is disabled until corrective action is taken.\n\n**Snapmirror Degraded:** This message occurs when a SyncMirror\u00c3\u0082\u00c2\u00ae aggregate snapshot is deleted while one plex is offline or resynchronizing. Fast resynchronization of that plex (level 1) is no longer possible. \n\n**Object Store Unavailable:** This message occurs when the node can connect to the object store again after an \"object.store.unavailable\" error.\n\n**Heartbeat State Change:** This message occurs when the Kernel Cluster Services Connectivity, Liveliness, Availability Monitor (CLAM) detects that the state of the heartbeats to a node changed(that is, either the heartbeats started succeeding or they started failing).",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 20,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Disk",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 23,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Check Disk for Boot FS",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.bootfs.chkdsk\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Check Disk for Boot FS",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 23,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Check Disk for Boot FS",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.bootfs.chkdsk\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 39,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Bypass",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.bypass\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Bypass",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 39,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Bypass",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.bypass\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 55,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Configuration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.config\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Configuration",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 55,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Configuration",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.config\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 71,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Disable",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.disable\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Disable",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 71,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Disable",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.disable\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 87,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Not Spinning",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.no.spin\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Not Spinning",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 87,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Not Spinning",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.no.spin\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 103,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Redundant Fault",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.redun.fault\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Redundant Fault",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 103,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Redundant Fault",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.redun.fault\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 119,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Scrub",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 119,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 135,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub Completed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub.done\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Scrub Completed",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 135,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub Completed",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub.done\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 151,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub Parity",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub.parity\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Scrub Parity",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 151,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Scrub Parity",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.dsk.scrub.parity\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 167,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Label",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.fdsk.label\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Label",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 167,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Label",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.fdsk.label\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 183,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Label V",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.fdsk.label.v\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Label V",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 183,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Label V",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.fdsk.label.v\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 199,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Corruption",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"monitor.brokenDisk.notice\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Disk Corruption",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 199,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Disk Corruption",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/ems_events\",\"monitored_resource\"=\"k8s_cluster\",\"message\"=\"monitor.brokenDisk.notice\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 215,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Cluster Health/Network Connectivity",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 218,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Enclosure Access",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.encl.access\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Enclosure Access",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 218,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Enclosure Access",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.encl.access\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 234,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Raid Inconsistencies Set Error",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.raid.incons.set.error\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Raid Inconsistencies Set Error",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 234,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Raid Inconsistencies Set Error",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.raid.incons.set.error\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 250,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Userdata Volume Inconsistencies",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.incons.userdata.vol\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Userdata Volume Inconsistencies",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 250,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Userdata Volume Inconsistencies",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.incons.userdata.vol\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 266,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Loss Possibility",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"nv.data.loss.possible\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Data Loss Possibility",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 266,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Loss Possibility",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"nv.data.loss.possible\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 282,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Raid Inconsistencies Buffer",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.raid.incons.buf\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Raid Inconsistencies Buffer",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 282,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Raid Inconsistencies Buffer",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"wafl.raid.incons.buf\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 298,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "SnapMirror Degraded",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"raid.mirror.snapDel.degraded\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "SnapMirror Degraded",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 298,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "SnapMirror Degraded",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"raid.mirror.snapDel.degraded\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 314,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Object Store Unavailable",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"object.store.unavailable\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Object Store Unavailable",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 314,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Object Store Unavailable",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"object.store.unavailable\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 330,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Heartbeat State Change",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"clam.heartbeat.state.change\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Heartbeat State Change",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 330,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Heartbeat State Change",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"clam.heartbeat.state.change\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 346,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Virtual Interface Down",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\" vifmgr.clus.linkdown\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Virtual Interface Down",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 346,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Virtual Interface Down",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\" vifmgr.clus.linkdown\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 362,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Network Interface Down",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"netif.linkDown\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Network Interface Down",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 362,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Network Interface Down",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"netif.linkDown\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 378,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Out of Memory Panic",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"coredump.dump.started\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Out of Memory Panic",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 378,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Out of Memory Panic",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"coredump.dump.started\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 394,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Out of Quorum",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.clam.node.ooq\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Out of Quorum",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 394,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Out of Quorum",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"callhome.clam.node.ooq\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 410,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Volume",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 413,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Move Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"mgmt.vopl.move.cutover.failed\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Volume Move Failed",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 413,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Move Failed",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"mgmt.vopl.move.cutover.failed\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 429,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Move Failed (No Space)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"mgmt.vopl.move.nospace\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s",
+                "target_axis": 2
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Volume Move Failed (No Space)",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 429,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Move Failed (No Space)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"message\"=\"mgmt.vopl.move.nospace\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": "The number of counts grouped by the region.",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "opsdeck": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9670813063687241632",
+  "display_name": "Auto-tier - ONTAP - Client error count",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-20T11:00:37.817709924Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T05:01:41.613642665Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gcs_bucket\" AND resource.labels.bucket_name = monitoring.regex.full_match(\"sde-atr-.*\") AND metric.type = \"storage.googleapis.com/api/request_count\" AND metric.labels.response_code = monitoring.regex.full_match(\"CANCELLED|INVALID_ARGUMENT|NOT_FOUND|ALREADY_EXISTS|PERMISSION_DENIED|UNAUTHENTICATED|RESOURCE_EXHAUSTED|FAILED_PRECONDITION|ABORTED|OUT_OF_RANGE\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "GCS Bucket - Request count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9670813063687241632/conditions/9670813063687239755"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100300",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

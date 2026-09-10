@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/14260862252651776921",
+  "display_name": "panic_in_pod",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-05-27T05:50:54.724853074Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-09T08:41:39.110827318Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/panic_in_pod\"",
+        "comparison": 1,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.failed_pod_name",
+              "metric.label.in_namespace",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "panic_in_pod",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/14260862252651776921/conditions/9496920554815090509"
+    }
+  ],
+  "documentation": {
+    "content": "# GKE Pod Panic Recovery Runbook\nTo debug a panic in a GKE pod using the logs in your project netapp-us-s1-sde, follow this runbook. This guide uses standard kubectl and gcloud commands to isolate the cause. Note that similar infrastructure issues, such as volumes going offline, have been observed in related projects like netapp-prod.\n## 1. Identify the Crashing Pod\nFirst, find pods that are in a CrashLoopBackOff or have a high restart count. While many pods may appear healthy, hidden issues often reside in those with non-zero restart metrics.\n\n* Identify pods in CrashLoopBackOff or with high restart counts.\n\n\n```shell\nkubectl get pods -A --field-selector=status.phase!=Running\n```\n\n```shell\nkubectl get pods -A -o wide | awk '$5 > 0'\n```\n## 2. Retrieve the Panic Logs\nWhen a pod panics and restarts, the current logs might be empty or show a fresh start sequence. To find the root cause, you must check the logs from the previous failed instance.\n\n* **Get logs from the previous failed instance:**\n\n\n```shell\nkubectl logs <POD_NAME> -n <NAMESPACE> --previous\n```\n## 3. Analyze External Dependencies\nPanics are often triggered by external resource failures. For instance, critical alerts for Volume Offline policies have historically impacted services in clusters like gne1nascvs02d-mft-cluster-uat.\n\n| Resource Type | Impacted Service Level | Known Issue Reference |\n| :--- | :--- | :--- |\n| NetApp Volumes | Low / Medium | [Volume Offline Runbook](https://docs.google.com/document/d/1v0IkYzCMVKhzBGNIVQJPnuH81RQbbLfPkuaZ_t7kfpY/edit?resourcekey=0-zX5sZjZVmIsz23QGz-5AcA&tab=t.0) |\n| GKE Nodes | System / Pods | Standard GKE Maintenance |\n## 4. Deep Dive with Cloud Logging\nIf kubectl logs are insufficient, use gcloud to query project-wide logs for the specific pod's UUID or name within the netapp-us-s1-sde project.\n\n\n```shell\ngcloud logging read \"resource.type=k8s_container AND textPayload:panic\" --project=netapp-us-s1-sde\n```\n\n\nBased on the investigation into the sde namespace in project netapp-us-s1-sde, I found a specific example of a pod failure in the qstack-usage-google-billing service that mirrors the \"panic\" behavior (a crash resulting in an application-level failure).\n### Investigation Findings (Example)\nThe pod qstack-usage-google-billing-58b96dbd65-9x6d8 recently restarted (1 restart) and the logs from the previous failed instance reveal a fatal Spring Boot initialization error.\n### Parallel Hypotheses\n\n\n| Hypothesis | Supporting Evidence | Contradictory Evidence | Missing Evidence |\n| :--- | :--- | :--- | :--- |\n| Database Connection Failure | Direct logs: `Caused by: org.hibernate.HibernateException: Unable to determine Dialect without JDBC metadata`. This typically happens when the app cannot reach the DB to probe its version. | Pod is currently `Running`, meaning it eventually succeeded or the failure is transient. | Verification of `pgbouncer` availability at the time of the crash. |\n| Missing Dialect Configuration | Direct logs: Error explicitly suggests setting `hibernate.dialect`. | The service likely uses auto-detection; a failure to detect usually points back to a connection issue rather than a missing string. | Current `ConfigMap` content for `qstack-usage-config` to see if a dialect is hardcoded. |\n\n### Evidence Scorecard & Verification Runbook for sde\nUse these steps to debug similar failures in the sde namespace:\n### 1. Check for Silent Panics (Exit Code 1)\nIn Java/Spring apps, a \"panic\" often manifests as an Exit Code 1 rather than a Go-style panic string.\n* Command:\n\n\n```shell\nkubectl get pods -n sde | grep -v Running\n```\n    * Observation: Look for `qstack-usage-google-billing` which showed an error state in its `Last State`.\n### 2. Extract the Stack Trace\nSince the pod is running again, the \"panic\" is in the history.\n### 3. Verify Database Proxy (Sidecar)\nMost sde pods use a cloud-sql-proxy sidecar or connect via pgbouncer. If the sidecar isn't ready when the app starts, it will \"panic\".\n    * Next Step: Check if `proxy.istio.io/config` has `holdApplicationUntilProxyStarts: true` (it does for this pod, which is a good configuration).\n### 4. Check Resource/Heap Issues\nThe pod has a high memory limit (4Gi) and a specific JVM heap setting (3500m).\n    * Verification: If you see `java.lang.OutOfMemoryError` in the logs instead of the Hibernate error, you must increase the memory limit in the deployment.\n### Investigation Findings\nThe investigation focused on two main areas: the application configuration and the database proxy (pgbouncer).\n### 1. Application Configuration (qstack-usage-config)\nThe ConfigMap for this service is configured with the Istio annotation holdApplicationUntilProxyStarts: true.\n* Analysis: This is a best-practice setting that prevents the Spring Boot application from starting until the network sidecar is ready. This reduces the likelihood that the \"panic\" is caused by a race condition with the network stack.\n### 2. Database Proxy Status (pgbouncer)\nI examined the logs for the pgbouncer pods, which serve as the gateway to the database for this namespace.\n* Observation: The `pgbouncer` logs show healthy statistics (approx. 5-20 transactions per second) with no fatal errors or connection drops in the recent history.\n* Anomaly: There are occasional spikes in transaction times (e.g., `xact 106969 us`), but these are within acceptable limits for a database proxy and do not explain a total failure to probe JDBC metadata.\n### Evidence Scorecard & Final Theory\n\n\n| Hypothesis | Supporting Evidence | Contradictory Evidence | Missing Evidence |\n| :--- | :--- | :--- | :--- |\n| Transient Cloud SQL Connectivity | Application logs show a failure to retrieve JDBC metadata, which is the first thing Hibernate does upon connection. | `pgbouncer` logs are healthy, suggesting the proxy itself is fine. | Logs from the backend Cloud SQL instance during the exact window of the crash (Wed, 20 May 2026 20:49:35). |\n| Sidecar Lifecycle Race | The error occurs during Spring's `finishBeanFactoryInitialization`, typical of startup-time network issues. | The `holdApplicationUntilProxyStarts` flag is explicitly set to `true`. | Sidecar logs (`istio-proxy`) from the failed pod instance. |\n\n### Updated Runbook: Debugging Hibernate \"Metadata\" Crashes in sde\nIf a pod in the sde namespace crashes with Unable to determine Dialect, follow these specific steps:\n1. **Verify the PGBouncer Endpoint:** From a troubleshooting pod in the same namespace, verify that the application can reach the proxy.\n2. **Check for Startup Race Conditions:** Even with `holdApplicationUntilProxyStarts`, ensure the app isn't attempting a connection *before* the Spring context is fully refreshed. If this happens frequently, add a short \"pre-stop\" delay or an `initialDelaySeconds` to the liveness probe.\n3. **Inspect Sidecar logs for Port 5432:** The error might be in the Istio proxy blocking the connection to the DB.\n4. **Backend Verification (Cloud SQL):** If `pgbouncer` is healthy but the app fails, the issue is likely between `pgbouncer` and Cloud SQL.\n    * Action: Check the Cloud SQL \"Operations\" log in the Google Cloud Console for any \"Connection reset\" or \"Max connections reached\" events at the time of the crash.\nConclusion: The \"panic\" you observed is a Transient Connection Failure during the Spring Boot startup sequence. Because the pod has holdApplicationUntilProxyStarts enabled, the issue is most likely a momentary blip in the connection between the pod and pgbouncer or between pgbouncer and the backend database\n\n\n\n",
+    "mime_type": "text/markdown",
+    "subject": "panic_in_pod",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

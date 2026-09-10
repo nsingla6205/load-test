@@ -1,0 +1,705 @@
+{
+  "name": "projects/93478785040/dashboards/1d4cf4a8-04d6-4ae4-9e8b-0f51ff8dc30a",
+  "display_name": "Authentication Service (Heimdall)",
+  "etag": "f1d64819fe15735f928ba0d6a9bbcafc",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Successful Auth",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/auth_success_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests_total\" resource.type=\"k8s_pod\" metric.label.\"service\"=\"heimdall\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Request Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_request_duration_seconds\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_request_duration_seconds\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 10,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Failed Auth",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/auth_failed_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB MAX Connections",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_max\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB connection Waiting ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_wait_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Logging Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/logging_errors_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB connections Blocked",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_blocked_seconds_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 80,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connection - Idle",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_idle\" resource.type=\"k8s_pod\" metric.label.\"service_name\"=\"sde-master-heimdall\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connections Idle",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_idle_closed_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 96,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connection Idle Time Closed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_idle_time_closed_total\" resource.type=\"k8s_pod\" metric.label.\"service_name\"=\"sde-master-heimdall\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 80,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connection in Use",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_in_use\" resource.type=\"k8s_pod\" metric.label.\"service_name\"=\"sde-master-heimdall\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 112,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connection Max Lifetime",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_max_lifetime_closed_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 96,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "DB Connection - Open",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/db_conn_open\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Failed Requests",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/http_requests_total\" resource.type=\"k8s_pod\" metric.label.\"code\"=monitoring.regex.full_match(\"5.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\"",
+                        "metric.label.\"method\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "microservices": "",
+    "gcnv-po": "",
+    "gcnv": "",
+    "gcnv-so": ""
+  }
+}

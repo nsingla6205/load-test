@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/16035062834597857031",
+  "display_name": "SMBC Server Certificate Expired",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T10:01:12.321102032Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T10:01:27.244894769Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"sm.mediator.serverc.expired\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/16035062834597857031/conditions/13787443504605047760"
+    }
+  ],
+  "documentation": {
+    "content": "Remove the configuration of the current ONTAP Mediator by using the \"snapmirror mediator remove\" command. Update a new server certificate on the ONTAP Mediator server. Reconfigure access to the ONTAP Mediator by using the \"snapmirror mediator add\" command.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "user_labels": {
+    "notification-channel": "none"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "notification_channels": []
+}

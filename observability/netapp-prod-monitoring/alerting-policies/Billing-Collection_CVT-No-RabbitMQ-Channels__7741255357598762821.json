@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7741255357598762821",
+  "display_name": "Billing-Collection: CVT-No-RabbitMQ-Channels",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-04-08T13:04:05.841845463Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-17T11:53:55.571513169Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_rabbitmq_client_open_channels\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - cvt_rabbitmq_client_open_channels",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7741255357598762821/conditions/3179195154892225166"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+CVT-Rabbitmq-Connection-Down",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CVT-No-RabbitMQ-Channels",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

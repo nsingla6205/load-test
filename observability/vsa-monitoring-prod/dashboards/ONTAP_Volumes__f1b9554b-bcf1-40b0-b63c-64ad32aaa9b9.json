@@ -1,0 +1,271 @@
+{
+  "name": "projects/697731967255/dashboards/f1b9554b-bcf1-40b0-b63c-64ad32aaa9b9",
+  "display_name": "ONTAP: Volumes",
+  "etag": "f658d818617985aa128c95a1cd8625d1",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/volume_labels\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"volume\"",
+                        "metric.label.\"pool_name\"",
+                        "metric.label.\"state\"",
+                        "metric.label.\"project\"",
+                        "metric.label.\"name\"",
+                        "metric.label.\"style\"",
+                        "metric.label.\"type\"",
+                        "metric.label.\"aggr\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "volume",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": false
+              },
+              {
+                "column": "pool_name",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "project",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "style",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": true
+              },
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume by Customers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/volume_new_status\" resource.type=\"k8s_cluster\" metric.label.\"volume\"!=monitoring.regex.full_match(\"cep_.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 13,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": [
+                        "metric.label.\"project\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 5,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Customer's Volume Capacity",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"project\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_capacity\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Size Used by Customers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"project\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_used\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_*.\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Latency [p99] by Customer",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "topk(30, quantile by (\"project\")(0.99,avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_*.\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume IOPs",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "topk(30, sum by (\"project\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_volume_total_ops\",\"monitored_resource\"=\"k8s_cluster\",\"name\"!~\"cep_.*\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Snapshots Size Used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"project\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_snapshots_size_used\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_.*\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "engineering": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,91 @@
+{
+  "name": "projects/93478785040/dashboards/5544d9c6-f748-4506-98aa-afa9bbeeec67",
+  "display_name": "SO 3P to 1P Migration Dash",
+  "etag": "f733c085b684f5ac7c97f934fecd921f",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "SO 3P Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:eligibility_v1_volume{monitored_resource=\"gce_instance\",volume1p!=\"true\",eligible=\"true\",lifeCycleState='available'}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": false
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

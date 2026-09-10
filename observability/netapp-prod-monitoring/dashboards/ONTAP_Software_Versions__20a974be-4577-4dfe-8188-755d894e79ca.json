@@ -1,0 +1,381 @@
+{
+  "name": "projects/93478785040/dashboards/20a974be-4577-4dfe-8188-755d894e79ca",
+  "display_name": "ONTAP: Software Versions",
+  "etag": "540528d7bbb006a8f1f73dc1a21edc6c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 16,
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "Cluster Software Updates",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:cluster_software_update{monitored_resource=\"k8s_cluster\"}[${__interval}])",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "elapsed_duration",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "phase",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 45,
+        "width": 48,
+        "height": 24,
+        "widget": {
+          "title": "Cluster Software Status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_software_status\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "endTime",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "startTime",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 69,
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "Cluster Software Validation",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_software_validation\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "update_check",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cluster Software Validation Status By Severity",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_software_validation\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"status\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cluster Subsystem Health",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_subsystem_new_status\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"health\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cluster Software Validation By Type",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_software_validation\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"update_check\"",
+                        "metric.label.\"status\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9862920655723726552",
+  "display_name": "GCNV Bad Requests for POST Method Per Customer Per Region Alert Policy",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-01T19:18:17.342911542Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-28T07:37:59.592153266Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"internal_http_lb_rule\" AND metric.type = \"logging.googleapis.com/user/customerReq\" AND (metric.labels.httpStatus = \"400\" AND metric.labels.requestMethod = \"POST\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "metric.label.requestMethod",
+              "project",
+              "metric.label.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Bad Requests for POST Method Per Project Per Region From Internal Application Load Balancer",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9862920655723726552/conditions/15771078147664269566"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100311\n\nThis alert indicate that too many bad requests (HTTP status = 400) are received by SDE. To remediate this alert, we need to block that customer's control plane traffic for all POST APIs/methods in a particular region where this alert is generated.\n\nTo do so, we need to provide customer_id, http-request method type and region/location's information to on-call GCP SRE.\n\n-- ignore --\n\nGCP SRE can then block that customer's control plane traffic in the region where this alert was generated. To collect that data, goto alert and look for Labels section. There grab three metric labels mentioned as key in below JSON and provide them to on-call SRE at Google.\n\n{ \"consumerProject\" : <this is the customer projectId>, \"requestMethod\" : <http method type that is generating 400 response from SDE> \"region\" : <region in which alert is generated> }\n\nTo remediate this alert, we need to block customer's control plane traffic for POST APIs/method in that particular region where this alert was generated.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {},
+  "notification_channels": []
+}

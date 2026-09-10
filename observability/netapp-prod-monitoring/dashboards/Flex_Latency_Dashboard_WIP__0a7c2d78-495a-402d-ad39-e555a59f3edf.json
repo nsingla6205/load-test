@@ -1,0 +1,46 @@
+{
+  "name": "projects/93478785040/dashboards/0a7c2d78-495a-402d-ad39-e555a59f3edf",
+  "display_name": "Flex Latency Dashboard (WIP)",
+  "etag": "990fa1dd897423b90c07018d1d13c066",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "title": "Volume Count",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 1,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Volume Total",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (custom_googleapis_com:ntapvol_size_total{monitored_resource=\"k8s_cluster\", ownerID!=\"\", sdeSPUUID!=\"\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

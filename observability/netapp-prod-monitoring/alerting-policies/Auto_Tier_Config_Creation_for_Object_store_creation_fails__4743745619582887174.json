@@ -1,0 +1,135 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4743745619582887174",
+  "display_name": "Auto Tier Config Creation for Object store creation fails",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-23T11:00:50.742649948Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T04:59:05.803914785Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/cvi_auto_tier_config_job_errors_count\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Auto tier config creation for object store creation fails",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4743745619582887174/conditions/4743745619582886209"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvi_auto_tier_config_job_errors_count\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Auto tier config creation for object store creation fails",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4743745619582887174/conditions/4743745619582889340"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/cvi_hmac_key_rotation_job_errors_count\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "hmac key rotation fails on object store",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4743745619582887174/conditions/4743745619582888375"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvi_hmac_key_rotation_job_errors_count\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "hmac key rotation fails on object store",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4743745619582887174/conditions/4743745619582887410"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-83038\u00a0",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

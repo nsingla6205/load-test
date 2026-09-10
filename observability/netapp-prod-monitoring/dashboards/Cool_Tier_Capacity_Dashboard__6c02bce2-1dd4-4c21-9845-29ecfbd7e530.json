@@ -1,0 +1,276 @@
+{
+  "name": "projects/93478785040/dashboards/6c02bce2-1dd4-4c21-9845-29ecfbd7e530",
+  "display_name": "Cool Tier Capacity Dashboard",
+  "etag": "1a3a582851e591662c4d41b1851a1398",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 27,
+        "width": 23,
+        "height": 27,
+        "widget": {
+          "title": "Total Allocation (volume total size - cool tiered)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\", \"cluster\", ${__groupby})(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",noop_filter=~\".*\"}[15m]))- sum by (\"location\", \"cluster\", ${__groupby})(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_object_store_logical_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]) )",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "aggr",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "tier",
+                "visible": false
+              },
+              {
+                "column": "node",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "bin_num",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 47,
+        "height": 27,
+        "widget": {
+          "title": "Cool Tier (aggr_object_store_logical_used) - GroupBy Location",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_object_store_logical_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": false
+              },
+              {
+                "column": "metric_type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 54,
+        "width": 48,
+        "height": 38,
+        "widget": {
+          "title": "Cluster view - aggr_object_store_logical_used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\",\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_object_store_logical_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "metric_type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 92,
+        "width": 48,
+        "height": 38,
+        "widget": {
+          "title": "Cluster view - aggr_space_capacity_tier_used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\",\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_capacity_tier_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "metric_type",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 27,
+        "width": 24,
+        "height": 23,
+        "widget": {
+          "title": "Usable Capacity",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_total\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "metric_type",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": ""
+  },
+  "dashboard_filters": []
+}

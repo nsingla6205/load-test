@@ -1,0 +1,66 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13644988175593314592",
+  "display_name": "Billing-Collector: Billing-CBS-Number-Of-Vol-With-Backup-Decrease>30%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-04-05T12:09:44.413214561Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:53.828546982Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_cbs_volumes_with_backup_enabled_total\"",
+        "comparison": 3,
+        "threshold_value": -30.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          },
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - cvt_cbs_volumes_with_backup_enabled_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13644988175593314592/conditions/9706813335277552999"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=899920115",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collector: Billing-CBS-Number-Of-Vol-With-Backup-Decrease>30%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

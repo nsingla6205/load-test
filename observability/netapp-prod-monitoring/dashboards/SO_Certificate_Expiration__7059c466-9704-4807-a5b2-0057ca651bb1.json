@@ -1,0 +1,47 @@
+{
+  "name": "projects/93478785040/dashboards/7059c466-9704-4807-a5b2-0057ca651bb1",
+  "display_name": "SO Certificate Expiration",
+  "etag": "c6be106c62e27f2d61d3503d081baa0b",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 47,
+        "height": 42,
+        "widget": {
+          "title": "SSL Certificate Details",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/SDS_certificate_expiry_remaining_days\" resource.type=\"k8s_container\" metric.label.\"certificate_name\"=\"ha-heartbeat-client-tls-cert\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

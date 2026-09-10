@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/1813635287603512533",
+  "display_name": "Deprecated: Billing-Pusher: Billing-Metrics-Push-Error-403",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-24T06:31:45.474364390Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2026-05-27T16:56:09.733337700Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_result_total\" AND (metric.labels.cause = \"403\" AND metric.labels.msg = has_substring(\"\\'netapp.googleapis.com\\'\") AND metric.labels.type = \"BILLING_METRIC\")",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "[Deprecated] qstack_usage_nfsaas_google_metrics_pushed_result_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/1813635287603512533/conditions/8979752679578327879"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100290",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Pusher: Billing-Metrics-Push-Error-403",
+    "links": []
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

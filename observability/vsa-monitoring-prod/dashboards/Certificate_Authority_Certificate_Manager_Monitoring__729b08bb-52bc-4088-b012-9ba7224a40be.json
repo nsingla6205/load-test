@@ -1,0 +1,946 @@
+{
+  "name": "projects/697731967255/dashboards/729b08bb-52bc-4088-b012-9ba7224a40be",
+  "display_name": "Certificate Authority & Certificate Manager Monitoring",
+  "etag": "d8520abd8447576395c53964027dccf8",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 5,
+        "widget": {
+          "title": "Certificate Authority Service",
+          "text": {
+            "content": "[Certificate Authority Service](https://pantheon.corp.google.com/security/cas/caPools?project=gcnv-cas-prd&mods=filestore_scale_out,filestore_autopush_api)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 5,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Expiring Certificates ",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Service inventory",
+          "section_header": {
+            "subtitle": "Per-CA state and expiry, and issuance broken out by CA pool. Widen the dashboard time range to at least 6 hours: CA state and expiry are sampled roughly hourly, so shorter ranges can look empty.",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 12,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "CA certificate expiration (days remaining)",
+          "text": {
+            "content": "Average time-to-expiry, in days, for each CA's own certificate, grouped by CA pool and certificate authority ID",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 12,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "CA resource state",
+          "text": {
+            "content": "Current enabled/disabled status of each CA, broken out by CA pool, certificate authority ID, and state label.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 18,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "CA inventory: days until certificate expiry",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "avg by (\"ca_pool_id\",\"certificate_authority_id\",${__groupby})(avg_over_time({\"__name__\"=\"privateca.googleapis.com/ca/cert_expiration\",\"monitored_resource\"=\"privateca.googleapis.com/CertificateAuthority\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 18,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "CA inventory: Disabled state by pool",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/resource_state\" resource.type=\"privateca.googleapis.com/CertificateAuthority\" resource.label.\"certificate_authority_id\"!=monitoring.regex.full_match(\".*-root-.*\") metric.label.\"state\"=\"DISABLED\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"state\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"ca_pool_id\"",
+                        "resource.label.\"certificate_authority_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 38,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA certificate time-to-expiration",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert_expiration\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 2
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 54,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Certificate issuance failures by CA pool and reason",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_failure_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "3600s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"ca_pool_id\"",
+                        "metric.label.\"reason\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "legend_template": "${resource.label.ca_pool_id} - ${metric.label.reason}",
+                "min_alignment_period": "3600s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "label": "failures / hour",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 54,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Certificate issuance requests by CA pool",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_request_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "3600s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"ca_pool_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${resource.label.ca_pool_id}",
+                "min_alignment_period": "3600s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "label": "requests / hour",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 70,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Certificate creation: requests vs failures",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_request_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "requests - ${resource.label.certificate_authority_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_failure_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "failures - ${resource.label.certificate_authority_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "label": "count / 5min",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 70,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "CA resource state (by state)",
+          "text": {
+            "content": "Count of CA-state samples over the selected window, summed by state (`ENABLED`, `DISABLED`, etc.), showing how many CAs sat in each state.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 86,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Cloud KMS signing key issues",
+          "text": {
+            "content": " Total count of KMS signing-key errors (permission or availability issues) detected across all CAs during the selected time window.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 76,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA resource state",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"privateca.googleapis.com/ca/resource_state\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                "aggregation": {
+                  "alignment_period": "300s",
+                  "per_series_aligner": 16,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"state\""
+                  ]
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 1.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 92,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud KMS signing key issues",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/kms/key_issue\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "300s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "300s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "# of key issues",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 108,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Certificate Authority",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 111,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "CA certificate chain expiration",
+          "text": {
+            "content": "Time remaining before any certificate in this CA's chain \u2014 including its parent/intermediate/root CAs \u2014 expires",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 111,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "CA certificate expiration",
+          "text": {
+            "content": "Time remaining before this specific CA's own certificate expires",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 117,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA certificate chain expiration",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert_chain_expiration\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cert_subject_key_id",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 117,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA certificate expiration",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert_expiration\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 133,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA resource state",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/resource_state\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"state\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"ca_pool_id\"",
+                        "resource.label.\"certificate_authority_id\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 133,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA revocation status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert_revoked\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"status\"",
+                        "resource.label.\"location\"",
+                        "resource.label.\"ca_pool_id\"",
+                        "resource.label.\"certificate_authority_id\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 149,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Certificate creation count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\"",
+                        "resource.label.\"ca_pool_id\"",
+                        "resource.label.\"certificate_authority_id\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 149,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Certificate creation request count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"privateca.googleapis.com/ca/cert/create_request_count\" resource.type=\"privateca.googleapis.com/CertificateAuthority\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\"",
+                        "resource.label.\"ca_pool_id\"",
+                        "resource.label.\"certificate_authority_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 38,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA inventory: days until certificate expiry (Intermediate)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "avg by (\"ca_pool_id\",\"certificate_authority_id\",${__groupby})(avg_over_time({\"__name__\"=\"privateca.googleapis.com/ca/cert_expiration\",\"monitored_resource\"=\"privateca.googleapis.com/CertificateAuthority\",\"certificate_authority_id\"=~\".*-intermediate-.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 165,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CA inventory: days until certificate expiry (root)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "avg by (\"ca_pool_id\",\"certificate_authority_id\",${__groupby})(avg_over_time({\"__name__\"=\"privateca.googleapis.com/ca/cert_expiration\",\"monitored_resource\"=\"privateca.googleapis.com/CertificateAuthority\",\"certificate_authority_id\"=~\".*-intermediate-.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ca_pool_id",
+                "visible": true
+              },
+              {
+                "column": "certificate_authority_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

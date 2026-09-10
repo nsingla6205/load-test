@@ -1,0 +1,1064 @@
+{
+  "name": "projects/697731967255/dashboards/044df4c7-c45d-405e-8010-61f45cfa50c3",
+  "display_name": "Cross Region Replication Dashboard",
+  "etag": "41fec9a0b12b9284f83a1512e75570e7",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 21,
+        "widget": {
+          "title": "Dashboard Details",
+          "text": {
+            "content": "This dashboard give a high level summary of who is executing, where and which workflows accross the fleet.\nProvides health of the **Replication** service at a glance\n\n# High Level Dashboards\n\n    1. Customer centric views\n    2. Region specific views\n    3. Customer Adoption views\n\n\n## Workflow Summary\n\n    1. Usage of the Replication workflows accross the fleet\n    2. Availability of the Replication Workflows\n    3. Error rate in each Replication Workflow\n    4. Latency in executing the Replication workflows",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 21,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Usage Across the fleet ",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 24,
+        "width": 24,
+        "height": 10,
+        "widget": {
+          "title": "Description",
+          "text": {
+            "content": "**Description**: Top 30 Customers for replication jobs\n\n**Unit**: Count (of replication jobs)\n\n* Health Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 24,
+        "width": 24,
+        "height": 10,
+        "widget": {
+          "title": "Description",
+          "text": {
+            "content": "**Description**: Top 30 Customers for replication jobs (Historical Treands)\n\n**Unit**: Count (of replication jobs)\n\n* Health Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 34,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Customer Total Requests",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, floor(sum by (\"projectNumber\")(increase({\"__name__\"=\"custom.googleapis.com/ogen.server.request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"oas_operation\"!=\"getHealth\",\"Job_State\"=\"DONE\",\"Job_Type\"=~\".*VOLUME_REPLICATION*.\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 34,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Customer Total Requests (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*VOLUME_REPLICATION*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"projectNumber\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 56,
+        "width": 48,
+        "height": 6,
+        "widget": {
+          "text": {
+            "content": "Description: Top 30 regions for replication jobs\n\nUnit: Count (of replication jobs)\n\nHealth Check jobs are filterd out.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 62,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Total Requests Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, floor(sum by (location) (increase({__name__=\"custom.googleapis.com/ogen.server.request_count_total\", monitored_resource=\"k8s_cluster\", Job_State=\"DONE\", Job_Type=~\".*VOLUME_REPLICATION*.\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 62,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Total Requests Per Region (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*VOLUME_REPLICATION*.\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 84,
+        "width": 24,
+        "height": 4,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Count of replication enabled volumes per customer. \n- **Unit**: Count (replication enabled volumes)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 84,
+        "width": 23,
+        "height": 4,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Types of Replication Workflows Used by Customers \n- **Unit**: Count (replication workflows)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 88,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Customers with CRR enabled",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/gcnv_vsa_crr_volume\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "workflowType",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "account_name",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 22,
+        "widget": {
+          "title": "Replications Workflows Types",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*REPLICATION.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"Job_Type\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 110,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Replication  Insights",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 113,
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "### Replciation Health and Lag Time by Source Volume\n- **Description**: This table panel displays the average health status and average lag time of SnapMirror relationships, grouped by source volume.\n- **How to Read**: The table lists each source volume along with the average health status and average lag time. The values are calculated over the past 5 minutes, providing a snapshot of the health and performance of SnapMirror relationships for each source volume.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 121,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Replication Health",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_healthy\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"^vsa-backup.*\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 121,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Replication Lag",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_lag_time\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"^vsa-backup.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 137,
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "### Replication Last Transfer Size and Duration by Source Volume\n- **Description**: This table panel displays the average size and duration of the last completed SnapMirror transfers, grouped by source volume, over the past 5 minutes.\n- **How to Read**: The table lists each source volume along with the average size and duration of the last SnapMirror transfer. The values are calculated over the past 5 minutes, providing a snapshot of the most recent transfer performance for each source volume.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 145,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Last Transfer Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_last_transfer_size\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"^vsa-backup.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 145,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Last Transfer Duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "min",
+                  "prometheus_query": "sum by (\"source_volume\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_last_transfer_duration\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"^vsa-backup.*\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 161,
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "### Replication Progress and Total Transfer Bytes by Location\n- **Description**: This table panel displays the average progress and average total transfer bytes of SnapMirror relationships, grouped by location.\n- **How to Read**: The table lists each location along with the average progress and average total transfer bytes. The values are calculated over the past 5 minutes, providing a snapshot of the progress and data transfer performance for each location.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 169,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Transfer In progress",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/snapmirror_total_progress\" resource.type=\"k8s_cluster\" metric.label.\"destination_details\"!=monitoring.regex.full_match(\"vsa-backup.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 169,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Transfer Bytes",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/snapmirror_total_transfer_bytes\",\"monitored_resource\"=\"k8s_cluster\",\"destination_location\"!~\"vsa-backup.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 185,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "text": {
+            "content": "### SnapMirror Relationship Status\n- **Metric**: `snapmirror_relationship_status`\n- **Description**: This table panel displays the average status of SnapMirror relationships for each project over the past 5 minutes. The status values are:\n  - `0`: Idle\n  - `1`: Transferring\n  - `2`: Quiescing\n  - `3`: Paused\n  - `4`: Failed\n- **How to Read**: The table lists each project along with the average status of its SnapMirror relationships. The average status is calculated over the past 5 minutes, providing a snapshot of the replication activity. For example, a value of `1.5` suggests that relationships are mostly in the `Transferring` state, with some fluctuations.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 199,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Replication Status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (project) (last_over_time({__name__=\"custom.googleapis.com/snapmirror_relationship_status\", monitored_resource=\"k8s_cluster\", destination_location!~\".*vsa-backup-*.\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 215,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Availability of Workflows",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 218,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Availability of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "100 * (\n  1 - (\n    sum by (Job_Type) (rate({__name__=\"custom.googleapis.com/ogen.server.request_count_total\", monitored_resource=\"k8s_cluster\", Job_Type=~\".*VOLUME_REPLICATION.*\", Job_State!=\"DONE\"}[${__interval}])) \n    / \n    sum by (Job_Type) (rate({__name__=\"custom.googleapis.com/ogen.server.request_count_total\", monitored_resource=\"k8s_cluster\", Job_Type=~\".*VOLUME_REPLICATION.*\"}[${__interval}]))\n  )\n)\n\n",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 250,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Error Rate in each workflow",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 253,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Error Rate of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"=monitoring.regex.full_match(\"500\") metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*REPLICATION*.\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*REPLICATION*.\")",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.001,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 269,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Latency in Workflow Execution",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 272,
+        "width": 48,
+        "height": 6,
+        "widget": {
+          "text": {
+            "content": "- **Description**: Top 30 replication workflows based on their 99th percentile latency\n- **Unit**: \n  - **Latency**: Minutes (min)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 278,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Latency of Workflows",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "topk(30, histogram_quantile(0.99,sum by (workflowType,le)(increase(custom_googleapis_com:activity_end_to_end_latency_bucket{monitored_resource=\"k8s_cluster\", workflowType=~\".*ReplicationWorkflow*.\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 278,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Latency of Workflows(Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "topk(30, histogram_quantile(0.99,sum by (workflowType,le)(increase(custom_googleapis_com:activity_end_to_end_latency_bucket{monitored_resource=\"k8s_cluster\",workflowType=~\".*ReplicationWorkflow*.\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 234,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Availability of Workflows",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*REPLICATION.*\") metric.label.\"Job_State\"=\"DONE\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen.server.request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_Type\"=monitoring.regex.full_match(\".*REPLICATION.*\")",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"Job_Type\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "projectNumber",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

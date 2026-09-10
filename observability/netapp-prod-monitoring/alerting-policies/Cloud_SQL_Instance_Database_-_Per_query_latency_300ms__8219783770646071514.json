@@ -1,0 +1,68 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8219783770646071514",
+  "display_name": "Cloud SQL Instance Database - Per query latency > 300ms",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-16T05:40:42.364814061Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-16T10:07:11.584700220Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_instance_database\" AND metric.type = \"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\" AND (metric.labels.querystring != starts_with(\"VACUUM\") AND metric.labels.querystring != starts_with(\"UTILITY\"))",
+        "comparison": 1,
+        "threshold_value": 300000.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 9,
+            "group_by_fields": [
+              "metric.label.querystring",
+              "metric.label.user",
+              "resource.label.location",
+              "resource.label.database"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Instance Database - Per query latency",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8219783770646071514/conditions/3291383490939659697"
+    }
+  ],
+  "documentation": {
+    "content": "# **GCP Cloud PostgreSQL High Latency Debugging Runbook**\n\nThis runbook is intended for the primary on-call engineer responding to an alert indicating high latency on a GCP Cloud PostgreSQL database instance. The goal is to quickly diagnose the root cause and apply a fix or escalate appropriately.\n\n# **1\\. Alert Triage and Initial Assessment**\n\n**Alert Name:** `GCP Cloud PostgreSQL DB High Latency`\n\n**Severity:** Critical \n\n**Observed Metric:** Database Latency (e.g., Average Query Latency, P99 Query Latency)\n\n**Affected Resource:** GCP Project: \\[Project ID\\], Instance: \\[Instance Name\\]\n\n| Action | Check | Expected/Acceptable Value |\n| :---- | :---- | :---- |\n| **1.1 Acknowledge Alert** | Acknowledge in PagerDuty/Alerting System. | Acknowledged |\n| **1.2 Verify Scope** | Is the latency high across all databases/clients or a specific application? | Check database monitoring dashboard and application logs. |\n| **1.3 Check Recent Deployments** | Were there any recent code changes, configuration updates, or schema migrations deployed within the last hour? | Consult the deployment tracking system. |\n\n# **2\\. Resource Utilization Checks**\n\nHigh latency is often linked to resource exhaustion or bottlenecks. Check the following metrics in the GCP Monitoring dashboard for the affected PostgreSQL instance.\n\n| Metric | Threshold/Indicator for Problem | Action |\n| :---- | :---- | :---- |\n| **CPU Utilization** | \\>85% sustained | **Action 2.1:** Check for long-running queries (See Step 3). **Action 2.2:** Consider temporary scaling up (if an immediate fix is needed and scaling is supported). |\n| **Disk I/O Utilization** | High Disk Utilization or increased I/O Queue Depth | **Action 2.3:** Check for large writes or reads (See Step 3). **Action 2.4:** Consider increasing disk size or provisioned IOPS/throughput. |\n| **Memory Utilization** | \\>90% or frequent swapping | **Action 2.5:** Check for large queries or poor memory settings (e.g., `work_mem`). **Action 2.6:** Consider scaling up the instance memory. |\n| **Network Traffic** | Unusually high ingress/egress | **Action 2.7:** Check for unusually large data transfers or application behavior. |\n\n# **3\\. Database Query and Connection Analysis**\n\nConnect to the PostgreSQL instance to inspect the active queries and connection health.\n\n## **3.1 Identify Long-Running Queries**\n\nRun the following query to identify queries that are currently active and have been running for a long time.\n\n```\nSELECT\n  pid,\n  usename,\n  client_addr,\n  application_name,\n  backend_start,\n  state,\n  query_start,\n  (NOW() - query_start) AS duration,\n  query\nFROM pg_stat_activity\nWHERE state = 'active'\nORDER BY duration DESC;\n```\n\nIf a problematic query is identified:\n\n* **Action 3.1.1:** Analyze the query execution plan (`EXPLAIN ANALYZE`).  \n* **Action 3.1.2:** If the query is blocking critical resources, consider terminating it (as a last resort) using `SELECT pg_cancel_backend(PID);` or `SELECT pg_terminate_backend(PID);`. **(Caution: Only terminate if the query is clearly the root cause and cannot wait)**.\n\n## **3.2 Connection Analysis**\n\nCheck the total number of database connections.\n\n```\nSELECT\n  state,\n  count(*)\nFROM pg_stat_activity\nGROUP BY 1;\n```\n\n* **Action 3.2.1:** If connections are near the `max_connections` limit, check for connection pooling issues in the application or idle connections.  \n* **Action 3.2.2:** If too many idle connections exist, consider adjusting the application's connection settings or the database's `idle_in_transaction_session_timeout`.\n\n# **4\\. Configuration and Maintenance Checks**\n\nIf resource utilization and queries seem normal, check for recent changes in configuration or maintenance activities.\n\n| Check | Potential Impact | Action |\n| :---- | :---- | :---- |\n| **4.1 Maintenance Window** | Is a scheduled maintenance (e.g., patching, backup) currently running? | **Action 4.1.1:** Check GCP Console for ongoing operations. If so, monitor closely; latency may return to normal after completion. |\n| **4.2 Autovacuum Status** | Is autovacuum running excessively or not at all? | **Action 4.2.1:** Check `pg_stat_activity` for active `autovacuum` processes. If stuck, review table bloat or autovacuum settings. |\n| **4.3 Index/Query Planner** | Have statistics become stale or have new indexes been added/removed? | **Action 4.3.1:** Consider manually running `VACUUM ANALYZE` on affected tables during a low-traffic period. |\n\n# **5\\. Mitigation and Resolution**\n\n| Diagnosis | Mitigation Strategy | Follow-up/Next Steps |\n| :---- | :---- | :---- |\n| **Long-running Query** | Terminate the query (if critical) or identify the source and coordinate with the development team. | Create a ticket to optimize the query, add indexes, or refactor the application logic. |\n| **High CPU/Memory** | Scale up the instance size temporarily to relieve pressure. | Determine if the load is permanent. If so, propose a permanent instance upgrade or load-shedding strategy. |\n| **Lock Contention** | Identify the holding and waiting transactions (using `pg_locks`) and terminate the blocking transaction (last resort). | Review application logic for transactions that hold locks for too long. |\n| **High Connection Count** | Restart the application to clear idle connections, or adjust connection pool settings. | Review `max_connections` setting and connection pool configuration for optimal usage. |",
+    "mime_type": "text/markdown",
+    "subject": "Cloud SQL Instance Database - Per query latency > 300ms",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/3621488941783318863",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/13473687690535857627"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

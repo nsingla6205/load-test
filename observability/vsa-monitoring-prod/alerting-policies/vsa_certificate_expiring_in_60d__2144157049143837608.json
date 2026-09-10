@@ -1,0 +1,60 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/2144157049143837608",
+  "display_name": "vsa_certificate_expiring_in_60d",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-08-20T07:04:32.625890506Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:09:00.719977741Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/security_certificate_labels\" AND metric.labels.certificateExpiryStatus = \"expiring\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vsa_certificate_expiring_in_60d",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/2144157049143837608/conditions/13754407629373501400"
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels} ",
+    "mime_type": "text/markdown",
+    "subject": "vsa_certificate_expiring_in_60d",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

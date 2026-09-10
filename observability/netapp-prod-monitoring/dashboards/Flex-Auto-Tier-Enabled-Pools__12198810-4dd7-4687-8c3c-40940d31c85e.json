@@ -1,0 +1,39 @@
+{
+  "name": "projects/93478785040/dashboards/12198810-4dd7-4687-8c3c-40940d31c85e",
+  "display_name": "Flex-Auto-Tier-Enabled-Pools",
+  "etag": "07352631347a6143646ade68c056bba3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 47,
+        "widget": {
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "({\"__name__\"=\"custom_googleapis_com:netapp_volume_controller_sp_feature_setting_value\",\"monitored_resource\"=\"k8s_cluster\",\"featureName\"=\"enableFabricpool\"} > 0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

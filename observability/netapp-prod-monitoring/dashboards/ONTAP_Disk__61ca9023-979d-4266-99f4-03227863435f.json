@@ -1,0 +1,750 @@
+{
+  "name": "projects/93478785040/dashboards/61ca9023-979d-4266-99f4-03227863435f",
+  "display_name": "ONTAP: Disk",
+  "etag": "b05f0f16ee96b9c4894f77182bed6014",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 13,
+        "height": 8,
+        "widget": {
+          "title": "Total Disks",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count(custom_googleapis_com:disk_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 13,
+        "width": 11,
+        "height": 8,
+        "widget": {
+          "title": "Failed Disks",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count( count by(serial_number) (custom_googleapis_com:disk_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",failed=\"true\"}) )",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "Raid Groups",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count( count by(raid_group) (custom_googleapis_com:aggr_disk_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) )",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "Plexes",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count( count by(plex, aggr) (custom_googleapis_com:aggr_disk_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) )",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 40,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "Total Disks by Aggregate(s)",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_raid_disk_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Disk Capacity per Aggregate",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "custom_googleapis_com:aggr_raid_disk_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "node",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 8,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Aggregates by Disk Utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "max by (aggr,node) (custom_googleapis_com:aggr_disk_max_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}) \n  and \ntopk(10, max by (aggr,node) (avg_over_time(custom_googleapis_com:aggr_disk_max_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Aggregates by Max Disk Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (node, aggr) (custom_googleapis_com:aggr_disk_max_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}) \n  and \ntopk(10, max by (node, aggr) (avg_over_time(custom_googleapis_com:aggr_disk_max_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Aggregates by Disk Transfers",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (node, aggr) (custom_googleapis_com:aggr_disk_max_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}) \n  and \ntopk(10, max by (node, aggr) (avg_over_time(custom_googleapis_com:aggr_disk_max_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 42,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Aggregates by User Read Chain Length",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (node, aggr) (custom_googleapis_com:aggr_disk_max_user_read_chain{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}) \n  and \ntopk(10, max by (node, aggr) (avg_over_time(custom_googleapis_com:aggr_disk_max_user_read_chain{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 42,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Aggregates by User Write Chain Length",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (node, aggr) (custom_googleapis_com:aggr_disk_max_user_write_chain{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}) \n  and \ntopk(10, max by (node, aggr) (avg_over_time(custom_googleapis_com:aggr_disk_max_user_write_chain{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 58,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Disks by User Read Latency ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:raid_disk_user_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:raid_disk_user_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 58,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Disks by User Write Latency ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:raid_disk_user_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:raid_disk_user_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 74,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Disks by Total Transfers ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:raid_disk_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:raid_disk_total_transfers{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 74,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Disks by Disk Busy ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:raid_disk_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:raid_disk_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",aggr=~\"${Aggregate.value}\",plex=~\"${Plex.value}\",raid=~\"${Raid.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 109,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "Disks in Cluster",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "custom_googleapis_com:disk_bytes_per_sector{monitored_resource=\"k8s_cluster\"} * custom_googleapis_com:disk_sectors{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": true
+              },
+              {
+                "column": "index",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "disk",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 129,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Disk Throughput ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum (custom_googleapis_com:node_disk_data_read{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) by (node)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum (custom_googleapis_com:node_disk_data_written{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) by (node)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 129,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Disk and Tape Drives Throughput ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum (custom_googleapis_com:hostadapter_bytes_written{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) by (node)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum (custom_googleapis_com:hostadapter_bytes_read{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}) by (node)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 129,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "CP (Consistency Points) Counts ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:wafl_cp_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\",metric=~\"back_to_back_CP|deferred_back_to_back_CP\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:node_vol_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",node=~\"${Node.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 90,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Disk List for Compliance Team",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (\"disk\",\"cluster\",\"model\",\"serial_number\",\"type\",\"node\",\"failed\")(avg_over_time({\"__name__\"=\"custom_googleapis_com:disk_labels\",\"monitored_resource\"=\"k8s_cluster\"}[15m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "node",
+      "template_variable": "Node",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "aggr",
+      "template_variable": "Aggregate",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "plex",
+      "template_variable": "Plex",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "raid",
+      "template_variable": "Raid",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

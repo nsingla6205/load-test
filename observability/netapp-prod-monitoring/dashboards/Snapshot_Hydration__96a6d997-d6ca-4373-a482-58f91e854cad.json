@@ -1,0 +1,90 @@
+{
+  "name": "projects/93478785040/dashboards/96a6d997-d6ca-4373-a482-58f91e854cad",
+  "display_name": "Snapshot Hydration ",
+  "etag": "fca9ed8eccd795da9c5a078f4a721c9d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 15,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "snapshot-hydration-failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/snapshot-hydration-failed\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "snapshot-hydration-failed",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/snapshot-hydration-failed\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

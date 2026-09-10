@@ -1,0 +1,92 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11123975623060801991",
+  "display_name": "CBS ONTAP Errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-11-06T12:03:02.292602402Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-30T13:30:25.244315625Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/cbs_ontap_errors\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - cbs_ontap_errors",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11123975623060801991/conditions/1981498965342815127"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvi_hmac_key_rotation_job_errors_count\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "HMAC Key Rotation",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11123975623060801991/conditions/1981498965342816744"
+    }
+  ],
+  "documentation": {
+    "content": "Rubbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+CBS+-+ONTAP+Errors",
+    "mime_type": "text/markdown",
+    "subject": "Potential Backup Failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "validity": {
+    "code": 3,
+    "message": "conditions[0] is invalid: Field aggregation.crossSeriesReducer had an invalid value of \"REDUCE_SUM\": The descriptors of 'custom.googleapis.com/cbs_ontap_errors' in 'projects/netapp-eu-w1-sde' and 'projects/netapp-us-e4-sde' are incompatible: The set of labels must be the same. (ID: 1981498965342815127)",
+    "details": []
+  },
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

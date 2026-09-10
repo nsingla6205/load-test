@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/228766483248054226",
+  "display_name": "Billing-Collection: SDS-Collector-Connection-Error-VMDB-RMQ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-12T17:11:44.617396503Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:48.774785386Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/sds_stats_collector_service_connection_failure\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - sds_stats_collector_service_connection_failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/228766483248054226/conditions/228766483248052119"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+SDS-Collector-Connection-Error-VMDB-RMQ ",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: SDS-Collector-Connection-Error-VMDB-RMQ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

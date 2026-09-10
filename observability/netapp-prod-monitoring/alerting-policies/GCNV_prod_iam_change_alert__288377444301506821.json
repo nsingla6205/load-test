@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/288377444301506821",
+  "display_name": "GCNV prod iam change alert",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-02-28T20:13:29.574077338Z",
+    "mutated_by": "pguan@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-28T20:13:29.574077338Z",
+    "mutated_by": "pguan@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"global\" AND metric.type = \"logging.googleapis.com/user/gcnv_security_log_metric_gcp_changes\" AND (metric.labels.service = \"iam.googleapis.com\" AND metric.labels.method != \"iam.serviceAccounts.actAs\" AND metric.labels.email != monitoring.regex.full_match(\".*gservice.*\"))",
+        "comparison": 1,
+        "threshold_value": 0.0001,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Global - gcp_changes",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/288377444301506821/conditions/288377444301506100"
+    }
+  ],
+  "documentation": {
+    "subject": "GCNV production IAM change detected",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/17751046743110908728"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

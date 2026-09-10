@@ -1,0 +1,184 @@
+{
+  "name": "projects/93478785040/dashboards/bf4da4ef-a65b-4144-80f0-47b456fe3306",
+  "display_name": "VM changes",
+  "etag": "302660d68d47e734e1eb5a958e3564f9",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Change Types",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/gcnv_security_log_metric_vm_change\" resource.type=\"gce_instance\" metric.label.\"email\"!=monitoring.regex.full_match(\".*(gserviceaccount.com)\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"method\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Change Identity",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/gcnv_security_log_metric_vm_change\" resource.type=\"gce_instance\" metric.label.\"email\"!=monitoring.regex.full_match(\".*(gserviceaccount.com)\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"email\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Non Terraform changes",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/gcnv_security_log_metric_vm_change\" resource.type=\"gce_instance\" metric.label.\"agent\"!=\"terraform\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"agent\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "By Project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/gcnv_security_log_metric_vm_change\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

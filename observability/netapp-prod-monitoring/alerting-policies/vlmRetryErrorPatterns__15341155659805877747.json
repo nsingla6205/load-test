@@ -1,0 +1,49 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15341155659805877747",
+  "display_name": "vlmRetryErrorPatterns",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-11-28T06:36:20.411740973Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-11-28T06:36:20.411740973Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/vlmRetryErrorPatterns\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vlmRetryErrorPatterns",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15341155659805877747/conditions/15341155659805878606"
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

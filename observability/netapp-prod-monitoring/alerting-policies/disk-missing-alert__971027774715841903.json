@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/971027774715841903",
+  "display_name": "disk-missing-alert",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:00.574009693Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-07T03:53:07.885716599Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"cf.disk.inventory.mismatch\"",
+        "comparison": 1,
+        "duration": "21600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.node"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "disk-missing-alert",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/971027774715841903/conditions/14139936629717987834"
+    }
+  ],
+  "documentation": {
+    "content": "1. Check if there are any failed disks : storage disk show -broken\n2. Make sure the failed drive is not in the same RAID group as the missing disk: aggro show-status -aggregate !aggr0*\n\nIf they both are on the same RAID group, the risk of losing data is high, contact support with a P0.\n\nIf there are no failed disks and the cluster has only one missing drive, then open a case to support with cluster serial number and error message. In almost all the cases, the resolution would be to replace the drive.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "disk-missing-alert",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "notification-channel": "otel-prod"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3
+}

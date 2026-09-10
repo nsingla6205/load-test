@@ -1,0 +1,586 @@
+{
+  "name": "projects/93478785040/dashboards/fa9a3fe1-40ba-4a68-9790-7c2c84eec0ad",
+  "display_name": "Airtel ",
+  "etag": "5c3a161a859dac6da6aff21ef48eaeba",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "This Dashboard provides the following details:",
+          "text": {
+            "content": "**Inventory:**\nAirtel Customer Details \nCustomers Cluster Creds \n```\ngcloud container clusters get-credentials asia-south1-15449335344 --region asia-south1 --project u81f20b9888b07c41-tp\n```",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 46,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Inventory",
+          "section_header": {
+            "subtitle": "Volumes, Regions",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 50,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Airtel Volumes - 1P",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"634886756032|701271330274\", volume1p=\"true\"}[${__interval}])\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n# \n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 68,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Airtel Volumes - Software",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"634886756032|701271330274\", storageClass!=\"hardware\"}[${__interval}])\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n#\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 50,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Airtel Volumes - Hardware",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"634886756032|701271330274\", storageClass=\"hardware\"}[${__interval}])\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n#\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 86,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Airtel API Requests",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(increase(logging_googleapis_com:user_customerReq{consumerProject=~\"634886756032|701271330274\"}[${__interval}]))\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n# \n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 68,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Airtel Regions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (region)(max_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"634886756032|701271330274\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 106,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Errors",
+          "section_header": {
+            "subtitle": "Error, Unavailable Volumes ",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 110,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Airtel Volumes - Not Available",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"634886756032|701271330274\", lifeCycleState!=\"available\"}[${__interval}])\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n# \n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 110,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Airtel Volume Creation Failures ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (correlationID,region_or_zone,error_message,timestamp)(rate(logging_googleapis_com:user_volume_create_failures_paid_cust{monitored_resource=\"k8s_container\",project_number=\"634886756032|701271330274\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "correlationID",
+                "visible": true
+              },
+              {
+                "column": "region_or_zone",
+                "visible": true
+              },
+              {
+                "column": "error_message",
+                "visible": true
+              },
+              {
+                "column": "timestamp",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 130,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Airtel API Requests Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(increase(logging_googleapis_com:user_customerReq{consumerProject=~\"634886756032|701271330274\",httpStatus=~\"5.*\"}[${__interval}]))\n\n# Airtel GROUP_CA\n# 634886756032\n# 701271330274\n# \n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 14,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Ingress packets per internal TCP/UDP load balancer (filtered) [RATE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"loadbalancing.googleapis.com/l3/internal/ingress_packets_count\" resource.type=\"internal_tcp_lb_rule\" resource.label.\"project_id\"=\"u81f20b9888b07c41-tp\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 30,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/13808468844120247030"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "project_number",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "accountName",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

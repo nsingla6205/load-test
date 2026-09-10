@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/9400230777467654918",
+  "display_name": "ems_service_processor_not_configured",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T07:24:22.486131711Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:33:46.326333756Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"sp.notConfigured\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_service_processor_not_configured",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/9400230777467654918/conditions/13439544720479561935"
+    }
+  ],
+  "documentation": {
+    "content": "Perform the following corrective actions:\n\n1. Configure the SP by using the \"system service-processor network modify\" command.\n2. Optionally, obtain the MAC address of the SP by using the \"system service-processor network show\" command.\n3. Verify the SP network configuration by using the \"system service-processor network show\" command.\n4. Verify that the SP can send an AutoSupport email by using the \"system service-processor autosupport invoke\" command.\n\nNOTE: AutoSupport email hosts and recipients should be configured in ONTAP before you issue this command.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_service_processor_not_configured",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

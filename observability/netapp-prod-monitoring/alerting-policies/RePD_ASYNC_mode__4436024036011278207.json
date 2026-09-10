@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4436024036011278207",
+  "display_name": "RePD ASYNC mode",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-09-04T00:10:25.710777056Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-10T20:28:51.767291320Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/quark_regional_disks_state\" AND metric.labels.state = \"OutOfSync\"",
+        "comparison": 1,
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "Kubernetes Cluster - quark_regional_disks_state",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4436024036011278207/conditions/4436024036011277234"
+    }
+  ],
+  "documentation": {
+    "content": "Need to contact Google for further actions - https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Redundant+Persistent+Disks+Out+of+Sync",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

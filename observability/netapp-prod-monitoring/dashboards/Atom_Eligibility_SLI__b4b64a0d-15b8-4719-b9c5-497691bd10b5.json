@@ -1,0 +1,113 @@
+{
+  "name": "projects/93478785040/dashboards/b4b64a0d-15b8-4719-b9c5-497691bd10b5",
+  "display_name": "Atom Eligibility SLI",
+  "etag": "78744474711245e5b2879ce858e2a8d4",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 35,
+        "widget": {
+          "title": "pocEligibilityStream [MEAN]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v1/volume\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 35,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "pocEligibilityStream (filtered) [SUM], pocEligibilityStream for true, true [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v1/volume\" resource.type=\"gce_instance\" metric.label.\"volume1p\"!=\"true\" metric.label.\"eligible\"=\"true\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "G3P",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v1/volume\" resource.type=\"gce_instance\" metric.label.\"volume1p\"=\"true\" metric.label.\"eligible\"=\"true\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "G1P",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

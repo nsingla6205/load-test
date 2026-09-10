@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2260636339988283346",
+  "display_name": "NVRAM Battery Notice",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:47.614478449Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T09:01:34.086032945Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"callhome.battery.notice\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2260636339988283346/conditions/16364362356051715019"
+    }
+  ],
+  "documentation": {
+    "content": "Correct any environmental issues, such as a high ambient temperature. If the condition persists, replace the NVRAM card/battery in the next three months. If you need assistance, contact NetApp technical support.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "user_labels": {
+    "notification-channel": "none"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "notification_channels": []
+}

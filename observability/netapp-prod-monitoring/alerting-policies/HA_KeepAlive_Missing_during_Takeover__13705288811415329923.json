@@ -1,0 +1,67 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13705288811415329923",
+  "display_name": "HA KeepAlive Missing during Takeover",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:14.922894457Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T07:57:53.419290005Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"cf.hwassist.missedKeepAlive\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13705288811415329923/conditions/3863426620680230864"
+    }
+  ],
+  "documentation": {
+    "content": "Cloud Insight is having trouble saving the corrective action due to the payload size. Follow below instructions to access the corrective actions.\n\nGoto https://library.netapp.com/ecm/ecm_get_file/ECMLP2864253, then search for EMS identifier \"cf.hwassist.missedKeepAlive\"",
+    "mime_type": "text/markdown",
+    "subject": "HA KeepAlive Missing during Takeover",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "source": "harvest",
+    "review": "24-june-2025",
+    "notification-channel": "otel-prod"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

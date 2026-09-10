@@ -1,0 +1,56 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/16969258754610788977",
+  "display_name": "Billing-Pusher: Billing-Metrics-Push-Error-5XX",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-10T01:43:47.412995720Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:55.412143319Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_result_total\" AND (metric.labels.cause = monitoring.regex.full_match(\"\\\"50*\\\"\") AND metric.labels.type = \"BILLING_METRIC\")",
+        "comparison": 1,
+        "threshold_value": 2.0,
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_pushed_result_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/16969258754610788977/conditions/10767399629763124028"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Pusher%3A+Billing-Metrics-Push-Error-5XX",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Pusher: Billing Metrics Push Error - 5XX",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "auto_close": "604800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

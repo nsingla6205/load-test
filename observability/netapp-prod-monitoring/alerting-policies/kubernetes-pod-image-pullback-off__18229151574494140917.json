@@ -1,0 +1,63 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18229151574494140917",
+  "display_name": "kubernetes-pod-image-pullback-off",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-12-10T13:59:47.758239554Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-02T05:57:43.654649941Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"logging.googleapis.com/user/ImagePullBackOff\" AND (metric.labels.failed_pod_name != \"atom-eligibility-container-0\" AND metric.labels.failed_pod_name != has_substring(\"postgre\") AND metric.labels.failed_pod_name != has_substring(\"prometheus\") AND metric.labels.failed_pod_name != has_substring(\"regional-zonal-eligible-volumes\"))",
+        "comparison": 1,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.failed_pod_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "ImagePullBackOff",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18229151574494140917/conditions/11536627226073004455"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/spaces/COPS/pages/1373863818/Runbooks+-+Kubernetes+-+ImagePullBackoff",
+    "mime_type": "text/markdown",
+    "subject": "Kubernetes ImagePullBackoff Error",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

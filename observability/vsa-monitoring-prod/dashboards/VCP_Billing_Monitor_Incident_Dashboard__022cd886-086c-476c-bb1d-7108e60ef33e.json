@@ -1,0 +1,118 @@
+{
+  "name": "projects/697731967255/dashboards/022cd886-086c-476c-bb1d-7108e60ef33e",
+  "display_name": "VCP Billing Monitor Incident Dashboard",
+  "etag": "3966edb5872b6150c45ac57ecc932c9d",
+  "mosaic_layout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-api-request-duration-p95-threshold",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/691966185324576605"
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-api-high-error-rate",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/10933260408812082368"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-job-enqueue-failures",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/11547382958139075191"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 12,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-job-processing-failures",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/7906224847147710688"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-missing-billing-submissions",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/18267396824250314668"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 20,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-queue-backlog-growth",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/10933260408812083189"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 24,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-sink-delivery-failures",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/16124459439572968407"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 28,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "telemetry-billing-metrics-missing-submissions",
+          "alert_chart": {
+            "name": "projects/vsa-monitoring-prod/alertPolicies/17510863952899496426"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "engineering": ""
+  },
+  "dashboard_filters": []
+}

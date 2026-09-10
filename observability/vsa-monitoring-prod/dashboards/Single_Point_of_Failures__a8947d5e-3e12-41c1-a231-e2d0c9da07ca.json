@@ -1,0 +1,62 @@
+{
+  "name": "projects/697731967255/dashboards/a8947d5e-3e12-41c1-a231-e2d0c9da07ca",
+  "display_name": "Single Point of Failures",
+  "etag": "d510a441e76e95fe448327e1d8c43737",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Nodes Not in READY State",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"name\",\"state\",\"location\",${__groupby})(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"healthy\"!=\"true\",\"state\"!=\"up\",\"pool_name\"!~\"cep-.*\"}[5m])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "severity",
+                "visible": false
+              },
+              {
+                "column": "message",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

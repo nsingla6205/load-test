@@ -1,0 +1,47 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/6089003936725966346",
+  "display_name": "Throughput Monitor Per A800 Node",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-25T07:07:58.531846325Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-08T05:33:36.774366668Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "New condition",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/6089003936725966346/conditions/9681500474543976939",
+      "condition_prometheus_query_language": {
+        "query": "sum by (node)(avg_over_time(custom_googleapis_com:node_total_data{monitored_resource=\"k8s_cluster\"}[15m])) and on (node) (avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A800\"}[15m])) > 19327352832",
+        "duration": "0s",
+        "evaluation_interval": "30s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "Throughput Monitor Per A800 Node",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

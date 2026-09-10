@@ -1,0 +1,46 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12322882123220802634",
+  "display_name": "Pool State Degraded Alert (45m Window)",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-18T10:06:14.108831506Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-19T05:31:28.684196931Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/Pool-State-Degraded\"",
+        "comparison": 1,
+        "duration": "2700s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "2700s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.PoolID",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Pool State Degraded Condition",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12322882123220802634/conditions/2299326967899624406"
+    }
+  ],
+  "enabled": true,
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

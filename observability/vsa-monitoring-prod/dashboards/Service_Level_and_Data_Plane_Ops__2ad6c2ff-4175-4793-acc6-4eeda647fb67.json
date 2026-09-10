@@ -1,0 +1,1195 @@
+{
+  "name": "projects/697731967255/dashboards/2ad6c2ff-4175-4793-acc6-4eeda647fb67",
+  "display_name": "Service Level and Data Plane Ops",
+  "etag": "0af9bc5af8329b651058b5d8026aa71b",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Service Level",
+          "section_header": {
+            "subtitle": "Control and Data Plane Availability",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Description: Provides the control plane API availability",
+          "text": {
+            "content": "Availability is calculated as follows:\n\n    Total successful requests / Total requests\n\n**Unit**:\nPercentage of availability in the selected time range",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 4,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Description: Provides the data plane API availability",
+          "text": {
+            "content": "Availability is calculated as follows:\n\n    Total successful requests / Total requests\n\n**Unit**: %\nPercentage of availability in the selected time range",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 15,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Control Plane API Availability (%)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"!=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 15,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane IO Availability",
+          "text": {
+            "content": "## *Metrics needs to be added*\n\nData Plane API availability\n\n(1 - number of I/O requests made to pools / Total Number of requests to all pools?)\nOR\n(1 - number of errored I/O requests made to pools / Total Number of requests to all pools?)\n\nAPI meta data metrics are not avaliable in harvest.\nWorking with Harvest and ONTAP teams to get the correct metrics",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 31,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Data Plane",
+          "section_header": {
+            "subtitle": "Cluster Health",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 35,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Provides the Cluster health",
+          "text": {
+            "content": "Health is calculated as follows:\n\n    Total healthy clusters / Total clusters\n\n**Unit**: %\nPercentage of healthy clusters in the selected time range",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 35,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Provides the Node health",
+          "text": {
+            "content": "Health is calculated as follows:\n\n    Total healthy Nodes / Total Nodes\n\n**Unit**: %\nPercentage of healthy Nodes in the selected time range",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 35,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Provides the Volume health",
+          "text": {
+            "content": "Health is calculated as follows:\n\n    Total healthy Volumes / Total Volumes\n\n**Unit**: %\nPercentage of healthy Volumes in the selected time range",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 45,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Cluster Health (%)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) == 1) / avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) * 100\n",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 45,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Node Health (%)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]) == bool 1) * 100",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 45,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Volume Health (%)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]) == bool 1) * 100",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 60,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Distribution of ONTAP versions",
+          "text": {
+            "content": "**Unit**: ONTAP Versions (Count)\n\nCount of Nodes with the ONTAP versions",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 60,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Cluster Health by ONTAP Versions",
+          "text": {
+            "content": "**Unit**: Cluster helath by ONTAP Versions (Count)\n\nHealth of clusters by ONTAP version",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 60,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Description: Node Health by ONTAP versions",
+          "text": {
+            "content": "**Unit**: Cluster helath by ONTAP Versions (count)\n\nHealth of clusters by ONTAP version",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 70,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "ONTAP Versions (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"version\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "version",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 70,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Cluster Health by ONTAP Versions (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"version\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"status\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "version",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "value-1",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 70,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Node Health by ONTAP Versions (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"version\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "version",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 85,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Cluster Details",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 88,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: Cluster Health details",
+          "text": {
+            "content": "Unit: Metric: unhelathy clusters count",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: Cluster Node status details",
+          "text": {
+            "content": "Unit: Unhealth Cluster counts",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 94,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Clusters Unhealthy (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\" metric.label.\"status\"!=\"ok\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"cluster\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 94,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Node Status (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"state\"",
+                        "metric.label.\"node\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 111,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Performance Expections",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 114,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: P99 IO Latency observed aggregated by Clusters ",
+          "text": {
+            "content": "Unit: P99 Microsec",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 114,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: P50 IO Latency observed aggregated by Clusters ",
+          "text": {
+            "content": "Unit: P50 Microsec",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 120,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "p99 IO Latency by Clusters (Microsec)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "topk(30, quantile by (\"cluster\")(0.99,avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_total_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 5000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 120,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "p50 IO Latency by Clusters (Microsec)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "topk(30, quantile by (\"cluster\")(0.50,avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_total_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 5000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 136,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: P99 IO Latency observed aggregated by Nodes ",
+          "text": {
+            "content": "Unit: P99 Microsec",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 136,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: P50 IO Latency observed aggregated by Nodes",
+          "text": {
+            "content": "Unit: P50 Microsec",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 142,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "p99 IO Latency by Nodes (Microsec)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "topk(30, quantile by (\"node\")(0.99,avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_total_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 5000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 142,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "p50 IO Latency by Nodes (Microsec)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "topk(30, quantile by (\"node\")(0.50,avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_total_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 5000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 158,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: Node CPU Utilization across the nodes ",
+          "text": {
+            "content": "Unit: % Utilization",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 158,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Description: Node Memory Utilization across the nodes ",
+          "text": {
+            "content": "Unit: % Utilization (MB)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 164,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node CPU Busy %",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_cpu_busy\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 80.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 164,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node Memory (MB)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "MBy",
+                  "prometheus_query": "avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_memory\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "opsdeck": ""
+  },
+  "dashboard_filters": []
+}

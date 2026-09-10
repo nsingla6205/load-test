@@ -1,0 +1,47 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2156841231623620508",
+  "display_name": "Interconnect - VLAN Attachment - Egress Bandwidth utilization > 60%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-11-19T12:28:50.195863723Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-07T09:14:50.644336573Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Interconnect - VLAN Attachment - Egress Bandwidth utilization > 60%",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2156841231623620508/conditions/13649673128019923864",
+      "condition_monitoring_query_language": {
+        "query": "fetch interconnect_attachment\r\n| { metric 'interconnect.googleapis.com/network/attachment/sent_bytes_count'\r\n    |  filter true() \r\n    | align rate(30m)\r\n  ; metric 'interconnect.googleapis.com/network/attachment/capacity'\r\n    |  filter true() \r\n    | group_by 30m, [value_capacity_mean: mean(value.capacity)] }\r\n| ratio\r\n| every 5m\r\n| scale '%'\r\n| condition val() > 60 '%'",
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluation_missing_data": 0
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Interconnect - VLAN Attachment - Egress Bandwidth utilization > 60%",
+    "mime_type": "text/markdown",
+    "subject": "Interconnect - VLAN Attachment - Egress Bandwidth utilization > 60%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/8995371658441391733"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

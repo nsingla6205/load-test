@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15559751997764437786",
+  "display_name": "ErrImagePull Detected",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-22T08:44:30.419574354Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T04:34:01.339470468Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"logging.googleapis.com/user/ErrImagePull\" AND (metric.labels.failed_pod_name != \"atom-eligibility-container-0\" AND metric.labels.failed_pod_name != has_substring(\"postgre\") AND metric.labels.failed_pod_name != has_substring(\"prometheus\") AND metric.labels.failed_pod_name != has_substring(\"regional-zonal-eligible-volumes\"))",
+        "comparison": 1,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.failed_pod_name",
+              "metric.label.in_namespace",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "ErrImagePull Metric Threshold",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15559751997764437786/conditions/6894455069674938447"
+    }
+  ],
+  "documentation": {
+    "content": "# Runbook: GKE ErrImagePull\n## Symptoms\nA pod is stuck in `ErrImagePull` or `ImagePullBackOff`.\n\n## Troubleshooting Steps\n1. **Identify the Pod:** `kubectl get pods -A | grep -i ErrImagePull`\n2. **Check Events:** `kubectl describe pod [POD_NAME]`\n3. **Verify Registry Permissions:** Ensure GKE Node Service Account has `artifactregistry.reader` permissions.\n4. **Check Image Path:** Verify no typos in the image tag/URL.",
+    "mime_type": "text/markdown",
+    "subject": "ErrImagePull Detected",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

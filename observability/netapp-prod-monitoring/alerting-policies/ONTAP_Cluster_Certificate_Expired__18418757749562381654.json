@@ -1,0 +1,63 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18418757749562381654",
+  "display_name": "ONTAP Cluster Certificate Expired",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-07-17T10:19:29.063887848Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-03-24T05:03:00.844566549Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/security_certificate_labels\" AND metric.labels.certificateExpiryStatus = \"expired\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.certificateIssuerType",
+              "metric.label.name",
+              "metric.label.certificateExpiryStatus",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - security_certificate_labels",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18418757749562381654/conditions/18418757749562383851"
+    }
+  ],
+  "documentation": {
+    "content": "The cluster certificate has already expired. Either renew existing certificate to extend validity or create a new certificate for the cluster.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ONTAP Cluster Certificate Expired",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

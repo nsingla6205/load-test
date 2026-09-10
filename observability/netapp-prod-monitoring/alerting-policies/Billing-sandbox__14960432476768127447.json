@@ -1,0 +1,39 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/14960432476768127447",
+  "display_name": "Billing-sandbox",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-01-04T13:47:26.620768882Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-01-21T15:43:02.728177394Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Billing ",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/14960432476768127447/conditions/18420173798335032159",
+      "condition_prometheus_query_language": {
+        "query": "(sum(increase(custom_googleapis_com:qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_count_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\"}[2h])) / \nsum(increase(custom_googleapis_com:qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_count_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\"}[4h])) * 100) * 2 < 70",
+        "duration": "3600s",
+        "evaluation_interval": "900s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

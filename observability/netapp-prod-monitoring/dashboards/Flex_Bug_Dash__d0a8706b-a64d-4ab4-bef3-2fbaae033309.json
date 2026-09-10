@@ -1,0 +1,40 @@
+{
+  "name": "projects/93478785040/dashboards/d0a8706b-a64d-4ab4-bef3-2fbaae033309",
+  "display_name": "Flex Bug Dash",
+  "etag": "151552c0b9234773de57879ff17d7981",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Bug Dash",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/2411881637107463927"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

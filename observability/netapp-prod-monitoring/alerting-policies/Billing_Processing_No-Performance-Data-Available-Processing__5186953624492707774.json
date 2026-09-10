@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5186953624492707774",
+  "display_name": "Billing Processing:  No-Performance-Data-Available-Processing",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-02-09T11:47:41.760192891Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:44.178367422Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND (resource.labels.location != \"europe-west10\" AND resource.labels.location != \"us-south1\" AND resource.labels.location != \"us-east5\" AND resource.labels.location != \"me-west1\" AND resource.labels.location != \"me-central1\") AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_received_total\" AND metric.labels.type = \"HYDRATED_METRIC\"",
+        "comparison": 3,
+        "threshold_value": 0.5,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_received_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5186953624492707774/conditions/3747009619668005629"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing+Processing%3A+No-Performance-Data-Available-Processing",
+    "mime_type": "text/markdown",
+    "subject": "Billing Processing:  No Performance Data Available for Processing",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3138456185143593605",
+  "display_name": "Customer_Logical_Vol_Usage(as-s2)",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-01-31T21:11:51.691281646Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:42.902963683Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Kubernetes Cluster - ntapvol_logical_size_used",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3138456185143593605/conditions/5936031027678572474",
+      "condition_prometheus_query_language": {
+        "query": "absent(count(custom_googleapis_com:ntapvol_logical_size_used{monitored_resource=\"k8s_cluster\",cluster_name=\"asia-south2-a-443366963277\"}))",
+        "duration": "0s",
+        "evaluation_interval": "120s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Runbook - https://confluence.ngage.netapp.com/display/COPS/Runbook-+Customer+Logical+Volume+Usage+metric+missing\nhttps://jira.ngage.netapp.com/browse/CQUARK-14280",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

@@ -1,0 +1,925 @@
+{
+  "name": "projects/93478785040/dashboards/c2f4d339-f092-459d-9b28-3b277e466d29",
+  "display_name": "ONTAP: CI: CVS Capacity Overview",
+  "etag": "4867da9d3a0a9b7e8dbb4478e66d3b59",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 23,
+        "width": 17,
+        "height": 8,
+        "widget": {
+          "title": "Total Sellable Capacity",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 17,
+        "y_pos": 23,
+        "width": 15,
+        "height": 8,
+        "widget": {
+          "title": "Total Provisioned Capacity",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[5m]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 23,
+        "width": 15,
+        "height": 8,
+        "widget": {
+          "title": "Percentage Capacity Sold",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 31,
+        "width": 17,
+        "height": 8,
+        "widget": {
+          "title": "Total Physical Used Capacity",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 17,
+        "y_pos": 31,
+        "width": 15,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Used Capacity From Volume",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[5m])) #+ sum(avg_over_time(custom_googleapis_com:volume_space_logical_used_by_snapshots{monitored_resource=\"k8s_cluster\"}[5m])) ",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 31,
+        "width": 15,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Used Capacity ",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 39,
+        "width": 17,
+        "height": 11,
+        "widget": {
+          "title": "Total Cloud Volumes",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "# sum(max_over_time(custom_googleapis_com:aggr_volume_count{monitored_resource=\"k8s_cluster\"}[${__interval}]))\ncount(count_over_time(custom_googleapis_com:volume_aggr_labels{monitored_resource=\"k8s_cluster\",style=\"flexvol\"}[5m]))\n#count(count_over_time(custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 158,
+        "width": 15,
+        "height": 11,
+        "widget": {
+          "title": "Total SnapMirrors",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count(count_over_time(custom_googleapis_com:snapmirror_labels{monitored_resource=\"k8s_cluster\",healthy=\"true\"}[5m]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 15,
+        "y_pos": 158,
+        "width": 16,
+        "height": 11,
+        "widget": {
+          "title": "Total Storage Tenants",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "# count(count_over_time(custom_googleapis_com:ontap_cluster_svm_count_usage{monitored_resource=\"k8s_pod\"}[${__interval}]))\n\nsum by (type)(avg_over_time(custom_googleapis_com:svm_labels{monitored_resource=\"k8s_cluster\",type=\"data\",root_svm=\"No\"}[5m]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 17,
+        "y_pos": 39,
+        "width": 15,
+        "height": 11,
+        "widget": {
+          "title": "Total Snapshots",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(max_over_time(custom_googleapis_com:volume_snapshot_count{monitored_resource=\"k8s_cluster\",style=\"flexvol\"}[5m]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 39,
+        "width": 16,
+        "height": 11,
+        "widget": {
+          "title": "FlexGroups (Check)",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(sum_over_time(custom_googleapis_com:ontap_cluster_flexgroup_volume_count_usage{monitored_resource=\"k8s_pod\"}[5m]))\n#This query may not fully reflect the original configuration.",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 50,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Regional Physical Capacity Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 66,
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "Regional Capacity Allocation",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 81,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Aggregate Physical Capacity Utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30,sum by (aggr)(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 81,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Aggregate Capacity Allocation",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30,sum by (aggr)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 97,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Stamp Info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"status\"",
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 97,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "StorageNode",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"node\"",
+                        "metric.label.\"state\"",
+                        "metric.label.\"serial\"",
+                        "metric.label.\"max_vol_size\"",
+                        "metric.label.\"vendor\"",
+                        "metric.label.\"cpu_firmware_release\"",
+                        "metric.label.\"max_vol_num\"",
+                        "metric.label.\"max_aggr_size\"",
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"model\"",
+                        "metric.label.\"version\"",
+                        "metric.label.\"ha_partner\"",
+                        "metric.label.\"partner_healthy\"",
+                        "metric.label.\"warnings\"",
+                        "metric.label.\"healthy\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "ha_partner",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "serial",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "bmc_firmware_version",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cpu_firmware_release",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": true
+              },
+              {
+                "column": "healthy",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "max_aggr_size",
+                "visible": true
+              },
+              {
+                "column": "max_vol_num",
+                "visible": true
+              },
+              {
+                "column": "max_vol_size",
+                "visible": true
+              },
+              {
+                "column": "model",
+                "visible": true
+              },
+              {
+                "column": "partner_healthy",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "vendor",
+                "visible": true
+              },
+              {
+                "column": "version",
+                "visible": true
+              },
+              {
+                "column": "warnings",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 113,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Aggregate Info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/aggr_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"aggr\"",
+                        "metric.label.\"state\"",
+                        "metric.label.\"type\"",
+                        "metric.label.\"node\"",
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"is_encrypted\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "cloud_stores",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "is_encrypted",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 113,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Internal Volume",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/volume_aggr_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"volume\"",
+                        "metric.label.\"style\"",
+                        "metric.label.\"aggr\"",
+                        "metric.label.\"node\"",
+                        "metric.label.\"svm\"",
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"uuid\"",
+                        "metric.label.\"datacenter\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume",
+                "visible": true
+              },
+              {
+                "column": "svm",
+                "visible": true
+              },
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "datacenter",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "style",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 23,
+        "widget": {
+          "title": "Total Provisioned Capacity - Trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 129,
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "Total Sellable Capacity Trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by(location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 23,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Capacity",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 39,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "Inventory",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 50,
+        "width": 48,
+        "height": 47,
+        "widget": {
+          "title": "Trends",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "aggr",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "cluster",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  }
+}

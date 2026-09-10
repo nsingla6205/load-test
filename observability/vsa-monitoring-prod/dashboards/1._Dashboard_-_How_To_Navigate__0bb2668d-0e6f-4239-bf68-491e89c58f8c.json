@@ -1,0 +1,39 @@
+{
+  "name": "projects/697731967255/dashboards/0bb2668d-0e6f-4239-bf68-491e89c58f8c",
+  "display_name": "1. Dashboard - How To Navigate",
+  "etag": "cb2fdeade0d6f61693e284976c1298a7",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 27,
+        "widget": {
+          "title": "Dashboard - How to Navigate",
+          "text": {
+            "content": "## The regions are monitored as in the following scoping projects\n### **Prod** - vsa-monitoring-prod - Project ###\n### **Stage** - vsa-monitoring-stage - Project ###\n### **Autopush** - vsa-monitoring-nonprod - Project ###\n\n\n## The dashboards are organized using the following labels\n\n## 1. **Executive** - A set of dashboards for service level overview \n## 2. **Leadership** - A set of dashboards for feature level or customer specific overview\n## 3. **Engineering** - A set of dashboards for engineering teams to get into debugging at a component level",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "executive": "",
+    "engineering": "",
+    "leadership": ""
+  },
+  "dashboard_filters": []
+}

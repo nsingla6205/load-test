@@ -1,0 +1,714 @@
+{
+  "name": "projects/697731967255/dashboards/cc95773c-7e7b-43d4-99c7-061c0ecd9568",
+  "display_name": "EMS Events",
+  "etag": "8c5377f4000a1c43a346cdf8ec0736a3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 31,
+        "width": 48,
+        "height": 26,
+        "widget": {
+          "title": "ems_events",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project\"",
+                        "metric.label.\"name\"",
+                        "metric.label.\"parameters\"",
+                        "metric.label.\"node\"",
+                        "metric.label.\"message\"",
+                        "metric.label.\"deployment_name\"",
+                        "metric.label.\"severity\"",
+                        "metric.label.\"pool_name\"",
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "parameters",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "deployment_name",
+                "visible": false
+              },
+              {
+                "column": "severity",
+                "visible": true
+              },
+              {
+                "column": "pool_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 19,
+        "width": 12,
+        "height": 12,
+        "widget": {
+          "title": "Alerts Events",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"alert\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project\"",
+                        "metric.label.\"message\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project",
+                "visible": true
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 19,
+        "width": 12,
+        "height": 12,
+        "widget": {
+          "title": "Emergency Events",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\") metric.label.\"severity\"=\"emergency\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 57,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Severity",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "severity",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 73,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Message Type",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 89,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "# All prober projects are excluded\n\nSome test projects can still be included",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 9,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "Severity",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"severity\""
+                  ]
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 1.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 2,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 2.0,
+                "color": 6,
+                "direction": 2,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 19,
+        "width": 12,
+        "height": 12,
+        "widget": {
+          "title": "Informational Events",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"alert\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project\"",
+                        "metric.label.\"message\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project",
+                "visible": true
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 19,
+        "width": 12,
+        "height": 12,
+        "widget": {
+          "title": "Notice Events",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"severity\"=\"notice\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project\"",
+                        "metric.label.\"message\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project",
+                "visible": true
+              },
+              {
+                "column": "message",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 57,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Severity",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"severity\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 73,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Message Type",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"message\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 89,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Events by Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ems_events\" resource.type=\"k8s_cluster\" metric.label.\"pool_name\"!=monitoring.regex.full_match(\"cep-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "severity",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "project",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

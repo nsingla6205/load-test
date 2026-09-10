@@ -1,0 +1,54 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/8105109102365049298",
+  "display_name": "workflow_supervisor_metric_absent",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-18T10:46:20.887711015Z",
+    "mutated_by": "manden@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:12:30.361124529Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/vcp.background.task.last_run_timestamp\" AND metric.labels.task = \"WORKFLOW_SUPERVISOR_SWEEP\"",
+        "duration": "600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ]
+      },
+      "display_name": "Kubernetes Cluster - vcp.background.task.last_run_timestamp",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/8105109102365049298/conditions/9518932189405288924"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "Supervisor metrics absent",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

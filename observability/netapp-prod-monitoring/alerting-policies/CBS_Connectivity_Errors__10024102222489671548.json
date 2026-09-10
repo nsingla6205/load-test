@@ -1,0 +1,176 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548",
+  "display_name": "CBS Connectivity Errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-01-23T13:18:11.156802680Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-04-09T07:27:06.246231751Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/cbs_adc_connectivity_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - cbs_adc_connectivity_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990563951"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/cbs_hyperscaler_connectivity_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - cbs_hyperscaler_connectivity_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990564738"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/cbs_gs_connectivity_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - cbs_gs_connectivity_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990565525"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/cbs_ontap_key_rotation_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - cbs_ontap_key_rotation_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990566312"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/cbs_cvi_connectivity_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - cbs_cvi_connectivity_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990567099"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"custom.googleapis.com/cbs_sde_msg_publish_failure_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "VM Instance - cbs_sde_msg_publish_failure_error_gauge",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10024102222489671548/conditions/4743955746990563790"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+CBS+-+CBS+Connectivity+Errors",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

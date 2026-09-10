@@ -1,0 +1,767 @@
+{
+  "name": "projects/93478785040/dashboards/94ab8f19-97ef-4502-9ccd-c8f8294cff5e",
+  "display_name": "ONTAP: CI: GCNV PO Capacity Dashboard for Executives",
+  "etag": "3bdf39745090935e87ddab43f5341e6e",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation europe-west2",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west2\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west2\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation asia-southeast1",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"asia-southeast1\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"asia-southeast1\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation australia-southeast1",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"australia-southeast1\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"australia-southeast1\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 36,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation europe-southwest1",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-southwest1\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-southwest1\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 10,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation northamerica-northeast2",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast2\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast2\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 10,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation europe-west3",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west3\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west3\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 10,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation europe-west4",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west4\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west4\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 10,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation northamerica-northeast1",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 20,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation us-west3",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west3\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west3\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 20,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation us-central1",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 20,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation us-west4",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west4\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west4\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 20,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation us-west2",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west2\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west2\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation us-east4",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 30,
+        "width": 12,
+        "height": 10,
+        "widget": {
+          "title": "Percentage Allocation europe-west6",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west6\"}[5m])) / sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west6\"}[5m]) * 1.5 * 0.8) * 100",
+              "output_full_duration": false
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 60.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 80.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 40,
+        "width": 48,
+        "height": 28,
+        "widget": {
+          "title": "Available Capacity to Sell by Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8 - sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 68,
+        "width": 48,
+        "height": 28,
+        "widget": {
+          "title": "Volume Stats Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_performance_tier_inactive_user_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 96,
+        "width": 48,
+        "height": 28,
+        "widget": {
+          "title": "Volume Stats Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:aggr_space_performance_tier_inactive_user_data{monitored_resource=\"k8s_cluster\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 124,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Large Volumes",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\",style=\"flexgroup\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\",style=\"flexgroup\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:aggr_space_performance_tier_inactive_user_data{monitored_resource=\"k8s_cluster\"}[5m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  },
+  "dashboard_filters": []
+}

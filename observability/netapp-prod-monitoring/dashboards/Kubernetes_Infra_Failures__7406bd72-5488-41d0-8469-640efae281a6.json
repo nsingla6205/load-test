@@ -1,0 +1,286 @@
+{
+  "name": "projects/93478785040/dashboards/7406bd72-5488-41d0-8469-640efae281a6",
+  "display_name": "Kubernetes Infra Failures",
+  "etag": "267d728874bf9324e6730af1605d13bf",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "kubernetes_pod_failures",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/kubernetes_pod_failures\" resource.type=\"k8s_pod\" metric.label.\"gcnv_namespace\"!=monitoring.regex.full_match(\"postgres-exporter|kube-system|fluentd|external-secrets\") metric.label.\"failed_pod\"!=monitoring.regex.full_match(\"prometheus-postgres-exporter|.*prometheus.*\") metric.label.\"reason\"!=monitoring.regex.full_match(\"Unhealthy\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"gcnv_namespace\"",
+                        "metric.label.\"reason\"",
+                        "metric.label.\"failed_pod\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "kubernetes_pod_failures",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/kubernetes_pod_failures\" resource.type=\"k8s_pod\" metric.label.\"gcnv_namespace\"!=monitoring.regex.full_match(\"postgres-exporter|kube-system|fluentd|external-secrets\") metric.label.\"failed_pod\"!=monitoring.regex.full_match(\"prometheus-postgres-exporter|.*prometheus.*|atom-eligibility-container\") metric.label.\"reason\"!=monitoring.regex.full_match(\"Unhealthy\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"gcnv_namespace\"",
+                        "metric.label.\"reason\"",
+                        "metric.label.\"failed_pod\"",
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 46,
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/17144336318601990814"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 14,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Panic In Pod",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/panic_in_pod\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"failed_pod_name\"",
+                        "metric.label.\"in_namespace\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 14,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Panic In Pod",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/panic_in_pod\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"failed_pod_name\"",
+                        "metric.label.\"in_namespace\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CrashLoopBackOff",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/CrashLoopBackOff\" resource.type=\"k8s_node\" metric.label.\"crashing_contrainer\"!=monitoring.regex.full_match(\"atom-eligibility-container|prometheus-server|qronicle-export|regional-zonal-eligible-volumes|sde-prometheus-server\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\"",
+                        "metric.label.\"crashing_contrainer\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 30,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ErrImagePull ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/ErrImagePull\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"failed_pod_name\"",
+                        "metric.label.\"in_namespace\"",
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

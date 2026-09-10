@@ -1,0 +1,47 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/14797128179635420442",
+  "display_name": "Interconnect - Ingress Bandwidth Utilization above 60%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-20T10:45:12.781742927Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-17T09:02:55.983650444Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Interconnect - Ingress Bytes",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/14797128179635420442/conditions/16166927280810356066",
+      "condition_monitoring_query_language": {
+        "query": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/received_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'\n| condition val() > 60 '%'",
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluation_missing_data": 0
+      }
+    }
+  ],
+  "documentation": {
+    "content": "### Interconnect - Ingress Bandwidth Utilization above 60%\n\n#### Summary\n\nThe ${resource.label.interconnect} in the project ${resource.label.project_id} has\nexceeded 60% for over 5 minutes with a value of ${resource.label.Value}\n${metric.label.VALUE}\n${val()}\n${resource.label.VALUE}\n\n#### Additional resource information\n\nAlerting policy resource name: ${policy.name}  \n\n#### Troubleshooting and Debug References\n\nPlaybook: https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=1020715957\n${resource.type} dashboard: https://console.cloud.google.com/monitoring/dashboards/builder/56f2a8ed-9fa1-4917-8910-c24fdb6d3b02;duration=PT1H?project=netapp-prod-monitoring\n",
+    "mime_type": "text/markdown",
+    "subject": "Interconnect - Ingress Bandwidth Utilization above 60%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/8995371658441391733"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

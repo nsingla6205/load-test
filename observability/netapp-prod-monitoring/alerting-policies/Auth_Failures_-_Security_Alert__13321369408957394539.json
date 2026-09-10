@@ -1,0 +1,110 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13321369408957394539",
+  "display_name": "Auth Failures - Security Alert",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-10-17T12:14:20.362298488Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-03-27T09:46:50.384316423Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/auth-failures-on-network-devices\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Auth-failures-on-network-devices",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13321369408957394539/conditions/4622639652222378701"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"logging.googleapis.com/user/auth-failures-on-ontap-device\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Auth-failures-on-ontap-device",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13321369408957394539/conditions/4622639652222381278"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/network-user-attribute-modification\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "network-user-attribute-modification",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13321369408957394539/conditions/4622639652222379759"
+    }
+  ],
+  "documentation": {
+    "subject": "Security Alert",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4609840841954334010",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/13789262975098867606"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

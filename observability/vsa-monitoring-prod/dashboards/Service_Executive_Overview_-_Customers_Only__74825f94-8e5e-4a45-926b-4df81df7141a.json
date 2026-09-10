@@ -1,0 +1,674 @@
+{
+  "name": "projects/697731967255/dashboards/74825f94-8e5e-4a45-926b-4df81df7141a",
+  "display_name": "Service Executive Overview - Customers Only",
+  "etag": "1e9f5c9e09ede71a0246217df233fb57",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 16,
+        "y_pos": 49,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Available Space",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_available\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 88,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Data Plane Service health status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) == 1) / avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) * 100\n",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Dashboard Description",
+          "text": {
+            "content": "This dashboard provides an overview of the service accross all the regions\n\nThe following details can be found:\n1. Health of the Data Plane - clusters and Control Plane (Historical)\n2. Capacity Avaliable/Used\n3. Total Requests by Customers\n4. Error Rate in Control Plane workflows\n5. Latency Accross the service (CP and DP)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 123,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests by Customer",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 71,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Control Plane Error Rate of Workflows",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"=monitoring.regex.full_match(\"500\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.001,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 71,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "Control Plane Service Health Status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"!=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.999,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "Control Plane Latency (ms) [P99]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(30, histogram_quantile(0.99,sum by (le)(increase(custom_googleapis_com:ogen_server_duration_milliseconds_bucket{monitored_resource=\"k8s_cluster\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 50.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 107,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane Latency (ms) [P99] ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "max(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\"}) by(cluster)",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 49,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Total Logical Used Capacity ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_used\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 107,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Create Volume Errors",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"ERROR\" metric.label.\"Job_Type\"=\"CREATE_VOLUME\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 123,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Create Pool Errors",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"ERROR\" metric.label.\"Job_Type\"=\"CREATE_POOL\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 25,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Volume Count",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(count_over_time({\"__name__\"=\"custom.googleapis.com/volume_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[5m]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "300s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 13,
+        "width": 16,
+        "height": 24,
+        "widget": {
+          "title": "Clusters",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, count by (\"datacenter\")(count_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"status\"=\"ok\",\"pool_name\"!~\"cep-.*\"}[5m])))\nunless on (project)\nsum by (project) (\n    label_replace(\n        avg_over_time({__name__=\"custom.googleapis.com/v1/unpaid_customers/gcnv_test_project\", monitored_resource=\"global\"}[12h]),\n        \"project\", \"$1\", \"project_number\", \"(.*)\"\n    )\n)\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 13,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Customers Projects",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "# count(count by (project)(count_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[10m])))\ncount(count by (project)(count_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\"}[10m])))\nunless on (project)\nsum by (project) (\n    label_replace(\n        avg_over_time({__name__=\"custom.googleapis.com/v1/unpaid_customers/gcnv_test_project\", monitored_resource=\"global\"}[12h]),\n        \"project\", \"$1\", \"project_number\", \"(.*)\"\n    )\n)",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 49,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Total Provisioned Capacity",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_total\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[5m])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Filters",
+          "text": {
+            "content": "Filters:\n    \n    Use \"Project\" filter for data Plane\n\n    Use \"ProjectNumber\" filter for control plane",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 13,
+        "width": 16,
+        "height": 24,
+        "widget": {
+          "title": "Clusters Fleet Wide",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "topk(30, count(count_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"status\"=\"ok\",\"pool_name\"!~\"cep-.*\"}[5m])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 37,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Available Space Fleet Wide",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_available\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 37,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Total Logical Used Capacity Fleet Wide",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_used\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 37,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Total Provisioned Capacity Fleet Wide",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "topk(30, sum(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_total\",\"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"}[5m])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "project",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "projectNumber",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

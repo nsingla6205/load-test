@@ -1,0 +1,66 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15748878692310298319",
+  "display_name": "SDE DB Status",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-02-20T05:57:15.862525627Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-10-30T13:13:45.178175405Z",
+    "mutated_by": "sburla@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_database\" AND (resource.labels.database_id != \"netapp-eu-n1-sde:netapp-eu-n1-sde-db\" AND resource.labels.database_id != \"netapp-eu-w1-sde:netapp-eu-w1-sde-db\" AND resource.labels.database_id != \"netapp-eu-w1-sde:netapp-eu-w1-sde-db-postgres\" AND resource.labels.database_id != \"netapp-af-s1-sde:netapp-af-s1-sde-db\" AND resource.labels.database_id != \"netapp-us-e1-sde:netapp-us-e1-sde-db\" AND resource.labels.database_id != \"netapp-us-w1-sde:netapp-us-w1-sde-db\") AND metric.type = \"cloudsql.googleapis.com/database/up\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.database_id"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Database - Server up",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15748878692310298319/conditions/3935109724391279481"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-124166",
+    "mime_type": "text/markdown",
+    "subject": "DB Instance down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/11088599153676089097",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/13473687690535857627",
+    "projects/netapp-prod-monitoring/notificationChannels/3621488941783318863",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

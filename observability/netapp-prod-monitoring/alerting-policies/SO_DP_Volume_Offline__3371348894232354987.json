@@ -1,0 +1,76 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3371348894232354987",
+  "display_name": "SO DP Volume Offline",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-11-21T12:18:00.936656970Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-08-26T16:04:25.435586557Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND (resource.labels.cluster_name != has_substring(\"1008503002786\") AND resource.labels.cluster_name = has_substring(\"292262620491\")) AND metric.type = \"custom.googleapis.com/podrick_ntapvol_state\" AND (metric.labels.volumeUUID != \"77a596a3-8982-0bb3-26ce-63b180223718\" AND metric.labels.volumeUUID != \"f8c238e5-aca8-fd58-4e0c-b6150e93354d\" AND metric.labels.volumeUUID != \"a06cb0d9-df85-ce93-be0d-3be82e1ea3a9\")",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.volumeUUID",
+              "metric.label.storagePoolUUID",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "SO DP Volume Offline",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3371348894232354987/conditions/4929348524436573752"
+    }
+  ],
+  "documentation": {
+    "content": "https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Atom+Volume+Offline",
+    "mime_type": "text/markdown",
+    "subject": "SO DP Volume Offline",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792313",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792850",
+    "projects/netapp-prod-monitoring/notificationChannels/3926516215686562497",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

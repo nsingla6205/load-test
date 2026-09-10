@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8300496094436884529",
+  "display_name": "ontap-certificate-expired",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-08-23T06:45:55.258021400Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-08-23T06:45:55.258021400Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/ontap-certificate-expired\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.host",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ontap-certificate-expired",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8300496094436884529/conditions/8300496094436885576"
+    }
+  ],
+  "documentation": {
+    "subject": "ontap-certificate-expired",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

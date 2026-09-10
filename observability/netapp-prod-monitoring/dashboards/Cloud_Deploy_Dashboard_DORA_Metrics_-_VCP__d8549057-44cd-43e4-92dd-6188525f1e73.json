@@ -1,0 +1,533 @@
+{
+  "name": "projects/93478785040/dashboards/d8549057-44cd-43e4-92dd-6188525f1e73",
+  "display_name": "Cloud Deploy Dashboard (DORA) Metrics - VCP",
+  "etag": "67716c3a8891289719e60d485f62b10d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 21,
+        "width": 24,
+        "height": 41,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status - VSA Control Plane",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"pipeline_name\"=monitoring.regex.full_match(\"gcnv-vsa-control-plane.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"deploy_end_time\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "resource.label.\"project_id\"",
+                        "metric.label.\"pipeline_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "status_text",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "pipeline_name",
+                "visible": false
+              },
+              {
+                "column": "rollout_name",
+                "visible": false
+              },
+              {
+                "column": "create_time",
+                "visible": false
+              },
+              {
+                "column": "target_id",
+                "visible": false
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": false
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "deploy_ended_time",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": false
+              },
+              {
+                "column": "deploy_started_time",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 21,
+        "width": 24,
+        "height": 41,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status - VCP Worker",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"pipeline_name\"=monitoring.regex.full_match(\"gcnv-vcp-worker-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"deploy_end_time\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"pipeline_name\"",
+                        "resource.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "status_text",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "pipeline_name",
+                "visible": false
+              },
+              {
+                "column": "rollout_name",
+                "visible": false
+              },
+              {
+                "column": "create_time",
+                "visible": false
+              },
+              {
+                "column": "target_id",
+                "visible": false
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": false
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "deploy_ended_time",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": false
+              },
+              {
+                "column": "deploy_started_time",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 62,
+        "width": 48,
+        "height": 42,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status - VLM",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"pipeline_name\"=monitoring.regex.full_match(\"gcnv-vlm-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"deploy_end_time\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "resource.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "status_text",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "pipeline_name",
+                "visible": false
+              },
+              {
+                "column": "rollout_name",
+                "visible": false
+              },
+              {
+                "column": "create_time",
+                "visible": false
+              },
+              {
+                "column": "target_id",
+                "visible": false
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": false
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "deploy_ended_time",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": false
+              },
+              {
+                "column": "deploy_started_time",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 104,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Cloud Deploy Rollout Failures",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"deployment_status\"=\"FAILED\" metric.label.\"pipeline_name\"=monitoring.regex.full_match(\"gcnv-vsa-control-plane-.*|gcnv-vcp-worker-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"deploy_end_time\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"pipeline_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "status_text",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "pipeline_name",
+                "visible": true
+              },
+              {
+                "column": "rollout_name",
+                "visible": false
+              },
+              {
+                "column": "create_time",
+                "visible": false
+              },
+              {
+                "column": "target_id",
+                "visible": false
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": false
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "deploy_ended_time",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": false
+              },
+              {
+                "column": "deploy_started_time",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 21,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "# Always select last 1h\nThe data is refreshed every 30 mins \n\nIf you want to manually refresh the data, execute the scheduler mentioned below\n\n# Trigger the function manually for testing\n\n`gcloud config set project <PROJECT_ID>`\n\n`gcloud scheduler jobs run cloud-deploy-monitoring-schedule --location=<LOCATION>`\n\ne.g.\n\n`gcloud config set project netapp-eu-w6-sde`\n\n`gcloud scheduler jobs run cloud-deploy-monitoring-schedule --location=europe-west6`",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "release_name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "rollout_name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "project_id",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "wave",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "service",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "dora": ""
+  }
+}

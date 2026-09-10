@@ -1,0 +1,261 @@
+{
+  "name": "projects/93478785040/dashboards/ee9efcce-e9d3-49a8-aa95-e507f1875861",
+  "display_name": "SLO Impacting Issues",
+  "etag": "32d70911704ed085f730d85e1685112f",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 10,
+        "height": 15,
+        "widget": {
+          "title": "Count of Errors",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"logging.googleapis.com/user/slo-errors\" resource.type=\"k8s_container\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 13,
+                  "cross_series_reducer": 6,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 1.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 10,
+        "width": 12,
+        "height": 15,
+        "widget": {
+          "title": "Projects",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/slo-errors\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 13,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": [
+                        "metric.label.\"project_number\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 15,
+        "width": 48,
+        "height": 26,
+        "widget": {
+          "title": "SLO Errors",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/slo-errors\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 13,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": [
+                        "metric.label.\"project_number\"",
+                        "metric.label.\"correlationID\"",
+                        "metric.label.\"region_or_zone\"",
+                        "metric.label.\"error_message\"",
+                        "metric.label.\"timestamp\"",
+                        "metric.label.\"log\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "project_number",
+                "visible": true
+              },
+              {
+                "column": "correlationID",
+                "visible": true
+              },
+              {
+                "column": "region_or_zone",
+                "visible": true
+              },
+              {
+                "column": "error_message",
+                "visible": true
+              },
+              {
+                "column": "timestamp",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 22,
+        "width": 13,
+        "height": 15,
+        "widget": {
+          "title": "Error",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/slo-errors\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": [
+                        "metric.label.\"error_message\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 41,
+        "width": 48,
+        "height": 26,
+        "widget": {
+          "title": "StackDriver Logs - Unified Regions",
+          "logs_panel": {
+            "filter": "severity=(EMERGENCY OR ALERT OR CRITICAL OR ERROR)\n",
+            "resource_names": [
+              "projects/netapp-prod-monitoring/locations/global/logScopes/Unified-Region-Global-Logs"
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 67,
+        "width": 48,
+        "height": 26,
+        "widget": {
+          "title": "StackDriver Logs - SO/Flex Only Regions",
+          "logs_panel": {
+            "filter": "severity=(EMERGENCY OR ALERT OR CRITICAL OR ERROR)\n",
+            "resource_names": [
+              "projects/netapp-prod-monitoring/locations/global/logScopes/SO-Only-Regions-Global-Logs"
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 35,
+        "width": 13,
+        "height": 15,
+        "widget": {
+          "title": "Test Grid & Prober Project List",
+          "text": {
+            "content": "**878146544533**\t netapp-prod-prs-1\n\n**887672864938**\t netapp-prod-prs-2\n\n**816349744842**\t netapp-prod-prs-3\n\n**35721499586**     netapp-prod-prs-4\n\n**577903616959**\t netapp-prod-prs-5\n\n**323112408720**\t netapp-prod-prs-6\n\n**284700912743**\t netapp-prod-prs-7\n\n**1045351925941**\t netapp-prod-prs-8\n\n**544768347938**\t netapp-prod-prs-9\n\n**199325211870**\t netapp-prod-prs-10\n\n**21403518106**\t netapp-dp-m-1681938158-x1-0\n\n**746723206207** \t netapp-dp-m-1681938158-dut-0\n\n**985940100605** \t netapp-dp-m-1681938158-y1-0\n\n**461390210183**\t netapp-smok-1682360851-dut-0\n\n**203117070237**\t netapp-vpcs-1681856718-dut-0",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#000000",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 5,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "correlationID",
+      "string_value": "",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "error_message",
+      "string_value": "",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "project_number",
+      "string_value": "",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "region_or_zone",
+      "string_value": "",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

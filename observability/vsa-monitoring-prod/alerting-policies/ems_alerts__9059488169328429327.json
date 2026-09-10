@@ -1,0 +1,67 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/9059488169328429327",
+  "display_name": "ems_alerts",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-28T05:10:21.197412186Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:28:54.733746376Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND (metric.labels.pool_name != monitoring.regex.full_match(\"cep-.*\") AND metric.labels.severity = \"alert\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "project",
+              "metric.label.pool_name",
+              "metric.label.parameters",
+              "metric.label.message",
+              "metric.label.severity"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_alerts",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/9059488169328429327/conditions/7311952086578899519"
+    }
+  ],
+  "documentation": {
+    "content": "This policy alerts on EMS events with a severity greater than informational or notice.\n\n```` markdown\n# ONTAP EMS Alert Debugging Runbook\n\n## Overview\n\nThis runbook provides a standardized procedure for identifying, analyzing, and resolving NetApp ONTAP Event Management System (EMS) events with a severity level of Alert. In ONTAP, \"Alert\" severity indicates a condition that requires immediate attention to prevent potential service interruption or data loss.\n\n# Step 1: Identification and Discovery\n\nThe first step in any investigation is to identify the specific events that triggered the alert notification.\n\n## List Active Alerts\n\nTo see all events with the severity \"ALERT\" recorded in the cluster\u2019s event log:\n```bash\nevent log show -severity ALERT\n\n````\n\n## Filter by Timeframe\n\nIf you are investigating a recent issue, filter by time to narrow the scope:\n\n``` bash\nevent log show -severity ALERT -time > \"5m\"\n\n```\n\n(shows alerts from the last 5 minutes)\n\n# Step 2: Extracting Event Details\n\nGeneric event summaries are often insufficient for root cause analysis. You must extract the full instance data to see parameters such as disk IDs, volume names, or specific error codes.\n\n## Detailed Event View\n\nRun the following command to see all details for a specific event message:\n\n``` bash\nevent log show -message-name <message_name> -instance\n\n```\n\n## Identify Affected Components\n\nUse this table to map common alert fields to troubleshooting areas:\n\n| Field          | Description                                             | Troubleshooting Focus                     |\n| :------------: | :-----------------------------------------------------: | :---------------------------------------: |\n| **Node**       | The physical controller reporting the event.            | Hardware health, local connectivity.      |\n| **Source**     | The software module or subsystem (e.g., monitor.shelf). | Driver logs, subsystem status.            |\n| **Parameters** | Specific variables associated with the event.           | Identifying the exact disk, port, or LIF. |\n\n# Step 3: Diagnostic Analysis\n\nOnce the details are collected, use internal ONTAP tools to verify the status of the suspected component.\n\n## Hardware-Related Alerts\n\nIf the alert mentions disks, shelves, or fans:\n\n  * Check disk status: `storage disk show -state broken`\n  * Check shelf environmentals: `storage shelf show -connectivity`\n\n## Network-Related Alerts\n\nIf the alert mentions LIFs, ports, or interface groups:\n\n  * Check port status: `network port show -health`\n  * Check LIF status: `network interface show -is-home false`\n\n## Storage Performance or Capacity\n\nIf the alert mentions volume or aggregate fullness:\n\n  * Check capacity: `volume show -percent-used > 95`\n  * Check aggregate status: `storage aggregate show -state !online`\n\n# Step 4: Resolution and Correction\n\nRefer to the official NetApp [Event and Error Message Reference](https://docs.netapp.com/us-en/ontap-ems-9141/index.html) for specific corrective actions based on the message-name identified in Step 2.\n\n## Common Correction Commands\n\n  * **Clear a Disk/Shelf Alert:** After physical replacement, verify the auto-assign process: `storage disk option show -node <node_name>`\n  * **Resolve Network Pathing:** Force a revert of a migrated LIF: `network interface revert -vserver <vserver_name> -lif <lif_name>`\n  * **Suppress Repeat Alerts:** If an alert is known and being worked on: `event config modify -suppression-interval <interval>`\n\n# Step 5: Verification\n\nConfirm that the condition has been resolved and no new alerts are generating.\n\n1.  Monitor the log in real-time: `event log show -severity ALERT -wait-for-new true`\n2.  Check the health status of the cluster: `system health status show`\n\n# Escalation and Documentation\n\nIf the alert persists after following the recommended corrective actions:\n\n  * **Generate a Support Bundle:** `system node autosupport invoke -node * -type all -message \"Escalating Alert <message_name>\"`\n  * **Contact NetApp Support:** Provide the specific event message name and the time of occurrence.\n\nPlease raise a CONTAP ticket and include the following details for further investigation:\n\nDeployment ID\n\nASUP logs\n\nCoredump files\n\nOutput of all basic diagnostic commands\n\nReference ticket > https://jira.ngage.netapp.com/browse/CONTAP-697582",
+    "mime_type": "text/markdown",
+    "subject": "EMS Alert for VSA",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

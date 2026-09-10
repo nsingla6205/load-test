@@ -1,0 +1,64 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/17144336318601990814",
+  "display_name": "kubernetes_pod_failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-05-26T14:39:23.437173112Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-02T03:46:07.593760893Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"logging.googleapis.com/user/kubernetes_pod_failures\" AND (metric.labels.failed_pod != monitoring.regex.full_match(\"prometheus-postgres-exporter|.*prometheus.*|atom-eligibility-container|regional-zonal-eligible-volumes\") AND metric.labels.gcnv_namespace != monitoring.regex.full_match(\"postgres-exporter|kube-system|fluentd|external-secrets\") AND metric.labels.reason != monitoring.regex.full_match(\"Unhealthy\"))",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "43200s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.gcnv_namespace",
+              "metric.label.reason",
+              "metric.label.failed_pod",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "kubernetes_pod_failures",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/17144336318601990814/conditions/13496834756217710716"
+    }
+  ],
+  "documentation": {
+    "content": "\n# Kubernetes Pod Error Debugging Runbook\n\nThis runbook provides a structured approach to debugging Kubernetes pod errors identified within the GCP Monitoring Error Reporting console for project netapp-us-c1-sde.\n\n## 1. Initial Triage & Resource Stockouts\n\nWhen errors appear in Error Reporting, first determine if they are functional pod failures or underlying infrastructure provisioning issues.\n\n### Identification of Stockouts\n\nErrors like ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS or GCE_STOCKOUT indicate that GCP cannot fulfill resource requests in a specific zone.\n\n* **Action:** Verify if the issue is a known stockout in zones like `us-central1-a` or `us-east5-b`.\n* **Resolution:** Request the user to retry the operation later or in a different zone. If persistent, escalate via a GCP support ticket.\n\n### Cluster Creation Failures\n\nIf the error is Failed to create cluster with an INTERNAL canonical code:\n\n1. Run `gcloud container operations describe <OPERATION_ID> --location <LOCATION>` to get specific failure details.\n2. Review GKE cluster operation logs for \"Internal error\" messages.\n3. If logs are stale (older than 8-10 days), monitor for new occurrences as GKE oncallers may lack access to historical logs.\n\n## 2. Connectivity & Timeout Debugging\n\nIntermittent timeouts (e.g., `i/o timeout` or `connection reset by peer`) often involve Internal Load Balancers (ILB) or service meshes like Envoy.\n\n### Investigative Commands\n\n| Level | Tool | Command / Action |\n| :--- | :--- | :--- |\n| Pod | kubectl | `kubectl get pods -n <NAMESPACE> -o wide` to check pod IPs and status. |\n| Network | curl | `curl -vvk https://<ILB_IP>` to test connectivity. |\n| Network | telnet | `telnet <IP> 443` to check for intermittent connection drops. |\n| Envoy | Prometheus | `curl http://<ENVOY_POD_IP>:9901/statistics` to check for `envoy_cluster_update_failure`. |\n\n### Advanced Network Analysis\n\nIf basic tests fail to identify a root cause:\n\n1. **Check Conntrack:** Run `conntrack -L` on the destination node to check for table overflows.\n2. **TCP Stats:** Use `ss -t -s` for socket info and `netstat -s` for L3/L4 statistics.\n3. **Tcpdump:** Perform a capture on the source VM and destination node (`tcpdump -i any`) to see if DNAT translation is occurring.\n4. **Source Port Analysis:** Test if specific source ports are failing using a loop with `curl --local-port`.\n\n## 3. Component-Specific Errors\n\n### Control Plane & Service Communication\n\nHigh error ratios in methods like `StopReplication` may be linked to communication failures between controllers and the K8s API server.\n\n* **Check Controller Logs:** Review logs for errors like `ACME client for issuer not initialised` or `Failed to update lock optimistically`.\n* **Connection Resets:** Look for \"connection reset by peer\" which may indicate the API server is abruptly closing connections from specific Pod IPv4 ranges.\n\n### GKE OIDC Envoy Issues\n\nIf `gke-oidc-envoy` is suspected:\n\n* Identify if requests are even reaching Envoy. If no logs exist for failed `curl` attempts, the issue likely resides at the ILB or VPC fabric level.\n* Monitor `envoy_cluster_update_failure` metrics. If counts are non-zero, Envoy cannot refresh its knowledge of upstream services, leading to timeouts.\n\n## 4. Escalation Paths\n\n* **Infrastructure/GKE Issues:** If errors are confirmed as internal GKE failures or stockouts, file a bug for the GKE team (e.g., component `85150`).\n* **On-call Handoff:** Ensure the current on-caller is tagged in the relevant issue tracker.\n* **External Support:** For NetApp-specific project issues, raise a customer ticket with GCP support directly.",
+    "mime_type": "text/markdown",
+    "subject": "kubernetes_pod_failures",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

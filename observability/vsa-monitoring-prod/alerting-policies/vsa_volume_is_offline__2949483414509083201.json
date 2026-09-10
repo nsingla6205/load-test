@@ -1,0 +1,70 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/2949483414509083201",
+  "display_name": "vsa_volume_is_offline",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-03-11T09:28:50.040340378Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-22T13:43:30.507047598Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/volume_labels\" AND (metric.labels.volume != monitoring.regex.full_match(\"cep_.*\") AND metric.labels.volume != monitoring.regex.full_match(\".*_root\"))",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.volume",
+              "metric.label.cluster",
+              "metric.label.pool_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vsa_volume_is_offline",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/2949483414509083201/conditions/5751692642101508842"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "VSA Volume is Offline",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850"
+  ],
+  "enabled": false,
+  "validity": {
+    "code": 3,
+    "message": "conditions[0] is invalid: Field aggregation.crossSeriesReducer had an invalid value of \"REDUCE_MEAN\": The descriptors of 'custom.googleapis.com/volume_labels' in 'projects/vsa-monitoring-us-e1' and 'projects/vsa-monitoring-eu-w9' are incompatible: The set of labels must be the same. (ID: 5751692642101508842)",
+    "details": []
+  },
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,59 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12700642167641290702",
+  "display_name": "Node Performance Limit",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-07-09T12:21:37.071636137Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-15T04:56:33.465351906Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/node_cpu_busy\"",
+        "comparison": 1,
+        "threshold_value": 90.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.node",
+              "resource.label.location",
+              "metric.label.cluster"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - node_cpu_busy",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12700642167641290702/conditions/11412602478828273243"
+    }
+  ],
+  "documentation": {
+    "content": "Immediate actions should be taken to minimize service disruption if critical threshold is breached:\n\n1. Suspend scheduled tasks, Snapshots or SnapMirror replication\n2. Lower the demand of lower priority workloads via QoS limits\n3. Inactivate non-essential workloads\n\nConsider the following actions if warning threshold is breached:\n1. Move one or more workloads to a different storage location\n2. Lower the demand of lower priority workloads via QoS limits\n3. Add more storage nodes (AFF) or disk shelves (FAS)and redistribute workloads\n4. Change workload characteristics (block size, application caching etc)\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

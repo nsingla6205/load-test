@@ -1,0 +1,603 @@
+{
+  "name": "projects/93478785040/dashboards/b17e78e2-1b90-42a0-b9bf-3f8ca040345f",
+  "display_name": "ONTAP: CI: CVS GCP-PO Storage Capacity Efficiency Calculations",
+  "etag": "ea45ce933e3afcb10ed48311bb648a4d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Total Physical Utilization",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Total FileSystem Logical Utilization",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Total Snapshot Utilization",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_snapshots_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n#This query may not fully reflect the original configuration.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 36,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Actual Savings (LU +Snapshot - Physical Used by Aggr)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_snapshots_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}])) - sum(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}])) ",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Dedupe Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 16,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Dedupe Savings Percent",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "avg(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Compression Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 16,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Compression Saving Percent",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Total Storage Efficiency Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_total_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 32,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Utilization Without Efficiencies",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Utilization With Efficiencies",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 32,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Post-Efficiency - Pre-Efficiency Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 48,
+        "width": 12,
+        "height": 15,
+        "widget": {
+          "title": "Used FlexVol Capacity Cost",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "1",
+              "prometheus_query": "(sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))) * 0.10",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 48,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "Cost Calculation",
+          "text": {
+            "content": "### This example cost calculation is based on an estimated $0.10 cost per gig per month. You can edit this cost amount in any widget using the dollar sign. Note that this can also be used with on-prem FAS storage, though efficiencies are even more important in cloud as this indicates what you'll be paying tomorrow too.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 48,
+        "width": 12,
+        "height": 15,
+        "widget": {
+          "title": "Total Cost Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "1",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])) + sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))*0.10",
+              "output_full_duration": true
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 63,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Thin Provisioned Capacity Ratio",
+          "text": {
+            "content": "StoragePool\n\n    capacity.provisioned\n\n\tcapacityRatio.overCommit\n\n\tcapacityRatio.used",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 63,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top Over-Commit Aggregates",
+          "text": {
+            "content": "    capacityRatio.overCommit",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 63,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Over-Commit Trends",
+          "text": {
+            "content": "StoragePool\t\n    \n    capacityRatio.overCommit",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 79,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top FlexVols by Dedupe Savings %",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(10, sum by (volume)(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])))\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 79,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top FlexVols by Compression Savings % [SUM]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(10, sum by (volume)(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])))\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 95,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "FlexVol Storage efficiency info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_size{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_size_available{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_snapshot_reserve_size{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_snapshot_reserve_available{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (volume)(avg_over_time(custom_googleapis_com:volume_snapshot_reserve_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "volume",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "value-3",
+                "visible": true
+              },
+              {
+                "column": "value-4",
+                "visible": true
+              },
+              {
+                "column": "value-5",
+                "visible": true
+              },
+              {
+                "column": "value-6",
+                "visible": true
+              },
+              {
+                "column": "value-7",
+                "visible": true
+              },
+              {
+                "column": "value-8",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "cluster",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "aggr",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "volume",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  }
+}

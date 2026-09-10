@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/1255460677152874394",
+  "display_name": "Cloud SQL Database - Uptime",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-28T09:13:49.030023471Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-29T12:46:48.094750453Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_database\" AND metric.type = \"cloudsql.googleapis.com/database/uptime\"",
+        "comparison": 3,
+        "threshold_value": 0.001,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.database_id",
+              "resource.label.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Database - Uptime",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/1255460677152874394/conditions/17601514008873300074"
+    }
+  ],
+  "documentation": {
+    "subject": "Cloud SQL Database - Uptime",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,1300 @@
+{
+  "name": "projects/93478785040/dashboards/f7967f98-c9c8-418d-8396-d2fadd63500a",
+  "display_name": "NETWORK - INTERCONNECT INVENTORY",
+  "etag": "59218e2f5e788ac920825734727e89d6",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 110,
+        "width": 48,
+        "height": 36,
+        "widget": {
+          "title": "GCNV Interconnects Summary - Current Attachment Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_inventory\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 100,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "linkType",
+                "visible": true
+              },
+              {
+                "column": "operationalStatus",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "creationTimestamp",
+                "visible": true
+              },
+              {
+                "column": "provisionedLinkCount",
+                "visible": true
+              },
+              {
+                "column": "expectedOutages_endTime",
+                "visible": true
+              },
+              {
+                "column": "expectedOutages_startTime",
+                "visible": true
+              },
+              {
+                "column": "expectedOutages_state",
+                "visible": true
+              },
+              {
+                "column": "mpsZone",
+                "visible": true
+              },
+              {
+                "column": "expectedOutages_issueType",
+                "visible": true
+              },
+              {
+                "column": "expectedOutages_source",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 185,
+        "width": 48,
+        "height": 26,
+        "widget": {
+          "title": "Interconnect [IDENTIFIERS]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_inventory\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "LOAId",
+                "visible": true
+              },
+              {
+                "column": "creationTimestamp",
+                "visible": true
+              },
+              {
+                "column": "googleDemarcId",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "googleCircuitId",
+                "visible": true
+              },
+              {
+                "column": "mpsZone",
+                "visible": true
+              },
+              {
+                "column": "operationalStatus",
+                "visible": true
+              },
+              {
+                "column": "provisionedLinkCount",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 76,
+        "width": 48,
+        "height": 34,
+        "widget": {
+          "title": "Total count of network tenants per interconnect",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_inventory\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${metric.labels.name}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "timeshift_duration": "86400s",
+            "thresholds": [
+              {
+                "value": 70.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "label": "VLAN Attachment Count",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 211,
+        "width": 48,
+        "height": 30,
+        "widget": {
+          "title": "Interconnect attachments per Interconnect quota limit",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"compute.googleapis.com/quota/interconnect_attachments_per_interconnect/limit\" resource.type=\"compute.googleapis.com/Interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 100,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "interconnect_id",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "limit_name",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "TREND - Total VLAN Attachments - GCNV (across all regions)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:icx_inventory{monitored_resource=\"gce_instance\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 169,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Interconnect - Ingress Bandwidth Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/received_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 169,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Interconnect - Egress Bandwidth Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/sent_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 146,
+        "width": 24,
+        "height": 23,
+        "widget": {
+          "title": "INTERCONNECT - Top 10 by Ingress BW Utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/received_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "interconnect",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "resource.interconnect",
+                "visible": true
+              },
+              {
+                "column": "resource.project_id",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 146,
+        "width": 24,
+        "height": 23,
+        "widget": {
+          "title": "INTERCONNECT - Top 10 by Egress BW Utilization",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/sent_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "interconnect",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "resource.project_id",
+                "visible": true
+              },
+              {
+                "column": "resource.interconnect",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "EU-SW1",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"eu-sw1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 8,
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "US-E4",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"us-e4\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "US-W2",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"us-w2\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "US-W3",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"us-w3\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "US-W4",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"us-w4\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 40,
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "NA-NE1",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"na-ne1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "NA-NE2",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"na-ne2\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 8,
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "AU-SE1",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"au-se1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "AS-SE1",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"as-se1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "EU-W2",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"eu-w2\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 40,
+        "y_pos": 32,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "EU-W3",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"eu-w3\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 40,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "EU-W4",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"eu-w4\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 8,
+        "y_pos": 40,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "EU-W6",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"eu-w6\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 24,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "US-C1",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\" metric.label.\"region\"=\"us-c1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 50.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 70.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 241,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Link MACsec Operational [FRACTION TRUE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/link/macsec/operational\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 15,
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "text": {
+            "content": "# Capacity Calculation\r\n### (Total active vlan attachments provisioned across all interconnects in the region) / (Total provisioned lag capacity in CVN (SDE) in the region)\r\n\r\n### Number represented in Percentage %",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 3,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 48,
+        "width": 48,
+        "height": 28,
+        "widget": {
+          "title": "Total count of network tenants per region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "metric.label.\"icxProject\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${metric.labels.icxProject}   ->",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 90.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 76,
+        "widget": {
+          "title": "DataPlane Interconnect Attachment Capacity (Percentage)",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 255,
+        "width": 48,
+        "height": 31,
+        "widget": {
+          "title": "custom/icx_dpUtilizationPercent_v2 [MEAN]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_dpUtilizationPercent_v2\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "infra": "",
+    "gcnv-po": "",
+    "gcnv": "",
+    "network": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,46 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/7708644271862873306",
+  "display_name": "dp-slo-metric-missing",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-12-02T16:15:26.693172978Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-12-02T16:15:26.693172978Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"global\" AND metric.type = \"custom.googleapis.com/v1/vsa_volume_availability\"",
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.location"
+            ]
+          }
+        ]
+      },
+      "display_name": "dp-slo-metric-missing",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/7708644271862873306/conditions/7708644271862873817"
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

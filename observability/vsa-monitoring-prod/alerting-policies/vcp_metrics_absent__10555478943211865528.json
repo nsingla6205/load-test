@@ -1,0 +1,56 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/10555478943211865528",
+  "display_name": "vcp_metrics_absent",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-08-28T10:10:26.949057710Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:18:49.553258861Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ogen.server.request_count_total\"",
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ]
+      },
+      "display_name": "Kubernetes Cluster - ogen.server.request_count_total",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/10555478943211865528/conditions/10097852073045169275"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "VCP Metrics are not flowing",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

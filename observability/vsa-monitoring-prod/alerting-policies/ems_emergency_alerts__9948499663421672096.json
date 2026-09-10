@@ -1,0 +1,67 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/9948499663421672096",
+  "display_name": "ems_emergency_alerts",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-03-11T09:28:19.652969381Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:29:30.644658916Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND (metric.labels.message != \"object.store.unavailable\" AND metric.labels.pool_name != monitoring.regex.full_match(\"cep-.*\") AND metric.labels.severity = \"emergency\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.pool_name",
+              "metric.label.parameters",
+              "metric.label.message",
+              "metric.label.severity"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_emergency_alerts",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/9948499663421672096/conditions/4572504765862618931"
+    }
+  ],
+  "documentation": {
+    "content": "This policy alerts on EMS events with a severity greater than informational or notice.\n\nLabels: ${metric_or_resource.labels}\nParameters: ${metric_or_resource.label.parameters}\n\n# ONTAP EMS Emergency Alert Debugging Runbook\n\nThis runbook provides a standardized methodology for identifying, filtering, and investigating Emergency-level events within the NetApp ONTAP Event Management System (EMS). Emergency alerts indicate critical failures that require immediate attention to prevent or resolve data service outages.\n\n# 1\\. Initial Filtering and Identification\n\nTo isolate high-priority issues, the first step is to filter the EMS log specifically for the \"EMERGENCY\" severity level. This helps distinguish critical service failures (like LDAP or LSA server connectivity) from informational or notice-level logs.\n\n| Step | Action                       | CLI Command / Description                                                  |\n| :--: | :--------------------------: | :------------------------------------------------------------------------- |\n| 1.1  | View all Emergency events    | `event log show -severity EMERGENCY`                                       |\n| 1.2  | Filter by specific Vserver   | `event log show -vserver <vserver_name> -severity EMERGENCY`               |\n| 1.3  | Search for specific keywords | `event log show -event *secd*` (Useful for security/connectivity failures) |\n\n# 2\\. Analyzing Common Emergency Events\n\nEmergency alerts often point to infrastructure dependencies, such as networking or authentication services, rather than internal storage bottlenecks.\n\n## Authentication and Directory Services\n\nEvents such as `secd.lsa.noServers` and `secd.ldap.noServers` indicate that the Vserver cannot access configured LSA or LDAP servers via the network. These are often preceded by `dns.server.timed.out` errors, suggesting a primary failure in the DNS resolution path.\n\n## Storage Health Check and Performance\n\nIf EMS does not log specific hardware events, investigate the storage backend for performance degradation.\n\n  * **EMS Log Indicators:** Check for \"unexpected failure\" details, such as `Validate site procedure failed`.\n  * **Performance Metrics:** Analyze read/write latency. Normal healthy ranges for ONTAP environments are typically between 150\u2013900 microseconds (\u00b5s). Sustained spikes beyond these ranges may indicate a bottleneck even if EMS logs are clean.\n\n# 3\\. Recommended Debugging Workflow\n\n1.  **Capture Dual Traces:** If the EMS log does not provide a definitive cause, capture simultaneous packet traces on both the storage and the client to identify network partitions or transient errors.\n2.  **Verify External Dependencies:** Confirm the status of DNS and Active Directory servers if `secd` errors are present.\n3.  **Check Hardware/Link Status:** Review logs for \"link down\" events or LIF (Logical Interface) migrations that might correspond to the incident window.\n4.  **Review Performance Archives:** Use performance archives to confirm if IOPs changed during the error period despite low latency readings.\n\n# 4\\. Documentation and Resources\n\nFor detailed resolution steps on specific EMS events, refer to the following official NetApp resources:\n\n  * **NetApp ONTAP EMS Documentation (Generic):** [ONTAP EMS Event Catalog](https://docs.netapp.com/us-en/ontap-ems-9131/)\n  * **NFS Server Not Responding Resolution Guide:** [NetApp KB - NAS Resolution Guide](https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/NFS_server_not_responding_Resolution_Guide)\n  * **Packet Trace Troubleshooting:** [Capturing Packet Traces in ONTAP and Clients](https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/NFS_server_not_responding_Resolution_Guide)\n\nPlease raise a CONTAP ticket and include the following details for further investigation:\n\nDeployment ID\n\nASUP logs\n\nCoredump files\n\nOutput of all basic diagnostic commands\n\nReference ticket > https://jira.ngage.netapp.com/browse/CONTAP-697582",
+    "mime_type": "text/markdown",
+    "subject": "EMS Emergency Alerts",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

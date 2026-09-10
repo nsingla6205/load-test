@@ -1,0 +1,367 @@
+{
+  "name": "projects/697731967255/dashboards/6379fc1e-6071-478b-b6a4-5cd6fb69a8ba",
+  "display_name": "Data Plane SLO",
+  "etag": "b0162410cf0c34c945d07565ee1da6ac",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "Dashboard Details",
+          "text": {
+            "content": "This dashboard has details on offline volumes\n\nThe following details are available\n\n1. Data Plane SLO\n2. Service wide average availability of volumes\n3. List of volumes which are currently offline\n",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Latency SLA (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/v5/volume_latency_percentage\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/v5/volume_latency_percentage\" resource.type=\"global\" metric.label.\"threshold_ms\"!=\"1.0\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 3
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 42,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "Data Plane SLO - (Fleet Wide)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch global::custom.googleapis.com/v5/vsa_volume_availability\n| filter (metric.volume !~ 'cep_.*')\n| align mean_aligner()\n| filter_ratio_by [], value.vsa_volume_availability >= 99.9\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 3
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 59,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Out of SLO Volumes in last 30 days",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch global::custom.googleapis.com/v4/vsa_volume_availability\n| filter metric.volume !~ 'cep_.*'\n| filter value.vsa_volume_availability < 99.9\n| filter value.vsa_volume_availability >= 0.0\n| top_by [], 100, mean(value.vsa_volume_availability)\n| absent_for 24h",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "resource.project_id",
+                "visible": false
+              },
+              {
+                "column": "metric.location",
+                "visible": true
+              },
+              {
+                "column": "metric.state",
+                "visible": true
+              },
+              {
+                "column": "metric.project_id",
+                "visible": false
+              },
+              {
+                "column": "metric.volume",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 10,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA DP SLA Definition (Regional Availability)",
+          "text": {
+            "content": "### Fleet Wide SLA (99%)\n\nVolume count (SLA >= 99.99%) / Total Volume count\n\n### Per Volume SLA (99.99%)\n\nTotal online minutes / Total minutes\n\n*30 Days Moving Window*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA DP SLA Definition (Latency)",
+          "text": {
+            "content": "### Fleet Wide SLA (99%)\n\nVolume count (SLA >= 99.99%) / Total Volume count\n\n### Per Volume SLA (99.99%)\n\nTotal minutes (Sub ms latency) / Total minutes\n\n*30 Days Moving Window*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 59,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Fleet-wide SLO-Eligible Volume count in last 30 days",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/v5/vsa_volume_availability\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane VSA - Regional",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg(avg_over_time({\"custom.googleapis.com/v6/vsa_volume_availability\",\"monitored_resource\"=\"global\",\"volume\"!=\"cep_*.\",\"regionalHA\"=\"true\"}[1m]))\n\n(\n  count(\n    {__name__=\"custom.googleapis.com/v6/vsa_volume_availability\", monitored_resource=\"global\", volume!~\"cep_.*\", regionalHA=\"true\"} >= 99.9\n  ) \n  / \n  count(\n    {__name__=\"custom.googleapis.com/v6/vsa_volume_availability\", monitored_resource=\"global\", volume!~\"cep_.*\", regionalHA=\"true\"}\n  )\n) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 3
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Data Plane VSA - Zonal",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg(avg_over_time({\"custom.googleapis.com/v6/vsa_volume_availability\",\"monitored_resource\"=\"global\",\"volume\"!=\"cep_*.\",\"regionalHA\"=\"false\"}[5m]))\n\n# fetch global::custom.googleapis.com/v6/vsa_volume_availability\n# | filter (metric.volume !~ 'cep_.*')\n# | filter (metric.regionalHA = 'false')\n# | align mean_aligner()\n# | filter_ratio_by [], value.vsa_volume_availability >= 99.9\n# | value [ratio_mul: mul(ratio, 100)]\n# | value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]\n\n(\n  count(\n    {__name__=\"custom.googleapis.com/v6/vsa_volume_availability\", monitored_resource=\"global\", volume!~\"cep_.*\", regionalHA=\"false\"} >= 99.9\n  ) \n  / \n  count(\n    {__name__=\"custom.googleapis.com/v6/vsa_volume_availability\", monitored_resource=\"global\", volume!~\"cep_.*\", regionalHA=\"false\"}\n  )\n) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 3
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 10,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA DP SLA Definition (Zonal Availability)",
+          "text": {
+            "content": "### Fleet Wide SLA (99%)\n\nVolume count (SLA >= 99.99%) / Total Volume count\n\n### Per Volume SLA (99.9%)\n\nTotal online minutes / Total minutes\n\n*30 Days Moving Window*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

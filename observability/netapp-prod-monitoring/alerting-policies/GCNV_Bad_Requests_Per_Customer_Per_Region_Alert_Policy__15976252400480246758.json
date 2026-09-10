@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15976252400480246758",
+  "display_name": "GCNV Bad Requests Per Customer Per Region Alert Policy",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-01T12:11:45.552172617Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2026-08-25T18:57:23.183477837Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"internal_http_lb_rule\" AND metric.type = \"logging.googleapis.com/user/customerReq\" AND metric.labels.httpStatus = \"400\"",
+        "comparison": 1,
+        "threshold_value": 50.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "metric.label.consumerProject",
+              "metric.label.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Bad Requests Per Project Per Region From Internal Application Load Balancer",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15976252400480246758/conditions/9082578837578975397"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100310\n\nThis alert indicate that too many bad requests (HTTP status = 400) are received by SDE. To remediate this alert, we need to block that customer's control plane traffic for all HTTP methods in a particular region where this alert is generated. \n\nTo do so, we need to provide customer_id and region/location information to on-call GCP SRE. GCP SRE can then block that customer's control plane traffic in the region where this alert was generated. To collect that data, goto alert and look for Labels section. There grab two metric labels mentioned as key in below JSON and provide them to on-call SRE at Google.\n\n{\n\"consumerProject\" : <this is the customer projectId>,\n\"region\" : <region in which alert is generated>\n}\n",
+    "mime_type": "text/markdown",
+    "subject": "Too many client errors for a customer",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "blast-radius": "none",
+    "category": "pro-active",
+    "impact": "none"
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2
+}

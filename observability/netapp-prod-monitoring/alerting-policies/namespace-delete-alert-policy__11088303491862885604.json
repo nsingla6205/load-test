@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11088303491862885604",
+  "display_name": "namespace-delete-alert-policy",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-03-22T22:29:49.572445933Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-03-22T22:29:49.572445933Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gke_container\" AND metric.type = \"logging.googleapis.com/user/namespace-delete-log-metric\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "GKE Container - logging/user/namespace-delete-log-metric",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11088303491862885604/conditions/11088303491862885401"
+    }
+  ],
+  "documentation": {
+    "content": "this is a PO alert created as the critical namespace either SDE or cert-manager is dropped, Please Follow the runbook https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=787877228\n",
+    "mime_type": "text/markdown",
+    "subject": "CRITICAL NAMESPACE DROPPED ALERT",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "service-killer": "true"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

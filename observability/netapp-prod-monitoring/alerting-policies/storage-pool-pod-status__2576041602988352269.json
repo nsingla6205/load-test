@@ -1,0 +1,50 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2576041602988352269",
+  "display_name": "storage-pool-pod-status",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-01-07T18:11:42.535806379Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T04:09:53.575905390Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "storage-pool-pod-status",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2576041602988352269/conditions/17988715291534278848",
+      "condition_prometheus_query_language": {
+        "query": "(avg by (name,location,cluster_name,version) (avg_over_time({\"__name__\"=\"custom.googleapis.com/podrick_ntapsp_version\",\"monitored_resource\"=\"k8s_cluster\", \"version\"!= \"\", \"cluster_name\"!~\".*753075652469\", \"cluster_name\"!~\".*719097607440\",\"cluster_name\"!~\".*197033009950\",\"cluster_name\"!~\".*4420892387\",\"cluster_name\"!~\".*602725896348\",\"cluster_name\"!~\".*829473239656\"}[15m])) == 0 )",
+        "duration": "900s",
+        "evaluation_interval": "900s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Flex+Storage+Pool+pod+is+down ",
+    "mime_type": "text/markdown",
+    "subject": "StoragePool_Pod_Status",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3838057204639707390"
+  ],
+  "user_labels": {
+    "category": "noisy",
+    "tier": "data-plane"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2
+}

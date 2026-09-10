@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10276257028878603156",
+  "display_name": "vsa-pool-state-updated",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-20T14:09:59.316272405Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-22T13:09:17.410299862Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/Pool-State-Updated\" AND (metric.labels.PoolID != \"\\\"\\\"\" AND metric.labels.state = \"DEGRADED\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.PoolID",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vsa-pool-state-updated",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10276257028878603156/conditions/10464549577590368201"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: Working with Neha's team on the Runbook.\n\nThis alert indicates one of the nodes in the cluster is not active and needs attention. The cluster is running with lower redundancy. \n\n# **ONTAP Software Cluster Degraded Mode Debugging Runbook**\n\nThis runbook provides a step-by-step guide for debugging and recovering an ONTAP cluster that has entered a \"degraded mode,\" specifically when only a single node is available. This state is critical for software clusters as it indicates a loss of redundancy and potential data unavailability if the remaining node fails.\n\n# **1. Initial Assessment**\n\nThe primary goal of this phase is to confirm the state of the cluster and identify the nature of the node failure.\n\n## **1.1 Cluster State Verification**\n\nUse the following commands on the available node to assess the cluster status:\n\n| Command | Purpose | Expected Degraded Output |\n| :---: | :---: | :---: |\n| `cluster show` | Verify the number of nodes in the cluster. | Shows only 1 node \"up.\" |\n| `node show` | Detail the status of each node. | One node \"up,\" the other(s) in \"down,\" \"unreachable,\" or \"stopped\" state. |\n| `ha show` | Check the High Availability status. | The HA state will likely be \"degraded\" or \"partial.\" |\n| `cluster kernel-service show` | Check connectivity between cluster nodes. | Shows poor or no connectivity to the missing node. |\n\n## **1.2 Identify the Missing Node**\n\nDetermine which node has failed and its last known state. Check recent autosupports, event logs, and system alerts to gather context.\n\n# **2. Debugging the Missing Node**\n\nThe steps in this section depend on whether the missing node is powered off or is physically present but non-responsive.\n\n## **2.1 Node is Powered Off or VM Stopped**\n\nThis is the simplest case. The node's status is \"down\" or \"stopped\" in the `node show` output.\n\n1.  **Verify Host Status:** Check the underlying virtualization platform (e.g., VMware, Hyper-V) to confirm the host machine or VM for the missing node is running.\n2.  **Attempt Power On:** Power on the VM for the missing node.\n3.  **Monitor Boot Process:** Observe the console for the boot sequence. If the node fails to boot or enters the LOADER prompt, proceed to advanced troubleshooting (Section 3).\n4.  **Verify Cluster Join:** Once the node is fully booted, confirm it rejoins the cluster using the `cluster show` and `node show` commands.\n\n## **2.2 Node is Non-Responsive (Hanging or Unreachable)**\n\nThe node may be powered on but reports as \"unreachable\" or \"down\" in the cluster status.\n\n1.  **Check Management Access (SP/V-Sphere Console):**\n    *   Attempt to ping the node's Service Processor (SP) or VM management IP.\n    *   If ping is successful, log into the SP/VM console and check the system's health.\n    *   Attempt to use the console to access the ONTAP console.\n2.  **Gather Logs:** Collect SP/BMC logs (for hardware clusters) or VM/Hypervisor logs (for software clusters) for issues like resource exhaustion or network errors.\n3.  **Attempt Clean Reboot (Recommended):** If console access is available and the node is non-responsive, execute a graceful reboot from the console or the VM management interface.\n4.  **If Graceful Reboot Fails:** Perform a hard power cycle via the VM management interface: power off followed by power on.\n\n# **3. Advanced Troubleshooting and Recovery**\n\nIf the node does not rejoin the cluster after being powered on or rebooted, further action is required.\n\n## **3.1 Software/VM Host Check**\n\n1.  **Review VM Host Logs:** Search the logs of the virtualization host running the missing node for resource contention (CPU, Memory, Disk Latency) or host-level errors.\n2.  **Check Virtual Network Adapter:** Ensure the virtual network adapters for the cluster interconnect and data are correctly mapped and operating.\n3.  **VM Resources:** Verify the VM for the failed node has sufficient allocated resources (CPU/RAM) as per vendor requirements.\n\n## **3.2 Cluster Interconnect Issues (Logical)**\n\nIf the node is logically up but cannot communicate with its partner, it's often a cluster interconnect issue.\n\n1.  **Check Interconnect Status on the Working Node:**\n    *   `network port show -ipspace Cluster`\n    *   `cluster kernel-service show` (Look for failed connections).\n2.  **Verify Virtual Switch Configuration:** Ensure the virtual switch/port group connecting the cluster interconnect LIFs allows communication between the two nodes. This is often the most common point of failure in software clusters.\n\n## **3.3 Data Vserver State and Availability**\n\nEnsure the remaining node is serving data correctly.\n\n1.  **Vserver State:** `vserver show` (Ensure data Vservers are running and operational).\n2.  **LIF Status:** `network interface show -home-node <missing_node_name>` (Check if any LIFs are stuck in a \"failed-over\" state and not coming online).\n\n# **4. Final Steps and Monitoring**\n\nAfter the missing node has rejoined the cluster:\n\n| Task | Action | Reference |\n| :---: | :---: | :---: |\n| Verify High Availability | Confirm the HA state is \"healthy\" and \"fully-functioning\" with `ha show`. | HA verification check |\n| Check Cluster Health | Run a comprehensive health check: `system health cluster show`. | Cluster health check |\n| Storage Failover Check | Ensure storage failover is enabled and ready to go: `storage failover show`. | Storage failover confirmation |\n| Clear Alerts | Acknowledge and clear any persistent degraded mode or HA alerts. | |\n| Log for Auditing | Save the final recovery output and logs. | |\n\n",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

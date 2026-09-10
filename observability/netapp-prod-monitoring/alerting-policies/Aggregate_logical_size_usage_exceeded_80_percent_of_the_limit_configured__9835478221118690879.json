@@ -1,0 +1,45 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9835478221118690879",
+  "display_name": "Aggregate logical size usage exceeded 80 percent of the limit configured",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-26T15:34:54.240556537Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-05T10:53:17.408702181Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "AggregateLogicalSize",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9835478221118690879/conditions/5232025360296678055",
+      "condition_prometheus_query_language": {
+        "query": "sum by (location,ontap_aggregate_name) (avg_over_time(custom_googleapis_com:aggregate_logical_size_usage{monitored_resource=\"k8s_pod\"}[1h])) / sum by (location, ontap_aggregate_name)(avg_over_time(custom_googleapis_com:aggregate_logical_size_volume_allocation_limit{monitored_resource=\"k8s_pod\"}[1h])) > 1.0",
+        "duration": "300s",
+        "evaluation_interval": "43200s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=332633909#VPSImplementationinCVSGCPPO-Phase3\n\ndescription: \"Aggregate logical size usage exceeded 80 percent of the limit configured\"",
+    "mime_type": "text/markdown",
+    "subject": "Aggregate logical size usage exceeded 80 percent of the limit configured",
+    "links": []
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

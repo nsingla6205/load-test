@@ -1,0 +1,312 @@
+{
+  "name": "projects/93478785040/dashboards/a809aa18-1088-463b-a6bc-48ca04d11927",
+  "display_name": "GCNV security gcp changes",
+  "etag": "1a59551f312ae7024bf0a302a42ac34a",
+  "grid_layout": {
+    "columns": "3",
+    "widgets": [
+      {
+        "title": "Title",
+        "text": {
+          "content": "The wall of change",
+          "format_": 2,
+          "style": {
+            "background_color": "#FFFFFF",
+            "text_color": "#212121",
+            "horizontal_alignment": 1,
+            "vertical_alignment": 1,
+            "padding": 1,
+            "font_size": 4,
+            "pointer_location": 0
+          }
+        },
+        "id": ""
+      },
+      {
+        "title": "Changes by service",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (service)(rate(logging_googleapis_com:user_gcnv_security_log_metric_gcp_changes{monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Firewall Create",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_firewall_create{monitored_resource=\"global\", ${method}, ${service},email=~\".*(netapp.com|google.com)\",${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "IAM Change",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_iam_change{monitored_resource=\"global\", ${method}, ${service},email=~\".*(netapp.com|google.com)\",${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Open Firewall",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_open_firewall{monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Are people using Terraform",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (agent) (rate(logging_googleapis_com:user_gcnv_security_log_metric_gcp_changes{ monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 3,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Kubernetes Change",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_kubernetes_change{monitored_resource=\"k8s_cluster\", ${method}, ${service},email=~\".*(netapp.com|google.com)\",${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Where Changes happen",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (project_id)(rate(logging_googleapis_com:user_gcnv_security_log_metric_gcp_changes{monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Changes by method",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (method)(rate(logging_googleapis_com:user_gcnv_security_log_metric_gcp_changes{monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "VM Change",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_vm_change{monitored_resource=\"gce_instance\", ${method}, ${service},email=~\".*(netapp.com|google.com)\",${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Changes by email",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (email)(rate(logging_googleapis_com:user_gcnv_security_log_metric_gcp_changes{monitored_resource=\"global\", ${method}, ${service},${email},${project_id}}[1h]))*3600",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "method",
+      "template_variable": "method",
+      "filter_type": 2
+    },
+    {
+      "label_key": "service",
+      "template_variable": "service",
+      "filter_type": 2
+    },
+    {
+      "label_key": "email",
+      "template_variable": "email",
+      "filter_type": 2
+    },
+    {
+      "label_key": "project_id",
+      "template_variable": "project_id",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "gcnv": ""
+  }
+}

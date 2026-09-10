@@ -1,0 +1,44 @@
+{
+  "name": "projects/93478785040/dashboards/b14ba788-d3ff-45f2-87d6-f31f5e88ec66",
+  "display_name": "Hrishi",
+  "etag": "5c664cd118694c014b0156fc6ac01ce7",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Avg FlexVol Max Total Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_disk_max_total_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

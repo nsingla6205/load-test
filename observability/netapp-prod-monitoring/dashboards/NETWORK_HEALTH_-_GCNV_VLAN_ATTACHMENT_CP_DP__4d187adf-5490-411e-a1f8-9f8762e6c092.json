@@ -1,0 +1,1041 @@
+{
+  "name": "projects/93478785040/dashboards/4d187adf-5490-411e-a1f8-9f8762e6c092",
+  "display_name": "NETWORK HEALTH - GCNV VLAN ATTACHMENT (CP & DP)",
+  "etag": "a322adbf932f4c91ed772c6748aa18bf",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 28,
+        "widget": {
+          "title": "BGP Session Status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/bgp/session_up\" resource.type=\"gce_router\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"bgp_peer_name\"",
+                        "resource.label.\"region\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 72,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "BGP - Received Routes Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/bgp/received_routes_count\" resource.type=\"gce_router\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"bgp_peer_name\"",
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"region\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 72,
+        "width": 24,
+        "height": 17,
+        "widget": {
+          "title": "BGP - Sent Routes Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/bgp/sent_routes_count\" resource.type=\"gce_router\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"bgp_peer_name\"",
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"region\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 28,
+        "width": 24,
+        "height": 28,
+        "widget": {
+          "title": "Egress Utilization - VLAN Attachment",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect_attachment\n| { metric 'interconnect.googleapis.com/network/attachment/sent_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/attachment/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 28,
+        "width": 24,
+        "height": 28,
+        "widget": {
+          "title": "Ingress Utilization - VLAN Attachment",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect_attachment\n| { metric 'interconnect.googleapis.com/network/attachment/received_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/attachment/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 89,
+        "width": 48,
+        "height": 34,
+        "widget": {
+          "title": "Customer tenant - DP health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "attachmentName",
+                "visible": true
+              },
+              {
+                "column": "bgpSessionUptime",
+                "visible": true
+              },
+              {
+                "column": "tpProject",
+                "visible": true
+              },
+              {
+                "column": "attachmentVLANID",
+                "visible": true
+              },
+              {
+                "column": "consumerVPC",
+                "visible": true
+              },
+              {
+                "column": "interconnect",
+                "visible": true
+              },
+              {
+                "column": "receivedRoutesbyCR",
+                "visible": true
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "attachmentBandwidth",
+                "visible": true
+              },
+              {
+                "column": "psaVPCPeeringStatus",
+                "visible": true
+              },
+              {
+                "column": "Name (from instance_id)",
+                "visible": false
+              },
+              {
+                "column": "instance_id",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "advertisedRoutesfromCR",
+                "visible": true
+              },
+              {
+                "column": "attachmentDPVersion",
+                "visible": false
+              },
+              {
+                "column": "attachmentStatus",
+                "visible": true
+              },
+              {
+                "column": "bgpSessionStatus",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 167,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "% Tenants with Inactive vpc peering",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter_ratio": {
+                "numerator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"psaVPCPeeringStatus\"=\"INACTIVE\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                },
+                "denominator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 178,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "% Tenants with Zero received routes",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter_ratio": {
+                "numerator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"receivedRoutesbyCR\"=\"0\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                },
+                "denominator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 260,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "Tenants with 50G attachments",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "topk(15, (sum by (region)(avg_over_time(custom_googleapis_com:icx_attachment_tpProjBGPstatus_v1{monitored_resource=\"gce_instance\",attachmentBandwidth=\"50G\"}[${__interval}])))/2)\n#This query may not fully reflect the original configuration.",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 235,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "% Tenants used by Internal Consumers (Prober only)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter_ratio": {
+                "numerator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\".*cep.*|^sre-prober.*\")",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                },
+                "denominator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 123,
+        "width": 48,
+        "height": 12,
+        "widget": {
+          "title": "No. of VLAN Attachments Per Region",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"region\""
+                  ]
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 30,
+                  "direction": 1
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 200,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "% Tenants used by Internal Consumers (Overall)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter_ratio": {
+                "numerator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\"netapp-prod-prs.*|.*cep.*|^yyue.*|^netapp-bugbash.*|^qwiklabs-gcp.*|^jaehkang.*|^roopkamal-.*|^sre-prober.*|^g1p-.*|^gcnv-.*|.*-consumer.*|^netapp-bill.*\")",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                },
+                "denominator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 211,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "% Tenants used by Internal Consumers (Overall) - Trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\"netapp-prod-prs.*|.*cep.*|^yyue.*|^netapp-bugbash.*|^qwiklabs-gcp.*|^jaehkang.*|^roopkamal-.*|^sre-prober.*|^g1p-.*|^gcnv-.*|.*-consumer.*|^netapp-bill.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"region\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                      "aggregation": {
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"region\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 245,
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "% Tenants used by Internal Consumers (Prober only) - Trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\".*cep.*|^sre-prober.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"region\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                      "aggregation": {
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"region\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 156,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "% Active Tenants",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter_ratio": {
+                "numerator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"psaVPCPeeringStatus\"=\"ACTIVE\" metric.label.\"bgpSessionStatus\"=\"Established\" metric.label.\"attachmentStatus\"=\"UP\" metric.label.\"receivedRoutesbyCR\"!=\"0\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                },
+                "denominator": {
+                  "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                  "aggregation": {
+                    "alignment_period": "60s",
+                    "per_series_aligner": 12,
+                    "cross_series_reducer": 4,
+                    "group_by_fields": [
+                      "metric.label.\"region\""
+                    ]
+                  }
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 145,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "No. of Tenants with Zero received routes",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"receivedRoutesbyCR\"=\"0\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"region\""
+                  ]
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 135,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "No. of tenants with Inactive PSA peering",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"psaVPCPeeringStatus\"=\"INACTIVE\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"region\""
+                  ]
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 30,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 270,
+        "width": 48,
+        "height": 34,
+        "widget": {
+          "title": "Footprint by consumer VPCs",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 6,
+                      "group_by_fields": [
+                        "metric.label.\"consumerVPC\"",
+                        "metric.label.\"region\"",
+                        "metric.label.\"psaVPCPeeringStatus\"",
+                        "metric.label.\"bgpSessionStatus\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "attachmentName",
+                "visible": false
+              },
+              {
+                "column": "bgpSessionUptime",
+                "visible": false
+              },
+              {
+                "column": "tpProject",
+                "visible": false
+              },
+              {
+                "column": "attachmentVLANID",
+                "visible": false
+              },
+              {
+                "column": "consumerVPC",
+                "visible": true
+              },
+              {
+                "column": "interconnect",
+                "visible": false
+              },
+              {
+                "column": "receivedRoutesbyCR",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "attachmentBandwidth",
+                "visible": false
+              },
+              {
+                "column": "psaVPCPeeringStatus",
+                "visible": true
+              },
+              {
+                "column": "Name (from instance_id)",
+                "visible": false
+              },
+              {
+                "column": "instance_id",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "advertisedRoutesfromCR",
+                "visible": false
+              },
+              {
+                "column": "attachmentDPVersion",
+                "visible": false
+              },
+              {
+                "column": "attachmentStatus",
+                "visible": false
+              },
+              {
+                "column": "bgpSessionStatus",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 225,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "No.of Tenants used by Internal Consumers (Prober only)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\".*cep.*|^sre-prober.*\")",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"region\""
+                  ]
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 189,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "No. of Tenants used by Internal Consumers (Overall)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/icx_attachment/tpProjBGPstatus_v1\" resource.type=\"gce_instance\" metric.label.\"consumerVPC\"=monitoring.regex.full_match(\"netapp-prod-prs.*|.*cep.*|^yyue.*|^netapp-bugbash.*|^qwiklabs-gcp.*|^jaehkang.*|^roopkamal-.*|^sre-prober.*|^g1p-.*|^gcnv-.*|.*-consumer.*|^netapp-bill.*\")",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"region\""
+                  ]
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 56,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Ingress Packet Drops - VLAN Attachment",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/attachment/ingress_dropped_packets_count\" resource.type=\"interconnect_attachment\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"drop_reason\"",
+                        "resource.label.\"interconnect\"",
+                        "resource.label.\"region\"",
+                        "resource.label.\"attachment\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "region",
+      "string_value": "",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "infra": "",
+    "gcnv-po": "",
+    "gcnv": "",
+    "network": ""
+  }
+}

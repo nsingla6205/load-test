@@ -1,0 +1,612 @@
+{
+  "name": "projects/697731967255/dashboards/b7178642-be43-4c50-88db-f71eacd4e585",
+  "display_name": "ONTAP Capacity and Node Metrics",
+  "etag": "28762602f7fb60b1e5827e9a692f75ce",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Metrics",
+          "text": {
+            "content": "**Description:** ONTAP Metrics related to Node/Total Available Space/Total Logical Capacity/Total Provisioned Capacity etc.\n\n**Total Provisioned Capacity:** Total Provisioned Capacity accumulated at the cluster level. \n\nIt is the size in the bytes which has been grouped by cluster.\n\n**Total Logical Capacity:** Total Logical Capacity accumulated at the cluster level. \n\nIt is the size in the bytes which has been grouped by cluster.\n\n**Total Available Space:** Total Available Space accumulated at the cluster level.\n\nIt is the size in the bytes which has been grouped by cluster.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ONTAP Metrics",
+          "text": {
+            "content": "**Description:** ONTAP Metrics related to Node status. \n\n**Node Up Count:** Finding the number of the nodes which are UP. \n\nIt is the number of counts which has been grouped by region. \n\n**Node Fail Count:** Finding the number of the nodes which are in any other state other than UP. \n\nIt is the number of counts which has been grouped by region. ",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Capacity",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 19,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Provisioned Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by cluster.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 19,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Provisioned Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by region.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 27,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Provisioned Capacity (Bytes)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_total\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Total Provisioned Capacity",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 27,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Provisioned Capacity (Bytes)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_total\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 43,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Used Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by cluster.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 43,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Used Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by cluster.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 51,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Logical Capacity (Bytes)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Total Logical Capacity",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 51,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Logical Capacity (Bytes)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_used\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 67,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Available Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by Cluster.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 67,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Total Logical Available Capacity aggregated at the cluster level",
+          "text": {
+            "content": "It is the size in the bytes which has been grouped by region.\n\nUnit: Bytes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Available Space (Bytes)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_available\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Total Available Space",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 75,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Available Space (Bytes)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "topk(30, sum by (\"cluster\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/aggr_space_available\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 91,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Node",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 94,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Node Up Count: Finding the number of the nodes which are UP",
+          "text": {
+            "content": "Number of Nodes which are online\n\nUnit: Count",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 94,
+        "width": 24,
+        "height": 6,
+        "widget": {
+          "title": "Node Up Count: Finding the number of the nodes which are UP",
+          "text": {
+            "content": "Number of Nodes which are online\n\nUnit: Count",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 100,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node Up (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"state\"=\"up\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 100,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node Up (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"state\"=\"up\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 116,
+        "width": 24,
+        "height": 7,
+        "widget": {
+          "title": "Finding the number of the nodes which are offline",
+          "text": {
+            "content": "Number of Nodes which are Offline.\n\nUnit: Count",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 116,
+        "width": 24,
+        "height": 7,
+        "widget": {
+          "title": "Finding the number of the nodes which are offline",
+          "text": {
+            "content": "Number of Nodes which are Offline\n\nUnit: Count",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 123,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node Fail (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"state\"!=\"up\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 123,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node Fail (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_labels\",\"monitored_resource\"=\"k8s_cluster\",\"state\"!=\"up\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "opsdeck": ""
+  },
+  "dashboard_filters": []
+}

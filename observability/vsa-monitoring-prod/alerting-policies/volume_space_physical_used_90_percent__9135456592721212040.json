@@ -1,0 +1,55 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/9135456592721212040",
+  "display_name": "volume_space_physical_used_90_percent",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-03-02T06:14:07.548020848Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T10:11:19.875919743Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/volume_space_physical_used_percent\" AND metric.labels.volume != monitoring.regex.full_match(\"cep_.*\")",
+        "comparison": 1,
+        "threshold_value": 90.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "volume_space_physical_used_90_percent",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/9135456592721212040/conditions/9135456592721211593"
+    }
+  ],
+  "documentation": {
+    "content": "# **Volume Capacity Alert (90%) Debugging Runbook**\n\nThis runbook provides a step-by-step guide for debugging an alert triggered when a volume's capacity reaches 90% utilization. The goal is to quickly identify the root cause, which is typically organic growth or snapshot-related issues, and implement the appropriate remediation.\n\n# **1\\. Initial Triage and Alert Verification**\n\n| Step | Action | Expected Outcome | Notes |\n| :---- | :---- | :---- | :---- |\n| 1.1 | Verify the alert in the monitoring system. | Alert is confirmed as active and accurate. | Confirm the volume name and the reported capacity usage. |\n| 1.2 | Check the volume's recent historical capacity usage. | Determine the rate of growth (sudden spike vs. gradual increase). | A sudden spike might indicate a code or snapshot issue. |\n| 1.3 | Identify the environment and service relying on the volume. | Confirm the criticality of the volume and potential impact. | Pager duty incident: Calendar event |\n\n# **2\\. Determine the Root Cause**\n\nThe cause is typically one of two categories: **Organic Growth** or **Snapshot/Code-Related Issue**.\n\n## **2.1 Check for Organic Data Growth**\n\nThe provided text is a technical troubleshooting table fragment outlining the first steps in diagnosing volume growth (Step 2.1).\n\n**Summary:**  \nThe initial step (2.1.1) is to **check for the existence of snapshots** for a specific volume/customer.\n\n* **If no snapshots exist (2.1.2):** The growth is concluded to be **Organic Growth** (new data being added), and **no immediate action** is required concerning snapshots.  \n* **If snapshots exist (2.1.3):** The investigation proceeds to Step 2.2, suggesting the growth might be caused by snapshot accumulation.\n\n## **2.2 Check for Snapshot/Code-Related Issues**\n\nSnapshot-related issues often manifest as rapid, unexpected growth or a failure of automated cleanup routines.\n\n1. **Check the volume's underlying storage system/API** (**List all existing snapshots for the volume.**  \n2. **Review the snapshot creation and retention policy.**  \n   * Check for any recent changes to the policy.  \n   * Verify the scheduled cleanup job  \n3. **Compare the snapshot list against the retention policy.**  \n   * *If snapshots are older than the retention policy:* Proceed to 3.3 (Snapshot Cleanup).  \n   * *If the volume is an internal application volume (not intended for user data):* Consult the application team for potential runaway process/bug that is generating excessive data.  \n4. **Examine recent code deployments or configuration changes** that interact with the volume or its snapshots.\n\n# **3\\. Remediation Steps**\n\n## **3.1 Organic Growth: Application Data Analysis**\n\n1. **Determine if the data is necessary.**  \n2. **If necessary:**  \n   * Initiate a volume resize/expansion request.  \n   * Target expansion to 90% of the maximum allowed size for the instance type.  \n   * Monitor the new capacity post-resize.  \n3. **If not necessary (e.g., temporary files):**  \n   * Coordinate with the application team to safely delete or archive the data.  \n   * Implement an automated cleanup script for future prevention.\n\n## **3.2 Log File Management**\n\n1. **Check log rotation configuration** (e.g., `logrotate` settings).  \n2. **If rotation is disabled or misconfigured:** Enable/fix the configuration to ensure old logs are compressed and deleted.  \n3. **Temporarily compress/delete older logs** to free up immediate space. *Caution: Ensure no critical data is lost.*  \n4. **If a single service is generating excessive logs:**  \n   * Immediately reduce the log verbosity (e.g., from `DEBUG` to `INFO`).  \n   * Engage the development team for code-level investigation.\n\n## **3.3 Snapshot Cleanup (If applicable)**\n\nThis is the primary mitigation for code/automation issues leading to volume capacity alerts.\n\nA table outlining the required snapshot cleanup actions is below:\n\n| Status | Action | Description | Risk |\n| :---- | :---- | :---- | :---- |\n| **Old Snapshots** | Delete snapshots older than the defined retention period (e.g., 7 days). | Use the storage API/UI to forcibly delete the stale snapshots. | Low, provided retention policy is confirmed. |\n| **Failed Deletions** | Investigate and manually delete any failed/pending snapshot deletion jobs. | Check the storage system's task log for errors. | Moderate, potential for orphaned metadata. |\n| **Automation Fix** | Immediately disable the current snapshot creation/cleanup job | Prevents further accumulation while a permanent code fix is applied. | Low, temporary reliance on manual creation if necessary. |\n| **New Job Test** | Deploy and test the fixed snapshot cleanup automation. | Verify that the new job successfully deletes expired snapshots | High, requires thorough testing before re-enabling. |\n\n# **4\\. Post-Remediation and Prevention**\n\n1. **Confirm the volume capacity is below 80%.**  \n2. **Review monitoring thresholds:** Consider lowering the threshold for this specific volume (e.g., to 85%) if organic growth is expected to continue.",
+    "mime_type": "text/markdown",
+    "subject": "volume_space_physical_used_90_percent",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

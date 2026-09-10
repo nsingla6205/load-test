@@ -1,0 +1,48 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2612773166330623705",
+  "display_name": "OOM On Nodes",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-09-29T13:47:02.661867646Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-08T12:26:32.263820977Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "OOM On Nodes",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2612773166330623705/conditions/9790069930379552568",
+      "condition_monitoring_query_language": {
+        "query": "{ t_0:\n    fetch gce_instance\n    | metric 'compute.googleapis.com/guest/system/problem_count'\n    | filter (metric.reason == 'OOMKilling')\n    | align delta(5m)\n    | filter value.problem_count > 0\n    | map add[node_name: metadata.system_labels.name]\n    | group_by [node_name], [value_problem_count_sum: sum(value.problem_count)]\n; t_1:\n    fetch k8s_node\n    | metric 'kubernetes.io/node/memory/used_bytes'\n    | filter true()\n    | filter true()\n    | group_by 5m, [value_used_bytes_mean: mean(value.used_bytes)]\n    | every 5m\n    | map add[node_name: resource.node_name]\n    | group_by [resource.cluster_name, node_name],\n        [value_used_bytes_mean_aggregate: aggregate(value_used_bytes_mean)] }\n| join\n| value [t_0.value_problem_count_sum]\n| condition val() > 0",
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluation_missing_data": 1
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Kubernetes+-+Kubernetes+pods+encounter+OOM",
+    "mime_type": "text/markdown",
+    "subject": "OOM On Nodes",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

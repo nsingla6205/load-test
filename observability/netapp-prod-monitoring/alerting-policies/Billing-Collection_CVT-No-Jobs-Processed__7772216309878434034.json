@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7772216309878434034",
+  "display_name": "Billing-Collection: CVT-No-Jobs-Processed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-03-05T11:05:14.813701603Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-10T19:19:41.385401680Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_job_executor_jobs_processed_total\" AND (metric.labels.status = \"Success\" AND metric.labels.job_type != \"BackupFiveMinutesPipelineCollection\")",
+        "comparison": 3,
+        "threshold_value": 0.1,
+        "duration": "600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location",
+              "metric.label.job_type"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - cvt_job_executor_jobs_processed_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7772216309878434034/conditions/12021551434791743460"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: Yet to be created\n\nCheck the cvt_job_scheduler_job_types_scheduled_total metric to see if any jobs are being scheduled\nCheck the cvt_job_source_jobs_found_total metric to see if scheduled jobs are being retrieved from the database and sent to the Job Executor\nCheck the cvt-pipelines logs to see if there are any errors during job scheduling",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CVT-No-Jobs-Processed",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

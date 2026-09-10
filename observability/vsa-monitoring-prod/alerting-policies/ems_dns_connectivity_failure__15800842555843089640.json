@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/15800842555843089640",
+  "display_name": "ems_dns_connectivity_failure",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T06:29:09.861562845Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T08:29:43.135705689Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"dns.server.timed.out\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.pool_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_dns_connectivity_failure",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/15800842555843089640/conditions/12212772753095373774"
+    }
+  ],
+  "documentation": {
+    "content": "Check the internet connectivity of the cluster. \n\n1. The cluster must be connected to global dns 8.8.8.8 and 8.8.4.4.\n\ndns show\n\n2. The name server status must be up. \n\ndns check -vserver <adminsvm> -name-server 8.8.8.8\n\ndns check -vserver <adminsvm> -name-server 8.8.4.4\n\nIf the check is failing, consult the network team and check the network path immediately as this can result in GCP KMS issues in the cluster. \n\nPlease refer to the following runbook for the details:\n\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+ONTAP+-+DNS+Connectivity+Failure\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_dns_connectivity_failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

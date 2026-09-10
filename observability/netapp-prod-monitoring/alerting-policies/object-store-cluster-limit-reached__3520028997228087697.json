@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3520028997228087697",
+  "display_name": "object-store-cluster-limit-reached",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-01-14T05:18:03.185667156Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-01-19T13:58:33.776015030Z",
+    "mutated_by": "sburla@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/object-store-cluster-limit-reached\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "object-store-cluster-limit-reached",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3520028997228087697/conditions/14943551350755578328"
+    }
+  ],
+  "documentation": {
+    "content": "Reference: https://jira.ngage.netapp.com/browse/NFSAAS-150189 \n\nRunbook: Cluster Object Store Maximum Limit Reached\nThis runbook provides steps to debug and fix the error: \"FAILED - Cannot create object store configuration as the number of object stores in the cluster has reached maximum allowed limit of 2000\" when an alert is received.\n\nPlease follow the COPS: https://jira.ngage.netapp.com/browse/COPS-73555\n1. Alert Triage and Validation\nAcknowledge the alert.\nVerify the exact error message to confirm it is related to the object store limit of 2000.\nCheck the cluster's current object store count. The count should be 2000 or near the limit.\nIdentify the component or job that attempted the creation and failed.\n2. Root Cause Analysis (RCA)\nThe core issue is a hard limit of 2000 object stores per cluster. Determine if this is an expected scale issue or a cleanup issue.\nScenario A: Expected Growth (Needs Cluster Expansion/Migration)\nThe service legitimately requires more than 2000 object stores.\n\nReview cluster capacity planning to see if this scale was anticipated.\nConsult the Engineering team and SREs to discuss options for cluster expansion, sharding, or migration to a higher-capacity platform.\nScenario B: Unnecessary/Stale Object Stores (Needs Cleanup)\nObject stores are being created but not properly cleaned up.\n\nReview object store creation logs for the last 30d to look for rapid or repeated creation patterns by a specific service or user.\nIdentify stale or unused object stores, specifically those not accessed or used in the last 90 days.\n",
+    "mime_type": "text/markdown",
+    "subject": "object-store-cluster-limit-reached",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

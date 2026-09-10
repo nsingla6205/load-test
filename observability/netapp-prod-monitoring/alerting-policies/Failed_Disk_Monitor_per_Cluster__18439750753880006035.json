@@ -1,0 +1,64 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18439750753880006035",
+  "display_name": "Failed Disk Monitor per Cluster",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-07-17T09:45:40.366054726Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-18T06:07:07.559049411Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/disk_labels\" AND metric.labels.failed = \"true\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "metric.label.disk",
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - custom/disk_labels",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18439750753880006035/conditions/3185312717767808583"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: \n\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+GCNV+-+Scheduling+hardware+replacement+cases+for+ONTAP+clusters\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "Failed Disk Monitor per Cluster",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

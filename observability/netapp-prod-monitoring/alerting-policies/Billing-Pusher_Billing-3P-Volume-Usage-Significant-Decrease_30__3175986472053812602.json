@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3175986472053812602",
+  "display_name": "Billing-Pusher: Billing-3P-Volume-Usage-Significant-Decrease>30%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-02-25T17:32:21.538902734Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-09-02T08:14:05.391711723Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity\" AND metric.labels.type = \"BILLING_METRIC\"",
+        "comparison": 3,
+        "threshold_value": -30.0,
+        "duration": "4800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3175986472053812602/conditions/6058343566904466614"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=793136915",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Pusher: Billing 3P Volume Usage Significant Decrease > 30%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

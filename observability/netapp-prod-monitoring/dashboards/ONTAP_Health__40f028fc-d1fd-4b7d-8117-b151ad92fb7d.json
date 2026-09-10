@@ -1,0 +1,512 @@
+{
+  "name": "projects/93478785040/dashboards/40f028fc-d1fd-4b7d-8117-b151ad92fb7d",
+  "display_name": "ONTAP: Health",
+  "etag": "51c1023691bfd9e3216e5e07f4459863",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 6,
+        "widget": {
+          "text": {
+            "content": "This dashboard is compatible with ONTAP 9.6+ and requires the REST collector. To use this dashboard, please follow the step below:\n\n1. **Enable the REST Collector**: Update your `harvest.yml` configuration file to enable the REST collector.",
+            "format_": 1,
+            "style": {
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "background_color": "",
+              "text_color": "",
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 6,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Total Errors ",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "(count(custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_shelf_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_node_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_ha_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:environment_sensor_threshold_value{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",threshold_state!=\"normal\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_network_fc_port_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_network_ethernet_port_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_license_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 6,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Total Warnings ",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "(count(custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_shelf_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0))\n+\n(count(last_over_time(custom_googleapis_com:health_support_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"}[24h]) == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_lif_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_volume_move_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0))\n+\n(count(custom_googleapis_com:health_volume_ransomware_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 6,
+        "width": 16,
+        "height": 12,
+        "widget": {
+          "title": "Active Emergency EMS Alerts (Last 24 Hours)",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:health_ems_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", severity=\"emergency\"}) or vector(0)",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 18,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Errors ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 18,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Warnings ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 18,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Active Emergency EMS Alerts (Last 24 Hours)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:health_ems_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", severity=\"emergency\"}) by (message)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 50,
+        "width": 48,
+        "height": 12,
+        "widget": {
+          "title": "HA Issues ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(cluster,node,datacenter) group_left(severity,takeover_possible,partner,partner_state,state_description) (custom_googleapis_com:health_ha_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 62,
+        "width": 48,
+        "height": 12,
+        "widget": {
+          "title": "Node Issues ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(cluster,node,datacenter) group_left(severity) (custom_googleapis_com:health_node_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 74,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Sensor Issues",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:environment_sensor_threshold_value{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",threshold_state!=\"normal\"} == 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 90,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Disks Issues ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:disk_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(disk,cluster,datacenter) group_left(severity) (custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 108,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Storage Shelf Issues ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:shelf_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(shelf,cluster,datacenter) group_left(severity,error_type,error_text) (custom_googleapis_com:health_shelf_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 122,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Volumes with Ransomware Issues (9.10+ Only) ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(volume,cluster,datacenter) group_left(severity,anti_ransomware_attack_probability) (custom_googleapis_com:health_volume_ransomware_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 140,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Volumes Move Issues ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(volume,cluster,datacenter,svm) group_left(severity,movement_state) (custom_googleapis_com:health_volume_move_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 158,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Non Compliant License ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:health_license_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 172,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "Lif not at home port ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lif_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(lif,svm,cluster,datacenter) group_left(severity) (custom_googleapis_com:health_lif_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 192,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Ethernet ports are down",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:health_network_ethernet_port_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 208,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "FC ports are down ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:health_network_fc_port_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} == 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 224,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Active Emergency EMS Alerts (Last 24 Hours)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:health_ems_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", severity=\"emergency\"}) by (datacenter,cluster,node,message,severity)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 240,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "System Alerts ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "last_over_time(custom_googleapis_com:health_support_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[${__interval}]) == 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

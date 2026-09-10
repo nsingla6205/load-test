@@ -1,0 +1,51 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/14283257576794439347",
+  "display_name": "ems_secd_auth_ldap_connection_failure",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T07:22:51.629480513Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:33:13.360760134Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "ems_secd_auth_ldap_connection_failure",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/14283257576794439347/conditions/14456708319543010474",
+      "condition_prometheus_query_language": {
+        "query": "count by (cluster, location)(avg_over_time({\"__name__\"=\"custom.googleapis.com/ems_events\",\"monitored_resource\"=\"k8s_cluster\",\"message\"=~\"secd.conn.auth.failure|secd.ldap.connectFailure\",\"parameters\"=~\".*svm_2a30005860d7481bbe9055eb9e94238f_18ecb27e|svm_2a30005860d7481bbe9055eb9e94238f_42a29ee1|svm_723ea88899504947beaa1365ed3e48b3_d9a32815|svm_2a30005860d7481bbe9055eb9e94238f_dd2c6baf|svm_2a30005860d7481bbe9055eb9e94238f_2611e676|svm_723ea88899504947beaa1365ed3e48b3_073db5b7.*\"}[5m])) > 0",
+        "duration": "60s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Run the below commands and check the output.\n\nevent log show -event secd\n\nldap check -vserver VSERVER\n\nvserver services name-service dns check -vserver VSERVER\n\ndns show -vserver VSERVER\n\nIf the output isn't positive, contact Shruthi or Revanth as it is customer impacting(Citadel).\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_secd_auth_ldap_connection_failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,67 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5179608293724185789",
+  "display_name": "Quark HA controller health ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-14T22:05:46.593762799Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-07-12T18:17:34.206469985Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND (resource.labels.cluster_name != has_substring(\"342098241191\") AND resource.labels.cluster_name != has_substring(\"555485032916\") AND resource.labels.cluster_name != has_substring(\"557331514402\") AND resource.labels.cluster_name != has_substring(\"1008503002786\") AND resource.labels.cluster_name != has_substring(\"83367146855\") AND resource.labels.cluster_name != has_substring(\"748938370303\") AND resource.labels.cluster_name != has_substring(\"1096624921829\") AND resource.labels.cluster_name != has_substring(\"182983985854\") AND resource.labels.cluster_name != has_substring(\"268195768674\") AND resource.labels.cluster_name != has_substring(\"567212953953\") AND resource.labels.cluster_name != has_substring(\"877382400590\") AND resource.labels.cluster_name != has_substring(\"425337028036\") AND resource.labels.cluster_name != has_substring(\"912307932857\") AND resource.labels.cluster_name != has_substring(\"1069622656795\") AND resource.labels.cluster_name != has_substring(\"1040088821848\") AND resource.labels.cluster_name != has_substring(\"299201377697\") AND resource.labels.cluster_name != has_substring(\"389112426572\") AND resource.labels.cluster_name != has_substring(\"276644600764\") AND resource.labels.cluster_name != has_substring(\"235119767631\") AND resource.labels.cluster_name != has_substring(\"1021099186267\") AND resource.labels.cluster_name != has_substring(\"468027004066\") AND resource.labels.cluster_name != has_substring(\"594218095004\") AND resource.labels.cluster_name != has_substring(\"408791630333\") AND resource.labels.cluster_name != has_substring(\"825926125130\") AND resource.labels.cluster_name != has_substring(\"307899319784\") AND resource.labels.cluster_name != has_substring(\"887755585952\") AND resource.labels.cluster_name != has_substring(\"742507241214\") AND resource.labels.cluster_name != has_substring(\"1002853649562\") AND resource.labels.cluster_name != has_substring(\"831816341060\")) AND metric.type = \"custom.googleapis.com/quark_health_status_nhc\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "resource.label.cluster_name"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Cluster - quark_health_status_nhc",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5179608293724185789/conditions/9973177224972280180"
+    }
+  ],
+  "documentation": {
+    "content": "Ignore below projects used for \"Integration tests CRR projects\" till QUARK-5251 is fixed-\n1092875315653,\n141205804554,\n197033009950,\n1077046142010.\nRef - https://docs.google.com/document/d/1MpVVO3SrwZSGmu92VA1KhBXxqfdVQsFg2yhcdPW2TiU/edit?resourcekey=0-pNrFJajkBk1QUdNEVdHikg\nRunbook - https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Quark+Health+Alerts",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

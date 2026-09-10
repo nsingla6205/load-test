@@ -1,0 +1,66 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3572456139527948130",
+  "display_name": "Billing-Collection: SDS-Collector-Processed-No-Pools",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-03-18T13:48:37.672028297Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:56.241305759Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_sds_collector_npools_to_process_total\"",
+        "comparison": 3,
+        "threshold_value": -30.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          },
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - cvt_sds_collector_npools_to_process_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3572456139527948130/conditions/11185667331850632733"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+SDS-Collector-Processed-No-Pools",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: SDS-Collector-Processed-No-Pools",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

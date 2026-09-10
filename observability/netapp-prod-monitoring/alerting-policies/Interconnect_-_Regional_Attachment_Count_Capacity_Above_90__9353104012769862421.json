@@ -1,0 +1,64 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9353104012769862421",
+  "display_name": "Interconnect - Regional Attachment Count Capacity Above 90%",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-11-26T09:31:53.598013313Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-01-30T05:48:53.057263140Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"custom.googleapis.com/icx_dpUtilizationPercent_v2\"",
+        "comparison": 1,
+        "threshold_value": 90.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "86400s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 3,
+            "group_by_fields": [
+              "metric.label.region"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Interconnect VLAN Attachment Capacity Exceeded",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9353104012769862421/conditions/9353104012769865636"
+    }
+  ],
+  "documentation": {
+    "content": "RUNBOOK:\n\nhttps://confluence.ngage.netapp.com/pages/viewpage.action?pageId=1002140878",
+    "mime_type": "text/markdown",
+    "subject": "Interconnect - Regional Attachment Count Capacity Above 90%",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/5123480094146800147",
+    "projects/netapp-prod-monitoring/notificationChannels/600614061202589505",
+    "projects/netapp-prod-monitoring/notificationChannels/13121591254365550521",
+    "projects/netapp-prod-monitoring/notificationChannels/8995371658441391733"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

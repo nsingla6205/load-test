@@ -1,0 +1,54 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/16124459439572968407",
+  "display_name": "billing-telemetry-sink-delivery-failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-19T05:07:25.931704556Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-03T23:44:06.453159526Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "billing-telemetry-sink-delivery-failures",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/16124459439572968407/conditions/13791486721324297027",
+      "condition_prometheus_query_language": {
+        "query": "sum(increase({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_metrics_delivered_total\",\"monitored_resource\"=\"generic_task\",\"status\"=\"failure\"}[5m])) by (sink_type,location) > 0",
+        "duration": "900s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Severity: CRITICAL. Alert triggers when any sink delivery failures occur (status='failure') for any sink type in 5 minutes. This indicates a critical issue with metric delivery to external sinks that requires immediate investigation.\n\n**Runbook:** [View Documentation](https://confluence.ngage.netapp.com/spaces/VSCP/pages/1416362629/Runbook+Telemetry+Sink+Delivery+Failures)\n\nTo Enable more Logging Refer: [COPS-103094] Enable debug log for telemetry sync issue in us-e4\nCurrent Bugs GCBDR - Backups (In Preview) https://jira.ngage.netapp.com/browse/VSCP-7898\nGoogle Tracker Metric push failing for Backup Billing [554983611] - Issue Tracker",
+    "mime_type": "text/markdown",
+    "subject": "billing-telemetry-sink-delivery-failures",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/4693604034135020068",
+    "projects/vsa-monitoring-prod/notificationChannels/17268834121449248920",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "user_labels": {
+    "stack": "vcp-billing",
+    "service": "telemetry",
+    "telemetry": "sink-metrics"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

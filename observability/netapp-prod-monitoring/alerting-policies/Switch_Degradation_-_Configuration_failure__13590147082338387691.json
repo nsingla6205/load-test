@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13590147082338387691",
+  "display_name": "Switch Degradation - Configuration failure ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-07T11:53:31.431004140Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T04:56:29.331285348Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/switch-mem-failure\"",
+        "comparison": 1,
+        "threshold_value": 0.05,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - logging/user/switch-mem-failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13590147082338387691/conditions/16030738367681527408"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100294\n\nContact Siva\nBring this immediately to the attention of network SMEs!",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/5123480094146800147"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

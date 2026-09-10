@@ -1,0 +1,543 @@
+{
+  "name": "projects/697731967255/dashboards/8820b4ad-29ff-4e55-9402-037b7c7782b1",
+  "display_name": "ONTAP: Volume Performance Dashboard",
+  "etag": "8ba79f5181343e2e7341f4a8c6e042de",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 18,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Read IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_read_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "Volume Average Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "single_view_group": {},
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 18,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "single_view_group": {},
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 18,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Write IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_write_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 18,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Other IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_other_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 18,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Total IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "single_view_group": {},
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "FlexVol Read Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_read_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "FlexVol Write Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_write_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "Volume Other Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_other_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 53,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Per Stamp Charts",
+          "single_view_group": {},
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 71,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Node Level Charts",
+          "single_view_group": {},
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Read Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_read_data{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr},${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Avg FlexVol Write Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_write_data{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 53,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Total Max IOPs per Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 53,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Volume Average Latency per Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 71,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Volume Average Latency per Node",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",${location},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 71,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Total Max IOPs per Node",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1/s",
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",${location},${cluster},${node},${aggr}, ${volume}}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "cluster",
+      "filter_type": 2
+    },
+    {
+      "label_key": "node",
+      "template_variable": "node",
+      "filter_type": 2
+    },
+    {
+      "label_key": "aggr",
+      "template_variable": "aggr",
+      "filter_type": 2
+    },
+    {
+      "label_key": "volume",
+      "template_variable": "volume",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "opsdeck": ""
+  }
+}

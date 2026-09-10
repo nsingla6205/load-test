@@ -1,0 +1,75 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/1387310368559685903",
+  "display_name": "harvest_poller_health",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-17T13:24:55.114992434Z",
+    "mutated_by": "manden@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T06:43:48.252399243Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/harvest_poller_health_status\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 10,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "harvest_poller_health",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/1387310368559685903/conditions/59459138438241084"
+    },
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/harvest_poller_health_status\"",
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "900s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ]
+      },
+      "display_name": "harvest poller absent",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/1387310368559685903/conditions/59459138438238311"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "Harvest Poller Health",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

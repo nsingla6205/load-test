@@ -1,0 +1,667 @@
+{
+  "name": "projects/93478785040/dashboards/92c14e82-4e1e-40ff-a7ba-4c33d9cbb7c6",
+  "display_name": "ONTAP: CI: CVS GCP-PO Hot Regions Capacity Overview",
+  "etag": "9d10a8768eba3e405e52646911130c19",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Total Number of Stamps across ALL regions",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 13,
+                  "cross_series_reducer": 6,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Total Number of Stamps in Hot Regions",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 13,
+                  "cross_series_reducer": 6,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Total Number of Regions",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/shelf_labels\" resource.type=\"k8s_cluster\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"datacenter\""
+                  ]
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 36,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Total Number of Hot Regions",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/shelf_labels\" resource.type=\"k8s_cluster\" resource.label.\"location\"=\"us-central1\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"datacenter\""
+                  ]
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "title": "Sellable per A700s Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A700s\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A700s\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\"}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A700s\"}[5m]))\n       )\n) * 1.5 * 0.8",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 8,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "title": "Sellable per Full Populated A800 Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A800\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A800\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\"}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\", model=\"AFF-A800\"}[5m]))\n       )\n) * 1.5 * 0.8",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 8,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Stamps Across Hot Regions (FIX)",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/shelf_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 21,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Stamps Across ALL Regions (FIX)",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/shelf_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 21,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Metrics Per Region from Aggregate",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_physical_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "value-3",
+                "visible": true
+              },
+              {
+                "column": "value-4",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 37,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Metrics Per Stamp from Aggregate",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:aggr_space_physical_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (node)(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "value-3",
+                "visible": true
+              },
+              {
+                "column": "value-4",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 37,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Logical Utilization Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_total_logical_used{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 53,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Allocation Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 53,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Compression Savings Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (cluster)(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])))\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 69,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Dedupe Savings Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(20, sum by (cluster)(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}])))\n#This query may not fully reflect the original configuration.",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 69,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Regional Total IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# sum by (datacenter)(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n\nsum by (datacenter) (custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"})\n#and\n#topk(20, sum by (datacenter) (avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 85,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Regional Total Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "# sum by (location)(avg_over_time(custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n\nsum by (location) (custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"})\n#and\n#topk(10, sum by (location) (avg_over_time(custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"}[${__interval}] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 85,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Stamp Total IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# sum by (datacenter)(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n\nsum by (cluster) (custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"})\n#and\n#topk(20, sum by (cluster) (avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 101,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Stamp Total Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "# sum by (location)(avg_over_time(custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))\n\nsum by (cluster) (custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"})\n#and\n#topk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\"}[${__interval}] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,172 @@
+{
+  "name": "projects/697731967255/dashboards/67d3b5a6-15ff-47c2-b158-12cc52cafaa2",
+  "display_name": "Block Capacity",
+  "etag": "b893d8162fadb560219f95cc4d6d4f91",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 7,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Allocated",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/lun_size\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_.*\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 7,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "topk(30, sum by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/lun_size_used\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_.*\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 23,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Used Percent",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "topk(30, avg by (\"location\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/lun_size_used_percent\",\"monitored_resource\"=\"k8s_cluster\",\"volume\"!~\"cep_.*\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 23,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Number of Block Volumes ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/lun_new_status\" resource.type=\"k8s_cluster\" metric.label.\"volume\"!=monitoring.regex.full_match(\"cep_.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "# Excluding Prober Volumes",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

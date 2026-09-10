@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/6372466446934681746",
+  "display_name": "create_pool_failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-08-28T10:10:18.660080705Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:14:57.900961043Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ogen.server.request_count_total\" AND (metric.labels.Job_State = \"ERROR\" AND metric.labels.Job_TrackingID != monitoring.regex.full_match(\"9001|9002|9003|9004|9005|9006|9007|9008|9009\") AND metric.labels.Job_Type = \"CREATE_POOL\" AND metric.labels.http_request_method != \"GET\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.projectNumber",
+              "resource.label.location",
+              "metric.label.oas_operation",
+              "metric.label.http_request_method"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ogen.server.request_count_total",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/6372466446934681746/conditions/15664388766132140280"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "Pool Creation Failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

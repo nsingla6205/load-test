@@ -1,0 +1,1023 @@
+{
+  "name": "projects/93478785040/dashboards/dceea81a-e5fc-4d3c-93d0-d8e28e5b88f6",
+  "display_name": "ONTAP: Datacenter",
+  "etag": "3b8397ff6c960e625a2062891690282c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 18,
+        "height": 16,
+        "widget": {
+          "title": "Total Space",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 18,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Space Used %",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "100*sum(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})/sum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 34,
+        "width": 14,
+        "height": 32,
+        "widget": {
+          "title": "Object Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# sum(count(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) by (cluster))\n\nsum by (cluster)(count_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 18,
+        "height": 16,
+        "widget": {
+          "title": "Available Space",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 18,
+        "y_pos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Used and Reserved Space",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Total Space by Cluster",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "# sum by (cluster) (custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\n# and\n# topk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))\n\nsum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Used and Reserved Space by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 52,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Available Space by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 52,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Space Used % by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "(\n    100 * sum by (datacenter,cluster) (custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}) \n    / on(datacenter,cluster) \n    sum by (datacenter,cluster) (custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"})\n)\nand on(datacenter,cluster)\ntopk(\n  10,\n  (\n    100 * sum by (datacenter,cluster) (\n      avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())\n    )\n    / on(datacenter,cluster)\n    sum by (datacenter,cluster) (\n      avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())\n    )\n  )\n)",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 72,
+        "width": 16,
+        "height": 14,
+        "widget": {
+          "title": "Cluster Health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:cluster_new_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "status",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 72,
+        "width": 32,
+        "height": 14,
+        "widget": {
+          "title": "Node Health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1",
+                  "prometheus_query": "custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 86,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Errors",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:health_ems_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"error\"} == 1) or vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 86,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Warnings",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:health_disk_alerts{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"warning\"} == 1) or vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 86,
+        "width": 16,
+        "height": 32,
+        "widget": {
+          "title": "Active Emergency EMS ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(last_over_time(custom_googleapis_com:ems_events{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",severity=\"emergency\"}[${__interval}]) == 1) by (message)\n\n# sum by (message)(avg_over_time(custom_googleapis_com:ems_events{monitored_resource=\"k8s_cluster\",severity=\"notice\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 118,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Latency by Cluster ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "max by (cluster) (custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, max by (cluster) (avg_over_time(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 118,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Throughput by Cluster #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:volume_total_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 118,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10  IOPs by Cluster #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 134,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 CPU Busy by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg by (cluster) (custom_googleapis_com:node_cpu_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\n# and\n# topk(10, avg by (cluster) (avg_over_time(custom_googleapis_com:node_cpu_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))\navg by (cluster)(avg_over_time(custom_googleapis_com:node_cpu_busytime{monitored_resource=\"k8s_cluster\"}[${__interval}]))\nand\ntopk(30, avg by (cluster)(avg_over_time(custom_googleapis_com:node_cpu_busytime{monitored_resource=\"k8s_cluster\"}[${__interval}] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 134,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Average CPU Utilization by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (cluster) (custom_googleapis_com:node_avg_processor_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, avg by (cluster) (avg_over_time(custom_googleapis_com:node_avg_processor_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 134,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Max Node Temp",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "max(custom_googleapis_com:environment_sensor_max_temperature{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 40,
+        "y_pos": 134,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Max Shelf Fan Speed",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "max(custom_googleapis_com:shelf_max_fan_speed{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 144,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Max Shelf Temp #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "max(custom_googleapis_com:shelf_max_temperature{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 40,
+        "y_pos": 144,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Max Node Fan Speed",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "max(custom_googleapis_com:environment_sensor_max_fan_speed{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 152,
+        "width": 18,
+        "height": 20,
+        "widget": {
+          "title": "Total Power",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "(sum(custom_googleapis_com:environment_sensor_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) or vector(0)) + (sum(custom_googleapis_com:shelf_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} * on(datacenter,cluster,shelf) custom_googleapis_com:shelf_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",isEmbedded=\"No\"}) or vector(0))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 18,
+        "y_pos": 152,
+        "width": 14,
+        "height": 10,
+        "widget": {
+          "title": "Average Power/Used_TB",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "(avg(custom_googleapis_com:environment_sensor_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) or vector(0)) / ((sum(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})/1024/1024/1024/1024) / count(sum(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})) > 1 or max(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}/custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 18,
+        "y_pos": 162,
+        "width": 14,
+        "height": 10,
+        "widget": {
+          "title": "Average IOPs/Watt #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "avg(custom_googleapis_com:node_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) / (avg(custom_googleapis_com:environment_sensor_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) or vector(1))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 172,
+        "width": 48,
+        "height": 22,
+        "widget": {
+          "title": "Total Power Consumed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:environment_sensor_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "Node",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:shelf_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "Shelf",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(sum(custom_googleapis_com:environment_sensor_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) or vector(0)) + (sum(custom_googleapis_com:shelf_power{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}) or vector(0))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "Total",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 194,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "text": {
+            "content": "<br>For more information, please check the `ONTAP: Data Protection Snapshots` dashboard.",
+            "format_": 1,
+            "style": {
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "background_color": "",
+              "text_color": "",
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 198,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Protected Status",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",snapshot_policy!=\"\", snapshot_policy!~\"none.*\", volume!~\"MDV.*\"}  * on (snapshot_policy) group_left () group by (snapshot_policy) (custom_googleapis_com:snapshot_policy_total_schedules{monitored_resource=\"k8s_cluster\"})) OR on() vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 198,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Breached Status",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count(custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",snapshot_policy!=\"\", snapshot_policy!~\"none.*\"}  * on (snapshot_policy) group_left () group by (snapshot_policy) (custom_googleapis_com:snapshot_policy_total_schedules{monitored_resource=\"k8s_cluster\"}) * on (volume, svm, cluster) group_right() (custom_googleapis_com:volume_snapshot_reserve_size{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"} >= 0 and custom_googleapis_com:volume_snapshots_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"} >= 0 and custom_googleapis_com:volume_snapshots_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"} > custom_googleapis_com:volume_snapshot_reserve_size{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"})) OR on() vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 198,
+        "width": 16,
+        "height": 22,
+        "widget": {
+          "title": "Snapshot Copies #Fix PromQL",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count((custom_googleapis_com:volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",snapshot_policy!=\"\", snapshot_policy!~\"none.*\", volume!~\"MDV.*\"}  * on (snapshot_policy) group_left () group by (snapshot_policy) (custom_googleapis_com:snapshot_policy_total_schedules{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})) * on (volume,svm,cluster) (custom_googleapis_com:volume_snapshot_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} > 0 and custom_googleapis_com:volume_snapshot_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"} < 10)) OR on() vector(0)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 220,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Data Reduction",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})/sum(custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 220,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Data Reduction with FlexClones",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_logical_used_wo_snapshots{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})/sum(custom_googleapis_com:aggr_physical_used_wo_snapshots{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 220,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Data Reduction with Snapshots & FlexClones",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_total_logical_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})/sum(custom_googleapis_com:aggr_total_physical_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 228,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Logical Used by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 228,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Physical Used by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 244,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Logical Used with FlexClones by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:aggr_logical_used_wo_snapshots{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

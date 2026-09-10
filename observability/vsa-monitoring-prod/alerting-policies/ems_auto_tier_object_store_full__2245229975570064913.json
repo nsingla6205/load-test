@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/2245229975570064913",
+  "display_name": "ems_auto_tier_object_store_full",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T06:08:55.131737194Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T08:31:48.948956682Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"object.store.full\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.pool_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_auto_tier_object_store_full",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/2245229975570064913/conditions/17761503703628021693"
+    }
+  ],
+  "documentation": {
+    "content": "Correction action:\n\nExamine the object store, check the space settings, and if necessary, create space by adding capacity to the object store. \n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_auto_tier_object_store_full",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

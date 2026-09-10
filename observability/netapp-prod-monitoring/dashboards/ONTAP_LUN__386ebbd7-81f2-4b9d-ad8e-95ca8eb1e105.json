@@ -1,0 +1,1038 @@
+{
+  "name": "projects/93478785040/dashboards/386ebbd7-81f2-4b9d-ad8e-95ca8eb1e105",
+  "display_name": "ONTAP: LUN",
+  "etag": "27e8acbc943cf78b0a5d420d060ac914",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Average Read Latency #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "avg(topk(10, custom_googleapis_com:lun_avg_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 8,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Average Write Latency #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "avg(topk(10, custom_googleapis_com:lun_avg_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Read Throughput #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(topk(10, custom_googleapis_com:lun_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Write Throughput #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(topk(10, custom_googleapis_com:lun_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Read IOPs #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(topk(10, custom_googleapis_com:lun_read_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 40,
+        "width": 8,
+        "height": 10,
+        "widget": {
+          "title": "Top 10 Luns by Write IOPs #Missing Metric",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(topk(10, custom_googleapis_com:lun_write_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 10,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Read Latency #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_avg_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, custom_googleapis_com:lun_avg_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 10,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Read Throughput #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, custom_googleapis_com:lun_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 10,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Read IOPS #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_read_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, custom_googleapis_com:lun_read_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 26,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Write Latency #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_avg_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \nand \ntopk(10, custom_googleapis_com:lun_avg_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 26,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Write Throughput #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \nand \ntopk(10, custom_googleapis_com:lun_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 26,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Write IOPS #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_write_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \nand \ntopk(10, custom_googleapis_com:lun_write_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} @ end())",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 42,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "LUNS in Cluster #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 62,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Average Read Latency #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_avg_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_avg_read_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 62,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Read Throughput #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 62,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Read IOPs #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_read_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_read_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 80,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Average Write Latency #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_avg_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_avg_write_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 80,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Write Throughput #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 80,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Luns by Write IOPs #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_write_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_write_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 98,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Write Misalignment Buckets #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_write_align_histo{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_write_align_histo{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun} : ${labels.metric}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 98,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Read Misalignment Buckets #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_read_align_histo{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_read_align_histo{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun} : ${labels.metric}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 114,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Luns by Indirect Access IOPS #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_remote_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_remote_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume} / ${labels.lun}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 130,
+        "width": 48,
+        "height": 13,
+        "widget": {
+          "title": "Important Information on Top Volume QoS Latency Graphs",
+          "text": {
+            "content": "This dashboard requires Workload/QOS counters templates. Two actions are required to use this dashboard: <br>\n1. If you are using ZapiPerf Collector, then On Harvest, You must enable the Workload/QOS counters in $HARVEST/conf/zapiperf/default.yaml. <br>\n2. If you are using RestPerf Collector, then On Harvest, You must enable the Workload/QOS counters in $HARVEST/conf/restperf/default.yaml. <br>\n\nRefer ONTAP Performance - Resolution Guide https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ONTAP_9_Performance_-_Resolution_Guide",
+            "format_": 1,
+            "style": {
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "background_color": "",
+              "text_color": "",
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 143,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Network #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"network\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"network\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 143,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Throttle #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"throttle\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"throttle\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 143,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Qos Min #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"qos_min\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"qos_min\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 161,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Cluster #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cluster\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cluster\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 161,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Backend #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"backend\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"backend\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 161,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from CP (Consistency Point) #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cp\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cp\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 179,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Suspend #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"suspend\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"suspend\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume} ",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 179,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Cloud #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cloud\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"cloud\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume} ",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 179,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Frontend #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"frontend\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"frontend\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 197,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from NVLog Mirroring #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"nvlog\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"nvlog\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume} ",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 197,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Volumes by Latency from Disk #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"disk\",volume!=\"\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:qos_detail_resource_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",resource=\"disk\",volume!=\"\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.workload} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 215,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Used",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 215,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Snapshot Used %",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_snapshot_reserve_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:volume_snapshot_reserve_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 231,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Deduplication Percent Saved",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_sis_dedup_saved_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:volume_sis_dedup_saved_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 231,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Compression Percent Saved",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:volume_sis_compress_saved_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:volume_sis_compress_saved_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.svm} / ${labels.volume}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 247,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 LUNs by Percent Most Filled #Missing Metrics",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:lun_size_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"} \n  and \ntopk(10, avg_over_time(custom_googleapis_com:lun_size_used_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}|\",lun=~\"${LUN.value}\"}[3h] @ end()))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "svm",
+      "template_variable": "SVM",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "volume",
+      "template_variable": "Volume",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "lun",
+      "template_variable": "LUN",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

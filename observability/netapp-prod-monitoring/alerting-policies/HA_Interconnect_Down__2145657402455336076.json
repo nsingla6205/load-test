@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2145657402455336076",
+  "display_name": "HA Interconnect Down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:59:12.277156775Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T07:54:24.492474908Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"callhome.hainterconnect.down\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2145657402455336076/conditions/8555559109540931010"
+    }
+  ],
+  "documentation": {
+    "content": "Corrective actions depend on the number and type of HA interconnect links supported by the platform, as well as the reason why the interconnect is down.\n\n* If the links are down:\n- Verify that both controllers in the HA pair are operational.\n- For externally connected links, make sure that the interconnect cables are connected properly and that the small form-factor pluggables (SFPs), if applicable, are seated properly on both controllers.\n- For internally connected links, disable and re-enable the links, one after the other, by using the \"ic link off\" and \"ic link on\" commands.\n* If links are disabled, enable the links by using the \"ic link on\" command.\n* If a peer is not connected, disable and re-enable the links, one after the other, by using the \"ic link off\" and \"ic link on\" commands.\n\nContact NetApp technical support if the issue persists.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "HA Interconnect Down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "notification-channel": "otel-prod"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3
+}

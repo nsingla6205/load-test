@@ -1,0 +1,68 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9167775741722760910",
+  "display_name": "EMS Emergency Monitor for auto-tier-obj-str ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-12-02T06:49:03.178421096Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T07:53:04.299419889Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND (metric.labels.message != has_substring(\"secd\") AND metric.labels.severity = \"emergency\" AND metric.labels.message = has_substring(\"auto-tier-obj-str \"))",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location",
+              "metric.label.parameters"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_events for auto-tier-obj-str",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9167775741722760910/conditions/9167775741722760367"
+    }
+  ],
+  "documentation": {
+    "content": "Labels: ${metric_or_resource.labels}\nParameters: ${metric_or_resource.label.parameters}\n\nRelated links:\nhttps://jira.ngage.netapp.com/browse/COPS-69981\nhttps://docs.google.com/document/d/1Q7xiT9AqyVF7pxNlpk-IYZfDNMV69XsCPTsc3CaOZs4/edit?tab=t.0\n",
+    "mime_type": "text/markdown",
+    "subject": "EMS Emergency Monitor for auto-tier-obj-str ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "source": "harvest",
+    "review": "24jun2025",
+    "notification-channel": "otel-prod"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

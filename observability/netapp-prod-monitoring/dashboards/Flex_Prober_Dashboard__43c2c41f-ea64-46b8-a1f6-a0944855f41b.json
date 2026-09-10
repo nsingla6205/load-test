@@ -1,0 +1,207 @@
+{
+  "name": "projects/93478785040/dashboards/43c2c41f-ea64-46b8-a1f6-a0944855f41b",
+  "display_name": "Flex Prober Dashboard",
+  "etag": "a19d1c97f9406bddca0e7d887698ca3c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/15982406416872370615"
+          },
+          "title": "",
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Compute N2 Capacity Usage (Tracking 45)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "max(label_replace(last_over_time(serviceruntime_googleapis_com:quota_allocation_usage{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/n2_cpus'}[1d]),'limit_name','N2-CPUS-per-project-region','','')) by (service,limit_name,project_id,quota_metric,location) / min(last_over_time(serviceruntime_googleapis_com:quota_limit{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/n2_cpus', limit_name='N2-CPUS-per-project-region'}[1d])) by (service,limit_name,project_id,quota_metric,location)> 0",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.7,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Peerings per VPC Network Tracking (45)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "max(last_over_time(compute_googleapis_com:quota_peerings_per_vpc_network_usage{resource_container=~\"${SN_HOST_TRACKING.value}\",limit_name='PEERINGS-per-VPC-Network', monitored_resource='compute.googleapis.com/VpcNetwork'}[1d])) by (limit_name,resource_container,network_id) / min(last_over_time(compute_googleapis_com:quota_peerings_per_vpc_network_limit{resource_container=~\"${SN_HOST_TRACKING.value}\",limit_name='PEERINGS-per-VPC-Network', monitored_resource='compute.googleapis.com/VpcNetwork'}[1d])) by (limit_name,resource_container,network_id)> 0\r\n",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.7,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Service Account Usage Tracking (45)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max(label_replace(last_over_time(serviceruntime_googleapis_com:quota_allocation_usage{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='iam.googleapis.com/quota/service-account-count'}[1d]),'limit_name','ServiceAccountsPerProject','','')) by (service,limit_name,project_id,quota_metric) / min(last_over_time(serviceruntime_googleapis_com:quota_limit{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='iam.googleapis.com/quota/service-account-count', limit_name='ServiceAccountsPerProject'}[1d])) by (service,limit_name,project_id,quota_metric)> 0",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.7,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Persistence SSD Disk Usage (Tracking 45)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "max(label_replace(last_over_time(serviceruntime_googleapis_com:quota_allocation_usage{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/ssd_total_storage'}[1d]),'limit_name','SSD-TOTAL-GB-per-project-region','','')) by (service,limit_name,project_id,quota_metric,location) / min(last_over_time(serviceruntime_googleapis_com:quota_limit{project_id=~\"${SN_HOST_TRACKING.value}\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/ssd_total_storage', limit_name='SSD-TOTAL-GB-per-project-region'}[1d])) by (service,limit_name,project_id,quota_metric,location)> 0",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0.7,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "label": "SSD used Percentage",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 48,
+        "widget": {
+          "title": "Resources",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "template_variable": "SN_HOST_TRACKING",
+      "string_value": "i90d999214e7af976-tp|y5790a4ddb08a6c5e-tp|o28e6f45a7386d3ea-tp|ae7ea78ad0b35a488-tpr8cb4948115a1dfab-tp|92e2bcc82d08f-tp|t3e666c60f05b3ff9-tp|o77f645514bf9c82d-tp|wc704c2ac16f41095-tp|x0359926e63e56778-tp|p2382b5becf213f56-tp|w1492059b052167e4-tp|p2f9b2d8809a48ea8-tp|g281123f71c214b7c-tp|c79b0cd38c48d106a-tp|uc65e150df29ca968-tp|sb5e0d758246e07df-tp|u1963afcbe4e13416-tp|s05ff1582cf37dc08-tp|ta81200836969583b-tp|l99e76c15665c40c6-tp|tec91aeffee3f56b4-tp|fe1bab1f5e138d1d3-tp|l5c5cbd197f36b49b-tp|pc37eec01578d2864-tp|v54345e12ccbe2b55-tp|z0f9cbd213c8e5893-tp|we879e842a1e0e749-tp|tf5bd1fa0c4f04935-tp|x9411da2ba3e81276-tp|i96e163b08d0a5aab-tp|a93f4dcd9a0c44926-tp|sabcd92a61c424013-tp|k67ce71ec3f33ceef-tp|w7a2d9aadd59ea5ab-tp|e77f6399b5107150a-tp|q216cca714c6941af-tp|sce606fddb970fa84-tp|y55309d3bc96f452e-tp|j7d3063bdd3492526-tp|vf617b75cb313f9ff-tp|e410bd74e8361e2f2-tp|r8cb4948115a1dfab-tp|ae7ea78ad0b35a488-tp|s270b66191d1bfe26-tp|yadfdf0e9ae21e994-tp|o402b2aea535ea268-tp|h0e8074828e6a550b-tp|g7f78072ff3f7b1dd-tp|oa87cf7f1681280aa-tp|ed3a0f05bf587f659-tp|gc2d6a92ed2806a70-tp|o5bbf5de651091fc1-tp| t901bf5235134df04-tp|z9d069cbf28a9d7da-tp|pb8c560d2677ddc5f-tp|lfe35a7283b1efe9f-tp|j23ccf5f1f4920569-tp",
+      "filter_type": 6,
+      "label_key": ""
+    }
+  ],
+  "labels": {
+    "gcnv-so": ""
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7994373897935558365",
+  "display_name": "Unmarshal Failure ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-10T01:33:43.165334675Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-06-12T10:04:28.525237239Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/unable_to_unmarshal_data\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - unable_to_unmarshal_data",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7994373897935558365/conditions/4086455378610377628"
+    }
+  ],
+  "documentation": {
+    "content": "## Addressing Usage Data Collection\nThis alert originated from the project ${project}\n\nRunbook: https://confluence.ngage.netapp.com/display/COPS/Runbook%3A+Usage+Data+Collection",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "auto_close": "604800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

@@ -1,0 +1,385 @@
+{
+  "name": "projects/93478785040/dashboards/0c8cdacd-606a-4e44-9eaf-e32920267007",
+  "display_name": "ONTAP: StorageGrid FabricPool",
+  "etag": "93aaec7be204aa56cb1b3006ba299322",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 6,
+        "height": 10,
+        "widget": {
+          "title": "Aggregates",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(count(custom_googleapis_com:aggr_labels{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"}) by (aggr))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 6,
+        "width": 6,
+        "height": 10,
+        "widget": {
+          "title": "Disks",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_raid_disk_count{monitored_resource=\"k8s_cluster\", cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "width": 6,
+        "height": 10,
+        "widget": {
+          "title": "Volumes",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_volume_count{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 18,
+        "width": 10,
+        "height": 10,
+        "widget": {
+          "title": "Total Space",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 28,
+        "width": 10,
+        "height": 10,
+        "widget": {
+          "title": "Available Space",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\", cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 38,
+        "width": 10,
+        "height": 10,
+        "widget": {
+          "title": "Space Used %",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "100*sum(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\", cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})/sum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\", cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 10,
+        "width": 48,
+        "height": 12,
+        "widget": {
+          "title": "Aggregates",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:aggr_new_status{monitored_resource=\"k8s_cluster\", cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 22,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Physical Space Used",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:aggr_space_physical_used{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 22,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Space Available",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.node} - ${labels.aggr}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 22,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Capacity Tier Used",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:aggr_space_capacity_tier_used{monitored_resource=\"k8s_cluster\",cluster=~\"${Cluster.value}\",aggr=~\"${Aggregate.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.node} - ${labels.aggr}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 38,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Load Balancer Request Traffic by Policy #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "8 * (sum by (cluster,policy)(rate(custom_googleapis_com:storagegrid_private_load_balancer_storage_rx_bytes{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[4m])) and on (cluster, policy) topk(10, sum by (cluster,policy) (avg_over_time(custom_googleapis_com:storagegrid_private_load_balancer_storage_rx_bytes{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[3h]))))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "8 * (sum by (cluster,policy)(rate(custom_googleapis_com:storagegrid_private_load_balancer_storage_tx_bytes{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[4m])) and on (cluster, policy) topk(10, sum by (cluster,policy) (avg_over_time(custom_googleapis_com:storagegrid_private_load_balancer_storage_tx_bytes{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[3h]))))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 38,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Top 10 Load Balancer Request Completion Rates by Policy #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster,policy)(rate(custom_googleapis_com:storagegrid_private_load_balancer_storage_request_count{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[4m])) > 0 and on (cluster, policy) topk(10, sum by (cluster,policy) (avg_over_time(custom_googleapis_com:storagegrid_private_load_balancer_storage_request_count{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[3h])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster,policy,method)(rate(custom_googleapis_com:storagegrid_private_load_balancer_storage_request_count{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[4m])) > 0 and on (cluster, policy, method) topk(10, sum by (cluster,policy,method) (avg_over_time(custom_googleapis_com:storagegrid_private_load_balancer_storage_request_count{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",policy=~\"${Policy.value}\"}[3h])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 56,
+        "width": 48,
+        "height": 12,
+        "widget": {
+          "title": "Buckets #Missing Metric",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:bucket_bytes{monitored_resource=\"k8s_cluster\",cluster=~\"${SGCluster.value}\",bucket=~\"${Bucket.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "aggr",
+      "template_variable": "Aggregate",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "SGCluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "policy",
+      "template_variable": "Policy",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "name",
+      "template_variable": "Bucket",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

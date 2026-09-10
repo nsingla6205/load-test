@@ -1,0 +1,44 @@
+{
+  "name": "projects/93478785040/dashboards/f42a731d-25aa-48b3-b8da-297ce8c20e26",
+  "display_name": "Stock outs",
+  "etag": "60e6ba13909f5f4c0237710e2f8ef897",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Stockouts  (60 Mins)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (\"location\")(rate({\"__name__\"=\"logging.googleapis.com/user/vsa-zone-rp-exhausted\",\"monitored_resource\"=\"k8s_container\"}[60m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.\n\n#count_of(sum by (\"location\")(rate({\"__name__\"=\"logging.googleapis.com/user/vsa-zone-rp-exhausted\",\"monitored_resource\"=\"k8s_container\"}[5m])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

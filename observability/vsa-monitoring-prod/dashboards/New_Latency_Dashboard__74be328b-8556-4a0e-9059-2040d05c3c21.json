@@ -1,0 +1,336 @@
+{
+  "name": "projects/697731967255/dashboards/74be328b-8556-4a0e-9059-2040d05c3c21",
+  "display_name": "New Latency Dashboard",
+  "etag": "52768999c8cc3e307ac975d9ac19fe25",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "volume_avg_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "node_volume_avg_latency ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_volume_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "svm_vol_avg_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/svm_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/svm_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/svm_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "restPerfvolume_vol_avg_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "node_restPerfvolume_vol_avg_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/node_restPerfvolume_vol_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "iscsi_lif_avg_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "us",
+                  "prometheus_query": "quantile(0.90,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/iscsi_lif_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.95,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/iscsi_lif_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "quantile(0.99,avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/iscsi_lif_avg_latency\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

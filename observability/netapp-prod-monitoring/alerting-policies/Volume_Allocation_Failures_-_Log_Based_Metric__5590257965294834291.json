@@ -1,0 +1,59 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5590257965294834291",
+  "display_name": "Volume Allocation Failures - Log Based Metric",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-09-11T10:02:26.902735293Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-09T04:59:55.811592412Z",
+    "mutated_by": "santhoshburla@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/vps-volume-failures\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "VPS Volume Create Error",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5590257965294834291/conditions/5478460465226374515"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook%3A+Volume+Allocation+Failures",
+    "mime_type": "text/markdown",
+    "subject": "VPS failed to allocate a volume",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

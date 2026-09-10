@@ -1,0 +1,270 @@
+{
+  "name": "projects/93478785040/dashboards/7c5b677b-2b44-406b-8b79-af88d14456c8",
+  "display_name": "sandbox",
+  "etag": "0286a039e9775a1751167a45e55e2be2",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "x_pos": 24,
+        "y_pos": 44,
+        "width": 24,
+        "height": 44,
+        "widget": {
+          "title": "PromQL Join",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "increase(logging_googleapis_com:user_cvp_api_requests{monitored_resource=\"k8s_container\"}[${__interval}])\n  /\non(location) group_left(project_id)\nsum by(location)(\n    increase(logging_googleapis_com:user_auto_tier_non_cpe_volumes{monitored_resource=\"k8s_container\",location=\"australia-southeast1\"}[${__interval}])\n)",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 44,
+        "widget": {
+          "title": "aggr_space_total [SUM]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/aggr_space_total\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"cluster\"",
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "width": 24,
+        "height": 44,
+        "widget": {
+          "title": "Cluster Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_new_status\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"ok\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 44,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "volume_size_total",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[15m]))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 60,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "aggr_space_total",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[15m]))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 76,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ntapvol_write_latency_sum",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "sum by (quarkVolumeUUID)(rate(custom_googleapis_com:ntapvol_write_latency_sum{monitored_resource=\"k8s_cluster\",service_name=\"quark-metrics-service\",quarkVolumeUUID=~\".+\", location=~\".+\", project_id=~\".+\"}[${__interval}])) / sum by (quarkVolumeUUID)(rate(custom_googleapis_com:ntapvol_write_latency_count{monitored_resource=\"k8s_cluster\",service_name=\"quark-metrics-service\",quarkVolumeUUID=~\".+\",location=~\".+\", project_id=~\".+\"}[${__interval}])+ 1)*1000",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total IOPs for Top 3 Regions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/volume_total_data\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"volume\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 2,
+                      "num_time_series": 5,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 92,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "EligibleVolumes for hardware [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v2/volume\" resource.type=\"gce_instance\" metric.label.\"storageClass\"=\"hardware\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"name\"",
+                        "metric.label.\"accountName\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

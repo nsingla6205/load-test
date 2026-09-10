@@ -1,0 +1,63 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7905283527151238140",
+  "display_name": "ONTAP Data Aggregate 70% Warning",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-25T08:40:52.269250837Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-18T06:12:50.624551972Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/aggr_space_physical_used_percent\" AND metric.labels.aggr != has_substring(\"aggr0\")",
+        "comparison": 1,
+        "threshold_value": 70.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.aggr",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - custom/aggr_space_physical_used_percent",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7905283527151238140/conditions/14186836105660983596"
+    }
+  ],
+  "documentation": {
+    "content": "Immediate actions are required to minimize service disruption if critical threshold is breached:\n1. Delete Snapshots on non-critical volumes \n2. Delete Volumes or LUNs that are non-essential workloads and that may be restored from off storage copies/\n3. Tier inactive data to cloud storage via enabling FabricPool on the aggregate.\n\nPlan to take the following actions soon if warning threshold is breached:\n1. Move one or more volumes to a different storage location. Runbok link : https://confluence.ngage.netapp.com/display/COPS/Runbook+-+ONTAP+-+Stamp+Re-balance+for+high+Allocation+or+high+Physical+Utilization\n2. Add more storage capacity via shelves\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ONTAP Data Aggregate 70% Warning",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

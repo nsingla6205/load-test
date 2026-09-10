@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/952623480023290069",
+  "display_name": "Quark_ETCD_Restarts",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-15T22:35:05.838328480Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-07-12T17:47:14.007346892Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/kube_pod_container_status_restarts_total\" AND (metric.labels.container = \"etcd\" AND metric.labels.pod = has_substring(\"quark-etcd-cluster\"))",
+        "comparison": 1,
+        "threshold_value": 0.002,
+        "duration": "1800s",
+        "trigger": {
+          "percent": 50.0
+        },
+        "aggregations": [
+          {
+            "alignment_period": "600s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - kube_pod_container_status_restarts_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/952623480023290069/conditions/16693384006877898579"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook - https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Quark+Pods+Restart",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

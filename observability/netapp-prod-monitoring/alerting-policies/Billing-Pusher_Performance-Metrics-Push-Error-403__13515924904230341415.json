@@ -1,0 +1,56 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13515924904230341415",
+  "display_name": "Billing-Pusher: Performance-Metrics-Push-Error-403",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-24T06:43:58.563294596Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:57.084782900Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_result_total\" AND (metric.labels.cause = \"403\" AND metric.labels.type = \"HYDRATED_METRIC\" AND metric.labels.msg = has_substring(\"netapp.googleapis.com\"))",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_pushed_result_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13515924904230341415/conditions/13515924904230342392"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100287",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Pusher: Performance-Metrics-Push-Error-403",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

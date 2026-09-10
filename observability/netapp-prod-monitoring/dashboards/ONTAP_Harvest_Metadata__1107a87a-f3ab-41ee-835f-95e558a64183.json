@@ -1,0 +1,700 @@
+{
+  "name": "projects/93478785040/dashboards/1107a87a-f3ab-41ee-835f-95e558a64183",
+  "display_name": "ONTAP: Harvest Metadata",
+  "etag": "f12ba53d23c589e9f7bee00377c71955",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Datacenters",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (datacenter) (custom_googleapis_com:metadata_target_status{monitored_resource=\"k8s_cluster\",hostname=~\"${Hostname.value}\",datacenter!=\"\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Pollers",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (poller) (custom_googleapis_com:poller_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Total Object Count Across Collectors",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (poller, target) (custom_googleapis_com:metadata_component_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",name=~\"${Collector.value}\",target=~\"${Object.value}\",type=\"collector\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 36,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Failed Object Count Across Collectors",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (poller, name, target) (custom_googleapis_com:metadata_component_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",name=~\"${Collector.value}\",target=~\"${Object.value}\",type=\"collector\"} == 2))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Exporters",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (poller, target) (custom_googleapis_com:metadata_component_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",type=\"exporter\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Collected/24h",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(sum_over_time(custom_googleapis_com:metadata_component_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",name=~\"${Collector.value}\",target=~\"${Object.value}\",type=\"collector\"}[1d:60s]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Collected/m",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(sum_over_time(custom_googleapis_com:metadata_component_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",name=~\"${Collector.value}\",target=~\"${Object.value}\",type=\"collector\"}[60s]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Exported/m",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(sum_over_time(custom_googleapis_com:metadata_component_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",type=\"exporter\"}[2m]))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "% CPU Used #Missing Metric",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:poller_cpu_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "% Memory Used",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:poller_memory_percent{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Target Systems",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:metadata_target_ping{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 48,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Pollers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:poller_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 64,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Collectors",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:metadata_component_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",name=~\"${Collector.value}\",type=\"collector\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 78,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Exporters",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:metadata_component_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",type=\"exporter\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 92,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Average Poll time per Poller",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (poller) (custom_googleapis_com:metadata_collector_poll_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.poller}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 92,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Average  time per Collector",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector) (custom_googleapis_com:metadata_collector_poll_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 92,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Average  time per Exporter",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (exporter) (custom_googleapis_com:metadata_exporter_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.exporter}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 110,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Poller RSS Memory",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(custom_googleapis_com:poller_memory{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",metric=\"rss\"}) without (pid)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.poller}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 126,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Time per Data Poll",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector, object) (custom_googleapis_com:metadata_collector_poll_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector} - ${labels.object}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 126,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Instances per Poll",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "ceil(avg by (collector, object) (custom_googleapis_com:metadata_collector_instances{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"}))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector} - ${labels.object}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 126,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Data Points per Poll",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector, object) (custom_googleapis_com:metadata_collector_metrics{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector} - ${labels.object}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 144,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "API Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector, object) (custom_googleapis_com:metadata_collector_api_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector} - ${labels.object}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 144,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Parse Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector, object) (custom_googleapis_com:metadata_collector_parse_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.collector} - ${labels.object}",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 144,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Post Processing Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (collector, object) (custom_googleapis_com:metadata_collector_calc_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task=\"data\",object=~\"${Object.value}\",collector=~\"${Collector.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 162,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Average time per Export",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (target, task) (custom_googleapis_com:metadata_exporter_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.target} - ${labels.task}",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (target) (custom_googleapis_com:metadata_exporter_time{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",task!=\"info\",task!=\"render\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.target} - total",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 162,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Data Points per Export",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (name, target) (custom_googleapis_com:metadata_component_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\",type=\"exporter\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.name} - ${labels.target} - IN",
+                "target_axis": 1
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (exporter, target) (custom_googleapis_com:metadata_exporter_count{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${labels.exporter} - ${labels.target} - OUT",
+                "target_axis": 1
+              }
+            ],
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "hostname",
+      "template_variable": "Hostname",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "poller",
+      "template_variable": "Poller",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "name",
+      "template_variable": "Collector",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "target",
+      "template_variable": "Object",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

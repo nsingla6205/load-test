@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/7125989221056547890",
+  "display_name": "ems_snapmirror_relationship_out_of_sync",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T07:34:32.161869552Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:41:09.234073235Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"sms.status.out.of.sync\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_snapmirror_relationship_out_of_sync",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/7125989221056547890/conditions/10562179883190134699"
+    }
+  ],
+  "documentation": {
+    "content": "Check the network connection between the source and destination volumes. Monitor the SnapMirror Sync relationship status using the \"snapmirror show\" command. \"Auto-resync\" attempts to bring the relationship back to the \"in-sync\" status.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_snapmirror_relationship_out_of_sync",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

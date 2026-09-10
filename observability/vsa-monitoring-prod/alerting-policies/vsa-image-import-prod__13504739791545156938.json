@@ -1,0 +1,59 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/13504739791545156938",
+  "display_name": "vsa-image-import-prod",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-01-27T06:17:55.171515981Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:07:30.407986613Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"global\" AND metric.type = \"logging.googleapis.com/user/vsa-image-import-prod\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vsa-image-import-prod",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/13504739791545156938/conditions/13504739791545155795"
+    }
+  ],
+  "documentation": {
+    "content": "Harikrishna Mopuri: POC till Runbook is update.\n\non-callers should report to Managers and stop consumption of VSA image in production",
+    "mime_type": "text/markdown",
+    "subject": "VSA Image Security Violation",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/653650778319732007",
+  "display_name": "Billing Processing: No-Billing-Data-Available-Processing",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-02-09T11:19:57.422870708Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:59.433936135Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND (resource.labels.location != \"asia-east1\" AND resource.labels.location != \"me-central2\" AND resource.labels.location != \"europe-west10\" AND resource.labels.location != \"us-south1\" AND resource.labels.location != \"africa-south1\" AND resource.labels.location != \"us-east5\" AND resource.labels.location != \"me-central1\" AND resource.labels.location != \"southamerica-west1\" AND resource.labels.location != \"europe-west12\" AND resource.labels.location != \"europe-west9\" AND resource.labels.location != \"europe-west8\" AND resource.labels.location != \"me-west1\" AND resource.labels.location != \"europe-central2\" AND resource.labels.location != \"asia-northeast2\" AND resource.labels.location != \"asia-northeast3\" AND resource.labels.location != \"europe-north1\") AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_received_total\" AND metric.labels.type = \"BILLING_METRIC\"",
+        "comparison": 3,
+        "threshold_value": 0.1,
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_received_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/653650778319732007/conditions/7713127277394560534"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing+Processing%3A+No-Billing-Data-Available-Processing",
+    "mime_type": "text/markdown",
+    "subject": "Billing Processing: No Billing Data Available for Processing",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,139 @@
+{
+  "name": "projects/93478785040/dashboards/eebe5930-fbeb-4ace-bcb4-c91d92a0b926",
+  "display_name": "ONTAP: CI: GCNV Hardware Capacity Metrics",
+  "etag": "0a2154e58c72f753f510cc7abc79007e",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "Capacity Metrics Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8 - sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 29,
+        "width": 48,
+        "height": 66,
+        "widget": {
+          "title": "Capacity Metrics Per Stamp",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster,location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\"}[15m])) * 1.5 * 0.8 - sum by (cluster,location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  },
+  "dashboard_filters": []
+}

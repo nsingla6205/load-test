@@ -1,0 +1,38 @@
+{
+  "name": "projects/93478785040/dashboards/5fe8df2a-58e4-4282-a222-d28b2bf47c78",
+  "display_name": "Quark Disk State",
+  "etag": "9b5b15eea48be151f8ba0a083f81453e",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 50,
+        "widget": {
+          "title": "quark_regional_disks_state",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:quark_regional_disks_state{monitored_resource=\"k8s_cluster\"}",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

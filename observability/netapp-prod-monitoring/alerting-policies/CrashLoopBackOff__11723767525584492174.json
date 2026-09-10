@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11723767525584492174",
+  "display_name": "CrashLoopBackOff",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-22T07:01:48.082106360Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T04:48:12.627075657Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_node\" AND metric.type = \"logging.googleapis.com/user/CrashLoopBackOff\" AND metric.labels.crashing_contrainer != monitoring.regex.full_match(\"atom-eligibility-container|prometheus-server|qronicle-export|regional-zonal-eligible-volumes|sde-prometheus-server\")",
+        "comparison": 1,
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.crashing_contrainer",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0
+      },
+      "display_name": "CrashLoopBackOff",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11723767525584492174/conditions/3901361589445184493"
+    }
+  ],
+  "documentation": {
+    "content": "# Runbook: GKE Pod CrashLoopBackOff\n**Severity:** CRITICAL\n**Metric:** logging.googleapis.com/user/CrashLoopBackOff\n\n## 1. Overview\nThis alert triggers when a container in the netapp-prod-monitoring project frequently restarts.\n\n## 2. Immediate Diagnostic Steps\n1. Identify the Crashing Pod: kubectl get pods -A | grep -i <container_name>\n2. Inspect Status & Events: kubectl describe pod <pod_name> -n <namespace>\n3. Check Previous Logs: kubectl logs <pod_name> -n <namespace> -c <container_name> --previous\n\n## 3. Common Root Causes\n- Application Crash (Exit Code 1)\n- OOMKilled (Increase Memory limits)\n- Liveness Probe Failure\n- Permission Denied (Verify IAM)\n- Config/Secret Missing",
+    "mime_type": "text/markdown",
+    "subject": "Container in CrashLoopBackOff",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047",
+    "projects/netapp-prod-monitoring/notificationChannels/3838057204639707390"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

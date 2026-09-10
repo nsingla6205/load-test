@@ -1,0 +1,94 @@
+{
+  "name": "projects/93478785040/dashboards/8295a6db-6695-4e04-befc-0966dd6c6ca5",
+  "display_name": "ONTAP: Processor",
+  "etag": "1211e370e4d39ff0215b4c70089a20a8",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 42,
+        "height": 26,
+        "widget": {
+          "title": "Processor Busy Now",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_avg_processor_busy\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"node\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 26,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Processor Memory",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/node_memory\" resource.type=\"k8s_cluster\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": [
+                    "metric.label.\"node\""
+                  ]
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 30,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 1.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": ""
+  },
+  "dashboard_filters": []
+}

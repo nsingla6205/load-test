@@ -1,0 +1,95 @@
+{
+  "name": "projects/697731967255/dashboards/9f372133-893d-4f5b-8b1c-388b28be07c3",
+  "display_name": "Data Plane Latency Dashboard",
+  "etag": "4cd21250bddd0d6fc8596d3bb441dca2",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "VSA Latency SLA Compliance (30d)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/volume_latency_percentage\",\"monitored_resource\"=\"global\"}[${__interval}])) < 99.99)\n/ \n(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/volume_latency_percentage\",\"monitored_resource\"=\"global\"}[${__interval}]))) * 100",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes Below SLO",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time({\"__name__\"=\"custom.googleapis.com/v4/volume_latency_percentage\",\"monitored_resource\"=\"global\",\"volume\"!~\"cep_.*\"}[${__interval}]) < 99.99",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "volume",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

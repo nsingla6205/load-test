@@ -1,0 +1,64 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4684752605941354413",
+  "display_name": "Internal Server Errors for Load Balancer ",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-11-20T09:48:14.456223570Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-11-20T09:48:14.456223570Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"internal_http_lb_rule\" AND metric.type = \"logging.googleapis.com/user/customerReq\" AND metric.labels.httpStatus = monitoring.regex.full_match(\"5*.\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.region",
+              "resource.label.network_name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Internal Application Load Balancer Rule - logging/user/customerReq",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4684752605941354413/conditions/4684752605941354154"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: TBD\n\n",
+    "mime_type": "text/markdown",
+    "subject": "Internal Server Errors for Load Balancer ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/18325551353615965431",
+    "projects/netapp-prod-monitoring/notificationChannels/12452035797768328788",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

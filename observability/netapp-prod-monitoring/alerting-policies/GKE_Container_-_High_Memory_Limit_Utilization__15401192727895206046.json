@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15401192727895206046",
+  "display_name": "GKE Container - High Memory Limit Utilization",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-12-19T11:39:08.462320500Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-12-19T17:03:42.685745804Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND (resource.labels.container_name != \"sde-prometheus-server\" AND resource.labels.namespace_name = \"sde\") AND metric.type = \"kubernetes.io/container/memory/limit_utilization\"",
+        "comparison": 1,
+        "threshold_value": 0.9,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - Memory limit utilization",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15401192727895206046/conditions/2043761186754340344"
+    }
+  ],
+  "documentation": {
+    "content": "- Containers that exceed Memory utilization limit are terminated. To avoid Out of Memory (OOM) failures, keep memory usage below the memory utilization limit [View Documentation](https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits).\n- If alerts tend to be false positive or noisy, consider visiting the alert policy page and changing the threshold, the rolling (alignment) window, and the retest (duration) window. [View Documentation](https://cloud.google.com/monitoring/alerts/concepts-indepth)\n- We recommend troubleshooting this incident with the [Memory Utilization interactive playbook](https://console.cloud.google.com/monitoring/dashboards/gke-troubleshooting/memory?project=netapp-us-c1-sde&f.sd_ts_playbook.cluster_name=us-c1-gke&f.sd_ts_playbook.location=us-central1), which shows detailed instructions, metrics, and logs.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/18325551353615965431",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "21600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

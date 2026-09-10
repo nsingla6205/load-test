@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/2527251428147392114",
+  "display_name": "ems_auto_tier_intercluster_lif_down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T06:02:09.538813962Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T08:32:18.878350154Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"objstore.interclusterlifDown\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "resource.label.location",
+              "metric.label.pool_name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_auto_tier_intercluster_lif_down",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/2527251428147392114/conditions/8416672901171345310"
+    }
+  ],
+  "documentation": {
+    "content": "Corrective action:\n\nUse the \"network interface show -role intercluster\" command to check Intercluster LIF status. Verify that the Intercluster LIF is configured correctly and is operational. \n\nIf an Intercluster LIF is not configured, use the \"network interface create -role intercluster\" command to create it. \n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "ems_auto_tier_intercluster_lif_down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

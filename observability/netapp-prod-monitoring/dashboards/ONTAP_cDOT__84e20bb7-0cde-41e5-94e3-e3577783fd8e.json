@@ -1,0 +1,603 @@
+{
+  "name": "projects/93478785040/dashboards/84e20bb7-0cde-41e5-94e3-e3577783fd8e",
+  "display_name": "ONTAP: cDOT",
+  "etag": "6960f60d159a4250bdb67e3ac0621782",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 CIFS IOPs by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:node_cifs_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, sum by (cluster) (avg_over_time(custom_googleapis_com:node_cifs_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 NFS IOPs by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:node_nfs_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10,sum by (cluster) (avg_over_time(custom_googleapis_com:node_nfs_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Total IOPs by Cluster",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster) (custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10,sum by (cluster) (avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 16,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Clusters by Average CPU Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (cluster) (custom_googleapis_com:node_avg_processor_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, avg by (cluster) (avg_over_time(custom_googleapis_com:node_avg_processor_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 16,
+        "width": 16,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Clusters by CPU busy",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (cluster) (custom_googleapis_com:node_cpu_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, avg by (cluster) (avg_over_time(custom_googleapis_com:node_cpu_busy{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 16,
+        "width": 16,
+        "height": 20,
+        "widget": {
+          "title": "Top 10 Clusters by Average Latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg by (cluster) (custom_googleapis_com:node_volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"})\nand\ntopk(10, avg by (cluster) (avg_over_time(custom_googleapis_com:node_volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\"}[3h] @ end())))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 36,
+        "width": 16,
+        "height": 14,
+        "widget": {
+          "title": "Top 10 SVMs by Capacity Used %",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "# (\n#   100 * sum by (datacenter,cluster, svm) (\n#     custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}\n#   )\n#   / on(datacenter, cluster, svm)\n#   sum by (datacenter,cluster, svm) (\n#     custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}\n#   )\n# )\n# and on(datacenter,cluster, svm)\n# topk(\n#   10,\n#   (\n#     100 * sum by (datacenter,cluster, svm) (\n#       avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}[3h] @ end())\n#     )\n#     / on(datacenter,cluster, svm)\n#     sum by (datacenter,cluster, svm) (\n#       avg_over_time(volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}[3h] @ end())\n#     )\n#   )\n#   * on(datacenter,cluster, svm) group_left\n#   svm_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}\n# )\n\ntopk(10, avg by (svm)(avg_over_time(custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "svm",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 36,
+        "width": 16,
+        "height": 14,
+        "widget": {
+          "title": "Top 10 Volumes by Capacity Used %",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "# (\n#  100 * custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"} \n#  / on(datacenter,cluster,svm,aggr,node,volume,style) \n#  custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}\n# )\n# and on(datacenter,cluster, svm,aggr,node, volume,style)\n# topk(\n#  10,\n#  (\n#  (100 * avg_over_time(volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())) \n#  / on(datacenter,cluster,svm,aggr,node,volume,style) \n#  avg_over_time(volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())\n#  )\n#  * on(datacenter,cluster, svm, aggr,node,volume,style) group_left\n#  volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\", volume=~\"${Volume.value}\",root_volume=~\"No|$IncludeRoot\"}\n# )\n\ntopk(10, avg by (volume)(avg_over_time(custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "volume",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 36,
+        "width": 16,
+        "height": 14,
+        "widget": {
+          "title": "Top 10 Aggregates by Capacity Used %",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#     100 * custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"} \n#     / on(datacenter,cluster,aggr) \n#     custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}\n# )\n# and on(datacenter,cluster, aggr)\n# topk(\n#   10,\n#   (\n#     (100 * avg_over_time(aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())) \n#     / on(datacenter,cluster,aggr) \n#     avg_over_time(aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())\n#   )\n# )\n\navg by (aggr)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\", aggr!~\"aggr0.*\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 50,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 SVMs by Capacity Used %",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#   100 * sum by (datacenter,cluster, svm) (\n#     custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}\n#   )\n#   / on(datacenter, cluster, svm)\n#   sum by (datacenter,cluster, svm) (\n#     volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}\n#   )\n# )\n# and on(datacenter,cluster, svm)\n# topk(\n#   10,\n#   (\n#     100 * sum by (datacenter,cluster, svm) (\n#       avg_over_time(volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}[3h] @ end())\n#     )\n#     / on(datacenter,cluster, svm)\n#     sum by (datacenter,cluster, svm) (\n#       avg_over_time(volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\"}[3h] @ end())\n#     )\n#   )\n#   * on(datacenter,cluster, svm) group_left\n#   svm_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\", root_svm=~\"No|$IncludeRoot\"}\n# )\n\ntopk(10, avg by (svm)(avg_over_time(custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 50,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Capacity Used %",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#  100 * custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"} \n#  / on(datacenter,cluster,svm,aggr,node,volume,style) \n#  volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}\n# )\n# and on(datacenter,cluster, svm,aggr,node, volume,style)\n# topk(\n#  10,\n#  (\n#  (100 * avg_over_time(volume_size_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())) \n#  / on(datacenter,cluster,svm,aggr,node,volume,style) \n#  avg_over_time(volume_size_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())\n#  )\n#  * on(datacenter,cluster, svm, aggr,node,volume,style) group_left\n#  volume_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", svm=~\"${SVM.value}\", volume=~\"${Volume.value}\",root_volume=~\"No|$IncludeRoot\"}\n# )\n\ntopk(10, avg by (volume)(avg_over_time(custom_googleapis_com:volume_size_used_percent{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 50,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Aggregates by Capacity Used %",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#     100 * custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"} \n#     / on(datacenter,cluster,aggr) \n#     aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}\n# )\n# and on(datacenter,cluster, aggr)\n# topk(\n#   10,\n#   (\n#     (100 * avg_over_time(aggr_space_used{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())) \n#     / on(datacenter,cluster,aggr) \n#     avg_over_time(aggr_space_total{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\"}[3h] @ end())\n#   )\n# )\n\navg by (aggr)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\", aggr!~\"aggr0.*\"}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 66,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Average Latency by SVMs",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "# custom_googleapis_com:svm_vol_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}\n# and\n# topk(10, avg_over_time(svm_vol_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}[3h] @ end()))\n\ntopk(10, sum by (svm)(avg_over_time(custom_googleapis_com:svm_vol_avg_latency{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 66,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Average Throughput by SVMs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#     custom_googleapis_com:svm_vol_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"} \n#     +\n#     svm_vol_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}\n# )\n# and on(datacenter,cluster, svm)\n# topk(\n#   10,\n#   (\n#     avg_over_time(svm_vol_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}[3h])\n#     + avg_over_time(svm_vol_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}[3h])\n#   )\n#   * on(datacenter,cluster, svm) group_left\n#   svm_labels{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\", cluster=~\"${Cluster.value}\", root_svm=~\"No|$IncludeRoot\"}\n# )\n\ntopk(30, sum by (svm)(avg_over_time(custom_googleapis_com:svm_vol_read_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))) + topk(30, sum by (svm)(avg_over_time(custom_googleapis_com:svm_vol_write_data{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (svm)(avg_over_time(custom_googleapis_com:svm_vol_read_data{monitored_resource=\"k8s_cluster\"}[${__interval}])))\n#This query may not fully reflect the original configuration.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 66,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 IOPs by SVMs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# custom_googleapis_com:svm_vol_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}\n# and\n# topk(10, avg_over_time(svm_vol_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\"}[3h] @ end()))\n\ntopk(10, sum by (svm)(avg_over_time(custom_googleapis_com:svm_vol_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 82,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Average Latency",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "# custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}\n# and\n# topk(10, avg_over_time(volume_avg_latency{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end()))\n\ntopk(30, sum by (volume)(avg_over_time(custom_googleapis_com:volume_avg_latency{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 82,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by Average Throughput",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# (\n#     custom_googleapis_com:volume_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"} \n#     +\n#     volume_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}\n# )\n# and\n# topk(\n#     10,\n#     (\n#         avg_over_time(volume_read_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())\n#         + avg_over_time(volume_write_data{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end())\n#     )\n# )\n\ntopk(30, sum by (volume)(avg_over_time(custom_googleapis_com:volume_read_data{monitored_resource=\"k8s_cluster\"}[${__interval}]))) + topk(30, sum by (volume)(avg_over_time(custom_googleapis_com:volume_write_data{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 82,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Volumes by IOPs",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}\n# and\n# topk(10, avg_over_time(volume_total_ops{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",volume=~\"${Volume.value}\"}[3h] @ end()))\n\ntopk(30, sum by (volume)(avg_over_time(custom_googleapis_com:volume_total_ops{monitored_resource=\"k8s_cluster\"}[${__interval}])))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "svm",
+      "template_variable": "SVM",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "volume",
+      "template_variable": "Volume",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

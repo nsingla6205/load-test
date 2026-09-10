@@ -1,0 +1,53 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/17510863952899496426",
+  "display_name": "telemetry-billing-metrics-missing-submissions",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-19T05:07:24.043614259Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:18:02.033224741Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "telemetry-billing-metrics-missing-submissions Threshold Breach",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/17510863952899496426/conditions/206142980739875925",
+      "condition_prometheus_query_language": {
+        "query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_billing_metrics_submission_total\",\"monitored_resource\"=\"generic_task\"}[30m] offset 1d) - avg_over_time({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_billing_metrics_submission_total\",\"monitored_resource\"=\"generic_task\"}[30m])) / avg_over_time({\"__name__\"=\"custom.googleapis.com/vcp_telemetry_billing_metrics_submission_total\",\"monitored_resource\"=\"generic_task\"}[30m] offset 1d) >= 0.5",
+        "duration": "1800s",
+        "evaluation_interval": "30s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Severity: CRITICAL. Alert triggers when billing metric submissions drop by >=50% from baseline over 30 minutes. This indicates a critical issue with the billing metrics collection pipeline.\n\n**Runbook:** [View Documentation](https://confluence.ngage.netapp.com/spaces/VSCP/pages/1416362589/Runbook+Telemetry+Billing+Submission+Anomaly)",
+    "mime_type": "text/markdown",
+    "subject": "Alert: telemetry-billing-metrics-missing-submissions",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/4693604034135020068",
+    "projects/vsa-monitoring-prod/notificationChannels/17268834121449248920",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "user_labels": {
+    "stack": "vcp-billing",
+    "service": "telemetry",
+    "telemetry": "billing-metrics"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "auto_close": "1800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

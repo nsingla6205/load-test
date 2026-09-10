@@ -1,0 +1,58 @@
+{
+  "name": "projects/93478785040/dashboards/14c3b8e7-b27f-4cf7-b166-c44b6d6efe12",
+  "display_name": "Quark Certificate Expiry",
+  "etag": "878c04e9dc8c4de23606769b14d7779c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Quark Certificate Expiry Days",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "d",
+                  "prometheus_query": "bottomk(500, max by (\"certificate_name\",\"node\",\"namespace\",\"location\")(max_over_time({\"__name__\"=\"custom.googleapis.com/SDS_certificate_expiry_remaining_days\",\"monitored_resource\"=\"k8s_container\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "certificate_name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "namespace",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

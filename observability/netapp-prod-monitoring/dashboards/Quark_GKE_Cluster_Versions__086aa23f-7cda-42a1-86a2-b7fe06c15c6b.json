@@ -1,0 +1,84 @@
+{
+  "name": "projects/93478785040/dashboards/086aa23f-7cda-42a1-86a2-b7fe06c15c6b",
+  "display_name": "Quark GKE Cluster Versions",
+  "etag": "6bc7e02a27683c3ad27abec43cbb1b38",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 22,
+        "height": 50,
+        "widget": {
+          "title": "Quark GKE Master Versions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/SDS_active_gke_clusters_master_version\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "metric.label.\"region\"",
+                        "metric.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 22,
+        "width": 26,
+        "height": 50,
+        "widget": {
+          "title": "Quark GKE Master Versions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/SDS_active_gke_clusters_node_version\" resource.type=\"k8s_container\" metric.label.\"tenant_project\"!=\"\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"node\"",
+                        "metric.label.\"cluster_name\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

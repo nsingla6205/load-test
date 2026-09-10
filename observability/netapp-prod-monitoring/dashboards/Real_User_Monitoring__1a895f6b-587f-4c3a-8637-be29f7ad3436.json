@@ -1,0 +1,981 @@
+{
+  "name": "projects/93478785040/dashboards/1a895f6b-587f-4c3a-8637-be29f7ad3436",
+  "display_name": "Real User Monitoring",
+  "etag": "e07ffa02bf4f48686a7f4976d6fe76ed",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 53,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Customer Requests by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 53,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Requests by Customer ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"consumerProject\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 85,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Request Methods",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"requestMethod\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 85,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Distribution By Response Codes",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"httpStatus\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "slice_name_template": "${metric.labels.httpStatus}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 101,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Requests by Operations ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cvp_request_total\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"operation_ID\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 148,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Auto Tier Volumes By Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/auto-tier-volumes\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 117,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Feature Adoption",
+          "section_header": {
+            "subtitle": "How individual features are used",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Request Distribution",
+          "section_header": {
+            "subtitle": "Pattern of API requests",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 20,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "Description",
+          "text": {
+            "content": "The charts in this section can be used to analyze the distribution of customer's requests by:\n1. Region\n2. Customers (Real vs Test/Probers)\n3. GUI vs API\n4. Method\n5. Response code\n6. Opetations (API)\n7. Unsubscribed Customers\n\nThis data can be used to identify which regions are heavely used by customers\n* Which customers are generating the highest load\n* What is the ratio of real vs test/probers traffic\n* What is the ratio of GUI vs API traffic\n* What kind of operations are executed by customers \n* What is the success/failiure rate etc. ",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 148,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Large Volumes by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/large-volumes-non-cpe\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 121,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "Description",
+          "text": {
+            "content": "The charts in this section can be used to analyze the following:\n1. Csutomers creating Volumes with Auto Tier Enabled\n2. Customers creating Large Volumes\n3. Customers configuring Backup policies\n\nThis data can be used analyze the feature adoption by customers",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 164,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backup Jobs by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cbs_internal_jobs_count\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 164,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backup Job Types by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cbs_internal_jobs_count\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"type\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 195,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Creation Failures by Customer",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/volume_create_failures_paid_cust\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_number\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 195,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "First Volume Creation By Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/first-volume-creation-counter\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 211,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes Created by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/total-vols-created\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 180,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Volume Creation Workflows",
+          "section_header": {
+            "subtitle": "Where and when customers are creating volumes",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 211,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volume Creation Failures by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/volume_create_failures_paid_cust\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 184,
+        "width": 48,
+        "height": 11,
+        "widget": {
+          "title": "Description",
+          "text": {
+            "content": "The charts in this section can be used to analyze the following: \n1. Customers creating First Volume and consecutive Volume in different regions\n2. Volume creation failures recieved by customers\n\nThis data can be used to analyze which region is used frequently by customers, and which customers are creating highest volumes etc.  ",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 101,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Customers unsubscribed by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/disabled-customer-accounts\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 227,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes by Region",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v2/volume\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 11,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 227,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes by Storage Class ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v2/volume\" resource.type=\"gce_instance\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"storageClass\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "What is RUM?",
+          "text": {
+            "content": "# Real User Monitoring (RUM)\nReal user monitoring, often abbreviated as __RUM__, is a type of performance monitoring that captures and analyzes each transaction by users of an application. It provides insights into how end-users interact with an app, their experiences, and any issues they encounter.\n \n## Objective\nThe primary objective of this initiative is to leverage Real User Monitoring (RUM) to analyze API requests and gain valuable insights into customer usage patterns.\n \n## Scope\nRUM is typically employed to analyze GUI workflows and online content streaming. However, in the context of GCNV, we are utilizing RUM to analyze API requests and extract meaningful insights.\n \n## Key Performance Indicators (KPIs)\nWe have collected the following key metrics (non-exhaustive list):\n \n1. Top customer operations\n2. Top API requests (features)\n3. Volumes created with LV, AT, service levels, capacity, etc.\n4. Trends in Replication and Backup enabled operations\n5. Time-of-day operations\n6. Update operations",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 37,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 (Real) Customer Requests by Region ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\" metric.label.\"userAgent\"=\"Google\" metric.label.\"consumerProject\"!=\"11425921147\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 37,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Requests by (Real) Customer ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\" metric.label.\"userAgent\"=\"Google\" metric.label.\"consumerProject\"!=\"11425921147\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"consumerProject\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 69,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Customer Requests from GUI by Region ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\" metric.label.\"userAgent\"=\"Google\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 69,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Top 10 Customer Requests from API by Region ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\" metric.label.\"userAgent\"!=\"Google\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"region\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 132,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes for hardware service type",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v2/volume\" resource.type=\"gce_instance\" metric.label.\"storageClass\"=\"hardware\" metric.label.\"volume1p\"=\"true\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"accountName\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 132,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Volumes for software service type",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/eligibility/v2/volume\" resource.type=\"gce_instance\" metric.label.\"storageClass\"=\"software\" metric.label.\"volume1p\"=\"true\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"accountName\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

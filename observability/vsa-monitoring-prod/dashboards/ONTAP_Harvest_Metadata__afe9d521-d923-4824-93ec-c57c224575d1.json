@@ -1,0 +1,66 @@
+{
+  "name": "projects/697731967255/dashboards/afe9d521-d923-4824-93ec-c57c224575d1",
+  "display_name": "ONTAP: Harvest Metadata",
+  "etag": "e4397c099df4249dd12d0684167d7740",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Pollers",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "count (count by (poller) (custom_googleapis_com:poller_status{monitored_resource=\"k8s_cluster\",datacenter=~\"${Datacenter.value}\",hostname=~\"${Hostname.value}\",poller=~\"${Poller.value}\"}))",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "hostname",
+      "template_variable": "Hostname",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "poller",
+      "template_variable": "Poller",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "name",
+      "template_variable": "Collector",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "target",
+      "template_variable": "Object",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "engineering": ""
+  }
+}

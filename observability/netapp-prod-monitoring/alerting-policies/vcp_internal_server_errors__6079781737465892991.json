@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/6079781737465892991",
+  "display_name": "vcp_internal_server_errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-11-10T08:28:16.228881313Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T03:54:38.560075675Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND (resource.labels.location != \"asia-east2\" AND resource.labels.location != \"europe-southwest1\" AND resource.labels.location != \"southamerica-east1\") AND metric.type = \"logging.googleapis.com/user/vsa-cp-slo-burn\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "900s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "vcp_internal_server_errors",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/6079781737465892991/conditions/2651243808826448877"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nResource Labels: ${metric_or_resource.labels}\nProjects Number: ${metric.label.project_number}\nError: ${,metric.label.error}\n\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "VSA CP SLO Burn",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

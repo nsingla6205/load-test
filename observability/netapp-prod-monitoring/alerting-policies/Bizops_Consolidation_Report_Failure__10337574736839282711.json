@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/10337574736839282711",
+  "display_name": "Bizops Consolidation Report Failure.",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-17T17:41:25.227279400Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-18T14:23:10.519518068Z",
+    "mutated_by": "thosandeep@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"logging.googleapis.com/user/log-based-bizops-missing-report\"",
+        "comparison": 1,
+        "duration": "1800s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud Run Revision - logging/user/log-based-bizops-missing-report",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/10337574736839282711/conditions/16110045146766864170"
+    }
+  ],
+  "documentation": {
+    "content": "To be Published ",
+    "mime_type": "text/markdown",
+    "subject": "Billing Biz-ops Consolidation Report Failure",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "servicelevel": "po-so-unified",
+    "service": "billing"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2411881637107463927",
+  "display_name": "Delete Latest Backup (Refer: NFSAAS-117378)",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-03-19T20:08:59.014168096Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-03-20T07:30:17.264610100Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/delete-latest-backup-log-metric\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Delete Latest Backup (Refer: NFSAAS-117378)",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2411881637107463927/conditions/11831675374763969617"
+    }
+  ],
+  "documentation": {
+    "content": "Please follow the runbook if you get the alert until the SDE HF Is applied https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Flex+-+Hydrate+Leaked+Backups",
+    "mime_type": "text/markdown",
+    "subject": "Delete Latest Backup (Refer: NFSAAS-117378)",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "bug": "nfsaas-117378"
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

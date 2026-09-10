@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2873166150235101055",
+  "display_name": "IAM Policy Bind Failed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-02T07:37:17.647079537Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-11-06T17:08:55.358625923Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/iam-policy-bind-failed\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.account_identifier",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "IAM Policy Bind Failed",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2873166150235101055/conditions/4281742313531708393"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-124983\n\nRefer to NFSAAS-124662 for why this alert was created.\n\nRunbook https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Flex+SLO+Burn++-+IAM+Policy+Bind+Failed\n",
+    "mime_type": "text/markdown",
+    "subject": "IAM Policy Bind Failed",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

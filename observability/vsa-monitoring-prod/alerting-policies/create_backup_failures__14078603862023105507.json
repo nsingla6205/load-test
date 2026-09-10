@@ -1,0 +1,61 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/14078603862023105507",
+  "display_name": "create_backup_failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-17T11:31:01.785426541Z",
+    "mutated_by": "manden@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:14:29.424213953Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ogen.server.request_count_total\" AND (metric.labels.Job_State = \"ERROR\" AND metric.labels.Job_Type = \"CREATE_BACKUP\")",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "300s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.locationID"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Cluster - ogen.server.request_count_total",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/14078603862023105507/conditions/456768214186677491"
+    }
+  ],
+  "documentation": {
+    "content": "### Troubleshooting and Debug References\n\nRunbook: https://github.com/VCP-VSA-control-Plane/vsa-control-plane/blob/main/doc/infrastructure/runbooks/${policy.display_name}.md",
+    "mime_type": "text/markdown",
+    "subject": "create_backup_failures",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

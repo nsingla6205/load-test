@@ -1,0 +1,66 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/11456658253618315391",
+  "display_name": "ems_giveback_of_storage_pool_failed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T06:42:03.425503048Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T08:32:48.552226938Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"gb.netra.ca.check.failed\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.pool_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_giveback_of_storage_pool_failed",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/11456658253618315391/conditions/9877276922514145214"
+    }
+  ],
+  "documentation": {
+    "content": "Perform the following corrective actions:\n\n1. Verify that your intercluster LIF is online and functional by using the \"network interface show\" command.\n2. Check network connectivity to the object store server by using the\"'ping\" command over the destination node intercluster LIF.\n3. Verify that the configuration of your object store has not changed and that login and connectivity information is still accurate by using the \"aggregate object-store config show\" command.",
+    "mime_type": "text/markdown",
+    "subject": "ems_giveback_of_storage_pool_failed",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

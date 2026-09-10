@@ -1,0 +1,44 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8052030794707755415",
+  "display_name": "ONTAP Certificate Expiry",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-07-29T05:03:25.060497035Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-03-24T05:00:38.546076789Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "ONTAP Certificate Expiry",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8052030794707755415/conditions/8511472364166122058",
+      "condition_prometheus_query_language": {
+        "query": "(time() - max by (\"cluster\",\"uuid\",\"location\")(max_over_time({\"__name__\"=\"custom_googleapis_com:security_certificate_expiry_time\",\"monitored_resource\"=\"k8s_cluster\"}[1h])))/ 86400",
+        "duration": "3600s",
+        "evaluation_interval": "604800s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {},
+  "notification_channels": []
+}

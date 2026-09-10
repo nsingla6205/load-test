@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5632291559529725854",
+  "display_name": "Billing-Collection: CRR-Collection-Failed-PO",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-12T10:18:52.855721511Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-03-05T11:15:34.427082180Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qollector_volumeReplicationMetric_scrape_failure_total\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - qollector_volumeReplicationMetric_scrape_failure_total",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5632291559529725854/conditions/5632291559529724583"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100296",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CRR-Collection-Failed-PO",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

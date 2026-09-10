@@ -1,0 +1,53 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15982406416872370615",
+  "display_name": "Prober SN Host Project Persistence Disk Usage",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-02-25T23:20:19.236187923Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-03-29T21:02:01.993681476Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Prober High Persistence Disk Usage",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15982406416872370615/conditions/10034034332996494906",
+      "condition_prometheus_query_language": {
+        "query": "max(label_replace(last_over_time(serviceruntime_googleapis_com:quota_allocation_usage{project_id=~\"t3e666c60f05b3ff9-tp|k0f992e2bcc82d08f-tp|o28e6f45a7386d3ea-tp|i90d999214e7af976-tp|y5790a4ddb08a6c5e-tp|o77f645514bf9c82d-tp|wc704c2ac16f41095-tp|x0359926e63e56778-tp|p2382b5becf213f56-tp|w1492059b052167e4-tp\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/ssd_total_storage'}[1d]),'limit_name','SSD-TOTAL-GB-per-project-region','','')) by (service,limit_name,project_id,quota_metric,location) / min(last_over_time(serviceruntime_googleapis_com:quota_limit{project_id=~\"t3e666c60f05b3ff9-tp|k0f992e2bcc82d08f-tp|o28e6f45a7386d3ea-tp|i90d999214e7af976-tp|y5790a4ddb08a6c5e-tp|o77f645514bf9c82d-tp|wc704c2ac16f41095-tp|x0359926e63e56778-tp|p2382b5becf213f56-tp|w1492059b052167e4-tp\", monitored_resource='consumer_quota', quota_metric='compute.googleapis.com/ssd_total_storage', limit_name='SSD-TOTAL-GB-per-project-region'}[1d])) by (service,limit_name,project_id,quota_metric,location)> 0.7",
+        "duration": "3600s",
+        "evaluation_interval": "3600s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Until the Bug https://jira.ngage.netapp.com/browse/NFSAAS-108926 is Addressed Please follow the runbook\n\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+Flex+-+Prober+High+Persistence+Disk+Usage",
+    "mime_type": "text/markdown",
+    "subject": "Prober SN Host Project Persistence Disk Usage",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "user_labels": {
+    "resource": "leak",
+    "google": "prober-runs",
+    "capacity": "monitoring"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3
+}

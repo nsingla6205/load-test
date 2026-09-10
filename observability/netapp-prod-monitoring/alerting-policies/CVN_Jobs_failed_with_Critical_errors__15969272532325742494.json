@@ -1,0 +1,63 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15969272532325742494",
+  "display_name": "CVN Jobs failed with Critical errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-10T01:39:00.755644384Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-11-13T06:01:11.426473785Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvn_error_job_count\" AND metric.labels.severity = \"critical\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.error",
+              "metric.label.type",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "CVN Jobs failed with Critical errors",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15969272532325742494/conditions/11614591384417589271"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook%3A+Network-Error-Job-Count\n\n${metric_or_resource.labels}\n",
+    "mime_type": "text/markdown",
+    "subject": "CVN Jobs failed with Critical errors",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

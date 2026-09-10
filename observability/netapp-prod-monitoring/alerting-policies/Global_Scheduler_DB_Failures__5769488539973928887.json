@@ -1,0 +1,64 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5769488539973928887",
+  "display_name": "Global Scheduler DB Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-12-13T11:30:39.783038700Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T04:53:36.936396188Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/gs_db_failure_counter\"",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          },
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.method"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - gs_db_failure_counter",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5769488539973928887/conditions/18371397811008256031"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100291",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

@@ -1,0 +1,38 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/13455264723576847997",
+  "display_name": "high volume latency",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-05-25T06:24:56.899938593Z",
+    "mutated_by": "kpratiksha@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-05-25T06:24:56.899938593Z",
+    "mutated_by": "kpratiksha@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "p95 volume latency > 100ms for 15 min",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/13455264723576847997/conditions/13455264723576845214",
+      "condition_prometheus_query_language": {
+        "query": "quantile by (name, location) (0.95,\n  avg_over_time(\n    {__name__=\"custom.googleapis.com/volume_avg_latency\", monitored_resource=\"k8s_cluster\"}[10m]\n  )\n) > 100000",
+        "duration": "900s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

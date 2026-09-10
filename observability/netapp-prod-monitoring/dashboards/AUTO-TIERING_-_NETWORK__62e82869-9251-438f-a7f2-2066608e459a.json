@@ -1,0 +1,748 @@
+{
+  "name": "projects/93478785040/dashboards/62e82869-9251-438f-a7f2-2066608e459a",
+  "display_name": "AUTO-TIERING - NETWORK",
+  "etag": "c0e2b8f3913aaa5f7321ae1d714165f0",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 40,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "BGP session status - netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/bgp/session_up\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 40,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "BGP session status - netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/bgp/session_up\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 4,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Egress bytes from the Cloud Interconnect attachment for netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"networking.googleapis.com/interconnect_attachment/egress_bytes_count\" resource.type=\"interconnect_attachment\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 6442450944.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 4,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Egress bytes from the Cloud Interconnect attachment for netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"networking.googleapis.com/interconnect_attachment/egress_bytes_count\" resource.type=\"interconnect_attachment\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 6442450944.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 73,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Sent routes count for netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/sent_routes_count\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 59,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Received routes count for netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/best_received_routes_count\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 73,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Sent routes count for netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/sent_routes_count\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 59,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Received routes count for netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/best_received_routes_count\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "3600s",
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 86,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Router tasks up for netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/router_up\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 86,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Router tasks up for netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"router.googleapis.com/router_up\" resource.type=\"gce_router\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 1.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Attachment Bandwidth Utilization",
+          "section_header": {
+            "subtitle": "Ingress & Egress Bytes Over the Wire",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 36,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Network Availability",
+          "section_header": {
+            "subtitle": "BGP Session State, Routes Exchange & Cloud Router Events",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 106,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Router Logs - BGP Session down",
+          "logs_panel": {
+            "filter": "resource.type=\"gce_router\"\r\n(\"BGP peering\" AND \"went down\")",
+            "resource_names": [
+              "projects/1051527957783",
+              "projects/56946675871"
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 40,
+        "width": 48,
+        "height": 62,
+        "widget": {
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 102,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Network Events & Logs",
+          "section_header": {
+            "subtitle": "Cloud router logs",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 126,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/7882450022354983045"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 122,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Network Alerts",
+          "section_header": {
+            "subtitle": "Active & Past Alerts",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 20,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Ingress bytes from the Cloud Interconnect attachment for netapp-gbl1-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"networking.googleapis.com/interconnect_attachment/ingress_bytes_count\" resource.type=\"interconnect_attachment\" resource.label.\"project_id\"=\"netapp-gbl1-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 6442450944.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 20,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Ingress bytes from the Cloud Interconnect attachment for netapp-gbl2-atr",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"networking.googleapis.com/interconnect_attachment/ingress_bytes_count\" resource.type=\"interconnect_attachment\" resource.label.\"project_id\"=\"netapp-gbl2-atr\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 6442450944.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 126,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/14797128179635420442"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 141,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Test",
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/4712211964501428605"
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv-po": "",
+    "network": "",
+    "gcnv": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,763 @@
+{
+  "name": "projects/93478785040/dashboards/3e0a93dd-5e2d-4b2a-8116-426712ad454d",
+  "display_name": "Customer Interaction Dashboard",
+  "etag": "c9ee15280f4d0bd150048b4ffaa449bd",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 121,
+        "width": 23,
+        "height": 16,
+        "widget": {
+          "title": "Zone health",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (zone)(custom_googleapis_com:quark_health_zone_health{monitored_resource=\"k8s_cluster\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 87,
+        "width": 48,
+        "height": 34,
+        "widget": {
+          "title": "StoragePool and Volume",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 87,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "StoragePool Size",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (storagePoolUUID,ownerID) (custom_googleapis_com:podrick_ntapsp_allocation{monitored_resource=\"k8s_cluster\", project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\",storagePoolUUID=~\"${storagePool.value}\",ownerID!=\"\"})",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ownerID",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 87,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Location and Volume Info Per SP",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "custom_googleapis_com:ntapvol_size_total{monitored_resource=\"k8s_cluster\", quarkStoragePoolUUID=~\"${storagePool.value}\", service_name=\"quark-metrics-service\",ownerID!=\"\",  project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"}",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "kubernetes_namespace",
+                "visible": false
+              },
+              {
+                "column": "kubernetes_service_name",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "ownerID",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "quarkStoragePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "quarkVolumeUUID",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 103,
+        "width": 22,
+        "height": 18,
+        "widget": {
+          "title": "Storge Remaining",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (storagePoolUUID,ownerID) (custom_googleapis_com:podrick_ntapsp_allocation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\", ownerID!=\"\"}) - sum by (storagePoolUUID,ownerID) (custom_googleapis_com:podrick_ntapsp_usage{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\",storagePoolUUID=~\"${storagePool.value}\",ownerID!=\"\"})",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ownerID",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 103,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Storage Pool Usage",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (storagePoolUUID,ownerID) (custom_googleapis_com:podrick_ntapsp_usage{monitored_resource=\"k8s_cluster\",storagePoolUUID=~\"${storagePool.value}\", project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", ownerID!=\"\"})",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ownerID",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 8,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "SP Generation",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1",
+                  "prometheus_query": "sum by (name) (custom_googleapis_com:quark_health_ntapsp_generation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", name=~\"${storagePool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "Number of Generation",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 24,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Volume Generation",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name) (custom_googleapis_com:quark_health_ntapvol_generation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\",storagePool=~\"${storagePool.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "Number of Generation",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 55,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Export Policy Generation",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster_name,name) (custom_googleapis_com:quark_health_ntapexp_generation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "Number of Generation",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 55,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "SnapShot Policy Generation",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster_name,name) (custom_googleapis_com:quark_health_ntapsnap_generation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "label": "Number of Generation",
+              "scale": 1
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "Kerberos Enabled Volumes",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:netapp_volume_controller_kerberos_vol_count{monitored_resource=\"k8s_cluster\", project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 25,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "CIFS Volume Count",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:netapp_volume_controller_provisioned_protocol_count{monitored_resource=\"k8s_cluster\", protocol=\"cifs\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 9,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "NFS3 Volume Count",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:netapp_volume_controller_provisioned_protocol_count{monitored_resource=\"k8s_cluster\", protocol=\"nfs3\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 33,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "NFS4 Volume Count",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:netapp_volume_controller_provisioned_protocol_count{monitored_resource=\"k8s_cluster\", protocol=\"nfs4\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 22,
+        "y_pos": 8,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Storage Pool Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (storagePoolUUID) (custom_googleapis_com:podrick_ntapsp_allocation{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 22,
+        "y_pos": 24,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Volume Size ",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (quarkVolumeUUID ) (custom_googleapis_com:ntapvol_size_total{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", quarkStoragePoolUUID=~\"${storagePool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 40,
+        "width": 22,
+        "height": 15,
+        "widget": {
+          "title": "Percentile SP Provision Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value},custom_googleapis_com:netapp_volume_controller_ntapsp_avg_provision_time{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 40,
+        "width": 22,
+        "height": 15,
+        "widget": {
+          "title": "Percentile Vol Provision Time",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value},custom_googleapis_com:netapp_volume_controller_ntapvol_avg_provision_time{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 71,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Failed SP Provisioned Rate",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster_name) (rate(custom_googleapis_com:netapp_volume_controller_ntapsp_failed_storage_pool_count_total{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"}[1m]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 71,
+        "width": 22,
+        "height": 16,
+        "widget": {
+          "title": "Failed Volume Provisioned Rate",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (cluster_name) (rate(custom_googleapis_com:netapp_volume_controller_ntapvol_failed_volume_count_total{monitored_resource=\"k8s_cluster\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\"}[1m]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 17,
+        "width": 8,
+        "height": 8,
+        "widget": {
+          "title": "NFS3+4.1",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(custom_googleapis_com:netapp_volume_controller_provisioned_protocol_count{monitored_resource=\"k8s_cluster\", protocol=\"nfs4,nfs3.1\",project_id=~\"${project.value}\", cluster_name=~\"${cluster.value}\", location=~\"${location.value}\", storagePoolUUID=~\"${storagePool.value}\"})",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "title": "Current Volume Count",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 40,
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "Creation Time by Percentile",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 55,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Updates to Snapshot and Export Policy",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 71,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Failed Provision Rate for SP and Volume",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "SP and Volume Changes and Size",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "template_variable": "perc",
+      "string_value": "0.90",
+      "filter_type": 6,
+      "label_key": ""
+    },
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    },
+    {
+      "label_key": "project_id",
+      "template_variable": "project",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "storagePoolUUID",
+      "template_variable": "storagePool",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster_name",
+      "template_variable": "cluster",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "quark": ""
+  }
+}

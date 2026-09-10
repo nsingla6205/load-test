@@ -1,0 +1,67 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11100295425309105312",
+  "display_name": "Interconnect - VLAN Attachment - Dropped Ingress Packets > 100",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-11-28T19:04:32.523391935Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-11T04:48:07.717535743Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"interconnect_attachment\" AND metric.type = \"interconnect.googleapis.com/network/attachment/ingress_dropped_packets_count\"",
+        "comparison": 1,
+        "threshold_value": 100.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.drop_reason",
+              "resource.label.region",
+              "resource.label.interconnect",
+              "resource.label.project_id"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Interconnect Attachment - Ingress dropped packets",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11100295425309105312/conditions/2931011792193750652"
+    }
+  ],
+  "documentation": {
+    "content": "Evaluate increasing attachment bandwidth limit",
+    "mime_type": "text/markdown",
+    "subject": "Interconnect - VLAN Attachment - Dropped Ingress Packets > 100",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/5123480094146800147",
+    "projects/netapp-prod-monitoring/notificationChannels/600614061202589505",
+    "projects/netapp-prod-monitoring/notificationChannels/13121591254365550521",
+    "projects/netapp-prod-monitoring/notificationChannels/8995371658441391733"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9705697736697318001",
+  "display_name": "Auto tier intercluster LIF down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:58:17.183814642Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-24T07:42:54.370389485Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"objstore.interclusterlifDown\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "resource.label.location",
+              "metric.label.node",
+              "metric.label.cluster"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9705697736697318001/conditions/17184958904037476772"
+    }
+  ],
+  "documentation": {
+    "content": "Corrective action:\n\nUse the \"network interface show -role intercluster\" command to check Intercluster LIF status. Verify that the Intercluster LIF is configured correctly and is operational. \n\nIf an Intercluster LIF is not configured, use the \"network interface create -role intercluster\" command to create it. \n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "user_labels": {
+    "notification-channel": "none"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "notification_channels": []
+}

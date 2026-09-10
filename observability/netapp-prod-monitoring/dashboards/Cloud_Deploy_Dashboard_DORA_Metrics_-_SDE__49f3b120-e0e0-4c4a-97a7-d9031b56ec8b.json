@@ -1,0 +1,1570 @@
+{
+  "name": "projects/93478785040/dashboards/49f3b120-e0e0-4c4a-97a7-d9031b56ec8b",
+  "display_name": "Cloud Deploy Dashboard (DORA) Metrics - SDE",
+  "etag": "d5f8899d585bbfee9608dda649daffd7",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 276,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/rollout_status\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"wave\"",
+                        "metric.label.\"location\"",
+                        "resource.label.\"project_id\"",
+                        "metric.label.\"status_text\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "status_text",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 295,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "Cloud Deploy Failed Rollout Status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/rollout_status\" resource.type=\"global\" metric.label.\"status_text\"=\"FAILED\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"wave\"",
+                        "metric.label.\"location\"",
+                        "resource.label.\"project_id\"",
+                        "metric.label.\"status_text\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "status_text",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 76,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Wave 0",
+          "section_header": {
+            "subtitle": "us-e1 (stage), us-w1 (stage)",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 195,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/rollout_status\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"status_text\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "slice_name_template": "${metric.labels.status_text}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 195,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Average Success Rate ",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_success_rate\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 80.0,
+                "color": 4,
+                "direction": 2,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 60.0,
+                "color": 6,
+                "direction": 2,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 195,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Average Error Rate ",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_error_rate\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "gauge_view": {
+              "upper_bound": 100.0,
+              "lower_bound": 0.0
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 2.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 211,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Deploy Rollout Status (By WAVE)",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/rollout_status\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"wave\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "slice_name_template": "${metric.labels.status_text}",
+                "min_alignment_period": "60s"
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 211,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Average Success Rate (WAVE)",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_success_rate\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"wave\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 211,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Average Error Rate (by WAVE)",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_error_rate\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"wave\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 227,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Deploy Total Deployment (till date)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_total_count\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 11,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 227,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Rollout Failed Status",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/rollout_status\" resource.type=\"global\" metric.label.\"status_text\"=\"FAILED\"",
+                "aggregation": {
+                  "alignment_period": "3600s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 12,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 2.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 243,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Average Deployments Per Day",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_frequency_average\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 261,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Avg Deployments in last 24h",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_frequency_24h\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "3600s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 12,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 2.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 261,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Avg Deployments in last 7d",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_frequency_7d\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "3600s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 12,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 261,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Avg Deployments in last 30d",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/deployment_frequency_30d\" resource.type=\"global\"",
+                "aggregation": {
+                  "alignment_period": "3600s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 1,
+                  "group_by_fields": []
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 12,
+                  "direction": 1
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 96,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave 1",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 115,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave 2",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 134,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave 3",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 153,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave 4",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 172,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave 5",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 60,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Deploy Last Deployment Details",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 26,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Deployment Details (SDE)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"deploy_end_time\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"time_since_deploy\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"deployment_status\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              },
+              {
+                "column": "time_since_deploy",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 44,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "Failed Deployment Details (SDE)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"deployment_status\"=\"FAILED\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 80,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 0",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_0\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 99,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 1",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_1\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 118,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 2",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_2\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 137,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 3",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_3\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 156,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 4",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_4\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 175,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "PO Deployment Details (SDE) - WAVE 5",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cloud_deploy/last_deployment_details\" resource.type=\"global\" metric.label.\"target_id\"=monitoring.regex.full_match(\".*-sde-.*\") metric.label.\"wave\"=\"wave_5\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"location\"",
+                        "metric.label.\"deploy_start_time\"",
+                        "metric.label.\"service\"",
+                        "metric.label.\"wave\"",
+                        "metric.label.\"deployment_status\"",
+                        "metric.label.\"duration\"",
+                        "metric.label.\"release_name\"",
+                        "metric.label.\"target_id\"",
+                        "metric.label.\"deploy_end_time\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "deploy_start_time",
+                "visible": true
+              },
+              {
+                "column": "service",
+                "visible": true
+              },
+              {
+                "column": "wave",
+                "visible": true
+              },
+              {
+                "column": "deployment_status",
+                "visible": true
+              },
+              {
+                "column": "duration",
+                "visible": true
+              },
+              {
+                "column": "release_name",
+                "visible": true
+              },
+              {
+                "column": "target_id",
+                "visible": true
+              },
+              {
+                "column": "deploy_end_time",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 23,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Wave - All",
+          "section_header": {
+            "divider_below": true,
+            "subtitle": ""
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 191,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Historical",
+          "section_header": {
+            "subtitle": "Trends",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 23,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "# Always select last 1h\nThe data is refreshed every 30 mins \n\nIf you want to manually refresh the data, execute the scheduler mentioned below\n\n# Trigger the function manually for testing\n\n`gcloud config set project <PROJECT_ID>`\n\n`gcloud scheduler jobs run cloud-deploy-monitoring-schedule --location=<LOCATION>`\n\ne.g.\n\n`gcloud config set project netapp-eu-w6-sde`\n\n`gcloud scheduler jobs run cloud-deploy-monitoring-schedule --location=europe-west6`",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "release_name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "rollout_name",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "wave",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "service",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "dora": ""
+  }
+}

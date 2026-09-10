@@ -1,0 +1,656 @@
+{
+  "name": "projects/93478785040/dashboards/5e7f2c7f-c703-4820-8783-7739b5357ae5",
+  "display_name": "Customer Dashboard",
+  "etag": "5c2b1d2ce65a58b2391d6af10d58aa7a",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 31,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Customer Volumes - 1P",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"${customer_id.value}\", volume1p=\"true\"}[${__interval}])\navg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}, volume1p=\"true\"}[${__interval}])",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 67,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Customer Regions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (region)(max_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 31,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Customer Volumes - 3P",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}, volume1p!=\"true\"}[${__interval}])",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": true
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": true
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 49,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Customer Volumes - Hardware",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}, storageClass=\"hardware\"}[${__interval}])",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 49,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Customer Volumes - Software",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}, storageClass!=\"hardware\"}[${__interval}])",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": true
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 91,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Customer Volumes - Not Available",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"${customer_id.value}\", lifeCycleState=~\"error|offline\"}[${__interval}])\n#avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",${customer_id}}[${__interval}])",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 67,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Customer API Requests",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# sum(increase(logging_googleapis_com:user_customerReq{consumerProject=~\"${customer_id.value}\"}[${__interval}]))\n\nsum by (region,requestMethod)(delta(logging_googleapis_com:user_customerReq{monitored_resource=\"internal_http_lb_rule\", ${customer_id}}[${__interval}]))",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 91,
+        "width": 23,
+        "height": 15,
+        "widget": {
+          "title": "Customer Volume Creation Failures ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (project_number,region_or_zone,error_message)(rate(logging_googleapis_com:user_volume_create_failures_paid_cust{monitored_resource=\"k8s_container\",${customer_id}}[${__interval}]))\n# sum by (project_number,region_or_zone,error_message)(rate(logging_googleapis_com:user_volume_create_failures_paid_cust{monitored_resource=\"k8s_container\",project_number=\"1084603572294\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "error_message",
+                "visible": true
+              },
+              {
+                "column": "project_number",
+                "visible": true
+              },
+              {
+                "column": "region_or_zone",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 27,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Inventory",
+          "section_header": {
+            "subtitle": "Volumes, Regions",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 87,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Errors",
+          "section_header": {
+            "subtitle": "Error, Unavailable Volumes ",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 9,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "This Dashboard provides the following details:",
+          "text": {
+            "content": "**Inventory:**\n1. List of **1P** Volumes** of the customer \n2. List of **3P** Volumes of the customer\n3. List of **Hardware** Volumes of the customer\n4. List of **Flex** Volumes of the customer \n5. List of **Regions** where the customer has volumes\n6. Number of **API** requests over a period of time\n\n**Errors:**\n7. List of volumes which are **not in available** state\n8. List of volumes which **failed to create**\n9. Number of **API** requests that **failed** over a period of time\n\n**Note: If the filter does not match, the charts/tables will show all the customer data.**\n\n*This is the default behiviour of varibles in Google Dashboards*",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 9,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "How to use this Dashboard",
+          "text": {
+            "content": "\nUse the customer id filter on top of the Dashboard to select one or multiple project IDs related to a specific customer. \n\nThe below charts will show the details related to the project id if it matches one in the list.\nIf there is no match, the chart will show details of all the project IDs\n\nYou can also filter directly in the chart by clicking on the three lines next to the value in the table. \nEntire dashboard will be filtered based on the selected Value",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "Purpose of the dashboard",
+          "text": {
+            "content": "1.Whenever you recieve a customer ticket and get the project number from the ticket and use this dashboard to filter volumes for those project number and check the health of the volumes\n\n2.Whenever you get an alert to identify the customer impact, get the customer list and project numbers from incident managers and identify how many volumes are impacted\n\nFrom both and #1 and #2 you can debug further. ",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 111,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Customer API Requests Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/customerReq\" resource.type=\"internal_http_lb_rule\" metric.label.\"httpStatus\"=monitoring.regex.full_match(\"5.*\") ${customer_id}",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"httpStatus\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "accountName",
+      "template_variable": "customer_id",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "gcnv-po": "",
+    "gcnv-so": ""
+  }
+}

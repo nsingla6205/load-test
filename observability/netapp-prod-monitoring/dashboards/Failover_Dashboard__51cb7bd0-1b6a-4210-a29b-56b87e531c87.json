@@ -1,0 +1,494 @@
+{
+  "name": "projects/93478785040/dashboards/51cb7bd0-1b6a-4210-a29b-56b87e531c87",
+  "display_name": "Failover Dashboard",
+  "etag": "13964bff8048e8427c7f83ee18646df3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 45,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "nhc_sp_offline_duration_seconds",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "sum by (storagePoolUUID) (custom_googleapis_com:nhc_sp_offline_duration_seconds{monitored_resource=\"k8s_pod\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"} > 0 )",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 45,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "pod_scheduling_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (storagePoolUUID) (custom_googleapis_com:pod_scheduling_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 60,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "volume_attach_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": " sum by (storagePoolUUID) (custom_googleapis_com:volume_attach_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 60,
+        "width": 23,
+        "height": 15,
+        "widget": {
+          "title": "volume_mount_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": " sum by (storagePoolUUID) (custom_googleapis_com:volume_mount_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 75,
+        "width": 23,
+        "height": 15,
+        "widget": {
+          "title": "actual_disk_attach_duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "sum by (storagePoolUUID) (custom_googleapis_com:actual_disk_attach_duration{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"})",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 1,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "nhc_sp_offline_duration_seconds",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value},sum by (storagePoolUUID) (custom_googleapis_com:nhc_sp_offline_duration_seconds{monitored_resource=\"k8s_pod\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"} > 0 ))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 25,
+        "width": 23,
+        "height": 15,
+        "widget": {
+          "title": "pod_scheduling_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value}, sum by (storagePoolUUID) (custom_googleapis_com:pod_scheduling_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"}))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 15,
+        "width": 24,
+        "height": 15,
+        "widget": {
+          "title": "volume_attach_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value}, sum by (storagePoolUUID) (custom_googleapis_com:volume_attach_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"}))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 25,
+        "y_pos": 15,
+        "width": 23,
+        "height": 15,
+        "widget": {
+          "title": "volume_mount_latency",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value}, sum by (storagePoolUUID) (custom_googleapis_com:volume_mount_latency{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"}))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 25,
+        "y_pos": 30,
+        "width": 22,
+        "height": 15,
+        "widget": {
+          "title": "actual_disk_attach_duration",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "quantile(${perc.value}, sum by (storagePoolUUID) (custom_googleapis_com:actual_disk_attach_duration{monitored_resource=\"k8s_cluster\",location=~\"${location.value}\",project_id=~\"${project.value}\",storagePoolUUID=~\"${storagepool.value}\"}))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 45,
+        "widget": {
+          "title": "Quantiled Values",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 45,
+        "width": 48,
+        "height": 45,
+        "widget": {
+          "title": "Values by StoragePool",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 90,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Failed Node/SP Count",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 1,
+        "y_pos": 90,
+        "width": 23,
+        "height": 16,
+        "widget": {
+          "title": "Failed Node Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (cluster_name) (custom_googleapis_com:nhc_failed_node_count{monitored_resource=\"k8s_pod\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 90,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Failed SP Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (storagePoolUUID)(custom_googleapis_com:nhc_sp_failover_count{monitored_resource=\"k8s_pod\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 106,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Failed Zone Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (cluster_name) (custom_googleapis_com:nhc_failed_zone_count{monitored_resource=\"k8s_pod\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "template_variable": "perc",
+      "string_value": "0.90",
+      "filter_type": 6,
+      "label_key": ""
+    },
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    },
+    {
+      "label_key": "project_id",
+      "template_variable": "project",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "storagePoolUUID",
+      "template_variable": "storagepool",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  }
+}

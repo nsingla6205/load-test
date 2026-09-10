@@ -1,0 +1,154 @@
+{
+  "name": "projects/93478785040/dashboards/000b6528-8c4f-4480-b5e5-99649900f117",
+  "display_name": "SO",
+  "etag": "3a37bfafc32f84e2b2cc1ac671a45e70",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Flex Data Plane SLA Compliance",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance::custom.googleapis.com/volume_online_percentage_so\n| align mean_aligner()\n| filter_ratio_by [], value.volume_online_percentage_so >= 99.99\n| value [ratio_mul: mul(ratio, 100)]\n| value [ratio_mul_cast_units: cast_units(ratio_mul, '%')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 29,
+        "widget": {
+          "title": "Out-of-SLO Volumes in last 30 days",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/volume_online_percentage_so'\n| filter string_to_int64(metric.volume_offline_count, 10) > 6\n| filter value.volume_online_percentage_so < 99.99\n| top_by [], 100, min(value.volume_online_percentage_so)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Fleet-wide SLO-Eligible Volume count in last 30 days",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/volume_online_percentage_so'\n| align mean_aligner()\n| window 5m\n| filter (value.volume_online_percentage_so >= 99.99)\n| group_by [],\n    [value_volume_online_percentage_so_count:\n       count(value.volume_online_percentage_so)]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 29,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Offline Volume % Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/podrick_ntapvol_state'\n| group_by 1m,\n    [value_podrick_ntapvol_state_mean: mean(value.podrick_ntapvol_state)]\n| every 1m\n| group_by [resource.location],\n    [value_podrick_ntapvol_state_mean_mean:\n       mean(value_podrick_ntapvol_state_mean)]\n| value\n    [value_podrick_ntapvol_state_mean_mean_mul:\n       mul(value_podrick_ntapvol_state_mean_mean, 100)]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  }
+}

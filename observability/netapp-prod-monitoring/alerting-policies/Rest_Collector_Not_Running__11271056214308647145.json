@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/11271056214308647145",
+  "display_name": "Rest Collector Not Running",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T10:00:27.406504940Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-06-23T10:49:15.856602669Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/metadata_component_status\" AND metric.labels.name = \"Rest\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - metadata_component_status",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/11271056214308647145/conditions/11271056214308648746"
+    }
+  ],
+  "documentation": {
+    "content": "Corrective action:\n\nCheck the logs of Harvest pod and ensure there are no errors related to Rest.\n\nkubectl logs <podname> -n ontap-monitoring\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

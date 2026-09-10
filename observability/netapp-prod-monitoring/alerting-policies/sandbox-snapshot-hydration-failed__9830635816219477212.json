@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9830635816219477212",
+  "display_name": "sandbox-snapshot-hydration-failed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-05-21T10:20:47.544757662Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-07T03:38:08.358429674Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/snapshot-hydration-failed\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "sandbox-snapshot-hydration-failed",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9830635816219477212/conditions/2648528200944721466"
+    }
+  ],
+  "documentation": {
+    "content": "https://jira.ngage.netapp.com/browse/NFSAAS-164990",
+    "mime_type": "text/markdown",
+    "subject": "snapshot-hydration-failed",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

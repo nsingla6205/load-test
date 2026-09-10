@@ -1,0 +1,1787 @@
+{
+  "name": "projects/697731967255/dashboards/dfdec694-230d-4cf8-92cc-fcd8c5973ffd",
+  "display_name": "Leaked Resources",
+  "etag": "c4ae909136028c8bc9af762b96d3922a",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 15,
+        "widget": {
+          "title": "Leaked Resources Dashboard",
+          "text": {
+            "content": "**Metric**: `custom.googleapis.com/vcp.leaked_resources.count`  |  **Labels**: `resource_type`, `reason`, `project_id`, `region`, `resource_id`, `resource_name`\n\n**Resource types**: `pool` \u00b7 `volume` \u00b7 `snapshot` \u00b7 `internal_reserved_ip` \u00b7 `backup_vault` \u00b7 `vm` \u00b7 `disk`\n\n**Reasons by type**:\n- **Pool/BackupVault**: `in_vcp_not_in_ccfe` (VCP has record, CCFE does not)\n- **Volume**: `volume_orphan_pool_missing` (volume's parent pool is missing/deleted)\n- **Snapshot**: `snapshot_orphan_volume_missing` (snapshot's parent volume is missing/deleted)\n- **Internal Reserved IP**: `internal_reserved_ip_unassigned_capacity` (INTERNAL/RESERVED address with no users, older than min-age)\n- **VM**: `vm_orphan_pool_missing` (GCE VM's pool_uuid label doesn't match any active pool)\n- **Disk**: `disk_orphan_pool_missing` (GCE disk's pool_uuid label doesn't match any active pool)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 15,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "title": "MONITORING STATUS",
+          "text": {
+            "content": "### Pipeline Health\nRuns daily via cron scheduler. Status: `success` (all detectors completed) \u00b7 `partial_error` (some detectors failed) \u00b7 `error` (pipeline failed)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 22,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Runs \u2014 success (1d)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"success\"",
+                "aggregation": {
+                  "alignment_period": "86400s",
+                  "per_series_aligner": 1,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 22,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Runs \u2014 error (1d)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"error\"",
+                "aggregation": {
+                  "alignment_period": "86400s",
+                  "per_series_aligner": 1,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "value": 0.0,
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 22,
+        "width": 24,
+        "height": 8,
+        "widget": {
+          "title": "Monitoring runs trend (daily)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "86400s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"status\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "legend_template": "${metric.labels.status}",
+                "min_alignment_period": "86400s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Runs \u2014 partial_error (1d)",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"partial_error\"",
+                "aggregation": {
+                  "alignment_period": "86400s",
+                  "per_series_aligner": 1,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "value": 0.0,
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 39,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "EXECUTIVE SUMMARY",
+          "text": {
+            "content": "### Total Leaked Resources by Type\nCurrent count of leaked resources across all projects and regions. Click on a scorecard to drill down.",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 43,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Pools",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"pool\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                },
+                "pick_time_series_filter": {
+                  "ranking_method": 1,
+                  "num_time_series": 30,
+                  "direction": 1
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 5.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 20.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 43,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Volumes",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 5.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 20.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 43,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "VMs",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 3.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 36,
+        "y_pos": 43,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Disks",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 3.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 52,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Snapshots",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 5.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 20.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 12,
+        "y_pos": 52,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Backup Vaults",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"backup_vault\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 5.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 20.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 52,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Reserved IPs",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 10.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 50.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 61,
+        "width": 48,
+        "height": 20,
+        "widget": {
+          "title": "All leaked resources \u2014 by reason/type (log scale)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"reason\"",
+                        "metric.label.\"resource_type\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${metric.labels.reason} / ${metric.labels.resource_type}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "label": "Count",
+              "scale": 2
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 81,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "title": "POOLS",
+          "text": {
+            "content": "### Pools \u2014 VCP \u2194 CCFE Sync\n`resource_type=pool` \u00b7 Reasons: `in_vcp_not_in_ccfe` (VCP has pool, CCFE does not \u2014 potential billing leak)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 88,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Pools: VCP not in CCFE",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 5.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 97,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Pools in VCP not in CCFE \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 88,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Pool leaks \u2014 in_vcp_not_in_ccfe per project (trend)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 117,
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "title": "VMs (GCE Orphans)",
+          "text": {
+            "content": "### VMs \u2014 Orphaned GCE Instances\n`resource_type=vm` \u00b7 Reason: `vm_orphan_pool_missing` \u2014 GCE VM's `pool_uuid` label doesn't match any active VCP pool\n\n**Impact**: Orphaned VMs consume GCE compute quota and incur billing without serving any VCP pool. Min-age threshold: 6 hours (configurable via `LEAKED_RESOURCES_VM_MIN_AGE_HOURS`).",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 125,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Orphan VMs",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 3.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 125,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Orphan VMs \u2014 trend by project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 134,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Orphan VMs \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 136,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan VMs \u2014 total trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 156,
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "DISKS (GCE Orphans)",
+          "text": {
+            "content": "### Disks \u2014 Orphaned GCE Persistent Disks\n`resource_type=disk` \u00b7 Reason: `disk_orphan_pool_missing` \u2014 GCE disk's `pool_uuid` label doesn't match any active VCP pool\n\n**Impact**: Orphaned disks consume GCE storage quota and incur billing without serving any VCP pool. Min-age threshold: 6 hours (configurable via `LEAKED_RESOURCES_DISK_MIN_AGE_HOURS`).",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 165,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Orphan Disks",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 3.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 165,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Orphan Disks \u2014 trend by project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 174,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan Disks \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 176,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan Disks \u2014 total trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 196,
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "INTERNAL RESERVED IPs",
+          "text": {
+            "content": "### Internal Reserved IPs \u2014 Unassigned Subnet Capacity\n`resource_type=internal_reserved_ip` \u00b7 Reason: `internal_reserved_ip_unassigned_capacity` \u2014 INTERNAL/RESERVED Compute addresses with no users, reserved longer than min-age threshold (default 6h)\n\n**Impact**: Reserved IPs consume subnet capacity without being assigned to any resource. May indicate failed provisioning or cleanup issues.",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 205,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Leaked Reserved IPs",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 10.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 50.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 205,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Reserved IPs \u2014 trend by project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 214,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Internal reserved IPs \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 216,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Internal reserved IPs \u2014 total trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 236,
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "VOLUMES (Orphans)",
+          "text": {
+            "content": "### Volumes \u2014 Orphaned (Pool Missing)\n`resource_type=volume` \u00b7 Reason: `volume_orphan_pool_missing` \u2014 VCP volumes whose parent pool is missing or deleted\n\n**Impact**: Orphan volumes have no parent pool context and may represent incomplete cleanup or data integrity issues.",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 245,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Orphan Volumes",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 5.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 245,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Orphan volumes \u2014 trend by project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 254,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan volumes \u2014 total trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 274,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "title": "SNAPSHOTS (Orphans)",
+          "text": {
+            "content": "### Snapshots \u2014 Orphaned (Volume Missing)\n`resource_type=snapshot` \u00b7 Reason: `snapshot_orphan_volume_missing` \u2014 VCP snapshots whose parent volume is missing or deleted\n\n**Impact**: Orphan snapshots have no parent volume context and may consume storage without serving any purpose.",
+            "format_": 1,
+            "style": {
+              "background_color": "",
+              "text_color": "",
+              "horizontal_alignment": 0,
+              "vertical_alignment": 0,
+              "padding": 0,
+              "font_size": 0,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 281,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "Orphan Snapshots",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 5.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 20.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 281,
+        "width": 24,
+        "height": 11,
+        "widget": {
+          "title": "Orphan snapshots \u2014 trend by project",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 290,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan snapshots \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 292,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Orphan snapshots \u2014 total trend",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 312,
+        "width": 48,
+        "height": 10,
+        "widget": {
+          "title": "BACKUP VAULTS",
+          "text": {
+            "content": "### Backup Vaults \u2014 VCP \u2194 CCFE Sync\n`resource_type=backup_vault` \u00b7 Reasons:\n- `in_vcp_not_in_ccfe` \u2014 VCP has backup vault record but CCFE does not (potential billing or consistency issue)",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 331,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Backup vaults in VCP not in CCFE \u2014 by project/region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\"",
+                        "metric.label.\"region\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 322,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backup vault leaks \u2014 in_vcp_not_in_ccfe per project (trend)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"project_id\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "legend_template": "${metric.labels.project_id}",
+                "min_alignment_period": "60s",
+                "target_axis": 1
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 322,
+        "width": 12,
+        "height": 9,
+        "widget": {
+          "title": "BackVault: VCP not in CCFE",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": [
+              {
+                "value": 1.0,
+                "color": 4,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              },
+              {
+                "value": 5.0,
+                "color": 6,
+                "direction": 1,
+                "label": "",
+                "target_axis": 0
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "project_id",
+      "template_variable": "project_filter",
+      "string_value": "",
+      "filter_type": 1
+    }
+  ],
+  "labels": {}
+}

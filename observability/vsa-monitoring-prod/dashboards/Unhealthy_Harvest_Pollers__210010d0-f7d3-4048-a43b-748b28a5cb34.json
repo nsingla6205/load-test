@@ -1,0 +1,153 @@
+{
+  "name": "projects/697731967255/dashboards/210010d0-f7d3-4048-a43b-748b28a5cb34",
+  "display_name": "Unhealthy Harvest Pollers",
+  "etag": "ad43c27e97cb91c076162a4c9c06f0e3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 13,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Clusters with unhealthy pollers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"location\",\"exported_name\",${__groupby})(max_over_time({\"__name__\"=\"custom.googleapis.com/harvest_poller_health_status\",\"monitored_resource\"=\"k8s_cluster\"}[5m])) < 1",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 13,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Clusters with unhealthy pollers",
+          "scorecard": {
+            "time_series_query": {
+              "prometheus_query": "sum(max_over_time({\"__name__\"=\"custom.googleapis.com/harvest_poller_unhealthy_total\",\"monitored_resource\"=\"k8s_cluster\"}[5m]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+              "unit_override": "",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1,
+              "min_alignment_period": "60s"
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 29,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Harvest Unhealthy Pollers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"location\")(max_over_time({\"__name__\"=\"custom.googleapis.com/harvest_poller_unhealthy_total\",\"monitored_resource\"=\"k8s_cluster\"}[5m])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 29,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Harvest Unhealthy Pollers",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"location\")(max_over_time({\"__name__\"=\"custom.googleapis.com/harvest_poller_unhealthy_total\",\"monitored_resource\"=\"k8s_cluster\"}[5m])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 13,
+        "widget": {
+          "title": "Details",
+          "text": {
+            "content": "# Dashboard Details:\nHarvest Pollers are not in \"online\" state\n\n## Reasons:\n1. Pool has been deleted and not de-boarded from harvest. \n2. pollers are been continuously restarted by the PM2.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

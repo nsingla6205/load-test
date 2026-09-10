@@ -1,0 +1,69 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/7070764568975697850",
+  "display_name": "ems_node_panic",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T07:02:07.623544850Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:10:08.362284639Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"sk.panic\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "resource.label.location",
+              "metric.label.severity",
+              "metric.label.message",
+              "metric.label.parameters",
+              "metric.label.name",
+              "metric.label.pool_name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_node_panic",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/7070764568975697850/conditions/11882330626717292280"
+    }
+  ],
+  "documentation": {
+    "content": "Contact NetApp customer support.\n\n${metric_or_resource.labels}\n\nThis runbook provides standardized procedures for responding to ONTAP node panic alerts, specifically the sk.panic event. A node panic is a critical system event that requires immediate attention to ensure cluster stability and data availability.\n\n# Alert Overview\n\nThe sk.panic event is a system-generated alert that occurs when the ONTAP kernel encounters an unrecoverable error.\n\n| Attribute | Details |\n| :--- | :--- |\n| **Event Name** | sk.panic |\n| **Severity** | ALERT |\n| **Category** | Availability / System Critical |\n| **Description** | Triggered automatically when a kernel panic occurs. |\n\n# Impact Assessment\n\n*   **Availability:** A node panic typically results in an immediate reboot or a High Availability (HA) takeover if configured.\n*   **Performance:** Remaining nodes in the cluster may experience increased load during the failover period.\n*   **Data Integrity:** While ONTAP is designed to protect data during panics, repeated panics can indicate underlying hardware or software issues.\n\n# Immediate Response Steps\n\nUpon receiving an sk.panic alert via Harvest or ONTAP EMS, perform the following actions:\n\n*   **Identify the Panic String:** Locate the unique \"Panic String\" parameter within the syslog message to understand the initial cause of the crash.\n    *   Command to find the panic: `event log show -message-name sk.panic -max-records 10`\n*   **Verify Node Status:** Check if the node has successfully rebooted or if an HA takeover was initiated by its partner node.\n    *   Command to check cluster health: `cluster show`\n    *   Command to check HA status: `storage failover show`\n*   **Check Hardware Health:** Review related hardware alerts, such as disk failures or power supply issues, which may have preceded the panic.\n    *   Command to check hardware status: `system node hardware show`\n*   **Monitor Root Volume:** Verify that the root volume has adequate space, as dangerously low space can impact system stability.\n    *   Command to check root volume usage: `df -root`\n\n# Remediation and Analysis\n\nBecause node panics are critical software or hardware failures, direct corrective actions are often handled through post-mortem analysis rather than manual configuration changes.\n\n1.  **Collect Support Data:** Ensure AutoSupport notifications were triggered and sent to NetApp technical support.\n2.  **Analyze Core Dumps:** Check for the presence of core dump files that can be uploaded to NetApp for deep-dive debugging.\n    *   Command to list core dumps: `system node coredump show`\n3.  **Review System Logs:** Use the event log show command to look for events leading up to the sk.panic to identify patterns.\n    *   Command for general log review: `event log show -node <node_name> -time >1h`\n4.  **Configuration Verification:** If the panic is related to networking or cloud tiers (e.g., FabricPool), verify connectivity and intercluster LIF status.\n    *   Command to check LIF status: `network interface show -role intercluster`\n\n# Escalation\n\nIf the node fails to recover or enters a panic loop:\n\n*   **Contact NetApp Support:** Provide the specific \"Panic String\" and any associated AutoSupport IDs for expedited troubleshooting.\n*   **Internal Notification:** Notify the Storage Administration team and relevant stakeholders regarding potential downtime.\n\n---\n\nPlease raise a CONTAP ticket and include the following details for further investigation:\n\nDeployment ID\n\nASUP logs\n\nCoredump files\n\nOutput of all basic diagnostic commands\n\nReference ticket > https://jira.ngage.netapp.com/browse/CONTAP-697582",
+    "mime_type": "text/markdown",
+    "subject": "VSA Node Panic",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098",
+    "projects/vsa-monitoring-prod/notificationChannels/5071820954078603793",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

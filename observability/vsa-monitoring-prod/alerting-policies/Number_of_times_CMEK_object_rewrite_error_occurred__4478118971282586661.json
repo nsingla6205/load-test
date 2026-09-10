@@ -1,0 +1,72 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/4478118971282586661",
+  "display_name": "Number of times CMEK object rewrite error occurred",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-19T06:46:46.459240841Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-19T06:46:46.459240841Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/cbs_cmek_rewrite_error_gauge\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "resource.label.location",
+              "resource.label.cluster_name",
+              "resource.label.pod_name"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Number of times CMEK object rewrite error occurred",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/4478118971282586661/conditions/6974782338043778390"
+    }
+  ],
+  "documentation": {
+    "content": "Labels: ${metric_or_resource.labels}\n\nParameters: ${metric_or_resource.label.parameters}\n\nRunbook\n\nhttps://confluence.ngage.netapp.com/spaces/CLOUDVOL/pages/1351602985/Runbook+For+CMEK+Backup\n\nTeam Contact\n\nng-team-Agarwal-Hitesh-DR@netapp.com",
+    "mime_type": "text/markdown",
+    "subject": "Number of times CMEK object rewrite error occurred",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/17307013401510160850",
+    "projects/vsa-monitoring-prod/notificationChannels/18285410377605113098"
+  ],
+  "user_labels": {
+    "backup": "cbs"
+  },
+  "enabled": false,
+  "validity": {
+    "code": 3,
+    "message": "conditions[0] is invalid: Field aggregation.crossSeriesReducer had an invalid value of \"REDUCE_COUNT\": The descriptors of 'custom.googleapis.com/cbs_cmek_rewrite_error_gauge' in 'projects/vsa-monitoring-us-w3' and 'projects/vsa-monitoring-us-c1' are incompatible: The set of labels must be the same. (ID: 6974782338043778390)",
+    "details": []
+  },
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

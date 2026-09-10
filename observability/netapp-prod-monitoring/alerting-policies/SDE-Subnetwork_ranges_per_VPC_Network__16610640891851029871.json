@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/16610640891851029871",
+  "display_name": "SDE-Subnetwork ranges per VPC Network",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-21T17:55:20.643374154Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-09-10T00:17:31.505139906Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"compute.googleapis.com/VpcNetwork\" AND metric.type = \"compute.googleapis.com/quota/subnet_ranges_per_vpc_network/usage\"",
+        "comparison": 1,
+        "threshold_value": 400.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "VPC Network - Subnetwork ranges per VPC Network quota usage",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/16610640891851029871/conditions/8738350168100688560"
+    }
+  ],
+  "documentation": {
+    "content": "Further Action - Request increase in quota if they are running close to limit\nhttps://confluence.ngage.netapp.com/display/CVO/Supportability-SRE+Alerting",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

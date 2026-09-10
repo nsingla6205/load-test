@@ -1,0 +1,108 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/17550220705430251138",
+  "display_name": "Cx-QoS-Setting-WipeOut-Check",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-10T06:35:25.881657025Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-20T06:06:55.841541687Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND (resource.labels.cluster_name = has_substring(\"me-central2-b-1016552607965\") OR resource.labels.cluster_name = has_substring(\"us-east1-773673365347-rg\")) AND metric.type = \"custom.googleapis.com/nhc_failed_node_count\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - nhc_failed_node_count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/17550220705430251138/conditions/7043190528536642181"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND (resource.labels.cluster_name = has_substring(\"me-central2-b-1016552607965\") OR resource.labels.cluster_name = has_substring(\"us-east1-773673365347-rg\")) AND metric.type = \"custom.googleapis.com/nhc_sp_failover_count\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - nhc_sp_failover_count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/17550220705430251138/conditions/7043190528536645536"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND (resource.labels.cluster_name = has_substring(\"me-central2-b-1016552607965\") OR resource.labels.cluster_name = has_substring(\"us-east1-773673365347-rg\")) AND metric.type = \"custom.googleapis.com/nhc_failed_zone_count\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Pod - nhc_failed_zone_count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/17550220705430251138/conditions/7043190528536644795"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook-WIP\nNeed to perform the steps mentioned in CR - COPS-60559",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

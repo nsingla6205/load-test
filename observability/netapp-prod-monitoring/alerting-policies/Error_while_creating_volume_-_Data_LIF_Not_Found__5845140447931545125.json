@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5845140447931545125",
+  "display_name": "Error while creating volume - Data LIF Not Found",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-22T15:50:59.025289032Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2023-08-23T12:07:59.706901490Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/Data-LIF-Not-Found-Error\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Data-LIF-Not-Found-Error",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5845140447931545125/conditions/5845140447931543616"
+    }
+  ],
+  "documentation": {
+    "content": "This will require manual clean up. Please refer the following Runbook: \n\nRunbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+ONTAP+-+Manual+Storage+Tenancy+Clean-up",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

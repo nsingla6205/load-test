@@ -1,0 +1,85 @@
+{
+  "name": "projects/93478785040/dashboards/fb94d28c-490c-48e0-86db-ab1949343ff0",
+  "display_name": "Billing - Metrics ",
+  "etag": "2c2e199c0b8d6b0faa16ebb6e7848eb3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Cool Tier (Hourly Tend should be reviewed)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_cool_tier\",\"monitored_resource\"=\"k8s_container\"}[${__interval}]))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Submitted Quantity (Hourly Trend should be reviewed)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "1",
+                  "prometheus_query": "rate({\"__name__\"=\"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_count_total\",\"monitored_resource\"=\"k8s_container\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "string_value": "",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "billing": ""
+  }
+}

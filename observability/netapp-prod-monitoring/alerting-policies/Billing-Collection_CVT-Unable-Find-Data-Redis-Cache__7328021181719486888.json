@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/7328021181719486888",
+  "display_name": "Billing-Collection: CVT-Unable-Find-Data-Redis-Cache",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-03-08T06:37:56.572811075Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:50.333845530Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/redis_data_not_found\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - redis_data_not_found",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/7328021181719486888/conditions/10668000390263422117"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook:  https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+CVT-Unable-Find-Data-Redis-Cache",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CVT Unable to Find Data in Redis Cache",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

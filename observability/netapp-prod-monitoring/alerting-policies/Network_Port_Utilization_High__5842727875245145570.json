@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5842727875245145570",
+  "display_name": "Network Port Utilization High",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-07-17T10:05:50.253587154Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-18T05:51:51.678826355Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/nic_util_percent\"",
+        "comparison": 1,
+        "threshold_value": 50.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.cluster",
+              "resource.label.location",
+              "metric.label.node"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - nic_util_percent",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5842727875245145570/conditions/5842727875245142075"
+    }
+  ],
+  "documentation": {
+    "content": "**Immediate Actions**\n\nIf critical threshold is breached, consider following immediate actions to minimize service disruption:\n\n1. Limit the traffic of certain volumes only to essential work, either via QoS policies in ONTAP or host-side analysis to decrease the utilization of the network ports.\n\n2. Configure one or more volumes to use another lower utilized network port.\n\n**Actions To Do Soon**\n\nIf warning threshold is breached, plan to take the following actions:\n\n1. Configure more network ports to handle the data traffic so that the port utilization gets distributed among more ports.\n\n2. Configure one or more volumes to use another lower utilized network port.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "Network Port Utilization High",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

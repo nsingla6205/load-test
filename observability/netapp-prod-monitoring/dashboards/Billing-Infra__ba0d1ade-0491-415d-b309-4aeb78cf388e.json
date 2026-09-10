@@ -1,0 +1,184 @@
+{
+  "name": "projects/93478785040/dashboards/ba0d1ade-0491-415d-b309-4aeb78cf388e",
+  "display_name": "Billing-Infra",
+  "etag": "db3f244761e330431a95cbb057d34d7c",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 11,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/14135948486755437191"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 11,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/5632291559529725854"
+          },
+          "title": "",
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 23,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/7945256938763168040"
+          },
+          "title": "",
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 13,
+        "width": 11,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/2706087797061209456"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 35,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/4182620489065514580"
+          },
+          "title": "",
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 11,
+        "y_pos": 13,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/11939995321038945436"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 13,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/228766483248054226"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 35,
+        "y_pos": 13,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/5940102842710197848"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 11,
+        "y_pos": 26,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/1813635287603512533"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 35,
+        "y_pos": 39,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/16969258754610788977"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 23,
+        "y_pos": 26,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/13515924904230341415"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 35,
+        "y_pos": 26,
+        "width": 12,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/18109339480035900820"
+          },
+          "title": "",
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 26,
+        "width": 11,
+        "height": 13,
+        "widget": {
+          "alert_chart": {
+            "name": "projects/netapp-prod-monitoring/alertPolicies/10067983920577008089"
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "billing": ""
+  },
+  "dashboard_filters": []
+}

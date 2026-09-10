@@ -1,0 +1,131 @@
+{
+  "name": "projects/93478785040/dashboards/89510f7d-93bc-468b-8535-803ed151126e",
+  "display_name": "PatPodRestarts",
+  "etag": "857ef6e48255d525a1287d8dcb2462c0",
+  "grid_layout": {
+    "columns": "2",
+    "widgets": [
+      {
+        "title": "Restarts by container 1d",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (container_name)(increase(kubernetes_io:container_restart_count{monitored_resource=\"k8s_container\"}[12h])) > 0",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "timeshift_duration": "0s",
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Restarts By Location 1d",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (location)(increase(kubernetes_io:container_restart_count{monitored_resource=\"k8s_container\"}[12h])) > 0",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "timeshift_duration": "0s",
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "Kubernetes Container - Restart count 1h",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (pod_name,location) (increase(kubernetes_io:container_restart_count{monitored_resource=\"k8s_container\"}[${__interval}])) >0",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      },
+      {
+        "title": "CPU Throttling",
+        "xy_chart": {
+          "data_sets": [
+            {
+              "time_series_query": {
+                "prometheus_query": "sum by (pod_name,location) (avg_over_time(kubernetes_io:container_cpu_limit_utilization{monitored_resource=\"k8s_container\"}[${__interval}])) > 1\r\n",
+                "unit_override": "",
+                "output_full_duration": false
+              },
+              "plot_type": 1,
+              "target_axis": 1,
+              "legend_template": ""
+            }
+          ],
+          "y_axis": {
+            "scale": 1,
+            "label": ""
+          },
+          "chart_options": {
+            "mode": 1
+          },
+          "thresholds": []
+        },
+        "id": ""
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "string_value": "asia-east1",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "namespace_name",
+      "string_value": "",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

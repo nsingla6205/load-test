@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4182620489065514580",
+  "display_name": "Billing-Collection: CVT-Rabbitmq-Connection-Down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-03-07T16:20:17.497889861Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:33:02.367643275Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/cvt_rabbitmq_client_open_connections\"",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - cvt_rabbitmq_client_open_connections",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4182620489065514580/conditions/12519313507044372338"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook:  https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+CVT-Rabbitmq-Connection-Down",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CVT to Rabbitmq Connection is Down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

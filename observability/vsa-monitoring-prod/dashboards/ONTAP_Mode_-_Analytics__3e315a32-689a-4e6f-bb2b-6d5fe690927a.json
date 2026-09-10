@@ -1,0 +1,847 @@
+{
+  "name": "projects/697731967255/dashboards/3e315a32-689a-4e6f-bb2b-6d5fe690927a",
+  "display_name": "ONTAP Mode - Analytics ",
+  "etag": "5a4068489c3c1bd420c8086dfb0e093e",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Dashboard Details",
+          "text": {
+            "content": "This dashboard gives a high-level view of who is calling the ONTAP proxy, from which pools/projects, and which API paths are used across the fleet. \nIt shows the health of the ONTAP Proxy  at a glance.\n\n# High Level Dashboards\n\n    1. Operations specific views\n    2. Region specific views\n    3. Customer specific views\n\n\n## Activity Summary\n\n    1. API level summary(http)\n    2. Backend level summary\n    3. Cache workflow related summary\n",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 35,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Ontap Proxy Summary Across  the fleet",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 46,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Request rate by Operations",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, avg by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_requests_total\",\"monitored_resource\"=\"k8s_cluster\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 46,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Ontap proxy errors by Operations(4xx)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, avg by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_errors_total\",\"monitored_resource\"=\"k8s_cluster\",\"status_code\"=~\"4.*\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "path",
+                "visible": true
+              },
+              {
+                "column": "status_code",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 46,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Ontap proxy errors by Operations(5xx)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_errors_total\",\"monitored_resource\"=\"k8s_cluster\",\"status_code\"=~\"5.*\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "path",
+                "visible": true
+              },
+              {
+                "column": "status_code",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 61,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Latency by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_request_duration_seconds\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"path\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 61,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ONTAP proxy \u2013 Availability by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_requests_total\" resource.type=\"k8s_cluster\" metric.label.\"status_code\"=monitoring.regex.full_match(\"2.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 77,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Success Rate by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_requests_total\" resource.type=\"k8s_cluster\" metric.label.\"status_code\"!=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 77,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Error Rate by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_errors_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 93,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Backend Summary Across  the fleet",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 103,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Backend request rate by Operations",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, avg by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_backend_requests_total\",\"monitored_resource\"=\"k8s_cluster\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 103,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Backend errors by Operations(4xx)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_backend_errors_total\",\"monitored_resource\"=\"k8s_cluster\",\"error_code\"=~\"4.*\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "path",
+                "visible": true
+              },
+              {
+                "column": "status_code",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 103,
+        "width": 16,
+        "height": 15,
+        "widget": {
+          "title": "Backend errors by Operations(5xx)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(30, sum by (\"path\")(increase({\"__name__\"=\"custom.googleapis.com/ontap_proxy_backend_errors_total\",\"monitored_resource\"=\"k8s_cluster\",\"error_code\"=~\"5.*\",\"path\"!~\"\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "path",
+                "visible": true
+              },
+              {
+                "column": "status_code",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 118,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backend latency by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_request_duration_seconds\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 9,
+                      "group_by_fields": [
+                        "metric.label.\"path\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 118,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backend\u2013 Availability by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_requests_total\" resource.type=\"k8s_cluster\" metric.label.\"status_code\"=monitoring.regex.full_match(\"2.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 134,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backend success rate by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_requests_total\" resource.type=\"k8s_cluster\" metric.label.\"status_code\"!=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 4,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 134,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Backend Error rate by Operations",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_errors_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ontap_proxy_backend_requests_total\" resource.type=\"k8s_cluster\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"path\""
+                        ]
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 38,
+        "width": 48,
+        "height": 8,
+        "widget": {
+          "text": {
+            "content": "**Description**: Top 30 API requests\n\n**Unit**: Count (of API requests)\n\n* With Error classification",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 96,
+        "width": 48,
+        "height": 7,
+        "widget": {
+          "text": {
+            "content": "**Description**: Top 30 backend requests\n\n**Unit**: Count (of API requests)\n\n* With Error classification",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "title": "",
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 19,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "ONTAP Mode Pools",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (\"volume\",\"pool_name\",\"location\",\"project\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_labels\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}]))\nand on (volume)\nsum by (volume) (\n  label_replace(\n    avg_over_time({\"__name__\"=\"custom.googleapis.com/gcnv_volumes_eligibility\",\"monitored_resource\"=\"k8s_cluster\",\"created_by\"=\"ontap-proxy\"}[${__interval}]),\n    \"volume\", \"$1\", \"name\", \"(.*)\"\n  )\n)",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "path",
+                "visible": false
+              },
+              {
+                "column": "status_code",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "project_id",
+      "string_value": "",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {}
+}

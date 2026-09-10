@@ -1,0 +1,48 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/3924953361873285811",
+  "display_name": "ontap-volume-delete",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-03-31T23:28:42.588895673Z",
+    "mutated_by": "patrickguan@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:28:03.442634512Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "alert",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/3924953361873285811/conditions/5757986305299589041",
+      "condition_prometheus_query_language": {
+        "query": "sum by (project_id)  (rate({\"__name__\"=\"logging.googleapis.com/user/ontap-volume-delete\",monitored_resource=\"gce_instance\"}[1h])) > 1",
+        "duration": "0s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "ontap-volume-delete \n\nRun book: https://netapp.atlassian.net/wiki/spaces/COPS/pages/106340444/Runbook+-+GCNV+-+Chronical+Alert",
+    "mime_type": "text/markdown",
+    "subject": "ontap-volume-delete",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

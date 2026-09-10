@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/1545794798825651988",
+  "display_name": "Chassis Temperature is Warm",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:58:45.403927879Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-16T04:35:49.086944650Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"monitor.chassisTemperature.warm\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - ems_events",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/1545794798825651988/conditions/15575241465455040703"
+    }
+  ],
+  "documentation": {
+    "content": "Ensure that sufficient cooling air is being supplied to the chassis and that the air inlets and outlets of the unit\nare not blocked. If you cannot resolve the situation, shut down all clients that are attached to the storage appliance, and then shut down the system.\n\nThese events indicate that system may shutdown soon. So they may not get auto-resolved. The resolution is to get smart hands to act and remediate the heating/cooling in the cage.\n\nSyslog Message:\n\nChassis temperature is too warm: %s\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "user_labels": {
+    "notification-channel": "otel-prod"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3
+}

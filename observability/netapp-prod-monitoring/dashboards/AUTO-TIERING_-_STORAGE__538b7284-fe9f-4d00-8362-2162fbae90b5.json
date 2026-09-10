@@ -1,0 +1,500 @@
+{
+  "name": "projects/93478785040/dashboards/538b7284-fe9f-4d00-8362-2162fbae90b5",
+  "display_name": "AUTO-TIERING - STORAGE",
+  "etag": "2b33be5f7ce3d1ed3e668a7a4539c435",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "GCS Bucket - Total Request count for Cloud Tier Buckets [RATE]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 29,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Read/List/Get Request Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"method\"=monitoring.regex.full_match(\"Read.*|List.*|Get.*\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 29,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Write Request Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"method\"=monitoring.regex.full_match(\"Write.*\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 94,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Network Traffic - Ingress Rate (Bytes)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/network/received_bytes_count\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 94,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Network Traffic - Egress Rate (Bytes)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/network/sent_bytes_count\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 77,
+        "width": 47,
+        "height": 17,
+        "widget": {
+          "title": "Total Storage by Object State (GCS Bucket)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/storage/v2/total_bytes\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 45,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Client Error Rate",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"response_code\"=monitoring.regex.full_match(\"CANCELLED|INVALID_ARGUMENT|NOT_FOUND|ALREADY_EXISTS|PERMISSION_DENIED|UNAUTHENTICATED|RESOURCE_EXHAUSTED|FAILED_PRECONDITION|ABORTED|OUT_OF_RANGE\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 45,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Server (GCS) Error Rate",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"response_code\"=monitoring.regex.full_match(\"INTERNAL|UNIMPLEMENTED|UNAVAILABLE|DATA_LOSS|DEADLINE_EXCEEDED|UNKNOWN\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": []
+                      }
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 61,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "GCS Bucket - Read Error",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"method\"=\"ReadObject\" metric.label.\"response_code\"=monitoring.regex.full_match(\"INTERNAL|UNAVAILABLE|DEADLINE_EXCEEDED\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 61,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "GCS Bucket - Write Error",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"storage.googleapis.com/api/request_count\" resource.type=\"gcs_bucket\" metric.label.\"method\"=\"WriteObject\" metric.label.\"response_code\"=monitoring.regex.full_match(\"INTERNAL|UNAVAILABLE|DEADLINE_EXCEEDED\") resource.label.\"bucket_name\"=monitoring.regex.full_match(\"sde-atr-.*\")",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 45,
+        "widget": {
+          "title": "API Requests",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 45,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Errors & Failures",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 77,
+        "width": 48,
+        "height": 33,
+        "widget": {
+          "title": "Data & Traffic",
+          "collapsible_group": {
+            "collapsed": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "string_value": "europe-southwest1",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "gcnv-po": "",
+    "network": "",
+    "gcnv": ""
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/737385741045905052",
+  "display_name": "Aggregate is Offline",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-12T09:58:14.524788192Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-06-23T10:13:44.969026132Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/aggr_labels\" AND metric.labels.state != \"online\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.cluster",
+              "metric.label.node",
+              "metric.label.aggr"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Cluster - aggr_labels",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/737385741045905052/conditions/1653145598759195270"
+    }
+  ],
+  "documentation": {
+    "content": "If the operating environment for the system, storage, or associated cabling has changed in terms of temperature, humidity, vibration, unstable electrical power, or other physical factors, gracefully shut down and power off the system until the environment is restored to normal operations. If the operating environment has not changed, identify the source of the inconsistency by checking for previous errors and warnings. Also check for hardware statistics from Fibre Channel, SCSI, disk drives, other communications mechanisms, and previous administrative activities. Another approach is to consult with NetApp technical support (it is recommended that you do so before attempting this step), and then run WAFL\u00ae Iron (wafliron) on the aggregate to identify and optionally repair the inconsistency. If you need further assistance, contact NetApp technical support.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

@@ -1,0 +1,60 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/7538791995436121978",
+  "display_name": "ems_object_store_signature_mismatch",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-24T07:09:23.360507876Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-30T10:45:29.614006506Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"osc.signatureMismatch\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 6,
+            "group_by_fields": [
+              "metric.label.node",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ems_object_store_signature_mismatch",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/7538791995436121978/conditions/9695120953219179615"
+    }
+  ],
+  "documentation": {
+    "content": "Verify that the secret access key is configured correctly. If it is configured correctly, contact NetApp technical support for assistance. \n\nosc.signatureMismatch\nSeverity\nERROR\n\nDescription\nThis message occurs when the request signature sent to the object-store server does not match the signature calculated.\n\nCorrective Action\nVerify that the secret access key is configured correctly. If it is correct, contact NetApp technical support for assistance.\n\nSyslog Message\nObject-store %s operation server-calculated request signature does not match the signature sent to object-store server %s for bucket or container \"%s\" on node %s. Check the keys and signing method.\n\nParameters\noperation (STRING): Request name.\nserverHostname (STRING): Hostname of the object-store server.\nbucket (STRING): Name of the object-store bucket.\nnodeUuid (STRING): UUID of the node.\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

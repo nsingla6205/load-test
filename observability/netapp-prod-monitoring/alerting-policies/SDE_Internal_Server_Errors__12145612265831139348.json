@@ -1,0 +1,61 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12145612265831139348",
+  "display_name": "SDE Internal Server Errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-06-12T11:40:10.523496974Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-08-30T06:33:35.192425199Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/sde-internal-server-errors\" AND metadata.system_labels.service_name = \"cloud-volumes-proxy-1p\"",
+        "comparison": 1,
+        "threshold_value": 12.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "SDE Internal Server Errors",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12145612265831139348/conditions/1014728826518695004"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook Link: https://confluence.ngage.netapp.com/display/COPS/Runbook%3A+CVP+Total+%5B500%5D+Requests",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

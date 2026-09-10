@@ -1,0 +1,338 @@
+{
+  "name": "projects/93478785040/dashboards/56f2a8ed-9fa1-4917-8910-c24fdb6d3b02",
+  "display_name": "NETWORK HEALTH - GCNV INTERCONNECT (CP & DP)",
+  "etag": "bba53e7caaebde3427fbb92da9c8f0ef",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "INTERCONNECT - Operational Status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/operational\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"interconnect\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 17,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "INTERCONNECT - Ingress Bandwidth Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/received_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 33,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "INTERCONNECT - Egress Bandwidth Utilization",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch interconnect\n| { metric 'interconnect.googleapis.com/network/interconnect/sent_bytes_count'\n    |  filter true() \n    | align rate(5m)\n  ; metric 'interconnect.googleapis.com/network/interconnect/capacity'\n    |  filter true() \n    | group_by 5m, [value_capacity_mean: mean(value.capacity)] }\n| ratio\n| every 5m\n| scale '%'",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "thresholds": [
+              {
+                "value": 60.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 52,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "INTERCONNECT - Ingress Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/receive_errors_count\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"interconnect\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 52,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "INTERCONNECT - Egress Errors",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/send_errors_count\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": []
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 68,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "INTERCONNECT - Circuit Receive Power",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/link/rx_power\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"interconnect\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 68,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "INTERCONNECT - Circuit Transmit Power",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/link/tx_power\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "resource.label.\"project_id\"",
+                        "resource.label.\"interconnect\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "infra": "",
+    "gcnv-po": "",
+    "gcnv": "",
+    "network": ""
+  },
+  "dashboard_filters": []
+}

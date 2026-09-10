@@ -1,0 +1,50 @@
+{
+  "name": "projects/93478785040/dashboards/e1fc740c-b415-42ec-b21d-b7ccc43885e3",
+  "display_name": "MACSec",
+  "etag": "66baf457603e6717b640df66ad2b7b8b",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 37,
+        "widget": {
+          "title": "MACSec Operational Status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"interconnect.googleapis.com/network/interconnect/link/macsec/operational\" resource.type=\"interconnect\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 17,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

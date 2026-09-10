@@ -1,0 +1,86 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/6196754588010886765",
+  "display_name": "VPS Stale Document",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-08-30T04:19:37.334477304Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-03T01:37:11.298185872Z",
+    "mutated_by": "gauthamp@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/ontap_cluster_stale_document\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ontap_cluster_stale_document",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/6196754588010886765/conditions/10306421611593776467"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/ontap_cluster_stale_document\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 11,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ontap_cluster_stale_document",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/6196754588010886765/conditions/10306421611593777104"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook:https://confluence.ngage.netapp.com/display/COPS/Runbook+-+GCNV+-+ONTAP+-+ontap_cluster_stale_document\n\nThe VPS service has stale ONTAP OR hyperscaler resource usage information\nIndicates that a stale ontap cluster document was found. This indicates that either an ONTAP cluster has not been reachable for some time, or that there is an issue with the VPS resource tracking system.",
+    "mime_type": "text/markdown",
+    "subject": "VPS Stale Document",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

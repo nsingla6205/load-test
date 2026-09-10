@@ -1,0 +1,68 @@
+{
+  "name": "projects/93478785040/dashboards/550e6336-eb98-43a4-9f70-a4056ac6fc24",
+  "display_name": "ONTAP: Quota",
+  "etag": "8b96d7912f7459f3abf5e6263f9842c0",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 42,
+        "widget": {
+          "title": "Reports",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "label_join(quota_disk_limit{datacenter=~\"${Datacenter.value}\",cluster=~\"${Cluster.value}\",svm=~\"${SVM.value}\",qtree=~\"${Qtree.value}\"}, \"index\", \"-\", \"datacenter\", \"cluster\", \"svm\", \"volume\", \"qtree\", \"group\", \"user\")",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "datacenter",
+      "template_variable": "Datacenter",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "cluster",
+      "template_variable": "Cluster",
+      "string_value": "",
+      "filter_type": 1
+    },
+    {
+      "label_key": "svm",
+      "template_variable": "SVM",
+      "string_value": "",
+      "filter_type": 2
+    },
+    {
+      "label_key": "qtree",
+      "template_variable": "Qtree",
+      "string_value": "",
+      "filter_type": 2
+    }
+  ],
+  "labels": {
+    "ontap-harvest": ""
+  }
+}

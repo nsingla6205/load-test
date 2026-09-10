@@ -1,0 +1,68 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/1882624328769987265",
+  "display_name": "Customer unsubscribed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-09-20T12:49:49.118322580Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-01-02T14:15:40.137325904Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/disabled-customer-accounts\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.project_id"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "disabled-customer-accounts",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/1882624328769987265/conditions/12888817763004589196"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+GCNV+-+Customer+unsubscribed\n\nThis is just an information Alert when a customer unsubscribed. ",
+    "mime_type": "text/markdown",
+    "subject": "Customer unsubscribed ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/3755115138492431940",
+    "projects/netapp-prod-monitoring/notificationChannels/12452035797768328788",
+    "projects/netapp-prod-monitoring/notificationChannels/2805866588679738109",
+    "projects/netapp-prod-monitoring/notificationChannels/10184526037974394906",
+    "projects/netapp-prod-monitoring/notificationChannels/8683957556586101935",
+    "projects/netapp-prod-monitoring/notificationChannels/10434457322922900836"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

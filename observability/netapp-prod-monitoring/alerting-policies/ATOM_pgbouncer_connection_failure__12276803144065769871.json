@@ -1,0 +1,73 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12276803144065769871",
+  "display_name": "ATOM pgbouncer connection failure",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-04-29T09:40:41.878893006Z",
+    "mutated_by": "pratiksk@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:51.057179145Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/SDS_PGBouncer_Connection_Failure\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ATOM pgbouncer connection failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12276803144065769871/conditions/12276803144065772888"
+    }
+  ],
+  "documentation": {
+    "content": "Contact SO SRE to debug further.\n\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+Atom+-+SDS+to+pgbouncer+connection+failure",
+    "mime_type": "text/markdown",
+    "subject": "ATOM pgbouncer connection failure observed.",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792313",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792850",
+    "projects/netapp-prod-monitoring/notificationChannels/3926516215686562497",
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

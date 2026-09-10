@@ -1,0 +1,60 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/2706087797061209456",
+  "display_name": "Billing-Collection: CVT-Postgres-Connection-Down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-07T06:03:06.170053567Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:47.308288886Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_pod\" AND metric.type = \"custom.googleapis.com/postgress_connection_status\"",
+        "comparison": 1,
+        "threshold_value": 0.5,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Pod - postgress_connection_status",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/2706087797061209456/conditions/12525832457605185600"
+    }
+  ],
+  "documentation": {
+    "content": "Check the CVT log for Postgres connection error\n\nRunbook:  https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+CVT-Postgres-Connection-Down",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: CVT to Postgres Connection is Down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

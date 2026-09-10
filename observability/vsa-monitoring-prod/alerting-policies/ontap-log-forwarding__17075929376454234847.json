@@ -1,0 +1,47 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/17075929376454234847",
+  "display_name": "ontap-log-forwarding",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-03-31T23:41:23.291284465Z",
+    "mutated_by": "patrickguan@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T09:31:13.296970883Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "New condition",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/17075929376454234847/conditions/11105971590748670683",
+      "condition_prometheus_query_language": {
+        "query": "sum by (project_id)  (rate({\"__name__\"=\"logging.googleapis.com/user/ontap-log-forwarding\",monitored_resource=\"gce_instance\"}[1h]))> 0.01",
+        "duration": "0s",
+        "evaluation_interval": "300s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "ontap-log-forwarding\n\nRun book: https://netapp.atlassian.net/wiki/spaces/COPS/pages/106340444/Runbook+-+GCNV+-+Chronical+Alert",
+    "mime_type": "text/markdown",
+    "subject": "ontap-log-forwarding",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "user_labels": {},
+  "severity": 0
+}

@@ -1,0 +1,91 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/3160852080389093295",
+  "display_name": "Secd Auth/LDAP connection failure - old",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-08-01T14:43:26.751493936Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-10-07T06:21:01.509643891Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND (metric.labels.message = \"secd.conn.auth.failure\" AND metric.labels.cluster = one_of(\"US-OMA-GC-CL01-D001C220R0206\", \"US-OMA-GC-CL01-D001C220R0107\", \"US-OMA-GC-CL01-D001C220R0207\"))",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.node_uuid",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "secd connection auth failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3160852080389093295/conditions/7698099447188172952"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/ems_events\" AND metric.labels.message = \"secd.ldap.connectFailure\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.node_uuid",
+              "metric.label.cluster",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "secd ldap connection failure",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/3160852080389093295/conditions/7698099447188175035"
+    }
+  ],
+  "documentation": {
+    "content": "Run the below commands and check the output.\n\nevent log show -event *secd*\n\nldap check -vserver VSERVER\n\nvserver services name-service dns check -vserver VSERVER\n\ndns show -vserver VSERVER\n\nIf the output isn't positive, contact Shruthi or Revanth as it is customer impacting(Citadel). \n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "conneciton",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

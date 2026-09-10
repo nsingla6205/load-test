@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/6240780044449604245",
+  "display_name": "so-volume-metric-missing",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-03T04:07:10.675818437Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-02-03T07:09:29.733986998Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/podrick_ntapvol_state\"",
+        "duration": "21600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ]
+      },
+      "display_name": "so-volume-metric-missing",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/6240780044449604245/conditions/14369575059498911401"
+    }
+  ],
+  "documentation": {
+    "subject": "so-volume-metric-missing",
+    "content": "",
+    "mime_type": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "1800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

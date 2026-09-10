@@ -1,0 +1,283 @@
+{
+  "name": "projects/93478785040/dashboards/fd9022df-e686-4b9d-8136-395009ddf6b8",
+  "display_name": "RT Usage",
+  "etag": "be762400f4f6ff62157b0e7d4026639d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 25,
+        "widget": {
+          "title": "ONTAP Cluster VLAN Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ontap_cluster_vlan_count_usage\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "metric.label.\"region\"",
+                        "metric.label.\"host_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "host_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 23,
+        "height": 25,
+        "widget": {
+          "title": "ONTAP Cluster IP Space Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ontap_cluster_ipspace_count_usage\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 3,
+                      "group_by_fields": [
+                        "metric.label.\"region\"",
+                        "metric.label.\"host_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "host_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 25,
+        "width": 47,
+        "height": 33,
+        "widget": {
+          "title": "Aggregate Logical Size Usage",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_pod\n| metric 'custom.googleapis.com/aggregate_logical_size_usage'\n| group_by 1m,\n    [value_aggregate_logical_size_usage_mean:\n       mean(value.aggregate_logical_size_usage/(1024 *1024 * 1024 * 1024 ))]\n| every 1m\n| group_by [metric.ontap_aggregate_name, metric.region, metric.host_id],\n    [value_aggregate_logical_size_usage_mean_max:\n       max(value_aggregate_logical_size_usage_mean)]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "metric.ontap_aggregate_name",
+                "visible": true
+              },
+              {
+                "column": "metric.region",
+                "visible": true
+              },
+              {
+                "column": "metric.host_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 108,
+        "width": 47,
+        "height": 31,
+        "widget": {
+          "title": "Using fallback limit",
+          "logs_panel": {
+            "filter": "resource.type=\"k8s_container\"\nresource.labels.namespace_name=\"sde\"\nlabels.k8s-pod/app=\"rt-worker\"\n\"Using fallback limit\"",
+            "resource_names": [
+              "projects/66538580690",
+              "projects/214320950977",
+              "projects/214973729108",
+              "projects/219904027114",
+              "projects/288859202921",
+              "projects/455225749929",
+              "projects/530482850599",
+              "projects/569476132063",
+              "projects/637685391306",
+              "projects/852138831800",
+              "projects/921033047368",
+              "projects/965215116332",
+              "projects/977013937889",
+              "projects/1018083414920"
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 80,
+        "width": 47,
+        "height": 28,
+        "widget": {
+          "title": "VPS Allocation Failure Logs",
+          "logs_panel": {
+            "filter": "resource.type=\"k8s_container\"\nresource.labels.namespace_name=\"sde\"\nresource.labels.container_name=\"vps\"\n\"Placement candidates not found\"",
+            "resource_names": [
+              "projects/66538580690",
+              "projects/214320950977",
+              "projects/214973729108",
+              "projects/219904027114",
+              "projects/288859202921",
+              "projects/455225749929",
+              "projects/530482850599",
+              "projects/569476132063",
+              "projects/637685391306",
+              "projects/852138831800",
+              "projects/921033047368",
+              "projects/965215116332",
+              "projects/977013937889",
+              "projects/1018083414920"
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 58,
+        "width": 47,
+        "height": 22,
+        "widget": {
+          "title": "Node Volume Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_volume_count_usage\" resource.type=\"k8s_pod\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"ontap_node_name\"",
+                        "metric.label.\"region\"",
+                        "metric.label.\"host_id\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "ontap_node_name",
+                "visible": true
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "host_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "microservices": "",
+    "infra": "",
+    "gcnv-po": "",
+    "gcnv": ""
+  },
+  "dashboard_filters": []
+}

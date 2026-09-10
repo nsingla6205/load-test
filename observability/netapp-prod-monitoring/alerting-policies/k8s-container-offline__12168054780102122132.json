@@ -1,0 +1,38 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12168054780102122132",
+  "display_name": "k8s-container-offline",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-12T14:24:27.370343301Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-12T14:24:27.370343301Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "k8s-container-offline",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12168054780102122132/conditions/12168054780102120003",
+      "condition_prometheus_query_language": {
+        "query": "sum by (\"container_name\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/up\",\"monitored_resource\"=\"k8s_container\",\"metadata_system_state\"!=\"ACTIVE\"}[1m])) <= 0",
+        "duration": "3600s",
+        "evaluation_interval": "30s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

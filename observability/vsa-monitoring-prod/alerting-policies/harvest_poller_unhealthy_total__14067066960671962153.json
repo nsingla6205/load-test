@@ -1,0 +1,57 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/14067066960671962153",
+  "display_name": "harvest_poller_unhealthy_total",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-01T10:04:18.159041676Z",
+    "mutated_by": "piyushgaur@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-02T03:32:12.600303807Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/harvest_poller_unhealthy_total\"",
+        "comparison": 1,
+        "threshold_value": 5.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "harvest_poller_unhealthy_total",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/14067066960671962153/conditions/13116066632677463250"
+    }
+  ],
+  "enabled": false,
+  "validity": {
+    "code": 3,
+    "message": "conditions[0] is invalid: Field aggregation.crossSeriesReducer had an invalid value of \"REDUCE_MEAN\": The descriptors of 'custom.googleapis.com/harvest_poller_unhealthy_total' in 'projects/vsa-monitoring-us-e1' and 'projects/vsa-monitoring-us-w2' are incompatible: The set of labels must be the same. (ID: 13116066632677463250)",
+    "details": []
+  },
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

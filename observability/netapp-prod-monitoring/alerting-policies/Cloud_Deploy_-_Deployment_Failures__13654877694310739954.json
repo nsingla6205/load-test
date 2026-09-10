@@ -1,0 +1,52 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/13654877694310739954",
+  "display_name": "Cloud Deploy - Deployment Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-12-18T12:42:36.376525041Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-12-18T12:42:36.376525041Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"global\" AND metric.type = \"custom.googleapis.com/cloud_deploy/last_deployment_details\" AND (metric.labels.pipeline_name = monitoring.regex.full_match(\"gcnv-vsa-control-plane.*|gcnv-vcp-worker-.*|gcnv-vlm-.*\") AND metric.labels.deployment_status = \"FAILED\")",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "3600s",
+            "per_series_aligner": 14,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.pipeline_name",
+              "metric.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud Deploy - Deployment Failures",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/13654877694310739954/conditions/13654877694310737651"
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

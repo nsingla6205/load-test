@@ -1,0 +1,296 @@
+{
+  "name": "projects/697731967255/dashboards/8995cdb3-20b1-44a5-a72f-bbea022ac74d",
+  "display_name": "Flex Unified ONTAP Versions",
+  "etag": "597e35289aa7433e8915d3d017e75788",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 9,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 30,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Non Prober Clusters)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 30,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Prober Clusters)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"=~\"cep-.*\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 51,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Non Prober Clusters) - Online",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\",\"state\"=\"up\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 51,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Prober Cluster) - Online",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"=~\"cep-.*\",\"state\"=\"up\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 72,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Non Prober Clusters) - Offline",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# count by (version, state, ${__groupby}) (custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\", \"state\"!=\"up\"})\n\ncount by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"!~\"cep-.*\",\"state\"!=\"up\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 72,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions (Prober Clusters) - Offline",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\",\"pool_name\"=~\"cep-.*\",\"state\"!=\"up\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 93,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions and status",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# count by (version, state, ${__groupby}) (custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\"})\n\ncount by (version, state, ${__groupby}) (\n  max by (deployment_name, version, state,${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "version",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 93,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions and status",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "# count by (version, state, ${__groupby}) (custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\"})\n\ncount by (version, state, ${__groupby}) (\n  max by (deployment_name, version, state,${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 9,
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "ONTAP Versions",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "count by (version, ${__groupby}) (\n  max by (deployment_name, version, ${__groupby}) (\n    {\"__name__\"=\"custom.googleapis.com/node_labels\", \"monitored_resource\"=\"k8s_cluster\"} @ end()\n  )\n)",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 1,
+            "show_labels": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 9,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "Count of clusters with different Versions\n\n1. Total Cluster Count\n2. Non Prober Clusters\n3. Prober clusters\n4. Online Clusters\n5. Offline Clusters",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

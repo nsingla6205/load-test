@@ -1,0 +1,65 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12467915823848664402",
+  "display_name": "Cloud SQL Database - Deadlocks Detected",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-23T04:32:34.882505616Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-29T04:41:55.214717593Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"cloudsql_database\" AND metric.type = \"cloudsql.googleapis.com/database/postgresql/deadlock_count\"",
+        "comparison": 1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.database",
+              "resource.label.database_id",
+              "resource.label.region",
+              "metadata.system_labels.name",
+              "metadata.system_labels.region",
+              "metadata.system_labels.state"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "threshold_value": 0.0,
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud SQL Database - Deadlocks count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12467915823848664402/conditions/1832467026337848843"
+    }
+  ],
+  "documentation": {
+    "content": "# **GCP Cloud PostgreSQL DB Deadlock Runbook**\n\nThis runbook provides primary on-call responders with steps to quickly diagnose and resolve alerts triggered by a significant increase in the `Cloud SQL Database > database > Deadlocks count` metric for a GCP Cloud PostgreSQL instance.\n\nDeadlocks occur when two or more transactions are waiting for locks held by the other, forming a circular dependency, leading to blocked operations and potential application downtime.\n\n# **1. Alert Triage and Validation**\n\n## **A. Initial Alert Verification**\n\n1.  **Acknowledge the Alert:** Acknowledge the alert in the monitoring system to signal that investigation is underway.\n2.  **Verify the Database Instance:** Identify the specific GCP Cloud PostgreSQL instance mentioned in the alert.\n3.  **Check Deadlocks Metric:** Confirm the deadlocks count is persistently elevated using the `Cloud SQL Database > database > Deadlocks count` metric in Cloud Monitoring or the relevant dashboard.\n\n## **B. Immediate Application Health Check**\n\n1.  **Application Logs:** Review application logs for the service connected to the affected database for concurrent errors (e.g., connection timeouts, failed transactions, specific error codes related to deadlocks).\n2.  **Service Availability:** Confirm if the application is experiencing degraded performance or outright outage due to the deadlocks.\n\n# **2. Diagnostics and Information Gathering**\n\nThe goal here is to identify the queries, transactions, and tables involved in the deadlock.\n\n## **A. Cloud SQL Insights**\n\n1.  **Navigate to Cloud SQL Instance:** Go to the affected instance in the GCP console.\n2.  **Check Query Insights:** Examine the **Query Insights** tab for high-latency or high-load queries around the time of the alert. Look for queries that use `UPDATE`, `DELETE`, or `SELECT FOR UPDATE`.\n\n## **B. PostgreSQL System Views**\n\nUse the `gcloud sql connect` command or a suitable client to connect to the database and execute the following queries:\n\n1.  **Identify Active Sessions:** This shows currently running queries and their lock status.\n\n    ```sql\n    SELECT\n      pid,\n      usename,\n      application_name,\n      client_addr,\n      backend_start,\n      state,\n      wait_event_type,\n      wait_event,\n      query_start,\n      query\n    FROM pg_stat_activity\n    WHERE state <> 'idle'\n    ORDER BY query_start;\n    ```\n\n2.  **Check for Blocking Locks:** Crucial for identifying transactions holding locks that others are waiting for.\n\n    ```sql\n    SELECT\n      a.locktype,\n      a.relation::regclass,\n      a.transactionid,\n      a.mode,\n      a.GRANTED,\n      a.pid AS blocking_pid,\n      b.pid AS blocked_pid\n    FROM pg_locks a\n    JOIN pg_locks b ON a.locktype = b.locktype\n      AND a.database IS NOT DISTINCT FROM b.database\n      AND a.relation IS NOT DISTINCT FROM b.relation\n      AND a.transactionid IS NOT DISTINCT FROM b.transactionid\n      AND a.classid IS NOT DISTINCT FROM b.classid\n      AND a.objid IS NOT DISTINCT FROM b.objid\n      AND a.objsubid IS NOT DISTINCT FROM b.objsubid\n      AND a.pid <> b.pid\n    WHERE a.GRANTED\n      AND NOT b.GRANTED;\n    ```\n\n## **C. PostgreSQL Logs (Deadlock Detection)**\n\nCheck the PostgreSQL logs (available in Cloud Logging under `cloudsql.googleapis.com/postgres`). Deadlocks are typically logged with specific messages, often including the transactions and statements involved.\n\n*   **Search Filter:** `resource.type=\"cloudsql_database\" AND log_name=\"projects/<PROJECT_ID>/logs/cloudsql.googleapis.com%2Fpostgres\" AND \"deadlock detected\"`\n*   **Action:** Copy the full deadlock message, including the PIDs and the specific SQL statements, for the resolution step.\n\n# **3. Mitigation and Resolution**\n\n## **A. Immediate Action: Terminate Blocking Sessions**\n\nIf the deadlock is ongoing and severely impacting the application, and the blocking session is clearly identified:\n\n1.  **Identify the Blocking PID:** Use the information from the previous step (`blocking_pid`).\n2.  **Terminate the Session (Use with Caution):** This will roll back the transaction and potentially resolve the lock contention.\n\n    ```sql\n    SELECT pg_terminate_backend(<blocking_pid>);\n    ```\n\n3.  **Monitor:** Check the Deadlocks count metric and application health immediately after termination.\n\n## **B. Long-Term Fix: Query/Schema Review**\n\nThe deadlock is usually a symptom of a long-running transaction, improper indexing, or incorrect transaction design (e.g., consistent ordering of lock requests).\n\n1.  **Identify Deadlock Statements:** Review the statements found in the PostgreSQL logs.\n2.  **Involve Development/DBA Team:** Hand off the problematic query and schema details to the appropriate team (Person) for review.\n    *   **Goal:** Optimize the query, ensure transactions are short, and check for consistent lock acquisition order.\n3.  **Index Review:** Check if adding or modifying indexes on the tables involved could reduce the locking duration.\n\n# **4. Post-Incident Activities**\n\n1.  **Check for Stability:** Ensure the Deadlocks count metric has returned to baseline and application performance is stable for at least 30 minutes.\n2.  **Document the Incident:** Create a summary of the incident, including the affected instance, the identified statements, the mitigation steps (e.g., terminated PID), and the long-term fix plan. Store the documentation here: File\n3.  **Schedule Follow-up:** Create a follow-up meeting (Calendar event) with the development team to review the root cause and implement a permanent fix.\n\n# **Appendix: Key Metrics**\n\nThis table outlines key metrics to monitor during the incident.\n\n| Metric | Cloud Monitoring Name | Threshold Example | Notes |\n| :---: | :---: | :---: | :---: |\n| Deadlocks Count | `cloudsql_database/database/deadlocks_count` | `> 0/minute` | Primary trigger |\n| Active Connections | `cloudsql_database/database/active_connections` | `> 80% of limit` | Indicates high load/contention |\n| Transaction Latency | `cloudsql_database/database/transaction_latency` | Sharp spike | General performance impact |\n| CPU Utilization | `cloudsql_instance/cpu/utilization` | `> 90%` | High contention can lead to high CPU |",
+    "mime_type": "text/markdown",
+    "subject": "Cloud SQL Database - Deadlocks detected",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

@@ -1,0 +1,63 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15685616401956297211",
+  "display_name": "snapshot-hydration-failed",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-05-19T12:38:36.217873149Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-07-07T03:52:43.901390840Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/snapshot-hydration-failed\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "snapshot-hydration-failed",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15685616401956297211/conditions/1305123644234851988"
+    }
+  ],
+  "documentation": {
+    "content": "https://jira.ngage.netapp.com/browse/NFSAAS-164990",
+    "mime_type": "text/markdown",
+    "subject": "snapshot-hydration-failed",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186",
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

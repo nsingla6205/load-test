@@ -1,0 +1,47 @@
+{
+  "name": "projects/vsa-monitoring-prod/alertPolicies/5720681642985230742",
+  "display_name": "vsa_certificate_expiring_in_15d",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-08-25T04:35:09.676421537Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-09-02T07:08:10.948794177Z",
+    "mutated_by": "manden@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": "vsa_certificate_expiring_in_15d",
+      "name": "projects/vsa-monitoring-prod/alertPolicies/5720681642985230742/conditions/11633981487138369125",
+      "condition_prometheus_query_language": {
+        "query": "(    \n  (\n    min by (location) (\n      max_over_time({\"__name__\"=\"custom.googleapis.com/security_certificate_expiry_time\",\"monitored_resource\"=\"k8s_cluster\"}[10m])\n      ) - time()\n  ) / 86400 >= 1\n)\nand\n(    \n  (\n    min by (location) (\n      max_over_time({\"__name__\"=\"custom.googleapis.com/security_certificate_expiry_time\",\"monitored_resource\"=\"k8s_cluster\"}[10m])\n      ) - time()\n  ) / 86400 <= 15\n)",
+        "duration": "300s",
+        "evaluation_interval": "600s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "${metric_or_resource.labels} ",
+    "mime_type": "text/markdown",
+    "subject": "vsa_certificate_expiring_in_15d",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/vsa-monitoring-prod/notificationChannels/15893593087830152255",
+    "projects/vsa-monitoring-prod/notificationChannels/11581728300827704491"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

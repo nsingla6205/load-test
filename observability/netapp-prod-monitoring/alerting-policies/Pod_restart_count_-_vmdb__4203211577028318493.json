@@ -1,0 +1,71 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4203211577028318493",
+  "display_name": "Pod restart count - vmdb",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-02-15T22:07:48.699839491Z",
+    "mutated_by": "ankita5@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-07-30T17:26:16.044809452Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND resource.labels.namespace_name = \"vmdb\" AND metric.type = \"kubernetes.io/container/restart_count\"",
+        "comparison": 1,
+        "threshold_value": 0.002,
+        "duration": "21600s",
+        "trigger": {
+          "percent": 50.0
+        },
+        "aggregations": [
+          {
+            "alignment_period": "1800s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Container - Restart count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4203211577028318493/conditions/7793297716256257095"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook link -- https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=756222999",
+    "mime_type": "text/markdown",
+    "subject": "Pod restart count",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/3926516215686563711",
+    "projects/netapp-prod-monitoring/notificationChannels/3926516215686562497",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792850",
+    "projects/netapp-prod-monitoring/notificationChannels/14265417205865792313",
+    "projects/netapp-prod-monitoring/notificationChannels/1315706149260573186",
+    "projects/netapp-prod-monitoring/notificationChannels/8890330843387606193",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063",
+    "projects/netapp-prod-monitoring/notificationChannels/6585456793311694829",
+    "projects/netapp-prod-monitoring/notificationChannels/262618565202026848",
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/16298857262158401245",
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158",
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

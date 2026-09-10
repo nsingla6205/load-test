@@ -1,0 +1,293 @@
+{
+  "name": "projects/93478785040/dashboards/c14f0b91-1fbc-4064-ac3d-b9a0a759ac9e",
+  "display_name": "API Error Rate",
+  "etag": "fa3ecbce291439958fee7402d4ece24a",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 22,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Error Rate - By Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\" metric.label.\"status\"=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 22,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Error Rate - By Region (Chart)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\" metric.label.\"status\"=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\"",
+                      "aggregation": {
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "resource.label.\"location\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 6,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Error Rate - By API",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\" metric.label.\"status\"=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"API\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"API\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "API",
+                "visible": true
+              },
+              {
+                "column": "Metric",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 6,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "API Error Rate - By API (Chart)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\" metric.label.\"status\"=monitoring.regex.full_match(\"5.*\")",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"API\""
+                        ]
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"logging.googleapis.com/user/cvp_api_requests\" resource.type=\"k8s_container\"",
+                      "aggregation": {
+                        "per_series_aligner": 12,
+                        "cross_series_reducer": 4,
+                        "group_by_fields": [
+                          "metric.label.\"API\""
+                        ]
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 47,
+        "height": 6,
+        "widget": {
+          "title": "How to Read this Dashboard",
+          "text": {
+            "content": "API Error rate = Total 5xx errors from all CRUD APIs / Total calls for all CRUD APIs",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "important-dashboards": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,57 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/9092537013547054694",
+  "display_name": "ontap-not-reachable-from-cvt",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-04-13T07:06:38.166981338Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-04-21T12:27:38.247877631Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/ontap-not-reachable-from-cvt\"",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "ontap-not-reachable-from-cvt",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/9092537013547054694/conditions/10993724692430456553"
+    }
+  ],
+  "documentation": {
+    "content": "# **Runbook: Debugging Cloud Volumes Telemetry (CVT) Connectivity to ONTAP Management Service**\n\n# **Overview**\n\nThis runbook provides a step-by-step guide for debugging connectivity issues between the Cloud Volumes Telemetry (CVT) component of SDE (Storage Data Engine) and the ONTAP Management Service. The primary symptom addressed here is the failure of API requests from CVT to ONTAP, resulting in HTTP 4xx status codes.\n\nNote: This would lead to \"Volume Offline\" Alerts for all the volumes on this stamp\n\n# **Prerequisites**\n\nBefore starting the troubleshooting process, ensure you have the following access and tools:\n\n*   Access to SDE/CVT logs (specifically the CVT-pipeline logs).\n*   Access to the ONTAP cluster CLI or management interface to view event logs and network configuration.\n*   Knowledge of the ONTAP cluster's management IP address/hostname.\n*   Tools for network diagnostics (e.g., ping, traceroute, curl).\n\n# **Troubleshooting Steps**\n\n## **1. Initial Assessment**\n\n| Step | Action | Expected Outcome/Notes |\n| :---: | :--- | :--- |\n| **1.1** | **Identify the SDE component** | Confirm that the issue is specific to the \"Cloud Volumes Telemetry\" component. |\n| **1.2** | **Verify API failure code** | Confirm the exact 4xx error code (e.g., 401 Unauthorized, 403 Forbidden, 404 Not Found). This is crucial for narrowing down the issue. |\n| **1.3** | **Check recent changes** | Determine if any recent changes were made to SDE, CVT configuration, or the ONTAP cluster (e.g., firewall rules, user credentials, ONTAP upgrade). |\n\n## **2. Check CVT-pipeline Logs**\n\nReview the CVT-pipeline logs for detailed error messages that accompany the 4xx response.\n\n| Step | Action | Detail |\n| :---: | :--- | :--- |\n| **2.1** | **Filter for 4xx errors** | Search the logs around the time of the failure for \"4xx\", \"error\", or the specific ONTAP Management Service API endpoint being called. |\n| **2.2** | **Analyze Authorization Errors (401/403)** | **401 Unauthorized:** Check for expired or incorrect credentials/tokens being used by CVT. Verify the user credentials defined in the CVT configuration are correct and still valid on ONTAP. **403 Forbidden:** The user has valid credentials but lacks the necessary permissions (RBAC role) to execute the specific ONTAP API request. |\n| **2.3** | **Analyze Not Found Errors (404)** | **404 Not Found:** The API endpoint or the resource being queried does not exist. Check the CVT configuration to ensure the correct API version and paths are being used for the ONTAP Management Service. |\n| **2.4** | **Check connectivity messages** | Look for lower-level errors in the logs (e.g., \"Connection refused,\" \"Timeout\") which might indicate a deeper network issue, even if the final status code is 4xx from a successful connection attempt. |\n\n## **3. Verify ONTAP Events and Configuration**\n\nAccess the ONTAP cluster to check for corresponding events and configuration settings.\n\n### **3.1 Credentials and Role-Based Access Control (RBAC)**\n\nIf the error is 401 or 403, focus on the user account CVT is using.\n\n| Step | Command/Action (ONTAP CLI) | Purpose |\n| :---: | :--- | :--- |\n| **3.1.1** | `security login show -username <CVT_USER>` | Verify the ONTAP user exists and is active. |\n| **3.1.2** | `security login role show -username <CVT_USER>` | Check the user's role and associated access methods. Ensure the role has `api` access and the necessary privileges for the APIs being called. |\n| **3.1.3** | **Check for lockout** | Check if the account is locked out due to too many failed login attempts. |\n\n### **3.2 ONTAP Network Connectivity & Services**\n\nIf the error is consistently failing, or if step 2.4 indicates a connection refusal.\n\n| Step | Action | Detail |\n| :---: | :--- | :--- |\n| **3.2.1** | **Verify Management Service Status** | Ensure the ONTAP management service (usually HTTPS on port 443) is running on the LIF (Logical Interface) CVT is trying to reach. |\n| **3.2.2** | **Check Network LIF Status** | Use `network interface show -lif <LIF_Name>` to confirm the LIF is up/online and that the firewall policy allows access from the CVT/SDE network subnet. |\n| **3.2.3** | **Review ONTAP Event Logs** | Use `event log show -messagename *security* | *http* | *login*` to find any events related to API access denials or authentication failures that match the time of the CVT error. |\n\n## **4. Network Diagnostics (From SDE/CVT Host)**\n\nIf the CVT logs suggest a connection issue (e.g., connection refused or timeout before the 4xx response), perform basic network checks.\n\n| Step | Action | Notes |\n| :---: | :--- | :--- |\n| **4.1** | **Ping** | `ping <ONTAP_MGMT_IP>`: Check basic IP reachability. If this fails, investigate the route. |\n| **4.2** | **Traceroute** | `traceroute <ONTAP_MGMT_IP>`: Determine where the connection is being dropped (e.g., a firewall or router). |\n| **4.3** | **Check Port Connectivity** | `curl -vk https://<ONTAP_MGMT_IP>:<PORT>`: Test if the HTTPS port is open and accepting connections. A successful connection that results in a 4xx response means the network path is open. A failure to connect points to a network block or service down. |\n\n## **5. Final Remediation**\n\nBased on the investigation:\n\n*   **If 401/403 (Authorization):** Update the CVT configuration with correct credentials or modify the ONTAP user's RBAC role/permissions. Reference the specific documentation for RBAC configuration on ONTAP File.\n*   **If 404 (Not Found):** Correct the API endpoint or resource path in the CVT-pipeline configuration.\n*   **If Network Blockage:**\n    *   **Firewall:** Adjust the host/network firewall or the ONTAP LIF firewall policy to allow traffic from the SDE/CVT host to the ONTAP management service port (typically 443).\n    *   **Routing:** Fix routing issues between the SDE/CVT host and the ONTAP management LIF.\n\nOnce remediation is complete, restart the CVT service or pipeline and monitor the logs for successful API calls. Schedule a follow-up review for the connectivity fix: Calendar event on Date at Place.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {},
+  "notification_channels": []
+}

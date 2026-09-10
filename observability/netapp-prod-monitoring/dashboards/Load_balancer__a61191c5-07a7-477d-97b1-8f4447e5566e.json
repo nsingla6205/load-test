@@ -1,0 +1,231 @@
+{
+  "name": "projects/93478785040/dashboards/a61191c5-07a7-477d-97b1-8f4447e5566e",
+  "display_name": "Load balancer",
+  "etag": "5647f2b9558cb1bd3df94ef6da84e30c",
+  "mosaic_layout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Internal HTTP/S Load Balancing Rule - Request count [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"loadbalancing.googleapis.com/https/internal/request_count\" resource.type=\"internal_http_lb_rule\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"response_code\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 6,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Internal HTTP/S Load Balancing Rule - Request count for 200 [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"loadbalancing.googleapis.com/https/internal/request_count\" resource.type=\"internal_http_lb_rule\" metric.label.\"response_code_class\"=\"200\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"response_code\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Internal HTTP/S Load Balancing Rule - Request count for 400 [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"loadbalancing.googleapis.com/https/internal/request_count\" resource.type=\"internal_http_lb_rule\" metric.label.\"response_code_class\"=\"400\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"response_code\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 6,
+        "y_pos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Internal HTTP/S Load Balancing Rule - Request count for 500 [SUM]",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"loadbalancing.googleapis.com/https/internal/request_count\" resource.type=\"internal_http_lb_rule\" metric.label.\"response_code_class\"=\"500\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 14,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"response_code\""
+                      ]
+                    },
+                    "secondary_aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 0,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "timeshift_duration": "0s",
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "region",
+      "filter_type": 1,
+      "template_variable": ""
+    },
+    {
+      "label_key": "response_code",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "response_code_class",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "infra": "",
+    "gcnv": ""
+  }
+}

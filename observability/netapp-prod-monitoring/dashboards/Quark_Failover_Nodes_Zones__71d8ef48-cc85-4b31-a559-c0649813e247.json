@@ -1,0 +1,231 @@
+{
+  "name": "projects/93478785040/dashboards/71d8ef48-cc85-4b31-a559-c0649813e247",
+  "display_name": "Quark Failover Nodes/Zones",
+  "etag": "5b7393d3627236ae738a289f9394493f",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Node Failed Count",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "rate(custom_googleapis_com:nhc_failed_node_count{monitored_resource=\"k8s_pod\"}[${__interval}])",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "storagePoolUUID",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "sdeSpUUID",
+                "visible": false
+              },
+              {
+                "column": "container_name",
+                "visible": false
+              },
+              {
+                "column": "namespace_name",
+                "visible": false
+              },
+              {
+                "column": "pod_name",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "apps_kubernetes_io_pod_index",
+                "visible": false
+              },
+              {
+                "column": "statefulset_kubernetes_io_pod_name",
+                "visible": false
+              },
+              {
+                "column": "app",
+                "visible": false
+              },
+              {
+                "column": "controller_revision_hash",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 19,
+        "width": 24,
+        "height": 25,
+        "widget": {
+          "title": "StoragePool Failover Count",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/nhc_sp_failover_count\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 2,
+                      "num_time_series": 10,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 19,
+        "width": 24,
+        "height": 25,
+        "widget": {
+          "title": "Quark Zone Health",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:quark_health_zone_health{monitored_resource=\"k8s_cluster\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster_name",
+                "visible": true
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

@@ -1,0 +1,529 @@
+{
+  "name": "projects/697731967255/dashboards/1a54019c-ea3c-4cb7-83a5-9b29e4e53122",
+  "display_name": "Customer Adoption - CloudWave",
+  "etag": "6e008a68d7db6b4970543f352556f756",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 68,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CP Customer Requests ",
+          "pie_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "slice_name_template": ""
+              }
+            ],
+            "chart_type": 2,
+            "show_labels": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 68,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CP Customer Total Requests (Historical)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"projectNumber\"=\"209379129467\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 1,
+                      "group_by_fields": [
+                        "metric.label.\"Job_Type\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 84,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "CP Workflows Executed By Customers",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"Job_Type\""
+                      ]
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 54,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Availability of CP Workflows",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"!=\"500\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 0,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 0,
+                        "group_by_fields": []
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 54,
+        "width": 24,
+        "height": 14,
+        "widget": {
+          "title": "Error Rate in each CP Workflow",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter_ratio": {
+                    "numerator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"=\"500\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                      "aggregation": {
+                        "alignment_period": "60s",
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 0,
+                        "group_by_fields": []
+                      }
+                    },
+                    "denominator": {
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                      "aggregation": {
+                        "per_series_aligner": 2,
+                        "cross_series_reducer": 0,
+                        "group_by_fields": []
+                      }
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 1,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 84,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "CP Workflows Executed By Customers",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"oas_operation\"!=\"getHealth\" metric.label.\"Job_State\"=\"DONE\" metric.label.\"projectNumber\"=\"209379129467\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 1,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    },
+                    "pick_time_series_filter": {
+                      "ranking_method": 5,
+                      "num_time_series": 30,
+                      "direction": 1
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 4,
+        "width": 13,
+        "height": 18,
+        "widget": {
+          "title": "Dashboard Description",
+          "text": {
+            "content": "# Customer: CloudWave\n\nYou would find the following details in this Dashboard\n\n**Data Plane Charts**\n1. Volumes and Snapshot count\n2. Provisioned, Used and Available Capacity\n\n**Control Plane Charts**\n\n3. Availability and error rate of workflows for each customer\n4. Total Number of requests by each customer (current and historical)\n5. Total number and type of workflows by each customer",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 32,
+        "width": 48,
+        "height": 18,
+        "widget": {
+          "title": "Data Plane Service health status",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "(avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"project\"=\"209379129467\"}[${__interval}])) == 1) / avg(avg_over_time({\"__name__\"=\"custom.googleapis.com/cluster_new_status\",\"monitored_resource\"=\"k8s_cluster\",\"project\"=\"209379129467\"}[${__interval}])) * 100\n",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 99.99,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 22,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Total Provisioned Capacity",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",\"project\"=\"209379129467\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 31,
+        "y_pos": 22,
+        "width": 17,
+        "height": 10,
+        "widget": {
+          "title": "Available Space",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(custom_googleapis_com:aggr_space_available{monitored_resource=\"k8s_cluster\",\"project\"=\"209379129467\"})",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 22,
+        "width": 15,
+        "height": 10,
+        "widget": {
+          "title": "Total Logical Used Capacity ",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_used{monitored_resource=\"k8s_cluster\",\"project\"=\"209379129467\"}[5m]))",
+              "output_full_duration": false
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 4,
+        "width": 13,
+        "height": 18,
+        "widget": {
+          "title": "Volume Count",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/volume_labels\" resource.type=\"k8s_cluster\" metric.label.\"project\"=\"209379129467\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 37,
+        "y_pos": 4,
+        "width": 11,
+        "height": 18,
+        "widget": {
+          "title": "Snapshots",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/volume_snapshots_count\" resource.type=\"k8s_cluster\" metric.label.\"project\"=\"209379129467\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 3,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 13,
+        "y_pos": 4,
+        "width": 11,
+        "height": 18,
+        "widget": {
+          "title": "Aggregates ",
+          "scorecard": {
+            "time_series_query": {
+              "time_series_filter": {
+                "filter": "metric.type=\"custom.googleapis.com/aggr_labels\" resource.type=\"k8s_cluster\" metric.label.\"project\"=\"209379129467\"",
+                "aggregation": {
+                  "alignment_period": "60s",
+                  "per_series_aligner": 12,
+                  "cross_series_reducer": 4,
+                  "group_by_fields": []
+                }
+              },
+              "output_full_duration": true,
+              "unit_override": ""
+            },
+            "spark_chart_view": {
+              "spark_chart_type": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Data Plane",
+          "section_header": {
+            "subtitle": "Charts",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 50,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Control Plane ",
+          "section_header": {
+            "subtitle": "Operational Charts",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "projectNumber",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "location",
+      "filter_type": 1,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "leadership": ""
+  }
+}

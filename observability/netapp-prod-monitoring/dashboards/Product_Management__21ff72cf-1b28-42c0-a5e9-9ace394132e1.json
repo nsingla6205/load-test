@@ -1,0 +1,44 @@
+{
+  "name": "projects/93478785040/dashboards/21ff72cf-1b28-42c0-a5e9-9ace394132e1",
+  "display_name": "Product Management ",
+  "etag": "548464a0dfc4e2263e8fb65eb9973068",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 29,
+        "widget": {
+          "title": "Volume Size for PO",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (\"volume\",\"aggr\",\"node\",\"svm\",\"cluster\",\"name\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/volume_size_total\",\"monitored_resource\"=\"k8s_cluster\"}[${__interval}])) * on(volume) group_left(name,accountName) label_replace(\n    sum by (\"accountName\",\"name\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/eligibility/v2/volume\",\"monitored_resource\"=\"gce_instance\",\"storageClass\"=\"hardware\"}[${__interval}])),\n    \"volume\", \"$1\", \"name\", \"(.*)\"\n)",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [],
+  "labels": {}
+}

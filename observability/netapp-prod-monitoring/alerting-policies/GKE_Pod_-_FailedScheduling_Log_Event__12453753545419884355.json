@@ -1,0 +1,43 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12453753545419884355",
+  "display_name": "GKE Pod - FailedScheduling Log Event",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-06-22T09:04:15.979872634Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-06-22T09:06:01.801130364Z",
+    "mutated_by": "apatange@google.com"
+  },
+  "conditions": [
+    {
+      "display_name": " cluster has a FailedScheduling Log Event",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12453753545419884355/conditions/12453753545419883004",
+      "condition_matched_log": {
+        "filter": "resource.type=\"k8s_pod\" AND resource.labels.cluster_name=\"\" AND jsonPayload.reason=\"FailedScheduling\"",
+        "label_extractors": {}
+      }
+    }
+  ],
+  "documentation": {
+    "content": "- A \"FailedScheduling\" event occurs when a pending pod cannot be scheduled, This alert fires when an event with reason \"FailedSceduling\" occurs in the logs; limited to notifying once per hour.\n- We recommend troubleshooting this incident with the [Unschedulable Pods interactive playbook](https://console.cloud.google.com/monitoring/dashboards/gke-troubleshooting/unschedulable?project=netapp-prod-monitoring&f.sd_ts_playbook.cluster_name=&f.sd_ts_playbook.location=), which shows detailed instructions, metrics, and logs.",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/10499449343146426047"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_rate_limit": {
+      "period": "3600s"
+    },
+    "auto_close": "604800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

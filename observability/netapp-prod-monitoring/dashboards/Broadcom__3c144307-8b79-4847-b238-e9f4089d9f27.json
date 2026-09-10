@@ -1,0 +1,534 @@
+{
+  "name": "projects/93478785040/dashboards/3c144307-8b79-4847-b238-e9f4089d9f27",
+  "display_name": "Broadcom",
+  "etag": "cfb36f57e53421c80f5fae29d82fdbe3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "This Dashboard provides the following details:",
+          "text": {
+            "content": "**Inventory:**\n1. List of **1P** Volumes** of the customer \n2. List of **3P** Volumes of the customer\n3. List of **Hardware** Volumes of the customer\n4. List of **Flex** Volumes of the customer \n5. List of **Regions** where the customer has volumes\n6. Number of **API** requests over a period of time\n\n**Errors:**\n7. List of volumes which are **not in available** state\n8. List of volumes which **failed to create**\n9. Number of **API** requests that **failed** over a period of time",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Inventory",
+          "section_header": {
+            "subtitle": "Volumes, Regions",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 20,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Broadcom Volumes - 1P",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\", volume1p=\"true\"}[${__interval}])\n\n# Broadcom GROUP_CA\n# 248763606835\n# 573896852665\n# 660864381245\n# 909168673786\n# 988419171652",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 38,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Broadcom Volumes - Software",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\", storageClass!=\"hardware\"}[${__interval}])\n\n# Broadcom GROUP_CA\n# 972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 20,
+        "width": 24,
+        "height": 18,
+        "widget": {
+          "title": "Broadcom Volumes - Hardware",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\", storageClass=\"hardware\"}[${__interval}])\n\n# Broadcom GROUP_CA\n# 972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": false
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 56,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Broadcom API Requests",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(increase(logging_googleapis_com:user_customerReq{consumerProject=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\"}[${__interval}]))\n\n# Broadcom GROUP_CA\n# 972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\n",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 38,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Broadcom Regions",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "max by (region)(max_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\", accountName=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 76,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Errors",
+          "section_header": {
+            "subtitle": "Error, Unavailable Volumes ",
+            "divider_below": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 80,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Broadcom Volumes - Not Available",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:eligibility_v2_volume{monitored_resource=\"gce_instance\",accountName=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\", lifeCycleState!=\"available\"}[${__interval}])\n\n# Broadcom GROUP_CA\n# 972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\n",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "accountName",
+                "visible": true
+              },
+              {
+                "column": "eligible",
+                "visible": false
+              },
+              {
+                "column": "lifeCycleState",
+                "visible": true
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "region",
+                "visible": true
+              },
+              {
+                "column": "storageClass",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "volume1p",
+                "visible": false
+              },
+              {
+                "column": "zone",
+                "visible": true
+              },
+              {
+                "column": "regionalHA",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 80,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Broadcom Volume Creation Failures ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (correlationID,region_or_zone,error_message,timestamp)(rate(logging_googleapis_com:user_volume_create_failures_paid_cust{monitored_resource=\"k8s_container\",project_number=\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\"}[${__interval}]))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "correlationID",
+                "visible": true
+              },
+              {
+                "column": "region_or_zone",
+                "visible": true
+              },
+              {
+                "column": "error_message",
+                "visible": true
+              },
+              {
+                "column": "timestamp",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 100,
+        "width": 24,
+        "height": 20,
+        "widget": {
+          "title": "Broadcom API Requests Failed",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum(increase(logging_googleapis_com:user_customerReq{consumerProject=~\"972100266816|912281745645|3008521802|950663119242|625823233584|412305494494\",httpStatus=~\"5.*\"}[${__interval}]))\n\n# Broadcom GROUP_CA\n# 972100266816|912281745645|3008521802|950663119242|625823233584|412305494494",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 3,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "project_number",
+      "filter_type": 2,
+      "template_variable": ""
+    },
+    {
+      "label_key": "accountName",
+      "filter_type": 2,
+      "template_variable": ""
+    }
+  ],
+  "labels": {
+    "top-10-customers": ""
+  }
+}

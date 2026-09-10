@@ -1,0 +1,2302 @@
+{
+  "name": "projects/697731967255/dashboards/51f70b02-a0a3-4aba-84f0-b7fc7d4be0ba",
+  "display_name": "Operations (Hostgroup/Replication/KMS)",
+  "etag": "447cf6eadecbf1b31562cad735077fbc",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Hostgroup",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 3,
+        "width": 48,
+        "height": 13,
+        "widget": {
+          "title": "Hostgroup",
+          "text": {
+            "content": "**Description:** Dashboard containting the metrics for Update Hostgroup API along with the latency. \n\n**Each metric contains a Line & Table chart which provides us with historical data as well as current data.**\n\n**Total Requests:** The total number of request counts for Hostgroup Update grouped by region. \n\n**Total Successful Requests:** The number of successful request counts for Hostgroup Update grouped by region.\n\n**Total Failed Requests:** The number of failed request counts for Hostgroup Update grouped by region.\n\n**Total Latency:** Latency for each Hostgroup Update requests grouped by region in milliseconds. ",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Hostgroup Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Hostgroup Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}])))",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Hostgroup Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Hostgroup Update Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Hostgroup Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Hostgroup Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Hostgroup Update Failed Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Hostgroup Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Hostgroup Update (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Hostgroup Update (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_HOSTGROUP\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 80,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "Replication",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 83,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "Replication",
+          "text": {
+            "content": "**Description:** Dashboards containting the metrics for Replication(Create/Delete) along with the latency.\n\n**Each metric contains a Line & Table chart which provides us with historical data as well as current data.**\n\n**Total Requests:** The total number of request counts for Replication Creation & Replication Deletion grouped by region.\n\n**Total Successful Requests:** The number of successful request counts for Replication Creation & Replication Deletion grouped by region.\n\n**Total Failed Requests:** The number of failed request counts for Replication Creation & Replication Deletion grouped by region.\n\n**Total Latency:** Latency for each Replication Creation & Replication Deletion requests grouped by region in milliseconds.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 97,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Replication Creation (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Creation Total Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 97,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Replication Creation (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 113,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Replication Creation (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Creation Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 113,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Replication Creation (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 129,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Replication Creation (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Creation Failed Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 129,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Replication Creation (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 145,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Replication Creation (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 145,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Replication Creation (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_REPLICATION\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 161,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Replication Deletion (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Deletion Total Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 161,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for Replication Deletion (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 177,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Replication Deletion (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Deletion Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 177,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for Replication Deletion (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 193,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Replication Deletion (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Replication Deletion Failed Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 193,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for Replication Deletion (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 209,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Replication Deletion (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.95,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 209,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for Replication Deletion (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_REPLICATION\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 225,
+        "width": 48,
+        "height": 3,
+        "widget": {
+          "title": "KMS Configuration",
+          "section_header": {
+            "subtitle": "",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 228,
+        "width": 48,
+        "height": 14,
+        "widget": {
+          "title": "KMS Configuration",
+          "text": {
+            "content": "**Description:** Dashboards containting the metrics for KMS Configuration Create/Update/Delete/Migrate along with the latency.\n\n**Each metric contains a Line & Table chart which provides us with historical data as well as current data.**\n\n**Total Requests:** The total number of request counts for KMS Configuration Creation, KMS Configuration Update & KMS Configuration Migrate grouped by region.\n\n**Total Successful Requests:** The number of successful request counts for KMS Configuration Creation, KMS Configuration Update & KMS Configuration Migrate grouped by region.\n\n**Total Failed Requests:** The number of failed request counts for KMS Configuration Creation, KMS Configuration Update & KMS Configuration Migrate grouped by region.\n\n**Total Latency:** Latency for each KMS Configuration Creation, KMS Configuration Update & KMS Configuration Migrate requests grouped by region in milliseconds.",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 242,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for KMS Configuration Creation (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Creation Total Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 242,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for KMS Configuration Creation (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 258,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful KMS Configuration Creation Requests (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Creation Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 258,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful KMS Configuration Creation Requests (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 274,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Creation (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Creation Failed Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 274,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Creation (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 290,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Creation (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 290,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Creation (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"CREATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "http_response_status_code",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "projectNumber",
+                "visible": false
+              },
+              {
+                "column": "http_request_method",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "Job_Type",
+                "visible": false
+              },
+              {
+                "column": "otel_scope_name",
+                "visible": false
+              },
+              {
+                "column": "locationID",
+                "visible": false
+              },
+              {
+                "column": "otel_scope_version",
+                "visible": false
+              },
+              {
+                "column": "Job_State",
+                "visible": false
+              },
+              {
+                "column": "Job_TrackingID",
+                "visible": false
+              },
+              {
+                "column": "oas_operation",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 306,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for KMS Configuration Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Update Total Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 306,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Requests for KMS Configuration Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 322,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Update Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 322,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 338,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Update (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Update Failed Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 338,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Update (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 354,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Update (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "scale": 1,
+              "label": ""
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 354,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Update (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"UPDATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 370,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total KMS Configuration Deletion Requests (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Deletion Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 370,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total KMS Configuration Deletion Requests (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 386,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Delete (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Delete Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 386,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Delete (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])) or on() (0 * avg by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 402,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Delete (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 402,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Delete (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, avg by (\"location\")(rate({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])) or on() vector(0))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 418,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Delete (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 418,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Delete (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"DELETE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 434,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total KMS Configuration Migrate Requests (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Migrate Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 434,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total KMS Configuration Migrate Requests (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (location)(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 450,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Migrate (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "KMS Configuration Migrate Success Count",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 450,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Successful Requests for KMS Configuration Migrate (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\",\"Job_State\"=\"DONE\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 466,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Migrate (Count)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "Failed Requests for KMS Configuration Migrate",
+              "scale": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 466,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Failed Requests for KMS Configuration Migrate (Count)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "topk(10, sum by (\"location\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_request_count_total\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\",\"Job_State\"=\"ERROR\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it may not be fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 482,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Migrate (P99 ms)",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "topk(10, histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]))))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "ms",
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 2,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 60000.0,
+                "target_axis": 2,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "chart_options": {
+              "mode": 1
+            },
+            "y2_axis": {
+              "label": "P99, P50, SLA",
+              "scale": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 482,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Total Latency for KMS Configuration Migrate (P99 ms)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.99,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "histogram_quantile(0.50,sum by (\"location\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "prometheus_query": "(avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_sum\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]))/avg_over_time({\"__name__\"=\"custom.googleapis.com/ogen_server_duration_milliseconds_count\",\"monitored_resource\"=\"k8s_cluster\",\"Job_Type\"=\"MIGRATE_KMS_CONFIG\"}[${__interval}]) * 100\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "opsdeck": ""
+  },
+  "dashboard_filters": []
+}

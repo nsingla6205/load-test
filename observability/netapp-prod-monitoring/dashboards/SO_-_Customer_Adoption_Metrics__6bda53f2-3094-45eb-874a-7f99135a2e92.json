@@ -1,0 +1,868 @@
+{
+  "name": "projects/93478785040/dashboards/6bda53f2-3094-45eb-874a-7f99135a2e92",
+  "display_name": "SO - Customer Adoption Metrics",
+  "etag": "66b0782cac96479dc9d0bf00189f3bb7",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 21,
+        "widget": {
+          "title": "Customer and Service Metrics",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/dummy'\n| group_by 15m, [value_dummy_mean: mean(value.dummy)]\n| every 1m\n| group_by\n    [metric.quark_pools, metric.quark_region, metric.quark_clusters,\n     metric.quark_volumes],\n    [value_dummy_mean_max: max(value_dummy_mean)]\n| value\n    [value_dummy_mean_max_cast_units: cast_units(value_dummy_mean_max, 'By')]\n| map\n    add[Region: metric.quark_region, Clusters: metric.quark_clusters,\n      Pools: metric.quark_pools, Volumes: metric.quark_volumes]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "Region",
+                "visible": true
+              },
+              {
+                "column": "Pools",
+                "visible": true
+              },
+              {
+                "column": "Volumes",
+                "visible": true
+              },
+              {
+                "column": "Clusters",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "width": 22,
+        "height": 22,
+        "widget": {
+          "title": "Quark Details - Provisioned Volumes",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch gce_instance\n| metric 'custom.googleapis.com/dummy'\n| group_by 15m, [value_dummy_mean: mean(value.dummy)]\n| every 15m\n| group_by\n    [metric.quark_pools, metric.quark_region, metric.quark_clusters,\n     metric.quark_volumes],\n    [value_dummy_mean_max: max(value_dummy_mean)]\n| value\n    [value_dummy_mean_max_cast_units: cast_units(value_dummy_mean_max, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 179,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "ntapvol_size_total",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(custom_googleapis_com:ntapvol_size_total{monitored_resource=\"k8s_cluster\",cluster_name=~\"${cluster.value}\",cluster_name!~\"${internal_project.value}\"})",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 54,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Allocated Capacity by Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| group_by 5m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 5m\n| group_by [resource.location],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 70,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Used Capacity By Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_used'\n| group_by 1m,\n    [value_ntapvol_logical_size_used_mean:\n       mean(value.ntapvol_logical_size_used)]\n| every 1m\n| group_by [resource.location],\n    [value_ntapvol_logical_size_used_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_used_mean)]\n| value\n    [value_ntapvol_logical_size_used_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_used_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 86,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in asia-east1",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'asia-east1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 98,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in asia-south1",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'asia-south1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 110,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in australia-southeast2",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'australia-southeast2')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 122,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in europe-west1",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'europe-west1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 134,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Allocated Capacity  Per Cluster in us-west1",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'us-west1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 54,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Allocated Capacity by Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| group_by 5m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 5m\n| group_by [resource.location],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 70,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Used Capacity By Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_used'\n| group_by 1m,\n    [value_ntapvol_logical_size_used_mean:\n       mean(value.ntapvol_logical_size_used)]\n| every 1m\n| group_by [resource.location],\n    [value_ntapvol_logical_size_used_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_used_mean)]\n| value\n    [value_ntapvol_logical_size_used_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_used_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 86,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in asia-east1",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'asia-east1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 98,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in asia-south1",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'asia-south1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 110,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in australia-southeast2",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'australia-southeast2')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 122,
+        "width": 24,
+        "height": 12,
+        "widget": {
+          "title": "Allocated Capacity Per Cluster in europe-west1",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'europe-west1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 134,
+        "width": 24,
+        "height": 13,
+        "widget": {
+          "title": "Allocated Capacity  Per Cluster in us-west1",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| filter (resource.location == 'us-west1')\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [resource.cluster_name],\n    [value_ntapvol_logical_size_available_mean_aggregate:\n       aggregate(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_aggregate_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_aggregate, 'By')]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 147,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Customer Logical Size Available",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_available'\n| group_by 1m,\n    [value_ntapvol_logical_size_available_mean:\n       mean(value.ntapvol_logical_size_available)]\n| every 1m\n| group_by [metric.ownerID, resource.location],\n    [value_ntapvol_logical_size_available_mean_mean:\n       mean(value_ntapvol_logical_size_available_mean)]\n| value\n    [value_ntapvol_logical_size_available_mean_mean_cast_units:\n       cast_units(value_ntapvol_logical_size_available_mean_mean, 'By')]\n| map add[Customer: metric.ownerID, Region: resource.location]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Customer",
+                "visible": true
+              },
+              {
+                "column": "Region",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 147,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Customer Logical Size Used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_logical_size_used'\n| group_by 1m,\n    [value_ntapvol_logical_size_used_mean:\n       mean(value.ntapvol_logical_size_used)]\n| every 1m\n| group_by [metric.ownerID, resource.location],\n    [value_ntapvol_logical_size_used_mean_mean:\n       mean(value_ntapvol_logical_size_used_mean)]\n| value\n    [value_ntapvol_logical_size_used_mean_mean_cast_units:\n       cast_units(value_ntapvol_logical_size_used_mean_mean, 'By')]\n| map add[Custmer: metric.ownerID, Region: resource.location]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Custmer",
+                "visible": true
+              },
+              {
+                "column": "Region",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 22,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Pool Allocation Per Region (Thin Provision enabled 33%)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:podrick_ntapsp_allocation{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 22,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Pool Allocation Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/podrick_ntapsp_allocation\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "min_alignment_period": "60s",
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 38,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Pool Usage Per Region",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/podrick_ntapsp_usage'\n| group_by 1m,\n    [value_podrick_ntapsp_usage_mean: mean(value.podrick_ntapsp_usage)]\n| every 1m\n| group_by [resource.location],\n    [value_podrick_ntapsp_usage_mean_aggregate:\n       aggregate(value_podrick_ntapsp_usage_mean)]\n| value\n    [value_podrick_ntapsp_usage_mean_aggregate_cast_units:\n       cast_units(value_podrick_ntapsp_usage_mean_aggregate, 'By')]\n| map add[Region: resource.location]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Region",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 38,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Pool Usage Per Region",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/podrick_ntapsp_usage'\n| group_by 1m,\n    [value_podrick_ntapsp_usage_mean: mean(value.podrick_ntapsp_usage)]\n| every 1m\n| group_by [resource.location],\n    [value_podrick_ntapsp_usage_mean_aggregate:\n       aggregate(value_podrick_ntapsp_usage_mean)]\n| value\n    [value_podrick_ntapsp_usage_mean_aggregate_cast_units:\n       cast_units(value_podrick_ntapsp_usage_mean_aggregate, 'By')]\n| map add[Region: resource.location]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 22,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Pools Capacity",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 147,
+        "width": 48,
+        "height": 32,
+        "widget": {
+          "title": "Customer Metric",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 54,
+        "width": 48,
+        "height": 93,
+        "widget": {
+          "title": "Volumes Capacity",
+          "collapsible_group": {
+            "collapsed": true
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 163,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Customer Provisioned Volume Size",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_size_total'\n| group_by 1m, [value_ntapvol_size_total_mean: mean(value.ntapvol_size_total)]\n| every 1m\n| group_by [metric.ownerID, resource.location],\n    [value_ntapvol_size_total_mean_mean: mean(value_ntapvol_size_total_mean)]\n| value\n    [value_ntapvol_size_total_mean_mean_cast_units:\n       cast_units(value_ntapvol_size_total_mean_mean, 'By')]\n| map add[Customer: metric.ownerID, Region: resource.location]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "Customer",
+                "visible": true
+              },
+              {
+                "column": "Region",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 163,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Per Customer Provisioned Volume Size",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_query_language": "fetch k8s_container\n| metric 'custom.googleapis.com/ntapvol_size_total'\n| group_by 1m, [value_ntapvol_size_total_mean: mean(value.ntapvol_size_total)]\n| every 1m\n| group_by [metric.ownerID],\n    [value_ntapvol_size_total_mean_mean: mean(value_ntapvol_size_total_mean)]\n| value\n    [value_ntapvol_size_total_mean_mean_cast_units:\n       cast_units(value_ntapvol_size_total_mean_mean, 'By')]\n| map add[Customer: metric.ownerID]",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "plot_type": 2,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            },
+            "thresholds": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "cluster_name",
+      "template_variable": "cluster",
+      "filter_type": 1
+    },
+    {
+      "template_variable": "internal_project",
+      "filter_type": 6,
+      "label_key": ""
+    }
+  ],
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  }
+}

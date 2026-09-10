@@ -1,0 +1,661 @@
+{
+  "name": "projects/93478785040/dashboards/35be0f7d-26ba-4f06-a3bd-f8fa9664e100",
+  "display_name": "ONTAP: CI: CVS GCP-PO Capacity Management and Planning",
+  "etag": "05ac06ef7da859ae9cd76381a0c5cba3",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Usable Capacity for A700s Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m]))\n/\n(count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m]))\n          / \n        count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m])))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Sellable Capacity per A700s Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m]))\n       )\n) * 1.5 * 0.8",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "VPS Physical Cutoff Per A700s Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A700s\"}[5m]))\n       )\n) * 0.85",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Usable Capacity for A800 Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m]))\n/\n(count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr!~\"aggr0.*\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m]))\n          / \n        count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m])))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Sellable Capacity A800 Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m]))\n       )\n) * 1.5 * 0.8",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "VPS Physical Cutoff Per A800 Stamp",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "(\n    sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m]) \n        and on (node) \n        avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m])) \n    /\n       (\n            count(count_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0.*\"}[5m])\n            and on (node) \n            avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m])) \n            /  \n            count(count_over_time(custom_googleapis_com:node_new_status{monitored_resource=\"k8s_cluster\",${location}}[5m]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",${location}, model=\"AFF-A800\"}[5m]))\n       )\n) * 0.85",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation us-central1 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\"}[15m]))*1.3 * 0.8) *100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation us-east4 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-east4\",aggr!~\"aggr0.*\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation us-west2 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west2\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west2\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 51,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation us-west3 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west3\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west3\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 51,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation us-west4 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-west4\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-west4\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 51,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation europe-west2 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west2\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west2\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 68,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation europe-west3 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west3\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west3\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 68,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation europe-west4 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west4\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west4\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 68,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation europe-west6 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-west6\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-west6\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 85,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation northamerica-northeast1 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast1\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 85,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation northamerica-northeast2 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast2\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"northamerica-northeast2\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 85,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation asia-southeast1 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"asia-southeast1\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"asia-southeast1\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 102,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation australia-southeast1 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"australia-southeast1\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"australia-southeast1\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 102,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "Percentage Allocation europe-southwest1 (P * 1.3 * 0.8)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"europe-southwest1\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"europe-southwest1\"}[15m]))*1.3 * 0.8)*100",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 119,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "B: AFS Logical Utilization (Verified)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_space_logical_used_by_afs{monitored_resource=\"k8s_cluster\",style=\"flexvol\",${location}}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 119,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "F: Physical Space Utilization % (Verified)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "avg by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0_.*\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 138,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "E: Total Allocation (Verified)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",${location}}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 138,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "D:  Usable Capacity (Verified)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m]))",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 157,
+        "width": 48,
+        "height": 38,
+        "widget": {
+          "title": "Report",
+          "text": {
+            "content": "[Table] Percentage Allocation {REGION} (P * 1.3 * 0.8)\n\n    [Metric] Capacity Total [A]\n\n[Table] Capacity Metric per stamp from volume (InternalVolume)\n\n    [Metric] AFS Logical utilization [B]: capacity.total\n\n[Table] Capacity Metric per stamp from aggr \n\n    [Metric] Usable Capacity [D]: capacity.total\n    [Metric] Total Allocation [E]: capacity.provisioned\n    [Metric] Physical Space Utilization [F]: capacity.used\n\nNumber of regions where utilization (capacity sold) is xyz\n\n    Formula: [A]\n\nNumber of stamps where utilization (capacity sold) is xyz\n \n    Formula: [E/D]\n\nNumber of stamps where logical space utilization is xyz\n\n    Formula: [B/D]\n\nNumber of stamps where physical space utilization is xyz\n\n    Formula: [F]",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 195,
+        "width": 48,
+        "height": 30,
+        "widget": {
+          "title": "A: Percentage Allocation Table (P * 1.3 * 0.8)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",style=\"flexvol\",${location}}[15m])) / (sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m]))*1.3 * 0.8)*100\n\n#sum(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\",style=\"flexvol\"}[15m])) / (sum(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",location=\"us-central1\"}[15m]))*1.3 * 0.8) *100",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "Name",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 225,
+        "width": 24,
+        "height": 54,
+        "widget": {
+          "title": "Stamp logical space utilization ",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "# (sum by (cluster)(avg_over_time(custom_googleapis_com:volume_space_logical_used_by_afs{monitored_resource=\"k8s_cluster\",style=\"flexvol\",${location}}[15m])) / sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m])))*100\n\n(sum by (cluster)(avg_over_time(custom_googleapis_com:volume_space_logical_used_by_afs{monitored_resource=\"k8s_cluster\",${location}}[15m])) / sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m])))*100",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 225,
+        "width": 24,
+        "height": 54,
+        "widget": {
+          "title": "Stamps Utilization (capacity sold)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "sum by (cluster)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",${location}}[15m])) / sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m])) *100",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 279,
+        "width": 24,
+        "height": 19,
+        "widget": {
+          "title": "ShruthiF: Physical Space Utilization % (Verified)",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "avg by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\",${location},aggr!~\"aggr0_.*\"}[15m]))",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 279,
+        "width": 24,
+        "height": 54,
+        "widget": {
+          "title": "Stamps Utilization - Discounting cool tier",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "(sum by (cluster)(avg_over_time(custom_googleapis_com:volume_size_total{monitored_resource=\"k8s_cluster\",${location}}[15m])) - sum by (\"cluster\")(avg_over_time(custom_googleapis_com:aggr_object_store_logical_used{monitored_resource=\"k8s_cluster\",${location}}[15m]))) / sum by (cluster)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",${location}}[15m])) * 100",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  }
+}

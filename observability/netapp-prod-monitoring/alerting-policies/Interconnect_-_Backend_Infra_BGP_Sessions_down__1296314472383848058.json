@@ -1,0 +1,66 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/1296314472383848058",
+  "display_name": "Interconnect - Backend Infra BGP Sessions down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2023-08-18T08:44:58.276827673Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-02-07T09:18:16.343714734Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gce_router\" AND metric.type = \"router.googleapis.com/bgp/session_up\" AND metric.labels.bgp_peer_name != has_substring(\"crr\")",
+        "comparison": 3,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.region",
+              "resource.label.project_id"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cloud Router - BGP session status",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/1296314472383848058/conditions/1789924316216735047"
+    }
+  ],
+  "documentation": {
+    "content": "Please refer below runbook\n\nhttps://confluence.ngage.netapp.com/display/COPS/Runbook+-+Network+-+Interconnect+Attachment+-+BGP+Status+-+DOWN",
+    "mime_type": "text/markdown",
+    "subject": "[CRITICAL] Interconnect - Backend Infra BGP Sessions down",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/13121591254365550521",
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308",
+    "projects/netapp-prod-monitoring/notificationChannels/5123480094146800147",
+    "projects/netapp-prod-monitoring/notificationChannels/600614061202589505"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

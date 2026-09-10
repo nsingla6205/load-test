@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8639373977742762828",
+  "display_name": "Harvest and ONTAP Auth Errors",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-06-26T06:58:01.929933833Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-06-26T06:58:56.585901348Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/harvest-auth-errors\"",
+        "comparison": 1,
+        "threshold_value": 100.0,
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.harvest_pod_name",
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 1,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "harvest-auth-errors",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8639373977742762828/conditions/8639373977742762367"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-128037\n\nSteps:\n1. Check the poller logs for errors. This alert is sourced from logs, so the logs will definitely have an error.\n2. Check if the ONTAP credentials are rotated/updated. \n3. Restart harvest poller pods to resync the new credentials\n4. Check for connectivity errors to ONTAP Stamp",
+    "mime_type": "text/markdown",
+    "subject": "Harvest Failed to Auth with ONTAP",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "3600s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

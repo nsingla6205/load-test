@@ -1,0 +1,131 @@
+{
+  "name": "projects/93478785040/dashboards/eaf27e80-4084-45fb-b511-c8ad98d66ffc",
+  "display_name": "ONTAP: Security",
+  "etag": "1e45f6319e0fd17376eea2bfb74ca35d",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 24,
+        "widget": {
+          "title": "SSL Certificates Expiration",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "custom_googleapis_com:security_certificate_labels{monitored_resource=\"k8s_cluster\",expiry_time!=\"\"}",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "s",
+                  "prometheus_query": "custom_googleapis_com:security_certificate_expiry_time{monitored_resource=\"k8s_cluster\"} - time()",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "serial_number",
+                "visible": true
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "svm",
+                "visible": true
+              },
+              {
+                "column": "type",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "certificateIssuerType",
+                "visible": true
+              },
+              {
+                "column": "__name__",
+                "visible": false
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "expiry_time",
+                "visible": true
+              },
+              {
+                "column": "certificateExpiryStatus",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": ""
+  },
+  "dashboard_filters": []
+}

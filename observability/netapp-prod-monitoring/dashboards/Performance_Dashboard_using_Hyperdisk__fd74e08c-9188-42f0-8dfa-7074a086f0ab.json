@@ -1,0 +1,311 @@
+{
+  "name": "projects/93478785040/dashboards/fd74e08c-9188-42f0-8dfa-7074a086f0ab",
+  "display_name": "Performance Dashboard using Hyperdisk",
+  "etag": "d2242c1c63a3da48faebf72b073c1fa2",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "HyperDisk for Zonal Storage Pool",
+          "section_header": {
+            "subtitle": "A Hyperdisk Storage Pool is a pre-purchased collection of capacity, throughput, and IOPS which user can provision to their applications as needed. Below widgets will describe how much IOPS and Throughput customer have Provisioned, Used and Remaining at that time. ",
+            "divider_below": false
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 4,
+        "width": 24,
+        "height": 5,
+        "widget": {
+          "title": "Provisioned IOPS and Throughput",
+          "text": {
+            "content": "Total IOPS and Throughput provisioned by customer",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 4,
+        "width": 24,
+        "height": 5,
+        "widget": {
+          "title": "Current IOPS and Throughput",
+          "text": {
+            "content": "Denotes current IOPS and Throughput utilized by customer",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Provisioned IOPS",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_performance_provisioned_iops{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Current IOPS",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_performance_current_iops{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Remaining IOPS",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_performance_provisioned_iops{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"}) - sum by (name, cluster_name) (custom_googleapis_com:quark_performance_current_iops{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 25,
+        "width": 24,
+        "height": 5,
+        "widget": {
+          "title": "Remaining IOPS and Throughput",
+          "text": {
+            "content": "Denotes the remaining amount of IOPS and Throughput which customer has not used",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Provisioned Iops and Throughput",
+          "single_view_group": {},
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Current IOPS and Throughput",
+          "single_view_group": {},
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Remaining IOPS and Throughput",
+          "single_view_group": {},
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Provisioned Throughput",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_hyperdisk_provisioned_throughput{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 9,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Current Throughput",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_hyperdisk_current_throughput{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 30,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Remaining Throughput",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "sum by (name, cluster_name) (custom_googleapis_com:quark_hyperdisk_provisioned_throughput{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"}) - sum by (name, cluster_name) (custom_googleapis_com:quark_hyperdisk_current_throughput{monitored_resource=\"k8s_cluster\", serviceType=\"ind-scale\"})",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 46,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "logging/user/auto-tier-volumes [RATE]",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"logging.googleapis.com/user/auto-tier-volumes\" resource.type=\"k8s_container\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 2,
+                      "cross_series_reducer": 0,
+                      "group_by_fields": []
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "gcnv": "",
+    "gcnv-so": ""
+  },
+  "dashboard_filters": []
+}

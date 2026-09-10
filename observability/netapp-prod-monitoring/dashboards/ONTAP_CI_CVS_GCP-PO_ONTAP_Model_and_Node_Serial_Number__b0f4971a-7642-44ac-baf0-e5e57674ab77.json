@@ -1,0 +1,118 @@
+{
+  "name": "projects/93478785040/dashboards/b0f4971a-7642-44ac-baf0-e5e57674ab77",
+  "display_name": "ONTAP: CI: CVS GCP-PO ONTAP Model and Node Serial Number",
+  "etag": "2102699698d8106041c79508966f9044",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "ONTAP Cluster Model Info",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/cluster_peer_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"name\"",
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"uuid\"",
+                        "resource.label.\"location\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "name",
+                "visible": true
+              },
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "uuid",
+                "visible": true
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "value",
+                "visible": false
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "y_pos": 17,
+        "width": 48,
+        "height": 24,
+        "widget": {
+          "title": "StorageNode Serial Number",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "time_series_filter": {
+                    "filter": "metric.type=\"custom.googleapis.com/node_labels\" resource.type=\"k8s_cluster\"",
+                    "aggregation": {
+                      "alignment_period": "60s",
+                      "per_series_aligner": 12,
+                      "cross_series_reducer": 4,
+                      "group_by_fields": [
+                        "metric.label.\"serial\"",
+                        "metric.label.\"cluster\"",
+                        "metric.label.\"model\"",
+                        "metric.label.\"state\"",
+                        "resource.label.\"location\"",
+                        "metric.label.\"version\""
+                      ]
+                    }
+                  },
+                  "output_full_duration": true,
+                  "unit_override": ""
+                },
+                "min_alignment_period": "60s",
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  },
+  "dashboard_filters": []
+}

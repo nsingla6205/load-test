@@ -1,0 +1,58 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8562089403410938902",
+  "display_name": "Auto-tier - GCS - Server error count",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-20T10:53:27.358285989Z",
+    "mutated_by": "sduraisa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-10-04T05:01:07.186541953Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"gcs_bucket\" AND resource.labels.bucket_name = monitoring.regex.full_match(\"sde-atr-.*\") AND metric.type = \"storage.googleapis.com/api/request_count\" AND metric.labels.response_code = monitoring.regex.full_match(\"INTERNAL|UNIMPLEMENTED|UNAVAILABLE|DATA_LOSS|DEADLINE_EXCEEDED|UNKNOWN\")",
+        "comparison": 1,
+        "threshold_value": 10.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "60s",
+            "per_series_aligner": 13,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "GCS Bucket - Request count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8562089403410938902/conditions/3368565727980395463"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: NFSAAS-100299",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3350976776795733561"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

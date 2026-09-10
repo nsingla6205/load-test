@@ -1,0 +1,35 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/12915915753679149203",
+  "display_name": "open firewall created",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-11-15T21:07:52.850129530Z",
+    "mutated_by": "pguan@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-11-15T21:09:25.460423864Z",
+    "mutated_by": "pguan@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Log match condition",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/12915915753679149203/conditions/12915915753679147806",
+      "condition_matched_log": {
+        "filter": "resource.type=\"gce_firewall_rule\"\nlogName=~\".*logs/cloudaudit.googleapis.com%2Factivity\"\nprotoPayload.request.sourceRanges=\"0.0.0.0/0\"",
+        "label_extractors": {}
+      }
+    }
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_rate_limit": {
+      "period": "300s"
+    },
+    "auto_close": "604800s",
+    "notification_prompts": [],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

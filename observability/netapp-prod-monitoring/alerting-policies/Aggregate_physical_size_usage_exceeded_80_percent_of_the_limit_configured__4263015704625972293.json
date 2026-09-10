@@ -1,0 +1,46 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/4263015704625972293",
+  "display_name": "Aggregate physical size usage exceeded 80 percent of the limit configured",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-06-26T15:54:22.161599755Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2024-07-01T10:05:20.404864225Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "AggregatePhysicalSize",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/4263015704625972293/conditions/4072135011245897494",
+      "condition_prometheus_query_language": {
+        "query": "sum by (location) (avg_over_time(custom_googleapis_com:aggregate_physical_size_usage{monitored_resource=\"k8s_pod\"}[1h])) / sum by (location)(avg_over_time(custom_googleapis_com:aggregate_physical_size_volume_allocation_limit{monitored_resource=\"k8s_pod\"}[1h])) > 0.8",
+        "duration": "300s",
+        "evaluation_interval": "10800s",
+        "labels": {},
+        "rule_group": "",
+        "alert_rule": "",
+        "disable_metric_validation": false
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/pages/viewpage.action?pageId=332633909#VPSImplementationinCVSGCPPO-Phase3\n\ndescription: \"Aggregate physical size usage exceeded 80 percent of the limit configured\"\n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "Aggregate physical size usage exceeded 80 percent of the limit configured",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": false,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 3,
+  "user_labels": {}
+}

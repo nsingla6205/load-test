@@ -1,0 +1,84 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/15534991189460424142",
+  "display_name": "Cross-region Replication Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-05-17T04:44:23.389405679Z",
+    "mutated_by": "sowmiyaa@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-04-09T09:15:19.647312636Z",
+    "mutated_by": ""
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/SDS_http_requests_total\" AND (metric.labels.url = \"/v2/VolumeReplications\" AND metric.labels.code = monitoring.regex.full_match(\"5.*\"))",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "percent": 5.0
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cross-region Replication Failures",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15534991189460424142/conditions/15534991189460424829"
+    },
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"logging.googleapis.com/user/cvp_api_requests\" AND (metric.labels.API = monitoring.regex.full_match(\"v1beta_[A-Za-z]+Replication[A-Za-z]+\") AND metric.labels.status = monitoring.regex.full_match(\"5.*\"))",
+        "comparison": 1,
+        "threshold_value": 1.0,
+        "duration": "0s",
+        "trigger": {
+          "percent": 5.0
+        },
+        "aggregations": [
+          {
+            "alignment_period": "900s",
+            "per_series_aligner": 2,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Cross-region Replication Failures",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/15534991189460424142/conditions/15534991189460425516"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+SDE+-+Cross-Region+Replication+Failures",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/3063330794388629831",
+    "projects/netapp-prod-monitoring/notificationChannels/8029801234104950063"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 2,
+  "user_labels": {}
+}

@@ -1,0 +1,388 @@
+{
+  "name": "projects/93478785040/dashboards/f55b6138-7d8f-41c2-83d1-877c118c5f8b",
+  "display_name": "ONTAP: CI: Capacity Expansion related dashboard",
+  "etag": "ce07938460ca60d70f9bcaeab325148a",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "y_pos": 41,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Root Aggregates Info for A800",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_labels{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A800\"}[${__interval}])",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A800\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A800\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "is_encrypted",
+                "visible": true
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "type",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "y_pos": 60,
+        "width": 48,
+        "height": 19,
+        "widget": {
+          "title": "Root Aggregates Info for A700s",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_labels{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A700s\"}[${__interval}])",
+                  "unit_override": "",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A700s\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]) and on (node) avg_over_time(custom_googleapis_com:node_labels{monitored_resource=\"k8s_cluster\",model=\"AFF-A700s\"}[${__interval}])",
+                  "output_full_duration": false
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "cluster",
+                "visible": true
+              },
+              {
+                "column": "cluster_name",
+                "visible": false
+              },
+              {
+                "column": "monitored_resource",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_source",
+                "visible": false
+              },
+              {
+                "column": "instrumentation_version",
+                "visible": false
+              },
+              {
+                "column": "is_encrypted",
+                "visible": true
+              },
+              {
+                "column": "service_name",
+                "visible": false
+              },
+              {
+                "column": "datacenter",
+                "visible": false
+              },
+              {
+                "column": "service_instance_id",
+                "visible": false
+              },
+              {
+                "column": "type",
+                "visible": true
+              },
+              {
+                "column": "node",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": false
+              },
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "state",
+                "visible": true
+              },
+              {
+                "column": "aggr",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": false
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 24,
+        "y_pos": 25,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Root Aggr Space Total. vs Used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              },
+              {
+                "time_series_query": {
+                  "unit_override": "By",
+                  "prometheus_query": "sum by (location)(avg_over_time(custom_googleapis_com:aggr_space_total{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\",${location}}[${__interval}]))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 1,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 25,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Root Aggr Space Total. vs Used",
+          "time_series_table": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "topk(15,avg by (location)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\"}[${__interval}])))",
+                  "output_full_duration": true
+                },
+                "table_template": ""
+              }
+            ],
+            "metric_visualization": 2,
+            "column_settings": [
+              {
+                "column": "location",
+                "visible": true
+              },
+              {
+                "column": "project_id",
+                "visible": true
+              },
+              {
+                "column": "value",
+                "visible": true
+              },
+              {
+                "column": "value-1",
+                "visible": true
+              },
+              {
+                "column": "value-2",
+                "visible": true
+              },
+              {
+                "column": "value-3",
+                "visible": true
+              }
+            ]
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "width": 48,
+        "height": 25,
+        "widget": {
+          "title": "Root Aggr Space Total. vs Used",
+          "xy_chart": {
+            "data_sets": [
+              {
+                "time_series_query": {
+                  "unit_override": "%",
+                  "prometheus_query": "topk(15,avg by (location)(avg_over_time(custom_googleapis_com:aggr_space_used_percent{monitored_resource=\"k8s_cluster\",aggr=~\"aggr0.*\"}[${__interval}])))",
+                  "output_full_duration": false
+                },
+                "plot_type": 1,
+                "target_axis": 1,
+                "legend_template": ""
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 95.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              },
+              {
+                "value": 75.0,
+                "target_axis": 1,
+                "label": "",
+                "color": 0,
+                "direction": 0
+              }
+            ],
+            "y_axis": {
+              "scale": 1,
+              "label": ""
+            },
+            "chart_options": {
+              "mode": 1
+            }
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      }
+    ]
+  },
+  "dashboard_filters": [
+    {
+      "label_key": "location",
+      "template_variable": "location",
+      "filter_type": 1
+    }
+  ],
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  }
+}

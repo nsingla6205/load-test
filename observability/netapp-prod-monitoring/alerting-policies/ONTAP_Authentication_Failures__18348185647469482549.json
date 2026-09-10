@@ -1,0 +1,49 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18348185647469482549",
+  "display_name": "ONTAP Authentication Failures",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-10-14T05:26:04.078915110Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-10-14T05:40:05.162699576Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "display_name": "Log match condition",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18348185647469482549/conditions/18348185647469483640",
+      "condition_matched_log": {
+        "filter": "\"StatusCode: 401, Error: auth failed\"\nresource.labels.namespace_name=\"ontap-monitoring\"",
+        "label_extractors": {}
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Please check the permissions for \"sre-ro\" user and it should have the below permissions. \n\n#security login show -user-or-group-name sre-ro\n\nsre-ro         http        password      readonly         no     none\n\nsre-ro         ontapi      password      readonly         no     none",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/1902603768388760443",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/17035506197683853001",
+    "projects/netapp-prod-monitoring/notificationChannels/16283658814334723182",
+    "projects/netapp-prod-monitoring/notificationChannels/17513080045159418699"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_rate_limit": {
+      "period": "1800s"
+    },
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

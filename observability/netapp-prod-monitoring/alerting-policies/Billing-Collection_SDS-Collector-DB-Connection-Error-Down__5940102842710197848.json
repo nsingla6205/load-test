@@ -1,0 +1,62 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/5940102842710197848",
+  "display_name": "Billing-Collection: SDS-Collector-DB-Connection-Error-Down",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2024-03-18T13:24:49.888879523Z",
+    "mutated_by": ""
+  },
+  "mutation_record": {
+    "mutate_time": "2025-08-11T16:32:41.328718722Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/sds_stats_collector_db_error_count\" AND metric.labels.Error != has_substring(\" duplicate\")",
+        "comparison": 1,
+        "threshold_value": 2.0,
+        "duration": "900s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 1,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "resource.label.location"
+            ]
+          }
+        ],
+        "evaluation_missing_data": 3,
+        "denominator_filter": "",
+        "denominator_aggregations": []
+      },
+      "display_name": "Kubernetes Cluster - sds_stats_collector_db_error_count",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/5940102842710197848/conditions/18074571221741016780"
+    }
+  ],
+  "documentation": {
+    "content": "Runbook: https://confluence.ngage.netapp.com/display/COPS/Runbook+-+Billing-Collection%3A+SDS-Collector-DB-Connection-Error-Down",
+    "mime_type": "text/markdown",
+    "subject": "Billing-Collection: SDS-Collector-DB-Connection-Error-Down  ",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/17277435451224761878",
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "604800s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

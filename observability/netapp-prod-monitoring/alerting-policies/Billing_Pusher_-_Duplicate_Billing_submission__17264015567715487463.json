@@ -1,0 +1,66 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/17264015567715487463",
+  "display_name": "Billing Pusher - Duplicate Billing submission",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-11-19T15:58:10.439139671Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-01-16T01:35:37.795232686Z",
+    "mutated_by": "tsandee1@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_container\" AND metric.type = \"custom.googleapis.com/qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_cool_tier\"",
+        "comparison": 1,
+        "threshold_value": 300.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "86400s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          },
+          {
+            "alignment_period": "86400s",
+            "per_series_aligner": 23,
+            "cross_series_reducer": 0,
+            "group_by_fields": []
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Kubernetes Container - qstack_usage_nfsaas_google_metrics_pushed_submitted_quantity_cool_tier",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/17264015567715487463/conditions/10465463752983891579"
+    }
+  ],
+  "documentation": {
+    "content": "Follow the Runbook --> https://confluence.ngage.netapp.com/spaces/COPS/pages/1355800245/Runbook+-+Billing+Pusher+-+Duplicate+Billing+submission",
+    "mime_type": "text/markdown",
+    "subject": "Billing Pusher - Duplicate Billing submission",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4742668734919594158"
+  ],
+  "user_labels": {
+    "billing": "overcharge"
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "auto_close": "86400s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1
+}

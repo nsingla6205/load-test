@@ -1,0 +1,59 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/18074323509175182688",
+  "display_name": "Jump Trading Volume Usage",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2025-09-10T14:37:26.298814556Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2025-09-10T14:44:35.596855613Z",
+    "mutated_by": "pgaur@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_threshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND metric.type = \"custom.googleapis.com/volume_space_logical_used_percent\" AND (metric.labels.cluster = \"NL-AMS-GC-CL01-D001CCZ55RAM14\" AND metric.labels.svm = \"svm_6b1ec91e1cfc482a89a5cf8f909c6cce_c71a9940\" AND metric.labels.volume = \"vol_airspace_a14a36\")",
+        "comparison": 1,
+        "threshold_value": 90.0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "900s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 4,
+            "group_by_fields": [
+              "metric.label.volume",
+              "metric.label.svm",
+              "metric.label.cluster"
+            ]
+          }
+        ],
+        "denominator_filter": "",
+        "denominator_aggregations": [],
+        "evaluation_missing_data": 0
+      },
+      "display_name": "Jump Trading Volume Usage",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/18074323509175182688/conditions/11464679413366290561"
+    }
+  ],
+  "documentation": {
+    "content": "Add the steps for on-caller. \n\n${metric_or_resource.labels}",
+    "mime_type": "text/markdown",
+    "subject": "",
+    "links": []
+  },
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1
+    ],
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {},
+  "notification_channels": []
+}

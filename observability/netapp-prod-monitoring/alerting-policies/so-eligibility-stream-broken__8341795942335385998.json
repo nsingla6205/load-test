@@ -1,0 +1,59 @@
+{
+  "name": "projects/netapp-prod-monitoring/alertPolicies/8341795942335385998",
+  "display_name": "so-eligibility-stream-broken",
+  "combiner": 2,
+  "creation_record": {
+    "mutate_time": "2026-02-03T09:42:07.793434350Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "mutation_record": {
+    "mutate_time": "2026-02-09T05:38:52.835606907Z",
+    "mutated_by": "pavinash@netapp.com"
+  },
+  "conditions": [
+    {
+      "condition_absent": {
+        "filter": "resource.type = \"gce_instance\" AND metric.type = \"custom.googleapis.com/eligibility/v2/volume\"",
+        "duration": "3600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignment_period": "300s",
+            "per_series_aligner": 12,
+            "cross_series_reducer": 1,
+            "group_by_fields": [
+              "metric.label.region"
+            ]
+          }
+        ]
+      },
+      "display_name": "so-eligibility-stream-broken",
+      "name": "projects/netapp-prod-monitoring/alertPolicies/8341795942335385998/conditions/8341795942335389467"
+    }
+  ],
+  "documentation": {
+    "content": "Check the pod:\n\nregion=us-west2\nsregion=us-w2\n\nhttps://console.cloud.google.com/kubernetes/statefulset/{region}/{sregion}-gke/sde/regional-zonal-eligible-volumes/details?project=netapp-{sregion}-sde\n\nMake sure this pod is running without any issues",
+    "mime_type": "text/markdown",
+    "subject": "so-eligibility-stream-broken",
+    "links": []
+  },
+  "notification_channels": [
+    "projects/netapp-prod-monitoring/notificationChannels/4480926216670096678",
+    "projects/netapp-prod-monitoring/notificationChannels/12249038611592775913",
+    "projects/netapp-prod-monitoring/notificationChannels/15330456061408884688",
+    "projects/netapp-prod-monitoring/notificationChannels/3289013353664259308"
+  ],
+  "enabled": true,
+  "alert_strategy": {
+    "notification_prompts": [
+      1,
+      3
+    ],
+    "auto_close": "43200s",
+    "notification_channel_strategy": []
+  },
+  "severity": 1,
+  "user_labels": {}
+}

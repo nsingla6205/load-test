@@ -1,0 +1,285 @@
+{
+  "name": "projects/93478785040/dashboards/4163c6dd-e843-43c9-a305-f38d9cb4a9bb",
+  "display_name": "ONTAP: CI: GCNV Efficiency Savings",
+  "etag": "5a9aa9881f100bbf0bae65e4c90567cb",
+  "mosaic_layout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Total Physical Utilization",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0,
+        "y_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Total FileSystem Logical Utilization",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[5m])) #+ sum(avg_over_time(custom_googleapis_com:volume_space_logical_used_by_snapshots{monitored_resource=\"k8s_cluster\"}[5m])) ",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "width": 16,
+        "height": 8,
+        "widget": {
+          "title": "Actual Savings (Logical Used by Vol- Physical Used by Aggr)",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_space_logical_used{monitored_resource=\"k8s_cluster\"}[5m])) - sum(avg_over_time(custom_googleapis_com:aggr_space_used{monitored_resource=\"k8s_cluster\"}[5m]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "y_pos": 0
+      },
+      {
+        "y_pos": 8,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Capacity Utilization Without Efficiencies",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}])) ",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 8,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Capacity Utilization With Efficiencies",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 8,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Post-Efficiency - Pre-Efficiency Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}])) - sum(avg_over_time(custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 18,
+        "width": 16,
+        "height": 9,
+        "widget": {
+          "title": "Dedupe Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 18,
+        "width": 16,
+        "height": 9,
+        "widget": {
+          "title": "Dedupe Savings Percent",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "avg(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 27,
+        "width": 16,
+        "height": 9,
+        "widget": {
+          "title": "Compression Saving Percent",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "By",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:volume_sis_compress_saved{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 27,
+        "width": 16,
+        "height": 9,
+        "widget": {
+          "title": "Compression Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "avg(avg_over_time(custom_googleapis_com:volume_sis_compress_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 18,
+        "width": 16,
+        "height": 18,
+        "widget": {
+          "title": "Total Storage Efficiency Savings",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "%",
+              "prometheus_query": "avg(avg_over_time(custom_googleapis_com:volume_sis_compress_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}])) + avg(avg_over_time(custom_googleapis_com:volume_sis_dedup_saved_percent{monitored_resource=\"k8s_cluster\"}[${__interval}]))",
+              "output_full_duration": true
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "y_pos": 36,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Used Capacity Cost Per Month",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "1",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}])) * 0.10",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        },
+        "x_pos": 0
+      },
+      {
+        "x_pos": 32,
+        "y_pos": 36,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Efficiency Saving/Month",
+          "scorecard": {
+            "time_series_query": {
+              "unit_override": "1",
+              "prometheus_query": "sum(avg_over_time(custom_googleapis_com:aggr_logical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}])) - sum(avg_over_time(custom_googleapis_com:aggr_physical_used_wo_snapshots_flexclones{monitored_resource=\"k8s_cluster\"}[${__interval}])) * 0.10",
+              "output_full_duration": false
+            },
+            "blank_view": {},
+            "thresholds": []
+          },
+          "id": ""
+        }
+      },
+      {
+        "x_pos": 16,
+        "y_pos": 36,
+        "width": 16,
+        "height": 10,
+        "widget": {
+          "title": "Note",
+          "text": {
+            "content": "# There is no \"$\" unit in google dashboards. Hence the numbers are not shown is $$",
+            "format_": 1,
+            "style": {
+              "background_color": "#FFFFFF",
+              "text_color": "#212121",
+              "horizontal_alignment": 1,
+              "vertical_alignment": 1,
+              "padding": 1,
+              "font_size": 4,
+              "pointer_location": 0
+            }
+          },
+          "id": ""
+        }
+      }
+    ]
+  },
+  "labels": {
+    "ontap-harvest": "",
+    "cloud-insights": ""
+  },
+  "dashboard_filters": []
+}
