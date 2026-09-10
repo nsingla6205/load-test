@@ -6,6 +6,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/replicationActivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -102,6 +103,36 @@ func (wf *replicationInternalGetMultipleWorkflow) Run(ctx workflow.Context, args
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
+	mountJobActivity := &replicationActivities.MountJobActivity{}
+	for _, replication := range params.UpdatedReplications {
+		if !isSnapmirroredReplication(replication) {
+			continue
+		}
+		if replication.Volume == nil || replication.Volume.VolumeAttributes == nil || replication.Volume.VolumeAttributes.FileProperties == nil {
+			continue
+		}
+		if replication.Volume.VolumeAttributes.Mounted {
+			continue
+		}
+		dbNode, ok := params.PoolNodeMap[replication.Volume.PoolID]
+		if !ok || dbNode == nil {
+			continue
+		}
+		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
+			Nodes:            []*datamodel.Node{dbNode},
+			DeploymentName:   replication.Volume.Pool.DeploymentName,
+			OntapCredentials: replication.Volume.Pool.PoolCredentials,
+		})
+		err = workflow.ExecuteActivity(ctx, mountJobActivity.MountVolume, replication, node).Get(ctx, nil)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		err = workflow.ExecuteActivity(ctx, mountJobActivity.UpdateVolumeDetailsInDB, replication, []*vsa.LunResponse(nil)).Get(ctx, nil)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+	}
+
 	// Execute activity to update DB
 	err = workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationsInDB, &params).Get(ctx, nil)
 	if err != nil {
@@ -109,4 +140,8 @@ func (wf *replicationInternalGetMultipleWorkflow) Run(ctx workflow.Context, args
 	}
 
 	return nil, workflows.ConvertToVSAError(err)
+}
+
+func isSnapmirroredReplication(replication *datamodel.VolumeReplication) bool {
+	return replication != nil && replication.MirrorState != nil && *replication.MirrorState == datamodel.OntapSnapmirrored
 }
