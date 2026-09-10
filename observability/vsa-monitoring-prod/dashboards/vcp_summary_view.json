@@ -1,0 +1,181 @@
+{
+  "displayName": "VCP Summary View Dashboard",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "location",
+      "valueType": "STRING_ARRAY"
+    }
+  ],
+  "description": "Dashboard to monitor health of key components of VCP. Only high priority workflows are monitored by the dashboards.\n\n",
+  "labels": {},
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 23,
+        "width": 48,
+        "widget": {
+          "title": "Control Plane Service Health Status",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilterRatio": {
+                    "numerator": {
+                      "aggregation": {
+                        "alignmentPeriod": "60s",
+                        "crossSeriesReducer": "REDUCE_SUM",
+                        "groupByFields": [
+                          "resource.label.\"location\""
+                        ],
+                        "perSeriesAligner": "ALIGN_RATE"
+                      },
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\" metric.label.\"http_response_status_code\"!=monitoring.regex.full_match(\"5.*\")"
+                    },
+                    "denominator": {
+                      "aggregation": {
+                        "crossSeriesReducer": "REDUCE_SUM",
+                        "groupByFields": [
+                          "resource.label.\"location\""
+                        ],
+                        "perSeriesAligner": "ALIGN_RATE"
+                      },
+                      "filter": "metric.type=\"custom.googleapis.com/ogen_server_request_count_total\" resource.type=\"k8s_cluster\""
+                    }
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 23,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Temporal Workflow Failed",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (\"workflow_type\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/temporal_workflow_failed\",\"monitored_resource\"=\"k8s_cluster\",\"workflow_type\"=~\"CreatePoolWorkflow|CreateVolumeWorkflow|CreateBackupWorkflow|UpdateVolumeWorkflow|DeletePoolWorkflow|DeleteVolumeWorkflow\"}[${__interval}]))"
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 23,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Temporal Activity Execution Failed",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (\"workflow_type\",\"activity_type\")(avg_over_time({\"__name__\"=\"custom.googleapis.com/temporal_activity_execution_failed\",\"monitored_resource\"=\"k8s_cluster\",\"workflow_type\"=~\"CreateBackupWorkflow|CreatePoolWorkflow|CreateVolumeWorkflow|UpdateVolumeWorkflow|DeletePoolWorkflow|DeleteVolumeWorkflow\"}[${__interval}]))"
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 39,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Temporal Workflow End to End Latency",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99,sum by (\"workflow_type\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/temporal_workflow_endtoend_latency_seconds_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"workflow_type\"=~\"CreatePoolWorkflow|CreateVolumeWorkflow|CreateBackupWorkflow|UpdateVolumeWorkflow|DeletePoolWorkflow|DeleteVolumeWorkflow\"}[${__interval}])))",
+                  "unitOverride": "s"
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 39,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Temporal Activity End to End Latency",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99,sum by (\"activityType\",\"le\")(increase({\"__name__\"=\"custom.googleapis.com/activity_end_to_end_latency_bucket\",\"monitored_resource\"=\"k8s_cluster\",\"workflowType\"=~\"CreatePoolWorkflow|CreateVolumeWorkflow|CreateBackupWorkflow\"}[${__interval}])))\n#This promql query was automatically converted from a builder query, and it probably is not fully equivalent to the builder query. Manually verify the promql query before using it and edit as needed.",
+                  "unitOverride": "s"
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
