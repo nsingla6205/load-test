@@ -11,9 +11,9 @@ type HydratedMetrics struct {
 	MeasuredType    string     `gorm:"column:measured_type;not null;index" json:"measured_type"`
 	ResourceType    string     `gorm:"column:resource_type;not null;index" json:"resource_type"`
 	Quantity        float64    `gorm:"column:quantity;not null" json:"quantity"`
-	ResourceName    string     `gorm:"column:resource_name;size:255;index" json:"resource_name"`
-	ConsumerID      string     `gorm:"column:consumer_id;size:255;index" json:"consumer_id"`
-	Location        string     `gorm:"column:location;size:255;index" json:"location"`
+	ResourceName    string     `gorm:"column:resource_name;size:255" json:"resource_name"`
+	ConsumerID      string     `gorm:"column:consumer_id;size:255" json:"consumer_id"`
+	Location        string     `gorm:"column:location;size:255" json:"location"`
 	Metadata        []byte     `gorm:"column:metadata;type:jsonb" json:"metadata"`
 	DeploymentName  string     `gorm:"column:deployment_name;size:255;index" json:"deployment_name"`
 	DeletedAt       *time.Time `gorm:"-" json:"deleted_at"`
@@ -22,18 +22,18 @@ type HydratedMetrics struct {
 type AggregatedUsage struct {
 	ID                     int64         `gorm:"primaryKey;autoIncrement" json:"id"`
 	ResourceUUID           string        `gorm:"column:resource_uuid;size:255;not null;index" json:"resource_uuid"`
-	AccountID              string        `gorm:"column:account_id;size:255;not null;index" json:"account_id"`
-	VendorCustomerID       *string       `gorm:"column:vendor_customer_id;size:255;not null;index" json:"vendor_customer_id"`
+	AccountID              string        `gorm:"column:account_id;size:255;not null" json:"account_id"`
+	VendorCustomerID       *string       `gorm:"column:vendor_customer_id;size:255;not null" json:"vendor_customer_id"`
 	AggregationEnd         time.Time     `gorm:"column:aggregation_end;not null;index" json:"aggregation_end"`
 	AggregationStart       time.Time     `gorm:"column:aggregation_start;not null;index" json:"aggregation_start"`
-	MeasuredType           string        `gorm:"column:measured_type;not null;index" json:"measured_type"`
+	MeasuredType           string        `gorm:"column:measured_type;not null" json:"measured_type"`
 	Quantity               float64       `gorm:"column:quantity;not null" json:"quantity"`
-	ResourceName           *string       `gorm:"column:resource_name;size:255;index" json:"resource_name"`
-	ResourceType           string        `gorm:"column:resource_type;not null;index" json:"resource_type"`
+	ResourceName           *string       `gorm:"column:resource_name;size:255" json:"resource_name"`
+	ResourceType           string        `gorm:"column:resource_type;not null" json:"resource_type"`
 	AggregationType        string        `gorm:"column:aggregation_type;size:100;not null" json:"aggregation_type"`
 	LastCounterValue       *float64      `gorm:"column:last_counter_value" json:"last_counter_value"`
 	LastTransferType       *string       `gorm:"column:last_transfer_type;size:32" json:"last_transfer_type"`
-	RegionName             *string       `gorm:"column:region_name;size:255;index" json:"region_name"`
+	RegionName             *string       `gorm:"column:region_name;size:255" json:"region_name"`
 	Zone                   *string       `gorm:"column:zone;size:255" json:"zone"`
 	SourceRegion           *string       `gorm:"column:source_region;size:255" json:"source_region"`
 	DestinationRegion      *string       `gorm:"column:destination_region;size:255" json:"destination_region"`
