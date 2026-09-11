@@ -60,9 +60,29 @@ type StorageClient interface {
 	QuotaRuleDelete(ctx context.Context, params *storage.QuotaRuleDeleteParams) (*storage.QuotaRuleDeleteAccepted, error)
 }
 
-var (
-	FetchVolumeDetails = _fetchVolumeDetails
-)
+// DefaultVolumeDetailFields lists ONTAP volume properties fetched after a name-based collection lookup.
+var DefaultVolumeDetailFields = []string{
+	"uuid",
+	"name",
+	"space.*",
+	"state",
+	"snapshot_policy.name",
+	"qos.policy.uuid",
+	"qos.policy.name",
+	"type",
+	"snapshot_directory_access_enabled",
+	"constituents",
+	"nas.path",
+	"nas.security_style",
+	"nas.unix_permissions",
+	"nas.export_policy",
+	"size",
+	"style",
+	"clone.*",
+}
+
+// FetchVolumeDetails loads full volume details by UUID; overridable in tests.
+var FetchVolumeDetails = _fetchVolumeDetails
 
 type storageClient struct {
 	api storage.ClientService
@@ -418,7 +438,11 @@ func (sc *storageClient) VolumeGet(params *VolumeGetParams) (*Volume, error) {
 	}
 
 	var vol *Volume
-	otParams := volumeCollectionGetParamsToONTAP(&VolumeCollectionGetParams{BaseParams: params.BaseParams, Name: &params.Name})
+	otParams := volumeCollectionGetParamsToONTAP(&VolumeCollectionGetParams{
+		BaseParams: params.BaseParams,
+		Name:       &params.Name,
+		SvmName:    params.SvmName,
+	})
 	otParams.SetMaxRecords(getConstrainedMaxRecords(params.MaxRecords))
 	if err := paginateVolumeCollectionGet(func(next string) ([]*Volume, string, error) {
 		otParams.SetContext(setNext(otParams.Context, next))
@@ -472,6 +496,9 @@ func VolumeGetWithContext(ctx context.Context, restClient RESTClient, params *Vo
 func _fetchVolumeDetails(sc *storageClient, volume *Volume) (*Volume, error) {
 	response, err := sc.api.VolumeGet(volumeGetParamsToONTAP(&VolumeGetParams{
 		UUID: *volume.UUID,
+		BaseParams: BaseParams{
+			Fields: DefaultVolumeDetailFields,
+		},
 	}), nil)
 	if err != nil {
 		return nil, err

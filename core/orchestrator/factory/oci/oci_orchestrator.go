@@ -199,7 +199,7 @@ func (o *OCIOrchestrator) GetVolumeCount(ctx context.Context, projectNumber stri
 	return 0, utilserrors.NewNotImplementedYetErr()
 }
 
-func (o *OCIOrchestrator) DeleteVolume(ctx context.Context, volumeId string) (*models.Volume, string, error) {
+func (o *OCIOrchestrator) DeleteVolume(ctx context.Context, params *commonparams.DeleteVolumeParams) (*models.Volume, string, error) {
 	// TODO implement me
 	return nil, "", utilserrors.NewNotImplementedYetErr()
 }

@@ -51,22 +51,6 @@ func (s *MonthlyScheduleV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
-func (s *PoolV1) setDefaults() {
-	{
-		val := string("auto")
-		s.QosType.SetTo(val)
-	}
-	{
-		val := PoolV1Mode("DEFAULT")
-		s.Mode.SetTo(val)
-	}
-	{
-		val := bool(false)
-		s.AllowAutoTiering.SetTo(val)
-	}
-}
-
-// setDefaults set default value of fields.
 func (s *SimpleExportPolicyRuleV1) setDefaults() {
 	{
 		val := string("0.0.0.0/0")
@@ -119,10 +103,14 @@ func (s *SnapshotPolicyV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
-func (s *SpConfigV1) setDefaults() {
+func (s *VolumeReadV1) setDefaults() {
 	{
-		val := bool(false)
-		s.IsHeterogeneous.SetTo(val)
+		val := float64(0)
+		s.SnapReserve.SetTo(val)
+	}
+	{
+		val := bool(true)
+		s.SnapshotDirectory.SetTo(val)
 	}
 }
 

@@ -106,7 +106,7 @@ func TestSetupHTTPServer_VCMAuthMiddleware(t *testing.T) {
 			{method: http.MethodGet, path: "/v1/expertMode"},
 			{method: http.MethodGet, path: "/v1/host"},
 			{method: http.MethodPost, path: "/v1/config"},
-			{method: http.MethodGet, path: "/v1/pools"},
+			{method: http.MethodPost, path: "/v1/clusters"},
 		} {
 			handlerCalled = false
 			rr := httptest.NewRecorder()

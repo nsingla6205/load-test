@@ -34,6 +34,7 @@ type Job struct {
 	ErrorMessage    string    `gorm:"column:error_message;size:65536;not null"`
 	RequestPayload  string    `gorm:"column:request_payload;size:2621440;not null;default:''"`
 	ResponsePayload string    `gorm:"column:response_payload;size:2621440;not null;default:''"`
+	RecoveryValue   string    `gorm:"column:recovery_value;size:128;not null;default:''"`
 	Retriable       bool      `gorm:"column:retriable;not null;default:false"`
 	DeadlineAt      time.Time `gorm:"column:deadline_at;not null"`
 	CreatedAt       time.Time `gorm:"column:created_at;not null"`
@@ -127,6 +128,7 @@ type UpdateJobProgressParams struct {
 	TrackingID      int
 	ErrorMessage    string
 	ResponsePayload string
+	RecoveryValue   string
 	Retriable       bool
 }
 
@@ -155,6 +157,9 @@ func (s *gormStore) UpdateJobProgress(ctx context.Context, params UpdateJobProgr
 	}
 	if HasPersistableResponsePayload(params.ResponsePayload) {
 		updates["response_payload"] = params.ResponsePayload
+	}
+	if params.RecoveryValue != "" {
+		updates["recovery_value"] = params.RecoveryValue
 	}
 
 	result := db.WithContext(ctx).

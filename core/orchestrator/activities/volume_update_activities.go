@@ -19,6 +19,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -165,7 +166,7 @@ func (a *VolumeUpdateActivity) UpdateVolumeJunctionpath(ctx context.Context, vol
 // GetVolumeFromONTAP retrieves the volume from ONTAP
 func (a *VolumeUpdateActivity) GetVolumeFromONTAP(ctx context.Context, volume *datamodel.Volume, node *models.Node) (*vsa.VolumeResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting GetVolumeFromONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting GetVolumeFromONTAP activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -174,7 +175,7 @@ func (a *VolumeUpdateActivity) GetVolumeFromONTAP(ctx context.Context, volume *d
 	if volume.VolumeAttributes != nil && volume.VolumeAttributes.RestoredBackupPath != "" {
 		isRestore = true
 	}
-	recordHeartbeat(ctx, fmt.Sprintf("Getting volume %s from ONTAP", volume.UUID))
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Getting volume %s from ONTAP", volume.UUID))
 	volumeRes, err := provider.GetVolume(vsa.GetVolumeParams{
 		UUID:              volume.VolumeAttributes.ExternalUUID,
 		VolumeName:        volume.Name,
@@ -188,7 +189,7 @@ func (a *VolumeUpdateActivity) GetVolumeFromONTAP(ctx context.Context, volume *d
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished GetVolumeFromONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished GetVolumeFromONTAP activity")
 	return volumeRes, nil
 }
 

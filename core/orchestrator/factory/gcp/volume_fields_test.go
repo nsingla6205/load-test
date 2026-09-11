@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -99,23 +100,23 @@ func TestConvertDatastoreVolumeToModel_ActiveDirectoryResourceIdParseErrorFallba
 func TestBuildFilePropertiesFromParams_DefaultUnixPermissions(t *testing.T) {
 	params := &models.FileProperties{
 		ExportPolicy:  &models.ExportPolicy{ExportPolicyName: "policy"},
-		SecurityStyle: UnixSecurityStyle,
+		SecurityStyle: utils.UnixSecurityStyle,
 	}
 
-	result := buildFilePropertiesFromParams(params, "ct")
+	result := factorycommon.BuildFilePropertiesFromParams(params, "ct")
 
 	assert.NotNil(t, result)
-	assert.Equal(t, DefaultUnixPermissionsOctal, result.UnixPermissions)
+	assert.Equal(t, factorycommon.DefaultUnixPermissionsOctal, result.UnixPermissions)
 }
 
 func TestBuildFilePropertiesFromParams_CustomUnixPermissions(t *testing.T) {
 	params := &models.FileProperties{
 		ExportPolicy:    &models.ExportPolicy{ExportPolicyName: "policy"},
-		SecurityStyle:   UnixSecurityStyle,
+		SecurityStyle:   utils.UnixSecurityStyle,
 		UnixPermissions: "0755",
 	}
 
-	result := buildFilePropertiesFromParams(params, "ct")
+	result := factorycommon.BuildFilePropertiesFromParams(params, "ct")
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "0755", result.UnixPermissions)
@@ -127,7 +128,7 @@ func TestBuildFilePropertiesFromParams_UnixPermissionsWithoutSecurityStyle(t *te
 		UnixPermissions: "0755",
 	}
 
-	result := buildFilePropertiesFromParams(params, "ct")
+	result := factorycommon.BuildFilePropertiesFromParams(params, "ct")
 
 	assert.NotNil(t, result)
 	assert.Empty(t, result.SecurityStyle)

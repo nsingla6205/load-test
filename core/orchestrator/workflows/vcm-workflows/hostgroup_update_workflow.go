@@ -2,6 +2,7 @@ package vcm_workflows
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
@@ -17,7 +18,7 @@ func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ig
 	finishJob := func(workflowErr error, responsePayload *string) error {
 		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return err
+			return returnFinishJobError(workflowErr, err)
 		}
 		return workflowErr
 	}
@@ -35,11 +36,15 @@ func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ig
 		return finishJob(err, nil)
 	}
 
-	return finishJob(nil, igroupUpdateOperationResponsePayload(igroupName, hosts, osType))
+	donePayload, err := igroupUpdateOperationResponsePayload(igroupName, hosts, osType)
+	if err != nil {
+		return finishJob(err, nil)
+	}
+	return finishJob(nil, donePayload)
 }
 
 // igroupUpdateOperationResponsePayload marshals the updated igroup into a JSON response payload.
-func igroupUpdateOperationResponsePayload(name string, hosts []string, osType string) *string {
+func igroupUpdateOperationResponsePayload(name string, hosts []string, osType string) (*string, error) {
 	payload, err := json.Marshal(map[string]any{
 		"igroups": map[string]any{
 			"name":   name,
@@ -48,8 +53,8 @@ func igroupUpdateOperationResponsePayload(name string, hosts []string, osType st
 		},
 	})
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal igroup operation response: %w", err)
 	}
 	result := string(payload)
-	return &result
+	return &result, nil
 }

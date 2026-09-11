@@ -23,7 +23,6 @@ import (
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
-	"gorm.io/datatypes"
 )
 
 // e2eJobStore is an in-memory vcmdb.VCMDatastore used to drive the durable
@@ -75,10 +74,6 @@ func (s *e2eJobStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJo
 			job.ResponsePayload = params.ResponsePayload
 		}
 	}
-	return nil
-}
-
-func (s *e2eJobStore) SetJobCleanupMetadata(_ context.Context, _ string, _ datatypes.JSON) error {
 	return nil
 }
 
@@ -175,11 +170,46 @@ func (fakeSvmActivity) CreateQoSPolicyAndApplyToSVM(_ context.Context, _ *datamo
 }
 
 func childCreateCluster(_ *orchestrator.Context, req *vlm.CreateVSAClusterDeploymentRequest) (*vlm.CreateVSAClusterDeploymentResponse, error) {
-	return &vlm.CreateVSAClusterDeploymentResponse{VLMConfig: req.VLMConfig}, nil
+	cfg := req.VLMConfig
+	if len(cfg.Cloud.HAPairs) == 0 {
+		cfg.Cloud.HAPairs = []vlm.HAPair{{
+			VM1: vlm.VMConfig{
+				Name:      "vm1",
+				NodeIndex: 1,
+				SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+					vlm.LIFTypeNodeMgmt: {IP: "10.0.0.10"},
+				},
+			},
+			VM2: vlm.VMConfig{
+				Name:      "vm2",
+				NodeIndex: 2,
+				SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+					vlm.LIFTypeNodeMgmt: {IP: "10.0.0.11"},
+				},
+			},
+		}}
+	}
+	return &vlm.CreateVSAClusterDeploymentResponse{VLMConfig: cfg}, nil
 }
 
 func childCreateSVM(_ *orchestrator.Context, req *vlm.CreateSVMRequest) (*vlm.CreateSVMResponse, error) {
-	return &vlm.CreateSVMResponse{VLMConfig: req.VLMConfig}, nil
+	cfg := req.VLMConfig
+	svmName := req.Name
+	cfg.Svm = map[string]vlm.SvmConfig{
+		svmName: {
+			Svmname: svmName,
+			SVMLIFs: vlm.SvmLIFConfigs{
+				vlm.LIFTypeSan: {
+					{IP: "10.33.182.252"},
+					{IP: "10.33.182.249"},
+				},
+				vlm.LIFTypeIlbNas: {
+					{IP: "10.33.182.243"},
+				},
+			},
+		},
+	}
+	return &vlm.CreateSVMResponse{VLMConfig: cfg}, nil
 }
 
 func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
@@ -213,7 +243,22 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, vcmdb.JobStateDone, last.State, "a successful provision must leave the job DONE")
 	assert.Equal(t, jobStepCompleted, last.Step)
-	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-e2e"}}`, last.ResponsePayload)
+	assert.JSONEq(t, `{
+		"pool": {
+			"deploymentId": "gcnv-e2e",
+			"forwardingRuleIp": "10.0.0.10",
+			"ipConfig": {
+				"vmLifs": [
+					{"name":"vm1","nodemgmt":"10.0.0.10"},
+					{"name":"vm2","nodemgmt":"10.0.0.11"}
+				],
+				"dataLif": {
+					"san": ["10.33.182.252","10.33.182.249"],
+					"ilbnas": "10.33.182.243"
+				}
+			}
+		}
+	}`, last.ResponsePayload)
 }
 
 func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
@@ -224,7 +269,7 @@ func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
 	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	origPayloadFn := poolCreateOperationResponsePayloadFn
-	poolCreateOperationResponsePayloadFn = func(string) (*string, error) {
+	poolCreateOperationResponsePayloadFn = func(string, vlm.VLMConfig, string) (*string, error) {
 		return nil, errors.New("marshal failed")
 	}
 	t.Cleanup(func() { poolCreateOperationResponsePayloadFn = origPayloadFn })

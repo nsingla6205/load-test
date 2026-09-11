@@ -3,7 +3,6 @@
 package vcm_workflows
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -73,6 +72,11 @@ type createPoolWorkflow struct {
 
 	// currentStep is the last entered step, recorded on terminal ERROR.
 	currentStep string
+
+	// vlmCfg is the latest VLM config returned by cluster/SVM child workflows.
+	vlmCfg vlm.VLMConfig
+	// svmName is the data SVM created during pool provisioning.
+	svmName string
 }
 
 // PoolWorkflow provisions an ONTAP cluster (storage pool) and drives the
@@ -125,7 +129,7 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 		return nil, err
 	}
 
-	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID)
+	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID, wf.vlmCfg, wf.svmName)
 	if marshalErr != nil {
 		logger.Warn("workflow: failed to marshal pool operation response; marking job DONE without response payload",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", marshalErr)
@@ -145,16 +149,7 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 }
 
 // poolCreateOperationResponsePayloadFn marshals the pool-create operation response JSON.
-var poolCreateOperationResponsePayloadFn = func(deploymentID string) (*string, error) {
-	payload, err := json.Marshal(map[string]any{
-		"pool": map[string]string{"deploymentId": deploymentID},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshal pool operation response: %w", err)
-	}
-	result := string(payload)
-	return &result, nil
-}
+var poolCreateOperationResponsePayloadFn = poolOperationResponsePayload
 
 // provision runs the activities and child workflows in order, recording each
 // step on the durable job and returning the first error.
@@ -223,11 +218,12 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		"mediatorImageProject", vlmCfg.Deployment.GCPConfig.MediatorImageProjectID,
 		"mediatorImage", vlmCfg.Deployment.Images.MediatorImageName)
 
+	configureVCMVLMConfigForPoolCreate(&vlmCfg)
+
 	if err := wf.checkDeadline(ctx, "create-cluster-deployment"); err != nil {
 		return err
 	}
 
-	wf.setStep(ctx, jobStepCreateCluster)
 	logger.Info("workflow: invoking VLM create-cluster deployment child workflow",
 		"deploymentName", deploymentID, "numHAPair", vlmCfg.Deployment.NumHAPair)
 	depRes, err := vcmclient.InvokeCreateClusterDeployment(ctx,
@@ -242,16 +238,21 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		return fmt.Errorf("VLM cluster deployment: %w", err)
 	}
 	vlmCfg = depRes.VLMConfig
+	wf.vlmCfg = vlmCfg
 	forwardingRuleIP := nodeMgmtIPFromVLMConfig(vlmCfg)
 	logger.Info("workflow: VLM cluster deployment completed",
 		"clusterName", vlmCfg.VsaCluster.ClusterName, "nodeMgmtIp", forwardingRuleIP)
+	wf.publishOperationProgress(ctx, jobStepCreateCluster, "")
 
 	if err := wf.checkDeadline(ctx, "create-svm"); err != nil {
 		return err
 	}
 
-	wf.setStep(ctx, jobStepCreateSVM)
-	svmName := deploymentID + "-svm"
+	svmName, err := commonparams.DeriveVCMSvmName(deploymentID)
+	if err != nil {
+		logger.Error("workflow: derive SVM name failed", "deploymentName", deploymentID, "error", err)
+		return fmt.Errorf("derive SVM name: %w", err)
+	}
 	logger.Info("workflow: invoking VLM create-SVM child workflow",
 		"deploymentName", deploymentID, "svmName", svmName)
 	svmRes, err := vcmclient.InvokeCreateSVM(ctx,
@@ -269,7 +270,10 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	if svmRes != nil {
 		vlmCfg = svmRes.VLMConfig
 	}
+	wf.vlmCfg = vlmCfg
+	wf.svmName = svmName
 	logger.Info("workflow: VLM SVM created", "svmName", svmName)
+	wf.publishOperationProgress(ctx, jobStepCreateSVM, svmName)
 
 	qosType := mapQosType(wf.req.QosType)
 	if qosType != utils.QosTypeManual {
@@ -323,8 +327,21 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 // setStep updates the durable job's current_step (best-effort; a failed update
 // is logged but does not abort provisioning).
 func (wf *createPoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
+	wf.publishOperationProgress(ctx, step, wf.svmName)
+}
+
+// publishOperationProgress records current_step and the latest pool ipConfig on
+// the durable job so GET /v1/operations/{operationId} can surface partial layout
+// while the workflow is still running.
+func (wf *createPoolWorkflow) publishOperationProgress(ctx *orchestrator.Context, step string, svmName string) {
 	wf.currentStep = step
-	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, nil); err != nil {
+	payload, err := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID, wf.vlmCfg, svmName)
+	if err != nil {
+		wfLogger(ctx).Warn("workflow: failed to marshal pool operation progress payload",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
+		payload = nil
+	}
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, payload); err != nil {
 		wfLogger(ctx).Warn("workflow: failed to update job step",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
 	}
@@ -447,8 +464,22 @@ func svmUUIDFromVLMConfig(cfg vlm.VLMConfig, svmName string) string {
 	return ""
 }
 
-// ontapNodeCredentials returns the ONTAP node credentials: env username/password
-// locally, else the orchestrator-derived credentials (identifiers only).
+// ontapNodeCredentials returns the ONTAP node credentials for the
+// create-qos-policy step: env username/password locally, else a copy of the
+// orchestrator-derived credentials (identifiers only) whose secret identifiers
+// have been reduced to bare secret names.
+//
+// The QoS step reaches Secret Manager through vsa.GetProviderByNode, which
+// formats projects/{SECRET_MANAGER_PROJECT_ID}/secrets/{id} from the node's
+// identifiers. VCM receives its credentials as fully qualified resource names,
+// so handing one through unchanged yields
+// projects/{p}/secrets/projects/{q}/secrets/... and a 404. Reducing to the bare
+// name keeps that formatting valid.
+//
+// This assumes the secret lives in SECRET_MANAGER_PROJECT_ID: the project
+// segment of the resource name is dropped here, not honoured. Cluster and SVM
+// create are unaffected — resolveOntapCredentials reads the fully qualified name
+// straight from wf.inputs.OntapCredentials.
 func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials {
 	if isLocalEnv() {
 		return &datamodel.PoolCredentials{
@@ -457,5 +488,14 @@ func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials 
 			AuthType: env.USERNAME_PWD,
 		}
 	}
-	return wf.inputs.OntapCredentials
+	if wf.inputs == nil || wf.inputs.OntapCredentials == nil {
+		return nil
+	}
+
+	// Copy: the same pointer feeds resolveOntapCredentials, which needs the
+	// fully qualified names.
+	nodeCreds := *wf.inputs.OntapCredentials
+	nodeCreds.SecretID = utils.BareSecretName(nodeCreds.SecretID)
+	nodeCreds.CertificateID = utils.BareSecretName(nodeCreds.CertificateID)
+	return &nodeCreds
 }

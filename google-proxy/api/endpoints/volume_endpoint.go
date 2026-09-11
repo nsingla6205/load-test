@@ -64,17 +64,9 @@ var (
 )
 
 const (
-	volumeTypeSecondary          = "SECONDARY"
-	SnapshotScheduleLabelHourly  = "hourly"
-	SnapshotScheduleLabelDaily   = "daily"
-	SnapshotScheduleLabelWeekly  = "weekly"
-	SnapshotScheduleLabelMonthly = "monthly"
-	MaxBackupPathComponents      = 8
-	MinBackupScheduleInterval    = 5 * time.Minute // Minimum 5 minutes interval
-
-	daysOfMonthError            = `daysOfMonth must include unique values in the range 1-31 (inclusive).`
-	daysOfWeekError             = `day in weeklySchedule must include 1-7 (inclusive) unique weekdays, that are comma separated.`
-	unixPermissionsRegexPattern = "^[0-7]{4}$"
+	volumeTypeSecondary       = "SECONDARY"
+	MaxBackupPathComponents   = 8
+	MinBackupScheduleInterval = 5 * time.Minute // Minimum 5 minutes interval
 
 	zoneSwitchVolumeOperationBlockedMsg = "Volume creation, update, and deletion are not supported while the storage pool is operating in a switched-over zone. Switch the pool back to its primary zone before retrying."
 )
@@ -879,7 +871,7 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 			}
 		}
 		if replicationType == datamodel.HybridReplicationParametersReplicationTypeMIGRATION {
-			replicationSchedule = SnapshotScheduleLabelHourly
+			replicationSchedule = utils.SnapshotScheduleLabelHourly
 		}
 		if hybridReplicationParameters.Labels.IsSet() {
 			labels = hybridReplicationParameters.Labels.Value
@@ -931,7 +923,7 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 		if securityStyle == utils.UnixSecurityStyle && !req.Volume.SecurityStyle.Set && param.FileProperties != nil {
 			param.FileProperties.SecurityStyle = string(gcpgenserver.VolumeV1betaSecurityStyleUNIX)
 		}
-		err := validateUnixPermissions(param.Protocols, unixPermissions, securityStyle)
+		err := utils.ValidateUnixPermissions(param.Protocols, unixPermissions, securityStyle)
 		if err != nil {
 			return nil, err
 		}
@@ -949,25 +941,6 @@ func hasCustomLargeVolumeConstituentCount(req *gcpgenserver.VolumeCreateV1beta) 
 		return hybridReplicationParameters.LargeVolumeConstituentCount.IsSet()
 	}
 	return false
-}
-
-func validateUnixPermissions(protocolTypes []string, unixPermissions string, securityStyle string) error {
-	if unixPermissions == "" {
-		return errors.NewUserInputValidationErr("UnixPermissions cannot be empty.")
-	}
-	if utils.IsNFSProtocols(protocolTypes) {
-		result, _ := regexp.MatchString(unixPermissionsRegexPattern, unixPermissions)
-		if !result {
-			return errors.NewUserInputValidationErr("Unix permissions should be 4 digit long in octal format(0 to 7),  Create/Update volume with valid unix permissions, example: 0755")
-		}
-		effectiveStyle := strings.ToLower(utils.ResolveEffectiveUnixSecurityStyle(protocolTypes, securityStyle, false, unixPermissions))
-		if effectiveStyle != utils.UnixSecurityStyle {
-			return errors.NewUserInputValidationErr("Unix permissions are only supported with unix security-style")
-		}
-	} else {
-		return errors.NewUserInputValidationErr("Unix permissions is only supported with NFS protocol volumes, Create/Update SMB volume without unix permissions.")
-	}
-	return nil
 }
 
 func validateAllSquash(rules []gcpgenserver.SimpleExportPolicyRuleV1beta) error {
@@ -1584,7 +1557,7 @@ func _prepareUpdateVolumeParams(req *gcpgenserver.VolumeUpdateV1beta, params gcp
 			protocols = dbVolume.ProtocolTypes
 		}
 		effectiveStyle := utils.ResolveEffectiveUnixSecurityStyle(protocols, securityStyle, securityStyle != "", unixPermissions)
-		err := validateUnixPermissions(protocols, unixPermissions, effectiveStyle)
+		err := utils.ValidateUnixPermissions(protocols, unixPermissions, effectiveStyle)
 		if err != nil {
 			return nil, err
 		}
@@ -1779,7 +1752,9 @@ func (h Handler) V1betaDeleteVolume(ctx context.Context, req gcpgenserver.OptV1b
 		}
 	}
 
-	volume, jobUUID, err := h.Orchestrator.DeleteVolume(ctx, params.VolumeId)
+	volume, jobUUID, err := h.Orchestrator.DeleteVolume(ctx, &common.DeleteVolumeParams{
+		VolumeUUID: params.VolumeId,
+	})
 	if err != nil {
 		if errors.IsNotFoundErr(err) {
 			return &gcpgenserver.OperationV1beta{
@@ -2818,7 +2793,7 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 
 		snapshotPolicySchedule = append(snapshotPolicySchedule, &models.SnapshotPolicySchedule{
 			Count:           count,
-			SnapmirrorLabel: SnapshotScheduleLabelMonthly,
+			SnapmirrorLabel: utils.SnapshotScheduleLabelMonthly,
 			Schedule: &models.Schedule{
 				DaysOfMonth: daysOfMonth,
 				Hours:       hours,
@@ -2837,7 +2812,7 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 			count = int64(weekly.SnapshotsToKeep.Value)
 		}
 		if weekly.Day.IsSet() && len(weekly.Day.Value) > 0 {
-			daysOfWeek, err = convertDaysOfWeekToIntArray(weekly.Day.Value)
+			daysOfWeek, err = utils.ConvertDaysOfWeekToIntArray(weekly.Day.Value)
 			if err != nil {
 				return nil, err
 			}
@@ -2854,7 +2829,7 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 
 		snapshotPolicySchedule = append(snapshotPolicySchedule, &models.SnapshotPolicySchedule{
 			Count:           count,
-			SnapmirrorLabel: SnapshotScheduleLabelWeekly,
+			SnapmirrorLabel: utils.SnapshotScheduleLabelWeekly,
 			Schedule: &models.Schedule{
 				DaysOfWeek: daysOfWeek,
 				Hours:      hours,
@@ -2881,7 +2856,7 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 
 		snapshotPolicySchedule = append(snapshotPolicySchedule, &models.SnapshotPolicySchedule{
 			Count:           count,
-			SnapmirrorLabel: SnapshotScheduleLabelDaily,
+			SnapmirrorLabel: utils.SnapshotScheduleLabelDaily,
 			Schedule: &models.Schedule{
 				Hours:   hours,
 				Minutes: minutes,
@@ -2903,7 +2878,7 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 
 		snapshotPolicySchedule = append(snapshotPolicySchedule, &models.SnapshotPolicySchedule{
 			Count:           count,
-			SnapmirrorLabel: SnapshotScheduleLabelHourly,
+			SnapmirrorLabel: utils.SnapshotScheduleLabelHourly,
 			Schedule: &models.Schedule{
 				Minutes: minutes,
 			},
@@ -2914,39 +2889,6 @@ func convertFromSnapshotPolicyV2(snapshotPolicy *gcpgenserver.SnapshotPolicyV1be
 		IsEnabled: snapshotPolicy.Enabled.IsSet() && snapshotPolicy.Enabled.Value,
 		Schedules: snapshotPolicySchedule,
 	}, nil
-}
-
-func convertDaysOfWeekToIntArray(days string) ([]int, error) {
-	// Return Sunday by default
-	if days == "" {
-		return []int{int(time.Sunday)}, nil
-	}
-
-	splitDays := strings.Split(days, ",")
-	weekdays := []time.Weekday{time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday}
-	var result []int
-
-	for _, day := range splitDays {
-		day := strings.TrimSpace(day)
-		hasFoundDay := false
-		for _, weekday := range weekdays {
-			// Allow for Monday,Tuesday and also MON,TUE
-			if strings.HasPrefix(strings.ToLower(weekday.String()), strings.ToLower(day)) {
-				weekDayValue := int(weekday)
-				if slices.Contains(result, weekDayValue) {
-					return nil, errors.NewUserInputValidationErr(daysOfWeekError)
-				}
-				result = append(result, weekDayValue)
-				hasFoundDay = true
-				break
-			}
-		}
-		if !hasFoundDay {
-			return nil, errors.NewUserInputValidationErr(daysOfWeekError)
-		}
-	}
-
-	return result, nil
 }
 
 func convertToSnapshotPolicyV2(pol *models.SnapshotPolicy) *gcpgenserver.SnapshotPolicyV1beta {

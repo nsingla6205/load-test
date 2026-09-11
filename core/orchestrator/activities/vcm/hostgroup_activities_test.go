@@ -14,7 +14,51 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	"go.temporal.io/sdk/testsuite"
 )
+
+func TestValidateHostGroupsExistInONTAP_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := HostGroupActivity{}
+	env.RegisterActivity(activity.ValidateHostGroupsExistInONTAP)
+
+	mockProvider.On("IgroupExists", "hg-db-linux", nillable.GetStringPtr("test-svm")).Return(true, nil, nil)
+
+	_, err := env.ExecuteActivity(activity.ValidateHostGroupsExistInONTAP, []string{"hg-db-linux"}, "test-svm", &models.Node{})
+	require.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestValidateHostGroupsExistInONTAP_NotFound(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := HostGroupActivity{}
+	env.RegisterActivity(activity.ValidateHostGroupsExistInONTAP)
+
+	mockProvider.On("IgroupExists", "hg-missing", nillable.GetStringPtr("test-svm")).Return(false, nil, nil)
+
+	_, err := env.ExecuteActivity(activity.ValidateHostGroupsExistInONTAP, []string{"hg-missing"}, "test-svm", &models.Node{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "All host groups could not be found.")
+	mockProvider.AssertExpectations(t)
+}
 
 func TestHostGroupActivity_CreateIgroup_Success(t *testing.T) {
 	mockProvider := vsa.NewMockProvider(t)

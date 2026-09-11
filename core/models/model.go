@@ -42,6 +42,7 @@ const (
 	ChownModeRestricted             = "restricted"
 	DefaultExportPolicyName         = "default"
 	AllowedAllClients               = "0.0.0.0/0"
+	DefaultONTAPSnapshotPolicyName  = "none"
 	IgnoreNtfsUnixSecurity          = "ignore"
 	DefaultIndexExportPolicyRule    = int64(7)
 )

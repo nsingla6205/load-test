@@ -2,9 +2,53 @@ package utils
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
+
+const (
+	SnapshotScheduleLabelHourly  = "hourly"
+	SnapshotScheduleLabelDaily   = "daily"
+	SnapshotScheduleLabelWeekly  = "weekly"
+	SnapshotScheduleLabelMonthly = "monthly"
+
+	DaysOfWeekError = `day in weeklySchedule must include 1-7 (inclusive) unique weekdays, that are comma separated.`
+)
+
+// ConvertDaysOfWeekToIntArray parses weekly schedule day strings into weekday integers.
+func ConvertDaysOfWeekToIntArray(days string) ([]int, error) {
+	if days == "" {
+		return []int{int(time.Sunday)}, nil
+	}
+
+	splitDays := strings.Split(days, ",")
+	weekdays := []time.Weekday{time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday}
+	var result []int
+
+	for _, day := range splitDays {
+		day := strings.TrimSpace(day)
+		hasFoundDay := false
+		for _, weekday := range weekdays {
+			if strings.HasPrefix(strings.ToLower(weekday.String()), strings.ToLower(day)) {
+				weekDayValue := int(weekday)
+				if slices.Contains(result, weekDayValue) {
+					return nil, errors.NewUserInputValidationErr(DaysOfWeekError)
+				}
+				result = append(result, weekDayValue)
+				hasFoundDay = true
+				break
+			}
+		}
+		if !hasFoundDay {
+			return nil, errors.NewUserInputValidationErr(DaysOfWeekError)
+		}
+	}
+
+	return result, nil
+}
 
 func GenerateWeekdayPartOfScheduleName(daysOfWeek []int) (days string) {
 	for i, day := range daysOfWeek {

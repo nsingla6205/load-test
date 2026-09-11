@@ -60,6 +60,16 @@ func TestJobLifecycle(t *testing.T) {
 	assert.Equal(t, "CREATE_CLUSTER", updated.CurrentStep)
 	assert.True(t, updated.Retriable)
 
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:        job.ID,
+		Step:         "RESOLVE_VOLUME",
+		State:        JobStateProcessing,
+		RecoveryValue: "vol-1",
+	}))
+	withRecovery, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "vol-1", withRecovery.RecoveryValue)
+
 	ongoing, err := store.ListOngoingJobs(ctx)
 	require.NoError(t, err)
 	require.Len(t, ongoing, 1)

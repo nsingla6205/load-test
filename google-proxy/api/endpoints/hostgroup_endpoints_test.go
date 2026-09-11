@@ -299,7 +299,7 @@ func TestV1betaCreateHostGroup(t *testing.T) {
 			Orchestrator: mockOrchestrator,
 		}
 
-		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: string(gcpgenserver.HostGroupV1betaTypeISCSIINITIATOR), Hosts: []string(nil), OSType: "LINUX", AccountName: "project-number"}
+		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: string(gcpgenserver.HostGroupV1betaTypeISCSIINITIATOR), Hosts: []string{}, OSType: "LINUX", AccountName: "project-number"}
 		mockOrchestrator.EXPECT().CreateHostGroup(mock.Anything, createHGParams).Return(nil, errors.NewConflictErr("Host group already exists"))
 
 		result, err := handler.V1betaCreateHostGroup(context.Background(), req, params)
@@ -333,7 +333,7 @@ func TestV1betaCreateHostGroup(t *testing.T) {
 			Orchestrator: mockOrchestrator,
 		}
 
-		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: "ISCSI_INITIATOR", Hosts: []string(nil), OSType: "LINUX", AccountName: "project-number"}
+		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: "ISCSI_INITIATOR", Hosts: []string{}, OSType: "LINUX", AccountName: "project-number"}
 		mockOrchestrator.EXPECT().CreateHostGroup(mock.Anything, createHGParams).Return(nil, errors.New("some error"))
 
 		result, err := handler.V1betaCreateHostGroup(context.Background(), req, params)
@@ -449,7 +449,7 @@ func TestV1betaCreateHostGroup(t *testing.T) {
 			Orchestrator: mockOrchestrator,
 		}
 
-		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: "UNSPECIFIED", Hosts: []string(nil), OSType: "LINUX", AccountName: "project-number"}
+		createHGParams := &common.CreateHostGroupParams{Name: "test-host-group", Description: "test description", HostGroupType: "UNSPECIFIED", Hosts: []string{}, OSType: "LINUX", AccountName: "project-number"}
 		mockOrchestrator.EXPECT().CreateHostGroup(mock.Anything, createHGParams).Return(&models.HostGroup{
 			BaseModel:     models.BaseModel{},
 			Name:          "abcd",

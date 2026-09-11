@@ -1821,6 +1821,19 @@ func TestDeleteSnapshotPolicyInONTAP_WithEmptyPolicyName(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestDeleteSnapshotPolicyInONTAP_SkipsDefaultNonePolicy(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	activity := VolumeDeleteActivity{}
+	env.RegisterActivity(activity.DeleteSnapshotPolicyInONTAP)
+	node := &models.Node{}
+
+	_, err := env.ExecuteActivity(activity.DeleteSnapshotPolicyInONTAP, models.DefaultONTAPSnapshotPolicyName, node)
+
+	assert.NoError(t, err)
+}
+
 func TestDeleteSnapshotPolicyInONTAP_GetProviderByNodeFailure(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestActivityEnvironment()
@@ -3493,10 +3506,8 @@ func TestDeleteExportPolicy_NilVolumeAttributes(t *testing.T) {
 	}
 
 	// Act & Assert
-	// This should return an error because volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName will cause a nil pointer dereference
-	// Temporal catches panics and converts them to errors
 	_, err := env.ExecuteActivity(activity.DeleteExportPolicy, volume, node)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestDeleteExportPolicy_NilFileProperties(t *testing.T) {
@@ -3532,10 +3543,8 @@ func TestDeleteExportPolicy_NilFileProperties(t *testing.T) {
 	}
 
 	// Act & Assert
-	// This should return an error because volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName will cause a nil pointer dereference
-	// Temporal catches panics and converts them to errors
 	_, err := env.ExecuteActivity(activity.DeleteExportPolicy, volume, node)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestDeleteExportPolicy_NilExportPolicy(t *testing.T) {
@@ -3570,10 +3579,8 @@ func TestDeleteExportPolicy_NilExportPolicy(t *testing.T) {
 	}
 
 	// Act & Assert
-	// This should panic because volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName will cause a nil pointer dereference
-	assert.Panics(t, func() {
-		_ = activity.DeleteExportPolicy(ctx, volume, node)
-	})
+	err := activity.DeleteExportPolicy(ctx, volume, node)
+	assert.NoError(t, err)
 }
 
 func TestDetermineIfVolumeIsLastFilesVolume_NilVolume(t *testing.T) {

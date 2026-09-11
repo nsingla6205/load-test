@@ -29,7 +29,7 @@ func VcmCreateHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ho
 	finishJob := func(workflowErr error, responsePayload *string) error {
 		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return err
+			return returnFinishJobError(workflowErr, err)
 		}
 		return workflowErr
 	}
@@ -76,4 +76,12 @@ func vcmHostGroupActivityOptions() orchestrator.ActivityOptions {
 			MaximumAttempts: 3,
 		},
 	}
+}
+
+// returnFinishJobError preserves the workflow failure when terminal job persistence also fails.
+func returnFinishJobError(workflowErr, updateErr error) error {
+	if workflowErr != nil {
+		return workflowErr
+	}
+	return updateErr
 }

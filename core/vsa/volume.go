@@ -312,13 +312,13 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 		SvmName:                        &params.SvmName,
 		SnapshotDirectoryAccessEnabled: &params.SnapshotDirectory,
 		BaseParams: ontapRest.BaseParams{
-			Fields: []string{"uuid", "name", "space.*", "state", "snapshot_policy.name", "type", "snapshot_directory_access_enabled", "constituents"},
+			Fields: ontapRest.DefaultVolumeDetailFields,
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	if vol == nil || vol.Name == nil || vol.UUID == nil || vol.Space == nil {
+	if vol == nil || vol.Name == nil || vol.UUID == nil || vol.Space == nil || vol.State == nil {
 		return nil, errors.NewNotFoundErr("volume", nil)
 	}
 	if !params.IsRestore && vol.Space.LogicalSpace == nil {
@@ -341,13 +341,24 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 		Size:           *vol.Space.Size,
 		State:          *vol.State,
 		UsedBytes:      usedBytes,
-		// by default, volume will always have none as the snapshot policy
-		SnapshotPolicyName:             *vol.SnapshotPolicy.Name,
-		Type:                           volType,
-		SnapshotDirectoryAccessEnabled: *vol.SnapshotDirectoryAccessEnabled,
+		Type:           volType,
 	}
-	if vol.Space.SizeAvailableForSnapshots != nil {
-		res.SnapReserve = *vol.Space.SizeAvailableForSnapshots
+	if vol.SnapshotPolicy != nil && vol.SnapshotPolicy.Name != nil {
+		res.SnapshotPolicyName = *vol.SnapshotPolicy.Name
+	}
+	if vol.SnapshotDirectoryAccessEnabled != nil {
+		res.SnapshotDirectoryAccessEnabled = *vol.SnapshotDirectoryAccessEnabled
+	}
+	if vol.Qos != nil && vol.Qos.Policy != nil {
+		if vol.Qos.Policy.UUID != nil {
+			res.QoSPolicyUUID = *vol.Qos.Policy.UUID
+		}
+		if vol.Qos.Policy.Name != nil {
+			res.QoSPolicyName = *vol.Qos.Policy.Name
+		}
+	}
+	if vol.Space.Snapshot != nil && vol.Space.Snapshot.ReservePercent != nil {
+		res.SnapReserve = *vol.Space.Snapshot.ReservePercent
 	}
 	if vol.Space.Metadata != nil {
 		res.MetadataSize = *vol.Space.Metadata
@@ -364,7 +375,27 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 			res.ConstituentCount = &zero
 		}
 	}
+	if vol.Nas != nil {
+		if vol.Nas.Path != nil {
+			res.JunctionPath = *vol.Nas.Path
+		}
+		if vol.Nas.SecurityStyle != nil {
+			res.SecurityStyle = *vol.Nas.SecurityStyle
+		}
+		if vol.Nas.UnixPermissions != nil {
+			res.UnixPermissions = formatUnixPermissionsOctal(*vol.Nas.UnixPermissions)
+		}
+		if vol.Nas.ExportPolicy != nil && vol.Nas.ExportPolicy.Name != nil {
+			res.ExportPolicyName = *vol.Nas.ExportPolicy.Name
+		}
+	}
 	return res, nil
+}
+
+func formatUnixPermissionsOctal(permissions int64) string {
+	// ONTAP stores unix_permissions as the decimal form of the octal digit string
+	// (e.g. "0755" -> 755), not as the octal numeric value.
+	return fmt.Sprintf("%04d", permissions)
 }
 
 func (rc *OntapRestProvider) GetVolumeForExpertMode(params GetVolumeParams) (*VolumeResponse, error) {

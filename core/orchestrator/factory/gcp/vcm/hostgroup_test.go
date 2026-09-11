@@ -8,7 +8,6 @@ import (
 	"time"
 
 	cbackend "github.com/cschleiden/go-workflows/backend"
-	gowf "github.com/cschleiden/go-workflows/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -25,83 +24,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 )
-
-type stubStore struct {
-	input        vsa.NodeProviderInput
-	inputErr     error
-	createdJob   *vcmdb.Job
-	createErr    error
-	existingJob  *vcmdb.Job
-	getJobErr    error
-	updatedJobID    string
-	updatedState    vcmdb.JobState
-	updatedStep     string
-	updatedError    string
-	updatedRetriable bool
-	updateErr       error
-}
-
-func (s *stubStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
-	if s.inputErr != nil {
-		return vsa.NodeProviderInput{}, s.inputErr
-	}
-	return s.input, nil
-}
-
-func (s *stubStore) CreateJob(_ context.Context, job *vcmdb.Job) error {
-	s.createdJob = job
-	return s.createErr
-}
-
-func (s *stubStore) GetJob(_ context.Context, jobID string) (*vcmdb.Job, error) {
-	if s.getJobErr != nil {
-		return nil, s.getJobErr
-	}
-	if s.existingJob != nil {
-		return s.existingJob, nil
-	}
-	return &vcmdb.Job{ID: jobID, State: vcmdb.JobStateNew}, nil
-}
-
-func (s *stubStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
-	s.updatedJobID = params.JobID
-	s.updatedState = params.State
-	s.updatedStep = params.Step
-	s.updatedError = params.ErrorMessage
-	s.updatedRetriable = params.Retriable
-	return s.updateErr
-}
-
-type stubWorkflowStarter struct {
-	instanceID string
-	workflowFn interface{}
-	args       []any
-	err        error
-}
-
-func (s *stubWorkflowStarter) Start(_ context.Context, instanceID string, workflowFn interface{}, args ...any) (*gowf.Instance, error) {
-	s.instanceID = instanceID
-	s.workflowFn = workflowFn
-	s.args = args
-	return nil, s.err
-}
-
-func validNodeProviderInput() vsa.NodeProviderInput {
-	return vsa.NodeProviderInput{
-		DeploymentName: "gcnv-test",
-		OntapCredentials: &datamodel.PoolCredentials{
-			SecretID: "secret-1",
-			AuthType: env.USERNAME_PWD_SEC_MGR,
-		},
-		Nodes: []*datamodel.Node{
-			{
-				Name:            "vm1",
-				EndpointAddress: "198.18.0.5",
-				HostDNSName:     "vm1.gcnv-test.internal",
-			},
-		},
-	}
-}
 
 func createHostGroupParams() *commonparams.CreateHostGroupParams {
 	return &commonparams.CreateHostGroupParams{
@@ -184,16 +106,6 @@ func TestCreateHostGroup_EmptyDeploymentIdReturnsErrorWithoutCreatingJob(t *test
 	assert.Nil(t, store.createdJob)
 	assert.Empty(t, store.updatedJobID)
 	assert.Empty(t, starter.instanceID)
-}
-
-func TestDeriveSvmName(t *testing.T) {
-	got, err := deriveSvmName("gcnv-e29621e4df3c677")
-	require.NoError(t, err)
-	assert.Equal(t, "gcnv-e29621e4df3c677-svm-01", got)
-
-	_, err = deriveSvmName("")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "deployment ID is required")
 }
 
 func TestCreateHostGroup_InvalidConfigReturnsErrorWithoutCreatingJob(t *testing.T) {

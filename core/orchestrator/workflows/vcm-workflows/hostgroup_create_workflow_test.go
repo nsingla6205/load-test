@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
@@ -21,78 +20,6 @@ import (
 )
 
 const hostGroupWorkflowTestTimeout = 30 * time.Second
-
-const hostGroupWorkflowTestErrType = "HOST_GROUP_WORKFLOW_TEST"
-
-// nonRetryableTestErr marks stub failures as permanent so go-workflows does not
-// retry them under vcmHostGroupActivityOptions (MaximumAttempts: 3).
-func nonRetryableTestErr(msg string) error {
-	return orchestrator.NewNonRetryableApplicationError(msg, hostGroupWorkflowTestErrType, errors.New(msg))
-}
-
-type jobProgressCall struct {
-	jobID           string
-	state           vcmdb.JobState
-	trackingID      int
-	errorMessage    string
-	retriable       bool
-	responsePayload string
-}
-
-type stubJobActivity struct {
-	mu          sync.Mutex
-	calls       []jobProgressCall
-	failOnState vcmdb.JobState
-	failErr     error
-}
-
-func (s *stubJobActivity) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.calls = append(s.calls, jobProgressCall{
-		jobID:           params.JobID,
-		state:           params.State,
-		trackingID:      params.TrackingID,
-		errorMessage:    params.ErrorMessage,
-		retriable:       params.Retriable,
-		responsePayload: string(params.ResponsePayload),
-	})
-	if s.failErr != nil && s.failOnState == params.State {
-		return nonRetryableTestErr(s.failErr.Error())
-	}
-	return nil
-}
-
-func (s *stubJobActivity) snapshot() []jobProgressCall {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]jobProgressCall, len(s.calls))
-	copy(out, s.calls)
-	return out
-}
-
-type stubSvmActivity struct {
-	mu sync.Mutex
-
-	err   error
-	calls int
-}
-
-func (s *stubSvmActivity) GetSvmByName(_ context.Context, _ *models.Node, _ string) (*ontapRest.Svm, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.calls++
-	if s.err != nil {
-		return nil, s.err
-	}
-	return &ontapRest.Svm{}, nil
-}
-
-func (s *stubSvmActivity) callCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.calls
-}
 
 type stubHostGroupActivity struct {
 	mu          sync.Mutex
@@ -155,10 +82,6 @@ func runVcmCreateHostGroupWorkflow(
 	return err
 }
 
-func testNode() *models.Node {
-	return &models.Node{DeploymentName: "gcnv-test"}
-}
-
 func testHostParams() *common.HostParams {
 	return &common.HostParams{
 		HostName: "hg-1",
@@ -166,8 +89,6 @@ func testHostParams() *common.HostParams {
 		OsType:   "LINUX",
 	}
 }
-
-const testExpectedSvmName = "gcnv-test-svm-01"
 
 func TestVcmCreateHostGroupWorkflow_Success(t *testing.T) {
 	const operationID = "op-get-svm-success"

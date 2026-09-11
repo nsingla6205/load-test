@@ -16,6 +16,30 @@ import (
 // HostGroupActivity performs ONTAP igroup operations for VCM workflows.
 type HostGroupActivity struct{}
 
+// ValidateHostGroupsExistInONTAP verifies each referenced host group (igroup) exists on the target SVM.
+func (a HostGroupActivity) ValidateHostGroupsExistInONTAP(ctx context.Context, hostGroupNames []string, svmName string, node *models.Node) error {
+	orchestrator.RecordHeartbeat(ctx, "Starting ValidateHostGroupsExistInONTAP activity")
+
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	for _, hostGroupName := range hostGroupNames {
+		orchestrator.RecordHeartbeat(ctx, "Checking host group exists in ONTAP", "hostGroup", hostGroupName, "svm", svmName)
+		exists, _, err := provider.IgroupExists(hostGroupName, &svmName)
+		if err != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		if !exists {
+			return vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrAllHostGroupsNotFoundError, fmt.Errorf("host group %q not found on SVM %q", hostGroupName, svmName)))
+		}
+	}
+
+	orchestrator.RecordHeartbeat(ctx, "Finished ValidateHostGroupsExistInONTAP activity")
+	return nil
+}
+
 // CreateIgroup creates an igroup in ONTAP. If the igroup already exists with the same osType and IQNs, the call succeeds idempotently.
 func (HostGroupActivity) CreateIgroup(ctx context.Context, svmName string, host *common.HostParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
@@ -107,11 +131,10 @@ func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupName string, sv
 			}
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
+		logger.Debug("Igroup deleted successfully", "name", igroupName)
 	} else {
 		logger.Debugf("Igroup %s not found", igroupName)
 	}
-
-	logger.Debug("Igroup deleted successfully", "name", igroupName)
 	orchestrator.RecordHeartbeat(ctx, "Finished VCM DeleteIgroup activity")
 	return nil
 }

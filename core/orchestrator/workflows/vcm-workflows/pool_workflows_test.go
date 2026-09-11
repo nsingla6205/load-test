@@ -9,10 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 )
 
 func TestJobErrorFields(t *testing.T) {
@@ -82,6 +84,70 @@ func TestMapQosType(t *testing.T) {
 	}
 }
 
+func TestOntapNodeCredentials(t *testing.T) {
+	withEnv := func(t *testing.T, value string) {
+		t.Helper()
+		orig := runningEnv
+		runningEnv = value
+		t.Cleanup(func() { runningEnv = orig })
+	}
+
+	t.Run("local env uses configured username and password", func(t *testing.T) {
+		withEnv(t, localEnv)
+		origUser, origPw := vcmLocalOntapUsername, vcmLocalOntapPassword
+		vcmLocalOntapUsername, vcmLocalOntapPassword = "local-admin", "local-admin-pw"
+		t.Cleanup(func() { vcmLocalOntapUsername, vcmLocalOntapPassword = origUser, origPw })
+
+		wf := &createPoolWorkflow{}
+		creds := wf.ontapNodeCredentials()
+		require.NotNil(t, creds)
+		assert.Equal(t, "local-admin", creds.Username)
+		assert.Equal(t, "local-admin-pw", creds.Password)
+		assert.Equal(t, env.USERNAME_PWD, creds.AuthType)
+	})
+
+	t.Run("qualified secret id is reduced to a bare name", func(t *testing.T) {
+		withEnv(t, "prod")
+		inputs := &datamodel.PoolCredentials{
+			SecretID: "projects/123/secrets/admin-pw/versions/latest",
+			Username: "vsaadmin",
+			AuthType: env.USERNAME_PWD_SEC_MGR,
+		}
+		wf := &createPoolWorkflow{inputs: &commonparams.VCMDerivedPoolInputs{OntapCredentials: inputs}}
+
+		creds := wf.ontapNodeCredentials()
+		require.NotNil(t, creds)
+		assert.Equal(t, "admin-pw", creds.SecretID)
+		assert.Equal(t, "vsaadmin", creds.Username)
+		assert.Equal(t, env.USERNAME_PWD_SEC_MGR, creds.AuthType)
+
+		assert.Equal(t, "projects/123/secrets/admin-pw/versions/latest", inputs.SecretID,
+			"workflow inputs must keep the qualified name for the cluster-create path")
+	})
+
+	t.Run("certificate id is reduced alongside the secret id", func(t *testing.T) {
+		withEnv(t, "prod")
+		inputs := &datamodel.PoolCredentials{
+			CertificateID: "projects/123/secrets/admin-cert",
+			SecretID:      "projects/123/secrets/admin-key",
+			AuthType:      env.USER_CERTIFICATE,
+		}
+		wf := &createPoolWorkflow{inputs: &commonparams.VCMDerivedPoolInputs{OntapCredentials: inputs}}
+
+		creds := wf.ontapNodeCredentials()
+		require.NotNil(t, creds)
+		assert.Equal(t, "admin-cert", creds.CertificateID)
+		assert.Equal(t, "admin-key", creds.SecretID)
+		assert.Equal(t, env.USER_CERTIFICATE, creds.AuthType)
+	})
+
+	t.Run("nil credentials stay nil", func(t *testing.T) {
+		withEnv(t, "prod")
+		wf := &createPoolWorkflow{}
+		assert.Nil(t, wf.ontapNodeCredentials())
+	})
+}
+
 func TestCheckDeadline_DisabledAlwaysNil(t *testing.T) {
 	// Deadline enforcement is temporarily disabled; even a past/zero deadline
 	// must not abort the workflow. ctx is unused by the disabled implementation.
@@ -140,7 +206,7 @@ func TestSvmUUIDFromVLMConfig(t *testing.T) {
 }
 
 func TestPoolCreateOperationResponsePayloadFn(t *testing.T) {
-	payload, err := poolCreateOperationResponsePayloadFn("gcnv-test")
+	payload, err := poolCreateOperationResponsePayloadFn("gcnv-test", vlm.VLMConfig{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, payload)
 	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-test"}}`, *payload)

@@ -621,6 +621,7 @@ type CloneParentInfo struct {
 
 type HostGroupDetail struct {
 	HostGroupUUID string   `json:"host_group_uuid"`
+	HostGroupName string   `json:"host_group_name,omitempty"`
 	HostQNs       []string `json:"host_qns"`
 }
 

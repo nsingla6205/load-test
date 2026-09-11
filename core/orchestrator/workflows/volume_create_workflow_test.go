@@ -2869,9 +2869,7 @@ func (s *UnitTestSuite) Test_PreFileVolumeWorkflow_FileProtocolsDisabled() {
 				CertificateID: "",
 			},
 			BuildInfo: &datamodel.PoolBuildInfo{
-				// Version is incidental: the FileProtocolSupported flag below is what
-				// disables file protocols for this case.
-				OntapVersion: "9.17.1",
+				OntapVersion: "9.17.1", // Older version that doesn't support file protocols
 			}},
 		Svm:              &datamodel.Svm{Name: "svm_test"},
 		VolumeAttributes: &datamodel.VolumeAttributes{Protocols: []string{utils.ProtocolNFSv3}},
@@ -4162,36 +4160,6 @@ func (s *UnitTestSuite) Test_SelectVolumeChildWorkflow_FileProtocolsDisabled() {
 	assert.NotNil(s.T(), err)
 	assert.Nil(s.T(), postWorkflow)
 	assert.Contains(s.T(), err.(*vsaerrors.CustomError).OriginalErr.Error(), "file protocols are not enabled")
-}
-
-// Test_SelectVolumeChildWorkflow_UnidentifiableOntapVersion covers the version half of the file
-// support gate, which the sibling test above cannot reach: it leaves FileProtocolSupported ON so
-// the ONTAP version is the only thing that can refuse the request. Removing
-// FILE_SUPPORT_ONTAP_VERSION must not let a pool whose version cannot be identified reach the NAS
-// workflows, so every unusable version has to be rejected here rather than at a later stage.
-func (s *UnitTestSuite) Test_SelectVolumeChildWorkflow_UnidentifiableOntapVersion() {
-	protocols := []string{utils.ProtocolNFSv3}
-
-	originalFileProtocolSupported := utils.FileProtocolSupported
-	defer func() {
-		utils.SetFileProtocolSupportedForTesting(originalFileProtocolSupported)
-		utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
-	}()
-	utils.SetFileProtocolSupportedForTesting(true)
-	utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
-
-	for _, ontapVersion := range []string{"", "   ", "unknown-release", "9.18"} {
-		for _, phase := range []string{PhasePre, PhasePost} {
-			childWorkflow, err := selectVolumeChildWorkflow(protocols, phase, ontapVersion)
-			assert.Nil(s.T(), childWorkflow,
-				"no workflow should be selected for version %q in phase %s", ontapVersion, phase)
-			if customErr, ok := err.(*vsaerrors.CustomError); assert.True(s.T(), ok,
-				"expected a CustomError for version %q in phase %s", ontapVersion, phase) {
-				assert.Contains(s.T(), customErr.OriginalErr.Error(), "file protocols are not enabled",
-					"NAS request must be refused when the ONTAP version is %q", ontapVersion)
-			}
-		}
-	}
 }
 
 func (s *UnitTestSuite) Test_SelectVolumeChildWorkflow_UnsupportedProtocol() {

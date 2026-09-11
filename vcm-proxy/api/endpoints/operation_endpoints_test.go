@@ -48,6 +48,14 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 	}{
 		{name: "new", state: vcmdb.JobStateNew, done: false},
 		{name: "processing", state: vcmdb.JobStateProcessing, done: false},
+		{
+			name:            "processing with response payload",
+			state:           vcmdb.JobStateProcessing,
+			done:            false,
+			wantResponse:    true,
+			responsePayload: `{"pool":{"deploymentId":"gcnv-test","ipConfig":{"dataLif":{"ilbnas":"10.33.182.243"}}}}`,
+			wantResponseDeploymentID: "gcnv-test",
+		},
 		{name: "done without response payload", state: vcmdb.JobStateDone, done: true},
 		{
 			name:                 "done with response payload",

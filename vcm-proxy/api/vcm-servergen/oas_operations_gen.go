@@ -6,10 +6,10 @@ package vcmserver
 type OperationName = string
 
 const (
+	ClusterCreateV1Operation  OperationName = "ClusterCreateV1"
 	GetHealthOperation        OperationName = "GetHealth"
 	GetReadyOperation         OperationName = "GetReady"
 	OperationGetV1Operation   OperationName = "OperationGetV1"
-	PoolCreateV1Operation     OperationName = "PoolCreateV1"
 	SetConfigV1Operation      OperationName = "SetConfigV1"
 	V1CreateIgroupOperation   OperationName = "V1CreateIgroup"
 	V1CreateVolumeOperation   OperationName = "V1CreateVolume"

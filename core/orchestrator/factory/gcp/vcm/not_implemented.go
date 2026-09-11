@@ -168,7 +168,7 @@ func (notImplementedOrchestrator) GetVolumeCount(context.Context, string) (int64
 	return 0, customerrors.NewNotImplementedYetErr()
 }
 
-func (notImplementedOrchestrator) DeleteVolume(context.Context, string) (*models.Volume, string, error) {
+func (notImplementedOrchestrator) DeleteVolume(context.Context, *commonparams.DeleteVolumeParams) (*models.Volume, string, error) {
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }
 

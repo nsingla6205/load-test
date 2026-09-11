@@ -64,10 +64,10 @@ func (a JobActivity) UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJ
 	if a.Store == nil {
 		return fmt.Errorf("vcm.JobActivity: job store is not configured")
 	}
-	if params.State == "" && params.ErrorMessage != "" {
-		params.State = vcmdb.JobStateError
-	}
 	if params.ErrorMessage != "" {
+		if params.State == "" {
+			params.State = vcmdb.JobStateError
+		}
 		util.GetLogger(ctx).ErrorContext(ctx, "VCM job failed", "jobId", params.JobID, "error", params.ErrorMessage)
 	}
 	return a.Store.UpdateJobProgress(ctx, params)

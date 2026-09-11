@@ -857,7 +857,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			QuotaInBytes:     1024,
 			IsDataProtection: true,
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -916,7 +917,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			QuotaInBytes:     1024,
 			IsDataProtection: true,
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -1057,7 +1059,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			QuotaInBytes:     1024,
 			IsDataProtection: true,
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -1130,7 +1133,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			QuotaInBytes:     1024,
 			IsDataProtection: true,
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -2068,7 +2072,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			LargeCapacity:               true,
 			LargeVolumeConstituentCount: 8,
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -2116,7 +2121,8 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 			LargeCapacity:               true,
 			LargeVolumeConstituentCount: 0, // Default value when not set
 			BlockProperties: &common.BlockPropertiesRequest{
-				OSType: "LINUX",
+				OSType:         "LINUX",
+				HostGroupUUIDs: []string{},
 			},
 			Protocols: []string{
 				"ISCSI",
@@ -6336,37 +6342,37 @@ func TestV1betaListVolumes(t *testing.T) {
 
 func TestConvertDaysOfWeekToIntArray(t *testing.T) {
 	t.Run("ReturnsSundayByDefaultWhenEmpty", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("")
+		result, err := utils.ConvertDaysOfWeekToIntArray("")
 		assert.NoError(tt, err)
 		assert.Equal(tt, []int{0}, result)
 	})
 
 	t.Run("ReturnsCorrectIntsForFullNames", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("Monday,Tuesday,Wednesday")
+		result, err := utils.ConvertDaysOfWeekToIntArray("Monday,Tuesday,Wednesday")
 		assert.NoError(tt, err)
 		assert.Equal(tt, []int{1, 2, 3}, result)
 	})
 
 	t.Run("ReturnsCorrectIntsForShortNames", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("Mon,Tue,Wed")
+		result, err := utils.ConvertDaysOfWeekToIntArray("Mon,Tue,Wed")
 		assert.NoError(tt, err)
 		assert.Equal(tt, []int{1, 2, 3}, result)
 	})
 
 	t.Run("ReturnsErrorForInvalidDay", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("Funday")
+		result, err := utils.ConvertDaysOfWeekToIntArray("Funday")
 		assert.Error(tt, err)
 		assert.Nil(tt, result)
 	})
 
 	t.Run("ReturnsErrorForDuplicateDay", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("Monday,Monday")
+		result, err := utils.ConvertDaysOfWeekToIntArray("Monday,Monday")
 		assert.Error(tt, err)
 		assert.Nil(tt, result)
 	})
 
 	t.Run("TrimsSpacesAndIsCaseInsensitive", func(tt *testing.T) {
-		result, err := convertDaysOfWeekToIntArray("  tuesday ,  WEDNESDAY ")
+		result, err := utils.ConvertDaysOfWeekToIntArray("  tuesday ,  WEDNESDAY ")
 		assert.NoError(tt, err)
 		assert.Equal(tt, []int{2, 3}, result)
 	})
@@ -9384,7 +9390,7 @@ func TestPrepareCreateVolumeParams_HybridReplicationParametersProcessing(t *test
 		assert.Equal(tt, "us-west1", hybridParams.ClusterLocation)
 		assert.Equal(tt, "hourly", hybridParams.ReplicationSchedule)
 		assert.Equal(tt, datamodel.HybridReplicationParametersReplicationTypeMIGRATION, hybridParams.ReplicationType)
-		assert.Equal(tt, SnapshotScheduleLabelHourly, hybridParams.ReplicationSchedule)
+		assert.Equal(tt, utils.SnapshotScheduleLabelHourly, hybridParams.ReplicationSchedule)
 	})
 
 	t.Run("WhenONPREMTypeWithEmptyReplicationSchedule_ReturnsError", func(tt *testing.T) {
@@ -9500,7 +9506,7 @@ func TestPrepareCreateVolumeParams_HybridReplicationParametersProcessing(t *test
 		assert.NotNil(tt, result.HybridReplicationParameters)
 		assert.Equal(tt, datamodel.HybridReplicationParametersReplicationTypeMIGRATION, result.HybridReplicationParameters.ReplicationType)
 		// MIGRATION type automatically sets replicationSchedule to hourly
-		assert.Equal(tt, SnapshotScheduleLabelHourly, result.HybridReplicationParameters.ReplicationSchedule)
+		assert.Equal(tt, utils.SnapshotScheduleLabelHourly, result.HybridReplicationParameters.ReplicationSchedule)
 	})
 
 	t.Run("WhenONPREMTypeWithEmptyStringReplicationSchedule_ReturnsError", func(tt *testing.T) {
@@ -10460,7 +10466,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 			CreationToken:  "token",
 			DisplayName:    "testvolume",
 		}
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(deletedVolume, "job-123", nil)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(deletedVolume, "job-123", nil)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -10753,7 +10759,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// DeleteVolume returns not found (volume disappeared between calls)
 		notFoundErr := errors.NewNotFoundErr("Volume", &params.VolumeId)
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", notFoundErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", notFoundErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -10785,7 +10791,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// DeleteVolume fails with internal error
 		internalErr := errors.New("database connection failed")
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", internalErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", internalErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.Nil(tt, err)
@@ -10821,7 +10827,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 			CreationToken:  "token",
 			DisplayName:    "testvolume",
 		}
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(deletingVolume, "job-123", nil)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(deletingVolume, "job-123", nil)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -10878,7 +10884,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 					CreationToken:  "token",
 					DisplayName:    "testvolume",
 				}
-				mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(deletedVolume, "job-123", nil)
+				mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(deletedVolume, "job-123", nil)
 
 				result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 				if tc.expectError {
@@ -10922,7 +10928,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 			DisplayName:    "testvolume",
 		}
 		jobUUID := "job-uuid-123"
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(deletingVolume, jobUUID, nil)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(deletingVolume, jobUUID, nil)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -10954,7 +10960,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// Mock DeleteVolume to return UserInputValidationErr (backup in transition)
 		validationErr := errors.NewUserInputValidationErr("A backup operation on volume is currently in progress")
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", validationErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", validationErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -10986,7 +10992,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// Mock DeleteVolume to return another UserInputValidationErr
 		validationErr := errors.NewUserInputValidationErr("Volume cannot be deleted due to active replication")
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", validationErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", validationErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -11019,7 +11025,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// DeleteVolume returns conflict error (line 1410)
 		conflictErr := errors.NewConflictErr("Volume is in transition state and cannot be deleted")
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", conflictErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", conflictErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -11074,7 +11080,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// Mock DeleteVolume to return NotFoundErr
 		notFoundErr := errors.NewNotFoundErr("Volume not found", nil)
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", notFoundErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", notFoundErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.NoError(tt, err)
@@ -11130,7 +11136,7 @@ func TestV1betaDeleteVolume(t *testing.T) {
 
 		// Mock DeleteVolume to return unexpected error
 		unexpectedErr := fmt.Errorf("workflow execution failed")
-		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(nil, "", unexpectedErr)
+		mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(nil, "", unexpectedErr)
 
 		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 		assert.Nil(tt, err)
@@ -14692,86 +14698,6 @@ func TestValidateSmbShareSettingsV2(t *testing.T) {
 	}
 }
 
-func TestValidateUnixPermissions(t *testing.T) {
-	tests := []struct {
-		name       string
-		protocols  []string
-		permission string
-		style      string
-		wantErr    bool
-		errMsg     string
-	}{
-		{
-			name:       "Valid NFS permissions",
-			protocols:  []string{"NFSV3"},
-			permission: "0755",
-			style:      "unix",
-			wantErr:    false,
-		},
-		{
-			name:       "Empty permissions",
-			protocols:  []string{"NFSV3"},
-			permission: "",
-			style:      "unix",
-			wantErr:    true,
-			errMsg:     "UnixPermissions cannot be empty.",
-		},
-		{
-			name:       "Invalid permission format",
-			protocols:  []string{"NFSV3"},
-			permission: "08",
-			style:      "unix",
-			wantErr:    true,
-			errMsg:     "Unix permissions should be 4 digit long in octal format",
-		},
-		{
-			name:       "Mismatched security style",
-			protocols:  []string{"NFSV3"},
-			permission: "0755",
-			style:      "ntfs",
-			wantErr:    true,
-			errMsg:     "Unix permissions are only supported with unix security-style",
-		},
-		{
-			name:       "NFS-only without explicit security style",
-			protocols:  []string{"NFSV3"},
-			permission: "0755",
-			style:      "",
-			wantErr:    false,
-		},
-		{
-			name:       "Dual protocol without explicit security style",
-			protocols:  []string{"NFSV3", "SMB"},
-			permission: "0755",
-			style:      "",
-			wantErr:    true,
-			errMsg:     "Unix permissions are only supported with unix security-style",
-		},
-		{
-			name:       "Unsupported protocol",
-			protocols:  []string{"SMB"},
-			permission: "0755",
-			style:      "unix",
-			wantErr:    true,
-			errMsg:     "Unix permissions is only supported with NFS protocol volumes",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateUnixPermissions(tt.protocols, tt.permission, tt.style)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestValidateSmbVolumeParams(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -17141,7 +17067,7 @@ func TestV1betaDeleteVolume_DeletingState_LargeVolume(t *testing.T) {
 		State:     datamodel.JobsStateDONE,
 	}
 	mockOrchestrator.EXPECT().GetJobByResourceUUID(mock.Anything, "vol-1", string(datamodel.JobTypeDeleteLargeVolume)).Return(job, nil)
-	mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, "vol-1").Return(volume, "new-job-123", nil)
+	mockOrchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(volume, "new-job-123", nil)
 
 	result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
 	assert.NoError(t, err)
@@ -17187,7 +17113,7 @@ func TestV1betaDeleteVolume_DeletingState_ResilienceRetry(t *testing.T) {
 			orchestrator.EXPECT().GetJobByResourceUUID(mock.Anything, volume.UUID, string(jobType)).
 				Return(&models.Job{BaseModel: models.BaseModel{UUID: tc.jobID}, State: tc.state}, nil)
 			if tc.retry {
-				orchestrator.EXPECT().DeleteVolume(mock.Anything, volume.UUID).Return(volume, "new-job", nil)
+				orchestrator.EXPECT().DeleteVolume(mock.Anything, mock.Anything).Return(volume, "new-job", nil)
 			}
 
 			result, err := (&Handler{Orchestrator: orchestrator}).V1betaDeleteVolume(

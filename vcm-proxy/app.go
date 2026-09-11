@@ -171,9 +171,8 @@ func (h filteredBackendHandler) Handle(ctx context.Context, r slog.Record) error
 
 // setupWorkflowEngine creates the in-memory go-workflows engine and returns the
 // runner. The caller is responsible for Start/Stop and derives the workflow
-// starter from the runner. The store is injected into the pool workflow's
-// job-progress activity so it can persist durable job state transitions, and
-// into the VLM config rebuild activity for write-back.
+// starter from the runner. The shared config store is wired into job-progress
+// and VLM config rebuild activities for durable persistence and write-back.
 func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfig.Store) (*gowfbackend.Runner, error) {
 	// Build the in-memory backend with both context propagators installed: the
 	// VCP orchestrator's (PoolWorkflow/activities read deadline+correlation under
@@ -202,18 +201,28 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfi
 	return runner, nil
 }
 
-// registerWorkflows registers VCM workflows and activities, plus in-process VLM workflows, on the worker.
+// registerWorkflows registers all workflows and activities on the VCM proxy worker.
 func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg := runner.Registrar()
 	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmCreateHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmDeleteHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmUpdateHostGroupWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmCreateVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmPreBlockVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmPreFileVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmPostBlockVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmPostFileVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmPostFileVolumeWorkflowForSMB)
+	reg.RegisterWorkflow(vcm_workflows.VcmDeleteVolumeWorkflow)
 
 	var poolActivity activities.PoolActivity
 	var credentialActivity activities.VCMCredentialActivity
 	var svmActivity activities.SvmActivity
-	hostGroupActivity := vcmjob.HostGroupActivity{}
+	var volumeCreateActivity activities.VolumeCreateActivity
+	var volumeDeleteActivity activities.VolumeDeleteActivity
+	var volumeUpdateActivity activities.VolumeUpdateActivity
+	var vcmHostGroupActivity vcmjob.HostGroupActivity
 	jobActivity := &vcmjob.JobActivity{Store: store}
 
 	reg.RegisterActivity(poolActivity.IdentifyVMs)
@@ -221,13 +230,24 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg.RegisterActivity(credentialActivity.ResolveOntapCertificate)
 	reg.RegisterActivity(svmActivity.CreateQoSPolicyAndApplyToSVM)
 	reg.RegisterActivity(svmActivity.GetSvmByName)
-	reg.RegisterActivity(hostGroupActivity.CreateIgroup)
-	reg.RegisterActivity(hostGroupActivity.UpdateIgroup)
-	reg.RegisterActivity(hostGroupActivity.DeleteIgroup)
+	reg.RegisterActivity(vcmHostGroupActivity.ValidateHostGroupsExistInONTAP)
+	reg.RegisterActivity(vcmHostGroupActivity.CreateIgroup)
+	reg.RegisterActivity(vcmHostGroupActivity.UpdateIgroup)
+	reg.RegisterActivity(vcmHostGroupActivity.DeleteIgroup)
+	reg.RegisterActivity(volumeCreateActivity.CreateVolumeInONTAP)
+	reg.RegisterActivity(volumeCreateActivity.CreateLun)
+	reg.RegisterActivity(volumeCreateActivity.CreateLunMap)
+	reg.RegisterActivity(volumeCreateActivity.GetOntapClusterHealth)
+	reg.RegisterActivity(volumeCreateActivity.CreateExportPolicyInOntap)
+	reg.RegisterActivity(volumeCreateActivity.CreateSnapshotPolicyInONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.GetVolumeFromONTAP)
+	reg.RegisterActivity(volumeDeleteActivity.DeleteVolumeInONTAP)
+	reg.RegisterActivity(volumeDeleteActivity.DeleteExportPolicy)
+	reg.RegisterActivity(volumeDeleteActivity.DeleteSnapshotPolicyInONTAP)
 	reg.RegisterActivity(jobActivity.GetJob)
 	reg.RegisterActivity(jobActivity.UpdateJobProgress)
 
-	// VLM config rebuild workflow and its write-back activity.
+	// Config rebuild workflow and supporting activities.
 	reg.RegisterWorkflow(vcm_workflows.RebuildVLMConfigWorkflow)
 	configActivity := &activities.VLMConfigActivity{Store: store}
 	reg.RegisterActivity(configActivity.ValidateGetVLMConfigInputs)

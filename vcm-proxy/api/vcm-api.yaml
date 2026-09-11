@@ -379,7 +379,7 @@ paths:
       tags:
         - volumes
       summary: Describe a volume
-      description: Returns the description of the specified volume by volume uuid.
+      description: Returns the description of the specified volume by volume UUID.
       operationId: v1_describeVolume
       parameters:
         - $ref: "#/components/parameters/volumeUuidPathParameter"
@@ -390,16 +390,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Volume_v1"
+                $ref: "#/components/schemas/VolumeRead_v1"
               example:
                 uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
                 name: my-volume
                 sizeInBytes: 107374182400
                 usedBytes: 1409024
-                protocols:
-                  - ISCSI
-                restrictedActions: []
-                mountPoints: []
+                shareName: /my-volume
+                securityStyle: UNIX
+                snapReserve: 0
+                snapshotDirectory: true
         "400":
           $ref: "#/components/responses/StandardError-400"
         "401":
@@ -537,13 +537,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
-  /v1/pools:
+  /v1/clusters:
     post:
-      operationId: poolCreate_v1
+      operationId: clusterCreate_v1
       tags: [clusters]
-      summary: Create a new ONTAP pool
+      summary: Create a new ONTAP cluster
       description: |
-        Provisions a new ONTAP pool via the VCM workflow.
+        Provisions a new ONTAP cluster (HA pair + mediator) via the VCM
+        provisioning workflow. The request carries only the CLH-computed cluster
+        shape plus request-level controls; cluster identity, zones, networking,
+        projects and ONTAP credentials are read from the configuration
+        previously pushed via POST /v1/config.
         Returns 202 Accepted; poll GET /v1/operations/{operationId}
         where operationId equals requestId.
       requestBody:
@@ -551,7 +555,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PoolRequest_v1"
+              $ref: "#/components/schemas/Cluster_v1"
       responses:
         "202":
           description: Cluster creation accepted
@@ -561,6 +565,8 @@ paths:
                 $ref: "#/components/schemas/Operation_v1"
         "400":
           $ref: "#/components/responses/StandardError-400"
+        "409":
+          $ref: "#/components/responses/StandardError-409"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -592,7 +598,7 @@ components:
         minLength: 36
         maxLength: 36
         pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-      example: 9760acf5-4638-11e7-9bdb-020073ca0001
+      example: "9760acf5-4638-11e7-9bdb-020073ca0001"
 
     xCorrelationIdHeader:
       name: X-Correlation-ID
@@ -793,6 +799,8 @@ components:
     ExportPolicy_v1:
       title: ExportPolicy
       type: object
+      required:
+        - rules
       properties:
         rules:
           type: array
@@ -925,17 +933,6 @@ components:
       description: A simple export-policy rule that defines who can access the volume
         and how. Only 5 rules are allowed but each rule can serve many clients and
         subnets.
- 
-    RestrictedActions_v1:
-      title: RestrictedActions
-      type: array
-      description: Actions to be restricted for a volume
-      items:
-        type: string
-        example: DELETE
-        enum:
-          - DELETE
-          - RESTRICTED_ACTION_UNSPECIFIED
 
     MountPoint_v1:
       title: MountPoint
@@ -1212,22 +1209,6 @@ components:
             - SECURITY_STYLE_UNSPECIFIED
             - NTFS
             - UNIX
-        throughputMibps:
-          title: throughputMibps
-          type: number
-          format: double
-          readOnly: false
-          description: Throughput of the volume in Mibps.
-          example: 100.0
-          nullable: true
-        iops:
-          title: iops
-          type: integer
-          format: int64
-          readOnly: false
-          description: IOPS limit for the volume, retrieved from the associated Volume Performance Group.
-          example: 1000
-          nullable: true
         snapReserve:
           title: snapReserve
           minimum: 0
@@ -1260,8 +1241,6 @@ components:
           description: Protocol type through which volume can be accessed.
           items:
             $ref: '#/components/schemas/Protocols_v1'
-        restrictedActions:
-          $ref: '#/components/schemas/RestrictedActions_v1'
         mountPoints:
           title: mountPoints
           type: array
@@ -1284,7 +1263,83 @@ components:
           nullable: true
           example: "0755"
 
-    # Long-running operation resource (AIP-151). Returned both by POST /v1/pools
+    VolumeRead_v1:
+      title: ONTAP-backed volume read model
+      description: |
+        Subset of volume fields returned by GET /v1/volumes/{name} and aligned with the
+        create-operation done payload. Values are sourced from a single ONTAP volume GET.
+      type: object
+      required:
+        - name
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID of the volume.
+          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+          maxLength: 36
+          minLength: 36
+          example: 12345678-1234-1234-1234-123456789012
+          x-nullable: true
+        name:
+          maxLength: 63
+          pattern: "^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$"
+          type: string
+          description: Volume name.
+          example: my-volume
+        sizeInBytes:
+          title: sizeInBytes
+          type: number
+          description: Maximum storage quota allowed for a volume in bytes.
+          format: double
+          example: 107374182400
+        usedBytes:
+          title: usedBytes
+          minimum: 0
+          type: number
+          description: Current storage usage for the volume in bytes.
+          format: double
+          nullable: true
+          readOnly: true
+          example: 101010.0
+        shareName:
+          title: shareName
+          type: string
+          description: NAS junction path (ONTAP nas.path) for file volumes.
+          example: /my-volume
+        securityStyle:
+          title: securityStyle
+          type: string
+          description: The security style of the NAS volume.
+          example: UNIX
+          enum:
+            - SECURITY_STYLE_UNSPECIFIED
+            - NTFS
+            - UNIX
+        snapReserve:
+          title: snapReserve
+          minimum: 0
+          type: number
+          description: Percentage of volume storage reserved for snapshot storage.
+          format: double
+          example: 20.0
+          default: 0.0
+        snapshotDirectory:
+          title: snapshotDirectory
+          type: boolean
+          description: Whether the .snapshot directory is enabled on the volume.
+          default: true
+        unixPermissions:
+          title: unixPermissions
+          maxLength: 4
+          minLength: 4
+          type: string
+          description: UNIX permissions for NFS volumes in 4-digit octal format.
+          nullable: true
+          example: "0755"
+
+    # Long-running operation resource (AIP-151). Returned both by POST /v1/clusters
     # (202 Accepted, done=false) and by GET /v1/operations/{operationId} for polling.
     Operation_v1:
       type: object
@@ -1662,20 +1717,19 @@ components:
         instance: vcm-instance
         database: vcm
 
-    PoolRequest_v1:
+    Cluster_v1:
       type: object
       description: |
-        Envelope for a pool operation request (create, and in future update).
-        Wraps the pool resource with request-level controls (idempotency key and
-        deadline) that are not part of the pool resource itself.
+        Create-cluster request. The cluster resource carries only the
+        CLH-computed shape; identity, zones, networking, projects and ONTAP
+        credentials are resolved from the configuration previously pushed via
+        POST /v1/config. requestId and deadline are request-level controls that
+        are not part of the cluster resource itself.
       required:
-        - pool
         - requestId
         - deadline
+        - clusterShape
       properties:
-        pool:
-          # The pool resource to provision.
-          $ref: "#/components/schemas/Pool_v1"
         requestId:
           type: string
           minLength: 36
@@ -1684,316 +1738,50 @@ components:
           description: |
             Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
             Generated by CLH before the first attempt and reused for every retry
-            of the same logical create-pool request. Returned as the operationID
-            in the 202 response; poll GET /v1/operations/{operationId}.
+            of the same logical create-cluster request. Returned as the
+            operationId in the 202 response; poll
+            GET /v1/operations/{operationId}.
           example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         deadline:
           type: string
           format: date-time
           description: |
-            Absolute UTC (RFC 3339) time by which this create-pool request must
-            complete. VCM rejects a request whose deadline is already in the past
-            and stops work with a deadline-exceeded error once it elapses.
+            Absolute UTC (RFC 3339) time by which this create-cluster request
+            must complete. VCM rejects a request whose deadline is already in
+            the past and stops work with a deadline-exceeded error once it
+            elapses.
           example: "2026-07-29T13:30:00Z"
+        clusterShape:
+          # CLH-computed technical blueprint for the cluster to provision.
+          $ref: "#/components/schemas/ClusterShape_v1"
+        clusterLayout:
+          description: |
+            Volatile physical and operational topology. Read-only: VCM owns this
+            once the cluster exists, and it is ignored on input.
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/ClusterLayout_v1"
       example:
         requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
         deadline: "2026-07-29T13:30:00Z"
-        pool:
-          throughputMibps: 1024
-          iops: 5000
-          sizeInBytes: 1099511627776
-          serviceTenantProject: "237071556299"
-          SNHostProject: m30b15e7f4112ab02-tp
-          numHAPair: 1
-          serviceAccountEmail: vsa-sa-gcnv@237071556299.iam.gserviceaccount.com
-          autoTierBucketName: us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537
+        clusterShape:
+          provisionedThroughputMibps: 1024
+          provisionedIops: 5000
+          provisionedSizeInBytes: 1099511627776
+          qosType: auto
+          mode: DEFAULT
           regionIdentifier: "34"
-          netConfig:
-            nodemgmt:
-              vpc: mgmt-e0a-vpc-01
-              subnet: mgmt-e0a-subnet-01
-            data:
-              vpc: netapp-autopush-tst-network
-              subnet: vsa-237071556299-1753966457
-          VMSerialNumbers:
-            - "93520140000000000001"
-            - "93520140000000000002"
-          primaryZone: us-central1-a
-          secondaryZone: us-central1-c
-          mediatorZone: us-central1-c
-          deploymentId: gcnv-8d0ff6a0b456f30
-
-    Pool_v1:
-      type: object
-      required:
-        - throughputMibps
-        - iops
-        - sizeInBytes
-        - serviceTenantProject
-        - SNHostProject
-        - numHAPair
-        - serviceAccountEmail
-        - autoTierBucketName
-        - regionIdentifier
-        - netConfig
-        - VMSerialNumbers
-        - primaryZone
-        - secondaryZone
-        - mediatorZone
-        - deploymentId
-      properties:
-        throughputMibps:
-          title: throughputMibps
-          type: integer
-          description: Total throughput of the pool in MiBps
-          format: int64
-          nullable: true
-          example: 10
-        iops:
-          title: iops
-          type: integer
-          description: The total iops set for a pool.
-          format: int64
-          nullable: true
-          example: 1600
-        sizeInBytes:
-          title: size
-          type: number
-          description: Size of the pool in bytes
-          format: double
-          nullable: true
-          example: 2199023255552
-        hotTierSizeInBytes:
-          title: hotTierSizeInBytes
-          type: number
-          description: Hot-tier size of the pool (in bytes) if auto-tiering is enabled.
-          format: double
-          x-omitempty: true
-          nullable: true
-          example: 1099511627776
-        qosType:
-          title: qosType
-          type: string
-          description: The type of QoS for the pool
-          nullable: true
-          example: auto
-          default: auto
-        mode:
-          title: mode
-          type: string
-          enum:
-            - MODE_UNSPECIFIED
-            - DEFAULT
-            - ONTAP
-          description: Flag indicating if the pool supports expert mode
-          default: DEFAULT
-          example: DEFAULT
-        projectId:
-          type: string
-          description: Google project number / account number for the tenant.
-          example: "123456789012"
-        serviceTenantProject:
-          type: string
-          description: tenant project number.
-          example: "237071556299"
-        SNHostProject:
-          type: string
-          description: SN host project ID.
-          example: "m30b15e7f4112ab02-tp"
-        kmsConfig:
-          $ref: "#/components/schemas/KmsConfig_v1"
-        allowAutoTiering:
-          type: boolean
-          default: false
-          description: Flag indicating if the pool supports auto tiering enabled volumes
-            or not.
-          nullable: true
-        serviceAccountEmail:
-          type: string
-          description: GCP service account attached to the VSA VMs.
-          example: service-account@example.com
-        autoTierBucketName:
-          type: string
-          description: GCS bucket
-          example: vsa-backup-3fb952cf-e207-0342-6daa-bb2a74674542-eaac70 
-        numHAPair:
-          type: integer
-          description: Number of HA pairs (typically 1).
-        regionIdentifier:
-          type: string
-          description: Region identifier code.
-          example: "34"
-        netConfig:
-          # Per-interface VPC/subnet assignments for the pool.
-          $ref: "#/components/schemas/NetConfig_v1"
-        ipConfig:
-          description: Read-only runtime network addressing (gateway IPs + LIF IPs)
-          readOnly: true
-          allOf:
-            - $ref: "#/components/schemas/IpConfig_v1"
-        VMSerialNumbers:
-          type: array
-          items:
-            type: string
-            pattern: '^935[0-9]{2}[0-9]{15}$'
-            minLength: 20
-            maxLength: 20
-            description: |
-              Globally unique 20-digit ONTAP serial number composed of:
-              - `935`  - fixed common prefix (3 digits)
-              - region code - region-specific value (2 digits, e.g. `01`)
-              - sequence - unique sequence number, zero-padded, starting from 0 (15 digits)
-            example: "93501000000000000000"
-          description: Pre-allocated ONTAP serial numbers (no. of serial numbers = number of HA pairs x 2).
-        ontapLicenseSecretURI:
-          type: string
-          description: GCP Secret Manager URI for the ONTAP license file.
-        ontapModeRbac:
-          $ref: "#/components/schemas/OntapModeRbac_v1"
-        ontapCredentials:
-          type: array
-          description: ONTAP credential sets (one per type - default, admin, ontap-mode).
-          items:
-            $ref: "#/components/schemas/OntapCredentials_v1"
-        caUri:
-          type: string
-          description: URI of the CA bundle used to verify ONTAP TLS connections.
-          example: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
-        primaryZone:
-          type: string
-          description: The desired primary zone for the storage pool.
-          example: us-east1-b
-        secondaryZone:
-          type: string
-          description: The desired secondary zone for the storage pool.
-          example: us-east1-c
-        mediatorZone:
-          type: string
-          description: The desired zone for the storage pool mediator.
-          example: us-east1-b
-        deploymentId:
-          type: string
-          description: Unique identifier for this VSA deployment / cluster.
-          example: "gcnv-d3b4382cdacde74"
-        forwardingRuleIp:
-          type: string
-          description: GCP internal load-balancer forwarding-rule IP for ONTAP management.
-          x-omitempty: true
-          nullable: true
-          example: "10.0.0.5"
-        preferredVsaInstanceFamily:
-          type: string
-          description: |
-            CLH's preferred VSA instance family (e.g. c3-lssd / c4-lssd). Used as
-            a hint to understand the caller's instance preference when selecting
-            the VSA instance type.
-          example: c3-lssd
-        deploymentShape:
-          # Instance / disk / storage-pool sizing. Only vsaInstanceType is
-          # accepted on input; the remaining fields are read-only and populated
-          # in the response once the pool is created.
-          $ref: "#/components/schemas/DeploymentShape_v1"
-      example:
-        throughputMibps: 1024
-        iops: 5000
-        forwardingRuleIp: "10.0.0.5"
-        sizeInBytes: 1099511627776
-        hotTierSizeInBytes: 1099511627776
-        qosType: auto
-        mode: DEFAULT
-        projectId: "81821054389"
-        serviceTenantProject: "237071556299"
-        SNHostProject: m30b15e7f4112ab02-tp
-        kmsConfig:
-          keyName: my-key
-          keyRingName: my-key-ring
-          keyRingLocation: us-central1
-          keyProjectId: "237071556299"
-          saPasswordLocation: projects/237071556299/secrets/sa-password
-        allowAutoTiering: false
-        serviceAccountEmail: vsa-sa-gcnv@237071556299.iam.gserviceaccount.com
-        autoTierBucketName: us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537
-        numHAPair: 1
-        regionIdentifier: "34"
-        netConfig:
-          nodemgmt:
-            vpc: mgmt-e0a-vpc-01
-            subnet: mgmt-e0a-subnet-01
-          ic:
-            vpc: ic-e0b-vpc-01
-            subnet: ic-e0b-subnet-01
-          rsm:
-            vpc: rsm-e0c-vpc-01
-            subnet: rsm-e0c-subnet-01
-          data:
-            vpc: netapp-autopush-tst-network
-            subnet: vsa-237071556299-1753966457
-        ipConfig:
-          gateways:
-            clus: 198.18.0.1
-            ic: 198.18.32.1
-            intercluster: 10.10.0.33
-            nodemgmt: 198.18.0.1
-            nodemgmtinternal: 198.18.0.1
-            rsm: 198.18.16.1
-            svm: 10.10.0.33
-            clusterMgmtGateway: ""
-          vmLifs:
-            - name: vm1
-              clus: 198.18.0.10
-              ic: 198.18.32.7
-              intercluster: 10.10.0.40
-              nodemgmt: 198.18.0.5
-              nodemgmtinternal: 198.18.0.6
-              rsm: 198.18.16.42
-            - name: vm2
-              clus: 198.18.0.11
-              ic: 198.18.32.6
-              intercluster: 10.10.0.41
-              nodemgmt: 198.18.0.7
-              nodemgmtinternal: 198.18.0.8
-              rsm: 198.18.16.40
-            - name: mediator
-              rsm: 198.18.16.41
-          dataLif:
-            ilbnas: 10.10.0.50
-            san:
-              - 10.10.0.51
-              - 10.10.0.52
-        VMSerialNumbers:
-          - "93520140000000000001"
-          - "93520140000000000002"
-        ontapLicenseSecretURI: projects/237071556299/secrets/ontap-license/versions/latest
-        ontapModeRbac:
-          rbacFileURL: gs://my-bucket/rbac.json
-          rbacFileCheckSum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-        ontapCredentials:
-          - type: default
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-admin-password-default
-          - type: admin
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-admin-password
-          - type: ontap-mode
-            certificateId: ""
-            secretId: projects/237071556299/secrets/ontap-mode-password
-        caUri: https://secretmanager.googleapis.com/v1/projects/237071556299/secrets/ontap-ca
-        primaryZone: us-central1-a
-        secondaryZone: us-central1-c
-        mediatorZone: us-central1-c
-        deploymentId: gcnv-8d0ff6a0b456f30
-        preferredVsaInstanceFamily: c3-lssd
-        deploymentShape:
-          vsaInstanceType: c3-standard-44-lssd
-          dataDiskType: hyperdisk-balanced
-          systemDiskType: hyperdisk-balanced
-          mediatorDiskType: pd-ssd
-          dataDiskCount: 8
-          spConfig:
-            size: 1229Gi
-            iops: 42173
-            tput: 2640
-            isHeterogeneous: false
+          infrastructureSpec:
+            haPairCount: 1
+            preferredVsaInstanceFamily: c3-lssd
+            vsaInstanceType: c3-standard-44-lssd
+            dataDiskType: hyperdisk-balanced
+            systemDiskType: hyperdisk-balanced
+            mediatorDiskType: pd-ssd
+            dataDiskCount: 8
+          autoTieringConfig:
+            autoTierBucketName: us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537
+            hotTierSizeInBytes: 1099511627776
 
     KmsConfig_v1:
       type: object
@@ -2045,23 +1833,6 @@ components:
         rbacFileCheckSum:
           type: string
           description: SHA-256 checksum of the RBAC bootstrap file.
-
-    OntapCredentials_v1:
-      type: object
-      required: [type]
-      properties:
-        type:
-          type: string
-          enum: [default, admin, ontap-mode]
-          description: Credential set type - default, admin, or ontap-mode.
-        certificateId:
-          type: string
-          description: GCP Secret Manager secret ID for the ONTAP SSL certificate.
-          example: "gcnv-1234a5b678901c0-cert"
-        secretId:
-          type: string
-          description: GCP Secret Manager secret ID for the ONTAP admin password.
-          example: "gcnv-1234a5b678901c0-secret"
 
     IpConfig_v1:
       type: object
@@ -2177,60 +1948,3 @@ components:
           example:
             - 10.10.0.51
             - 10.10.0.52
-
-    DeploymentShape_v1:
-      type: object
-      description: |
-        Instance, storage-pool and disk sizing for the deployment.
-        Only vsaInstanceType is accepted on input; all other fields are
-        read-only and populated in the response once the pool is created.
-      required:
-        - vsaInstanceType
-      properties:
-        vsaInstanceType:
-          type: string
-          description: VSA VM instance type (the only input field).
-          example: c3-standard-44-lssd
-        dataDiskType:
-          type: string
-          readOnly: true
-          description: Disk type used for the VSA data disks.
-          example: hyperdisk-balanced
-        systemDiskType:
-          type: string
-          readOnly: true
-          description: Disk type used for the VSA system disks (boot/nvram/core/root).
-          example: hyperdisk-balanced
-        mediatorDiskType:
-          type: string
-          readOnly: true
-          example: pd-ssd
-        dataDiskCount:
-          type: integer
-          readOnly: true
-          description: Number of data disks per node.
-          example: 8
-        spConfig:
-          readOnly: true
-          description: Storage-pool (aggregate) sizing, populated in the response.
-          allOf:
-            - $ref: "#/components/schemas/SpConfig_v1"
-
-    SpConfig_v1:
-      type: object
-      description: Storage pool (aggregate) sizing.
-      properties:
-        size:
-          type: string
-          description: Storage pool size (e.g. "1229Gi").
-          example: 1229Gi
-        iops:
-          type: integer
-          example: 42173
-        tput:
-          type: integer
-          description: Throughput in MiBps.
-          example: 2640
-        isHeterogeneous:
-          type: boolean
-          default: false

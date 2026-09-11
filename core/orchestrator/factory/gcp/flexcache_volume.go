@@ -9,6 +9,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	coremodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/flexcache"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/flexcache_workflows"
@@ -104,7 +105,7 @@ func _createFlexCacheVolume(ctx context.Context, se database.Storage, temporal c
 	}
 
 	if params.FileProperties != nil {
-		volumeObj.VolumeAttributes.FileProperties = buildFilePropertiesFromParams(params.FileProperties, params.CreationToken)
+		volumeObj.VolumeAttributes.FileProperties = factorycommon.BuildFilePropertiesFromParams(params.FileProperties, params.CreationToken)
 	}
 
 	err = verifyCommandExpiryTime(params.CacheParameters.PeerExpiryTime)

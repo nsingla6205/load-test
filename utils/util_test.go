@@ -289,8 +289,8 @@ func TestItemsInSliceUnique(t *testing.T) {
 
 func TestDeduplicateSlice(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, DeduplicateSlice([]string{"a", "b", "a", "c", "b"}))
-	assert.Nil(t, DeduplicateSlice(nil))
-	assert.Empty(t, DeduplicateSlice([]string{}))
+	assert.Equal(t, []string{}, DeduplicateSlice(nil))
+	assert.Equal(t, []string{}, DeduplicateSlice([]string{}))
 }
 
 func TestContainsString(t *testing.T) {

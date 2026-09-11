@@ -204,6 +204,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
+	gorm.io/datatypes v1.2.7 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
@@ -225,7 +226,6 @@ require (
 require (
 	github.com/cschleiden/go-workflows v1.4.1
 	github.com/sirupsen/logrus v1.9.3
-	gorm.io/datatypes v1.2.7
 )
 
 replace github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core => ../vcp-core

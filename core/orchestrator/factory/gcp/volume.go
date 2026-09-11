@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/mqos"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/replication"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
@@ -53,7 +53,6 @@ var (
 	validateCloneATPolicyMatchParent = env.GetBool("VALIDATE_CLONE_AT_POLICY_MATCH_PARENT", false)
 	minQuotaInBytesVolume            = utils.MinQuotaInBytesVolumeForVolume
 	maxQuotaInBytesVolume            = utils.MaxQuotaInBytesVolumeForVolume
-	maxQuotaInBytesFilesVolume       = utils.MaxQuotaInBytesForFileVolume
 	createVolume                     = _createVolume
 	revertVolume                     = _revertVolume
 	splitStartVolume                 = _splitStartVolume
@@ -110,9 +109,7 @@ const (
 	bytesPerGB                = 1073741824 // 1024^3 bytes = 1 GB
 	ErrMsgSnapReserveIncrease = "Cannot increase SnapReserve to %.0f%% as we cannot decrease the available space (%.2f GB). " +
 		"Please increase the volume size to at least %.0f GB with this SnapReserve or reduce the SnapReserve percentage to continue."
-	DefaultUnixPermissionsOctal = "0755"
-	UnixSecurityStyle           = "unix"
-	NtfsSecurityStyle           = "ntfs" // lower-case for persistence and ONTAP REST (enum: ntfs/unix)
+	NtfsSecurityStyle = "ntfs" // lower-case for persistence and ONTAP REST (enum: ntfs/unix)
 )
 
 // securityStyleForAPIResponse maps stored lower-case security style (ONTAP convention) to GCNV Swagger enum casing for API responses.
@@ -125,33 +122,6 @@ func securityStyleForAPIResponse(stored string) string {
 	default:
 		return stored
 	}
-}
-
-// convertExportRulesToDatamodel converts a slice of models.ExportRule to a slice of datamodel.ExportRule
-func convertExportRulesToDatamodel(modelRules []*models.ExportRule) []*datamodel.ExportRule {
-	exportRules := make([]*datamodel.ExportRule, 0, len(modelRules))
-	for _, rule := range modelRules {
-		exportRules = append(exportRules, &datamodel.ExportRule{
-			AllowedClients:      rule.AllowedClients,
-			AccessType:          rule.AccessType,
-			CIFS:                rule.CIFS,
-			NFSv3:               rule.NFSv3,
-			NFSv4:               rule.NFSv4,
-			Index:               rule.Index,
-			Kerberos5iReadOnly:  rule.Kerberos5iReadOnly,
-			Kerberos5iReadWrite: rule.Kerberos5iReadWrite,
-			Kerberos5pReadWrite: rule.Kerberos5pReadWrite,
-			Kerberos5ReadOnly:   rule.Kerberos5ReadOnly,
-			Kerberos5ReadWrite:  rule.Kerberos5ReadWrite,
-			Kerberos5pReadOnly:  rule.Kerberos5pReadOnly,
-			Superuser:           rule.Superuser,
-			AllSquash:           rule.AllSquash,
-			AnonUid:             rule.AnonUid,
-			UnixReadOnly:        rule.UnixReadOnly,
-			UnixReadWrite:       rule.UnixReadWrite,
-		})
-	}
-	return exportRules
 }
 
 // calculateIopsFromThroughput calculates IOPS based on the formula: iops = floor(total_iops * throughput / total_throughput)
@@ -183,42 +153,6 @@ func validatePoolCapacityForVPGVolumeCreate(ctx context.Context, se database.Sto
 	}
 
 	return mqos.ValidatePoolCapacityForVolume(ctx, se, poolUUID, &vpg.ThroughputMibps, &vpg.Iops, nil)
-}
-
-// buildFilePropertiesFromParams creates a datamodel.FileProperties from params.FileProperties
-func buildFilePropertiesFromParams(paramsFileProperties *models.FileProperties, creationToken string) *datamodel.FileProperties {
-	if paramsFileProperties == nil {
-		return nil
-	}
-
-	junctionPath := common.CreateJunctionPath(creationToken)
-	fileProperties := &datamodel.FileProperties{
-		JunctionPath: junctionPath,
-	}
-
-	if paramsFileProperties.ExportPolicy != nil {
-		exportRules := convertExportRulesToDatamodel(paramsFileProperties.ExportPolicy.ExportRules)
-		fileProperties.ExportPolicy = &datamodel.ExportPolicy{
-			ExportPolicyName: paramsFileProperties.ExportPolicy.ExportPolicyName,
-			ExportRules:      exportRules,
-		}
-		// SecurityStyle is only set when ExportPolicy exists (for regular volumes)
-		if paramsFileProperties.SecurityStyle != "" {
-			fileProperties.SecurityStyle = paramsFileProperties.SecurityStyle
-			if strings.ToLower(paramsFileProperties.SecurityStyle) == UnixSecurityStyle && paramsFileProperties.UnixPermissions == "" {
-				fileProperties.UnixPermissions = DefaultUnixPermissionsOctal
-			} else {
-				fileProperties.UnixPermissions = paramsFileProperties.UnixPermissions
-			}
-		}
-	}
-
-	// SMBShareSettings are set separately if they exist (for regular volumes)
-	if len(paramsFileProperties.SMBShareSettings) > 0 {
-		fileProperties.SMBShareSettings = paramsFileProperties.SMBShareSettings
-	}
-
-	return fileProperties
 }
 
 // CreateVolume creates the specified volume and adds it to the list of volume belonging to the specified owner
@@ -470,7 +404,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 	}
 
 	if params.FileProperties != nil {
-		volumeObj.VolumeAttributes.FileProperties = buildFilePropertiesFromParams(params.FileProperties, params.CreationToken)
+		volumeObj.VolumeAttributes.FileProperties = factorycommon.BuildFilePropertiesFromParams(params.FileProperties, params.CreationToken)
 	}
 
 	if params.SnapshotID != "" {
@@ -501,7 +435,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		volumeObj.SnapshotPolicy = &datamodel.SnapshotPolicy{
 			Name:      volumeObj.Name,
 			IsEnabled: params.SnapshotPolicy.IsEnabled,
-			Schedules: convertToDBSnapshotPolicySchedule(params.SnapshotPolicy.Schedules),
+			Schedules: factorycommon.ConvertToDBSnapshotPolicySchedule(params.SnapshotPolicy.Schedules),
 		}
 	}
 
@@ -1169,7 +1103,7 @@ func (v *FileVolumeProcessor) Validate(ctx context.Context, se database.Storage,
 	}
 
 	if params.FileProperties.ExportPolicy != nil && params.FileProperties.ExportPolicy.ExportRules != nil {
-		if err := validateExportRulesAgainstProtocols(params.FileProperties.ExportPolicy.ExportRules, params.Protocols); err != nil {
+		if err := factorycommon.ValidateExportRulesAgainstProtocols(params.FileProperties.ExportPolicy.ExportRules, params.Protocols); err != nil {
 			return err
 		}
 	}
@@ -1626,7 +1560,7 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 		if params.LargeVolumeConstituentCount > 0 {
 			return customerrors.NewUserInputValidationErr("Large Volume constituent count is only supported for large capacity volumes")
 		}
-		maxQuotaInBytes := getMaxQuotaForVolume(params.Protocols)
+		maxQuotaInBytes := factorycommon.GetMaxQuotaForVolume(params.Protocols)
 		if params.QuotaInBytes < minQuotaInBytesVolume || params.QuotaInBytes > maxQuotaInBytes {
 			return customerrors.NewUserInputValidationErr(fmt.Sprintf("Invalid volume capacity %s. Must be between %s and %s.",
 				utils.FmtUint64Bytes(params.QuotaInBytes), utils.FmtUint64Bytes(minQuotaInBytesVolume),
@@ -2236,8 +2170,8 @@ func convertHostGroupDetails(hgs []datamodel.HostGroupDetail) []models.HostGroup
 	return resp
 }
 
-func (o *GCPOrchestrator) DeleteVolume(ctx context.Context, volumeId string) (*models.Volume, string, error) {
-	return deleteVolume(ctx, o.storage, o.temporal, volumeId)
+func (o *GCPOrchestrator) DeleteVolume(ctx context.Context, params *common.DeleteVolumeParams) (*models.Volume, string, error) {
+	return deleteVolume(ctx, o.storage, o.temporal, params.VolumeUUID)
 }
 
 func _deleteVolume(ctx context.Context, se database.Storage, temporal client.Client, volumeId string) (*models.Volume, string, error) {
@@ -3202,7 +3136,7 @@ func validateUpdateVolumeRequest(ctx context.Context, se database.Storage, volum
 		} else {
 			maxQuotaInBytes := maxQuotaInBytesVolume
 			if volume.VolumeAttributes != nil {
-				maxQuotaInBytes = getMaxQuotaForVolume(volume.VolumeAttributes.Protocols)
+				maxQuotaInBytes = factorycommon.GetMaxQuotaForVolume(volume.VolumeAttributes.Protocols)
 			}
 			if uint64(params.QuotaInBytes) < minQuotaInBytesVolume || uint64(params.QuotaInBytes) > maxQuotaInBytes {
 				return customerrors.NewUserInputValidationErr(fmt.Sprintf("Invalid volume capacity %s. Must be between %s and %s.",
@@ -3617,26 +3551,11 @@ func validateUpdateFileProperties(params *common.UpdateVolumeParams, volume *dat
 			protocols = volume.VolumeAttributes.Protocols
 		}
 
-		if err := validateExportRulesAgainstProtocols(params.FileProperties.ExportPolicy.ExportRules, protocols); err != nil {
+		if err := factorycommon.ValidateExportRulesAgainstProtocols(params.FileProperties.ExportPolicy.ExportRules, protocols); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func convertToDBSnapshotPolicySchedule(schedules []*models.SnapshotPolicySchedule) []*datamodel.SnapshotPolicySchedule {
-	var dbSnapshotPolicySchedules []*datamodel.SnapshotPolicySchedule
-	for _, schedule := range schedules {
-		dbSnapshotPolicySchedules = append(dbSnapshotPolicySchedules, &datamodel.SnapshotPolicySchedule{
-			Count:           schedule.Count,
-			SnapmirrorLabel: schedule.SnapmirrorLabel,
-			DaysOfMonth:     schedule.Schedule.DaysOfMonth,
-			DaysOfWeek:      schedule.Schedule.DaysOfWeek,
-			Hours:           schedule.Schedule.Hours,
-			Minutes:         schedule.Schedule.Minutes,
-		})
-	}
-	return dbSnapshotPolicySchedules
 }
 
 func convertToModelSnapshotPolicySchedule(schedules []*datamodel.SnapshotPolicySchedule) []*models.SnapshotPolicySchedule {
@@ -3655,74 +3574,6 @@ func convertToModelSnapshotPolicySchedule(schedules []*datamodel.SnapshotPolicyS
 		})
 	}
 	return dbSnapshotPolicySchedules
-}
-
-func validateAllowedClients(allowedClients string) error {
-	clients := strings.Split(allowedClients, ",")
-	clientsMap := make(map[string]bool)
-	if allowedClients == models.AllowedAllClients {
-		return nil
-	}
-	for _, cidr := range clients {
-		// first check if it's a valid IP without CIDR
-		if ip := net.ParseIP(cidr); ip == nil {
-			// if nil, then check if it's a valid IP with CIDR
-			ip, ipnet, err := net.ParseCIDR(cidr)
-			if err != nil {
-				return customerrors.NewUserInputValidationErr("allowedClients must include unique IPv4 or IPv4 CIDR values.")
-			}
-			if !ip.Equal(ipnet.IP) {
-				return customerrors.NewUserInputValidationErr(fmt.Sprintf("Requested export policy CIDR (%s) is invalid. Please use a valid CIDR (e.g. %s)", cidr, ipnet.String()))
-			}
-			if ones, _ := ipnet.Mask.Size(); ip.IsUnspecified() && ones != 0 {
-				return customerrors.NewUserInputValidationErr("0.0.0.0 address can only be used with a 0 bit subnet mask")
-			}
-		}
-		clientsMap[cidr] = true
-	}
-
-	if len(clientsMap) != len(clients) {
-		return customerrors.NewUserInputValidationErr("allowedClients must include unique IPv4 or IPv4 CIDR values.")
-	}
-	return nil
-}
-
-// validateExportRulesAgainstProtocols validates export rules against the supported NFS protocols.
-// It checks that allowed clients are valid and that NFSv3/NFSv4 export policy rules match volume protocols.
-func validateExportRulesAgainstProtocols(rules []*models.ExportRule, protocols []string) error {
-	// Determine if volume supports NFSv3 and/or NFSv4
-	hasNFSv3 := false
-	hasNFSv4 := false
-	for _, protocol := range protocols {
-		if protocol == utils.ProtocolNFSv3 {
-			hasNFSv3 = true
-		}
-		if protocol == utils.ProtocolNFSv4 {
-			hasNFSv4 = true
-		}
-	}
-
-	for _, rule := range rules {
-		if rule.AllowedClients == "" {
-			return customerrors.NewUserInputValidationErr("allowed clients cannot be nil in export rules")
-		}
-		// Validate allowed clients
-		if err := validateAllowedClients(rule.AllowedClients); err != nil {
-			return customerrors.NewUserInputValidationErr(fmt.Sprintf("allowed clients validation failed: %v", err))
-		}
-
-		// Validate NFSv3/NFSv4 export policy rules match volume protocols
-		// For NFSv3-only volumes: exportPolicy.NFSv4 should always be false
-		if !hasNFSv4 && rule.NFSv4 {
-			return customerrors.NewUserInputValidationErr("Cannot specify NFSv4 export policy rules for non-NFSv4 volume")
-		}
-
-		// For NFSv4-only volumes: exportPolicy.NFSv3 should always be false
-		if !hasNFSv3 && rule.NFSv3 {
-			return customerrors.NewUserInputValidationErr("Cannot specify NFSv3 export policy rules for non-NFSv3 volume")
-		}
-	}
-	return nil
 }
 
 // checkIfPoolUpdateRequired determines if a pool update is needed based on volume count, current instance type, and operation type
@@ -4714,12 +4565,4 @@ func validateCloneATPolicyMatchParentVolume(parentVolume *datamodel.Volume, clon
 	}
 
 	return nil
-}
-
-func getMaxQuotaForVolume(protocols []string) uint64 {
-	// use the 300 TiB max quota for file protocol volumes
-	if protocols != nil && utils.IsNasProtocols(protocols) {
-		return maxQuotaInBytesFilesVolume
-	}
-	return maxQuotaInBytesVolume
 }

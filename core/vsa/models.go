@@ -99,6 +99,9 @@ type VolumeResponse struct {
 	Size                           int64
 	State                          string
 	SnapshotPolicyName             string
+	QoSPolicyUUID                  string
+	QoSPolicyName                  string
+	ExportPolicyName               string
 	SnapReserve                    int64
 	UsedBytes                      int64
 	Type                           string
@@ -110,6 +113,10 @@ type VolumeResponse struct {
 	Encryption
 	// JunctionPath is the fully-qualified path in the SVM namespace at which the volume is mounted (from volume.nas.path). Empty for unmounted or block volumes.
 	JunctionPath string
+	// SecurityStyle is the NAS security style from volume.nas.security_style (e.g. unix, ntfs).
+	SecurityStyle string
+	// UnixPermissions is NAS root directory permissions formatted as a 4-digit octal string (from volume.nas.unix_permissions).
+	UnixPermissions string
 	// Clone is set when ONTAP returns volume.clone (e.g. GetCloneVolumeForExpertMode).
 	Clone *VolumeResponseClone
 }

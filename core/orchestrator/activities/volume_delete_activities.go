@@ -17,6 +17,7 @@ import (
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
@@ -40,12 +41,12 @@ func HasVolumeDeleteRestriction(attrs *datamodel.VolumeAttributes) bool {
 
 func (va VolumeDeleteActivity) DeleteVolumeInONTAP(ctx context.Context, volumeExternalUUID, volumeName string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting DeleteVolumeInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting DeleteVolumeInONTAP activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	recordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s from ONTAP", volumeName))
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s from ONTAP", volumeName))
 	err = provider.DeleteVolume(volumeExternalUUID, volumeName)
 	if err != nil {
 		if strings.Contains(err.Error(), "volume is in use") {
@@ -58,7 +59,7 @@ func (va VolumeDeleteActivity) DeleteVolumeInONTAP(ctx context.Context, volumeEx
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	logger.Debugf("Volume %s deleted successfully from the vsa cluster", volumeName)
-	recordHeartbeat(ctx, "Finished DeleteVolumeInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished DeleteVolumeInONTAP activity")
 	return nil
 }
 
@@ -330,14 +331,14 @@ type cifsServerProvider interface {
 
 // DeleteSnapshotPolicyInONTAP deletes the snapshot policy associated with a volume in ONTAP.
 func (va VolumeDeleteActivity) DeleteSnapshotPolicyInONTAP(ctx context.Context, SnapshotPolicyName string, node *models.Node) error {
-	if node != nil && SnapshotPolicyName != "" {
-		recordHeartbeat(ctx, "Initializing snapshot policy deletion")
+	if node != nil && SnapshotPolicyName != "" && SnapshotPolicyName != models.DefaultONTAPSnapshotPolicyName {
+		orchestrator.RecordHeartbeat(ctx, "Initializing snapshot policy deletion")
 		logger := util.GetLogger(ctx)
 		provider, err := vsa.GetProviderByNode(ctx, node)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
-		recordHeartbeat(ctx, "Deleting snapshot policy in ONTAP")
+		orchestrator.RecordHeartbeat(ctx, "Deleting snapshot policy in ONTAP")
 		op := func() error {
 			return provider.DeleteSnapshotPolicy(SnapshotPolicyName)
 		}
@@ -346,7 +347,7 @@ func (va VolumeDeleteActivity) DeleteSnapshotPolicyInONTAP(ctx context.Context, 
 			logger.Errorf("failed to delete snapshot policy: %v", err)
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
-		recordHeartbeat(ctx, "Snapshot policy deleted successfully")
+		orchestrator.RecordHeartbeat(ctx, "Snapshot policy deleted successfully")
 	}
 	return nil
 }
@@ -928,11 +929,10 @@ func (vda VolumeDeleteActivity) DeleteIgroupsFromBlockProperties(ctx context.Con
 			if err != nil {
 				return vsaerrors.WrapAsTemporalApplicationError(err)
 			}
+			logger.Debug("Igroup deleted successfully", "name", hostgroup.HostGroupUUID)
 		} else {
 			logger.Debugf("Igroup %s not found for volume %s", hostgroup.HostGroupUUID, volume.UUID)
 		}
-
-		logger.Debug("Igroup deleted successfully", "name", hostgroup.HostGroupUUID)
 	}
 	recordHeartbeat(ctx, "Finished DeleteIgroupsFromBlockProperties activity")
 	return nil
@@ -990,11 +990,10 @@ func (vda VolumeDeleteActivity) DeleteIgroups(ctx context.Context, volume *datam
 				if err != nil {
 					return vsaerrors.WrapAsTemporalApplicationError(err)
 				}
+				logger.Debug("Igroup deleted successfully", "name", hostgroup.HostGroupUUID)
 			} else {
 				logger.Debugf("Igroup %s not found for volume %s", hostgroup.HostGroupUUID, volume.UUID)
 			}
-
-			logger.Debug("Igroup deleted successfully", "name", hostgroup.HostGroupUUID)
 		}
 	}
 	recordHeartbeat(ctx, "Finished DeleteIgroups activity")
@@ -1003,13 +1002,14 @@ func (vda VolumeDeleteActivity) DeleteIgroups(ctx context.Context, volume *datam
 
 func (vda VolumeDeleteActivity) DeleteExportPolicy(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting DeleteExportPolicy activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting DeleteExportPolicy activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	if volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName == "" {
+	if volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil || volume.VolumeAttributes.FileProperties.ExportPolicy == nil ||
+		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName == "" || volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName == models.DefaultExportPolicyName {
 		logger.Warnf("Volume %s has no export policy, skipping deletion", volume.Name)
 		return nil
 	}
@@ -1018,7 +1018,7 @@ func (vda VolumeDeleteActivity) DeleteExportPolicy(ctx context.Context, volume *
 		ExportPolicyName: exportPolicyName,
 		SvmName:          volume.Svm.Name,
 	}
-	recordHeartbeat(ctx, fmt.Sprintf("Deleting export policy %s from ONTAP", exportPolicyName))
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Deleting export policy %s from ONTAP", exportPolicyName))
 	err = provider.DeleteExportPolicy(vsaExportPolicy)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) {
@@ -1028,7 +1028,7 @@ func (vda VolumeDeleteActivity) DeleteExportPolicy(ctx context.Context, volume *
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	recordHeartbeat(ctx, "Finished DeleteExportPolicy activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished DeleteExportPolicy activity")
 	logger.Infof("Export policy %s deleted successfully for volume %s", exportPolicyName, volume.Name)
 	return nil
 }

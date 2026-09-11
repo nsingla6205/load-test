@@ -832,8 +832,31 @@ func TestToVCMOntapCredentials_PasswordAuthUsesPasswordSecret(t *testing.T) {
 	assert.Equal(t, "root", creds[0].Username)
 }
 
-func TestToVCMOntapCredentials_CertificateAuthUsesPrivateKey(t *testing.T) {
+// TestToVCMOntapCredentials_AdminForcesPasswordEvenWhenCertRequested asserts the
+// role-based policy: an ADMIN credential is always resolved via password, even
+// when it explicitly requests CERT and carries certificate material.
+func TestToVCMOntapCredentials_AdminForcesPasswordEvenWhenCertRequested(t *testing.T) {
 	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
+	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
+		CertSecretId:           vcmserver.NewOptString("cert-1"),
+		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
+	})
+	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
+		Username:         vcmserver.NewOptString("root"),
+		PasswordSecretId: vcmserver.NewOptString("admin-1"),
+	})
+
+	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
+	require.Len(t, creds, 1)
+	assert.Empty(t, creds[0].CertificateID, "ADMIN must not resolve certificate material")
+	assert.Equal(t, "admin-1", creds[0].SecretID, "ADMIN must resolve the password secret")
+	assert.Equal(t, "root", creds[0].Username)
+}
+
+func TestToVCMOntapCredentials_CertificateAuthUsesPrivateKey(t *testing.T) {
+	// Non-admin role honors an explicit CERT auth type.
+	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
 	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
 	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
 		CertSecretId:           vcmserver.NewOptString("cert-1"),
@@ -851,7 +874,8 @@ func TestToVCMOntapCredentials_CertificateAuthUsesPrivateKey(t *testing.T) {
 }
 
 func TestToVCMOntapCredentials_DefaultsToCertificateWhenAuthTypeUnset(t *testing.T) {
-	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
+	// Non-admin role with no explicit auth type defaults to CERT.
+	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
 	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
 		CertSecretId:           vcmserver.NewOptString("cert-1"),
 		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),

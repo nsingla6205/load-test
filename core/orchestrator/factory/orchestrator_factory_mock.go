@@ -3525,9 +3525,9 @@ func (_c *MockOrchestratorFactory_DeleteSvm_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// DeleteVolume provides a mock function with given fields: ctx, volumeId
-func (_m *MockOrchestratorFactory) DeleteVolume(ctx context.Context, volumeId string) (*models.Volume, string, error) {
-	ret := _m.Called(ctx, volumeId)
+// DeleteVolume provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) DeleteVolume(ctx context.Context, params *common.DeleteVolumeParams) (*models.Volume, string, error) {
+	ret := _m.Called(ctx, params)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteVolume")
@@ -3536,25 +3536,25 @@ func (_m *MockOrchestratorFactory) DeleteVolume(ctx context.Context, volumeId st
 	var r0 *models.Volume
 	var r1 string
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.Volume, string, error)); ok {
-		return rf(ctx, volumeId)
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DeleteVolumeParams) (*models.Volume, string, error)); ok {
+		return rf(ctx, params)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *models.Volume); ok {
-		r0 = rf(ctx, volumeId)
+	if rf, ok := ret.Get(0).(func(context.Context, *common.DeleteVolumeParams) *models.Volume); ok {
+		r0 = rf(ctx, params)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Volume)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) string); ok {
-		r1 = rf(ctx, volumeId)
+	if rf, ok := ret.Get(1).(func(context.Context, *common.DeleteVolumeParams) string); ok {
+		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Get(1).(string)
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
-		r2 = rf(ctx, volumeId)
+	if rf, ok := ret.Get(2).(func(context.Context, *common.DeleteVolumeParams) error); ok {
+		r2 = rf(ctx, params)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -3569,14 +3569,14 @@ type MockOrchestratorFactory_DeleteVolume_Call struct {
 
 // DeleteVolume is a helper method to define mock.On call
 //   - ctx context.Context
-//   - volumeId string
-func (_e *MockOrchestratorFactory_Expecter) DeleteVolume(ctx interface{}, volumeId interface{}) *MockOrchestratorFactory_DeleteVolume_Call {
-	return &MockOrchestratorFactory_DeleteVolume_Call{Call: _e.mock.On("DeleteVolume", ctx, volumeId)}
+//   - params *common.DeleteVolumeParams
+func (_e *MockOrchestratorFactory_Expecter) DeleteVolume(ctx interface{}, params interface{}) *MockOrchestratorFactory_DeleteVolume_Call {
+	return &MockOrchestratorFactory_DeleteVolume_Call{Call: _e.mock.On("DeleteVolume", ctx, params)}
 }
 
-func (_c *MockOrchestratorFactory_DeleteVolume_Call) Run(run func(ctx context.Context, volumeId string)) *MockOrchestratorFactory_DeleteVolume_Call {
+func (_c *MockOrchestratorFactory_DeleteVolume_Call) Run(run func(ctx context.Context, params *common.DeleteVolumeParams)) *MockOrchestratorFactory_DeleteVolume_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(*common.DeleteVolumeParams))
 	})
 	return _c
 }
@@ -3586,7 +3586,7 @@ func (_c *MockOrchestratorFactory_DeleteVolume_Call) Return(_a0 *models.Volume, 
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_DeleteVolume_Call) RunAndReturn(run func(context.Context, string) (*models.Volume, string, error)) *MockOrchestratorFactory_DeleteVolume_Call {
+func (_c *MockOrchestratorFactory_DeleteVolume_Call) RunAndReturn(run func(context.Context, *common.DeleteVolumeParams) (*models.Volume, string, error)) *MockOrchestratorFactory_DeleteVolume_Call {
 	_c.Call.Return(run)
 	return _c
 }

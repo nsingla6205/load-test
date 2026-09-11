@@ -8,6 +8,18 @@ import (
 
 // Handler handles operations described by OpenAPI v3 specification.
 type Handler interface {
+	// ClusterCreateV1 implements clusterCreate_v1 operation.
+	//
+	// Provisions a new ONTAP cluster (HA pair + mediator) via the VCM
+	// provisioning workflow. The request carries only the CLH-computed cluster
+	// shape plus request-level controls; cluster identity, zones, networking,
+	// projects and ONTAP credentials are read from the configuration
+	// previously pushed via POST /v1/config.
+	// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+	// where operationId equals requestId.
+	//
+	// POST /v1/clusters
+	ClusterCreateV1(ctx context.Context, req *ClusterV1) (ClusterCreateV1Res, error)
 	// GetHealth implements getHealth operation.
 	//
 	// Liveness check for the VCM process. Returns HTTP 200 while the process
@@ -33,14 +45,6 @@ type Handler interface {
 	//
 	// GET /v1/operations/{operationId}
 	OperationGetV1(ctx context.Context, params OperationGetV1Params) (OperationGetV1Res, error)
-	// PoolCreateV1 implements poolCreate_v1 operation.
-	//
-	// Provisions a new ONTAP pool via the VCM workflow.
-	// Returns 202 Accepted; poll GET /v1/operations/{operationId}
-	// where operationId equals requestId.
-	//
-	// POST /v1/pools
-	PoolCreateV1(ctx context.Context, req *PoolRequestV1) (PoolCreateV1Res, error)
 	// SetConfigV1 implements setConfig_v1 operation.
 	//
 	// Pushes the common configuration required for VCM to operate.  The
@@ -90,7 +94,7 @@ type Handler interface {
 	V1DescribeIgroup(ctx context.Context, params V1DescribeIgroupParams) (V1DescribeIgroupRes, error)
 	// V1DescribeVolume implements v1_describeVolume operation.
 	//
-	// Returns the description of the specified volume by volume uuid.
+	// Returns the description of the specified volume by volume UUID.
 	//
 	// GET /v1/volumes/{uuid}
 	V1DescribeVolume(ctx context.Context, params V1DescribeVolumeParams) (V1DescribeVolumeRes, error)

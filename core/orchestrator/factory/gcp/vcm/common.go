@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	orchcommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 )
 
 var getProviderByNode = vsa.GetProviderByNode
@@ -36,7 +38,13 @@ func nodeAndSvmFromStore(store Store) (*models.Node, string, error) {
 		return nil, "", fmt.Errorf("build ONTAP node: %w", err)
 	}
 	node := vsa.CreateNodeForProvider(input)
-	svmName, err := deriveSvmName(node.DeploymentName)
+	// VCM stores credentials as fully qualified Secret Manager resource names,
+	// but vsa.GetProviderByNode re-prefixes projects/{p}/secrets/ around the
+	// node identifiers. Reduce to the bare secret id so the resulting lookup is
+	// projects/{p}/secrets/{id} rather than a doubled path that 404s.
+	node.SecretID = utils.BareSecretName(node.SecretID)
+	node.CertificateID = utils.BareSecretName(node.CertificateID)
+	svmName, err := orchcommon.DeriveVCMSvmName(node.DeploymentName)
 	if err != nil {
 		return nil, "", fmt.Errorf("derive SVM name: %w", err)
 	}

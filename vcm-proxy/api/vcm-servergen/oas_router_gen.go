@@ -113,24 +113,58 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 				switch elem[0] {
-				case 'c': // Prefix: "config"
+				case 'c': // Prefix: "c"
 
-					if l := len("config"); len(elem) >= l && elem[0:l] == "config" {
+					if l := len("c"); len(elem) >= l && elem[0:l] == "c" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						// Leaf node.
-						switch r.Method {
-						case "POST":
-							s.handleSetConfigV1Request([0]string{}, elemIsEscaped, w, r)
-						default:
-							s.notAllowed(w, r, "POST")
+						break
+					}
+					switch elem[0] {
+					case 'l': // Prefix: "lusters"
+
+						if l := len("lusters"); len(elem) >= l && elem[0:l] == "lusters" {
+							elem = elem[l:]
+						} else {
+							break
 						}
 
-						return
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "POST":
+								s.handleClusterCreateV1Request([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "POST")
+							}
+
+							return
+						}
+
+					case 'o': // Prefix: "onfig"
+
+						if l := len("onfig"); len(elem) >= l && elem[0:l] == "onfig" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "POST":
+								s.handleSetConfigV1Request([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "POST")
+							}
+
+							return
+						}
+
 					}
 
 				case 'i': // Prefix: "igroups"
@@ -221,26 +255,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}, elemIsEscaped, w, r)
 						default:
 							s.notAllowed(w, r, "GET")
-						}
-
-						return
-					}
-
-				case 'p': // Prefix: "pools"
-
-					if l := len("pools"); len(elem) >= l && elem[0:l] == "pools" {
-						elem = elem[l:]
-					} else {
-						break
-					}
-
-					if len(elem) == 0 {
-						// Leaf node.
-						switch r.Method {
-						case "POST":
-							s.handlePoolCreateV1Request([0]string{}, elemIsEscaped, w, r)
-						default:
-							s.notAllowed(w, r, "POST")
 						}
 
 						return
@@ -462,28 +476,66 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 					break
 				}
 				switch elem[0] {
-				case 'c': // Prefix: "config"
+				case 'c': // Prefix: "c"
 
-					if l := len("config"); len(elem) >= l && elem[0:l] == "config" {
+					if l := len("c"); len(elem) >= l && elem[0:l] == "c" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						// Leaf node.
-						switch method {
-						case "POST":
-							r.name = SetConfigV1Operation
-							r.summary = "Set the VCM common configuration"
-							r.operationID = "setConfig_v1"
-							r.pathPattern = "/v1/config"
-							r.args = args
-							r.count = 0
-							return r, true
-						default:
-							return
+						break
+					}
+					switch elem[0] {
+					case 'l': // Prefix: "lusters"
+
+						if l := len("lusters"); len(elem) >= l && elem[0:l] == "lusters" {
+							elem = elem[l:]
+						} else {
+							break
 						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "POST":
+								r.name = ClusterCreateV1Operation
+								r.summary = "Create a new ONTAP cluster"
+								r.operationID = "clusterCreate_v1"
+								r.pathPattern = "/v1/clusters"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
+					case 'o': // Prefix: "onfig"
+
+						if l := len("onfig"); len(elem) >= l && elem[0:l] == "onfig" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "POST":
+								r.name = SetConfigV1Operation
+								r.summary = "Set the VCM common configuration"
+								r.operationID = "setConfig_v1"
+								r.pathPattern = "/v1/config"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
 					}
 
 				case 'i': // Prefix: "igroups"
@@ -595,30 +647,6 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							r.pathPattern = "/v1/operations/{operationId}"
 							r.args = args
 							r.count = 1
-							return r, true
-						default:
-							return
-						}
-					}
-
-				case 'p': // Prefix: "pools"
-
-					if l := len("pools"); len(elem) >= l && elem[0:l] == "pools" {
-						elem = elem[l:]
-					} else {
-						break
-					}
-
-					if len(elem) == 0 {
-						// Leaf node.
-						switch method {
-						case "POST":
-							r.name = PoolCreateV1Operation
-							r.summary = "Create a new ONTAP pool"
-							r.operationID = "poolCreate_v1"
-							r.pathPattern = "/v1/pools"
-							r.args = args
-							r.count = 0
 							return r, true
 						default:
 							return

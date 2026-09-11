@@ -1,6 +1,12 @@
 package utils
 
-// Supported protocol constants (from proxy swagger)
+import (
+	"regexp"
+	"strings"
+
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+)
+
 const (
 	ProtocolNFS         = "NFS"
 	ProtocolNFSv3       = "NFSV3"
@@ -20,6 +26,8 @@ const (
 	ontapISCSI = "iscsi"
 	ontapNVMe  = "nvme"
 )
+
+const unixPermissionsRegexPattern = "^[0-7]{4}$"
 
 const (
 	CIFSSharePropertyBrowsable            = "browsable"
@@ -76,11 +84,6 @@ var ProtocolMap = map[string]ProtocolInfo{
 	},
 }
 
-// GetProtocolInfo returns the protocol information for a given protocol
-func GetProtocolInfo(protocol string) ProtocolInfo {
-	return ProtocolMap[protocol]
-}
-
 // GetOntapValue returns the ONTAP layer value for a given protocol
 func GetOntapValue(protocol string) string {
 	return ProtocolMap[protocol].OntapValue
@@ -105,28 +108,6 @@ func IsSANProtocol(protocol string) bool {
 		return info.ProtocolType == ProtocolTypeSAN
 	}
 	return false
-}
-
-// GetNASProtocols returns all NAS protocol constants
-func GetNASProtocols() []string {
-	var nasProtocols []string
-	for protocol, info := range ProtocolMap {
-		if info.ProtocolType == ProtocolTypeNAS {
-			nasProtocols = append(nasProtocols, protocol)
-		}
-	}
-	return nasProtocols
-}
-
-// GetSANProtocols returns all SAN protocol constants
-func GetSANProtocols() []string {
-	var sanProtocols []string
-	for protocol, info := range ProtocolMap {
-		if info.ProtocolType == ProtocolTypeSAN {
-			sanProtocols = append(sanProtocols, protocol)
-		}
-	}
-	return sanProtocols
 }
 
 // IsNasProtocols checks if the provided protocols are all NAS protocols
@@ -220,7 +201,22 @@ func ResolveEffectiveUnixSecurityStyle(protocols []string, securityStyle string,
 	return securityStyle
 }
 
-func CreateJunctionPath(token string) string {
-	junctionPath := "/" + token
-	return junctionPath
+// ValidateUnixPermissions checks unix permission format and compatibility with protocols and security style.
+func ValidateUnixPermissions(protocolTypes []string, unixPermissions string, securityStyle string) error {
+	if unixPermissions == "" {
+		return errors.NewUserInputValidationErr("UnixPermissions cannot be empty.")
+	}
+	if IsNFSProtocols(protocolTypes) {
+		result, _ := regexp.MatchString(unixPermissionsRegexPattern, unixPermissions)
+		if !result {
+			return errors.NewUserInputValidationErr("Unix permissions should be 4 digit long in octal format(0 to 7),  Create/Update volume with valid unix permissions, example: 0755")
+		}
+		effectiveStyle := strings.ToLower(ResolveEffectiveUnixSecurityStyle(protocolTypes, securityStyle, false, unixPermissions))
+		if effectiveStyle != UnixSecurityStyle {
+			return errors.NewUserInputValidationErr("Unix permissions are only supported with unix security-style")
+		}
+	} else {
+		return errors.NewUserInputValidationErr("Unix permissions is only supported with NFS protocol volumes, Create/Update SMB volume without unix permissions.")
+	}
+	return nil
 }

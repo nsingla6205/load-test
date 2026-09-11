@@ -2,9 +2,31 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestConvertDaysOfWeekToIntArray(t *testing.T) {
+	result, err := ConvertDaysOfWeekToIntArray("Monday,Tuesday,Wednesday")
+	require.NoError(t, err)
+	assert.Equal(t, []int{1, 2, 3}, result)
+
+	_, err = ConvertDaysOfWeekToIntArray("Funday")
+	require.Error(t, err)
+}
+
+func TestConvertDaysOfWeekToIntArray_EmptyDefaultsSunday(t *testing.T) {
+	result, err := ConvertDaysOfWeekToIntArray("")
+	require.NoError(t, err)
+	assert.Equal(t, []int{int(time.Sunday)}, result)
+}
+
+func TestConvertDaysOfWeekToIntArray_RejectsDuplicateDays(t *testing.T) {
+	_, err := ConvertDaysOfWeekToIntArray("Monday,Monday")
+	require.Error(t, err)
+}
 
 func TestGenerateWeekdayPartOfScheduleName(t *testing.T) {
 	assert.Equal(t, "sunday", GenerateWeekdayPartOfScheduleName([]int{0}))

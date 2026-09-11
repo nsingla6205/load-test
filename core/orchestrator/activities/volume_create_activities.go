@@ -32,6 +32,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -39,10 +40,9 @@ import (
 )
 
 const (
-	VolumeTypeRW                 = "rw"
-	VolumeTypeDP                 = "dp"
-	SnapshotPolicyNone           = "none"
-	CrossRegionBackupType        = datamodel.BackupVaultTypeCrossRegion
+	VolumeTypeRW          = "rw"
+	VolumeTypeDP          = "dp"
+	CrossRegionBackupType = datamodel.BackupVaultTypeCrossRegion
 	GCBDRServiceType             = datamodel.ServiceTypeCrossProject
 	CrossRegionBackupVaultErrMsg = "Cross region backup vaults are not supported for ISCSI volumes"
 	RestoreBackupWorkflow        = "RestoreBackupWorkflow"
@@ -147,7 +147,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	logger := util.GetLogger(ctx)
 	se := a.SE
 
-	recordHeartbeat(ctx, "Starting CreateVolumeInONTAP activity & Getting ONTAP provider")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateVolumeInONTAP activity & Getting ONTAP provider")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -158,7 +158,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		volumeType = VolumeTypeDP
 	}
 
-	snapshotPolicyName := SnapshotPolicyNone
+	snapshotPolicyName := models.DefaultONTAPSnapshotPolicyName
 	if volume.SnapshotPolicy != nil && volume.SnapshotPolicy.Name != "" {
 		snapshotPolicyName = volume.SnapshotPolicy.Name
 	}
@@ -221,10 +221,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		params.LargeSizeEnabled = nillable.ToPointer(true)
 	}
 
-	// This can be removed once files protocols are fully supported
-	ontapVersion := GetOntapVersionFromPool(volume.Pool)
-
-	if utils.IsFileProtocolSupportedV2(ontapVersion) && volume.VolumeAttributes != nil && volume.VolumeAttributes.FileProperties != nil && volume.VolumeAttributes.FileProperties.ExportPolicy != nil {
+	if volume.VolumeAttributes != nil && volume.VolumeAttributes.FileProperties != nil && volume.VolumeAttributes.FileProperties.ExportPolicy != nil {
 		if !utils.IsSMBOnlyProtocols(volume.VolumeAttributes.Protocols) {
 			params.ExportPolicy = &volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName
 		}
@@ -243,6 +240,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		}
 	}
 
+	// TODO: Once VCM Volume create flow supports AT, then we have to refactor this as this is using db calls which will not be applicable for VCM flow.
 	if volume.AutoTieringEnabled && volume.AutoTieringPolicy != nil {
 		params.TieringPolicy, err = CreateAutoTieringParams(ctx, se, &params, volume)
 		if err != nil {
@@ -285,7 +283,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		}
 	}
 
-	recordHeartbeat(ctx, "Starting volume creation in ONTAP")
+	orchestrator.RecordHeartbeat(ctx, "Starting volume creation in ONTAP")
 	res, err := provider.CreateVolume(params)
 
 	if err != nil {
@@ -297,7 +295,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	}
 	logger.Debug("volume created successfully")
 
-	recordHeartbeat(ctx, "Finished CreateVolumeInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateVolumeInONTAP activity")
 	return res, nil
 }
 
@@ -448,7 +446,7 @@ func (a VolumeCreateActivity) UpdateLunName(ctx context.Context, volume *datamod
 
 func (a VolumeCreateActivity) CreateExportPolicyInOntap(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting CreateExportPolicyInOntap activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateExportPolicyInOntap activity")
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil {
 		logger.Info("Skipping export policy creation for non-file volume")
 		return nil
@@ -502,7 +500,7 @@ func (a VolumeCreateActivity) CreateExportPolicyInOntap(ctx context.Context, vol
 		}
 		return err
 	}
-	recordHeartbeat(ctx, "Finished CreateExportPolicyInOntap activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateExportPolicyInOntap activity")
 	return nil
 }
 
@@ -531,20 +529,20 @@ func HandleVolumeCreateConflict(volume *datamodel.Volume, provider vsa.Provider)
 
 func (a VolumeCreateActivity) CreateIgroup(ctx context.Context, volume *datamodel.Volume, hostParams []*common.HostParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting CreateIgroup activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	for _, host := range hostParams {
-		recordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
+		orchestrator.RecordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
 		igroupExists, _, err := provider.IgroupExists(host.HostName, &volume.Svm.Name)
 		if err != nil {
 			return err
 		}
 
 		if !igroupExists {
-			recordHeartbeat(ctx, "Creating igroup in ONTAP")
+			orchestrator.RecordHeartbeat(ctx, "Creating igroup in ONTAP")
 			_, err := provider.IgroupCreate(vsa.IgroupCreateParams{
 				IgroupName: host.HostName,
 				SvmName:    volume.Svm.Name,
@@ -558,13 +556,13 @@ func (a VolumeCreateActivity) CreateIgroup(ctx context.Context, volume *datamode
 		}
 	}
 
-	recordHeartbeat(ctx, "Finished CreateIgroup activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateIgroup activity")
 	return nil
 }
 
 func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.Volume, node *models.Node, availableSpace int64) (*vsa.LunResponse, error) {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting CreateLun activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateLun activity")
 	if volume.VolumeAttributes.IsDataProtection {
 		logger.Info("Skipping lun creation for data protection volume")
 		return &vsa.LunResponse{}, nil
@@ -582,7 +580,7 @@ func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.V
 		osType = volume.VolumeAttributes.BlockProperties.OSType
 	}
 
-	recordHeartbeat(ctx, "Creating LUN in ONTAP")
+	orchestrator.RecordHeartbeat(ctx, "Creating LUN in ONTAP")
 	lun, err := provider.LunCreate(vsa.LunCreateParams{
 		LunName:    lunName,
 		VolumeName: volume.Name,
@@ -592,12 +590,12 @@ func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.V
 	})
 	if err != nil {
 		if errors.IsConflictErr(err) {
-			recordHeartbeat(ctx, "LUN already exists, retrieving existing LUN")
+			orchestrator.RecordHeartbeat(ctx, "LUN already exists, retrieving existing LUN")
 			return LunGet(ctx, lunName, volume.Name, volume.Svm.Name, provider)
 		}
 		return nil, err
 	}
-	recordHeartbeat(ctx, "Finished CreateLun activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateLun activity")
 	logger.Debug("lun created successfully")
 	return lun, nil
 }
@@ -639,7 +637,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 	isOntapClusterHealthy := new(bool)
 	*isOntapClusterHealthy = false
 
-	recordHeartbeat(ctx, "Getting ONTAP provider")
+	orchestrator.RecordHeartbeat(ctx, "Getting ONTAP provider")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return isOntapClusterHealthy, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -650,7 +648,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 		return isOntapClusterHealthy, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("provider is not OntapRestProvider"))
 	}
 
-	recordHeartbeat(ctx, "Getting ONTAP version to check cluster connectivity")
+	orchestrator.RecordHeartbeat(ctx, "Getting ONTAP version to check cluster connectivity")
 	_, err = ontapProvider.GetONTAPVersion()
 	if err != nil {
 		logger.Errorf("Failed to get ONTAP version: %v", err)
@@ -666,7 +664,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 
 func (a VolumeCreateActivity) CreateLunMap(ctx context.Context, volume *datamodel.Volume, params *common.CreateLunMapParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, "Starting CreateLunMap activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateLunMap activity")
 	if volume.VolumeAttributes.IsDataProtection {
 		logger.Info("Skipping CreateLunMap for data protection volume")
 		return nil
@@ -676,20 +674,20 @@ func (a VolumeCreateActivity) CreateLunMap(ctx context.Context, volume *datamode
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	recordHeartbeat(ctx, "Creating LUN map in ONTAP")
+	orchestrator.RecordHeartbeat(ctx, "Creating LUN map in ONTAP")
 	err = provider.LunMapCreate(vsa.LunMapCreateParams{
 		LunName:    params.LunName,
 		SvmName:    params.SvmName,
 		IGroupName: params.HostNames,
 	})
 	if err != nil {
-		recordHeartbeat(ctx, "Error creating LUN map in ONTAP")
+		orchestrator.RecordHeartbeat(ctx, "Error creating LUN map in ONTAP")
 		if errors.IsConflictErr(err) {
 			return nil
 		}
 		return err
 	}
-	recordHeartbeat(ctx, "Finished CreateLunMap activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateLunMap activity")
 	logger.Debug("lun map created successfully")
 	return nil
 }
@@ -1883,13 +1881,13 @@ func _getResourceNamesForBackup(gcpRegion, region, tenantProjectNumber, bvID str
 
 func (a VolumeCreateActivity) CreateSnapshotPolicyInONTAP(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	if node != nil && volume != nil && volume.SnapshotPolicy != nil && volume.SnapshotPolicy.Name != "" {
-		recordHeartbeat(ctx, "Initializing snapshot policy creation")
+		orchestrator.RecordHeartbeat(ctx, "Initializing snapshot policy creation")
 		logger := util.GetLogger(ctx)
 		provider, err := vsa.GetProviderByNode(ctx, node)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
-		recordHeartbeat(ctx, "Creating snapshot policy in ONTAP")
+		orchestrator.RecordHeartbeat(ctx, "Creating snapshot policy in ONTAP")
 		err = provider.CreateSnapshotPolicy(&vsa.SnapshotPolicy{
 			Name:      volume.SnapshotPolicy.Name,
 			IsEnabled: volume.SnapshotPolicy.IsEnabled,
@@ -1899,7 +1897,7 @@ func (a VolumeCreateActivity) CreateSnapshotPolicyInONTAP(ctx context.Context, v
 			logger.Errorf("failed to create snapshot policy: %v", err)
 			return err
 		}
-		recordHeartbeat(ctx, "Snapshot policy created successfully")
+		orchestrator.RecordHeartbeat(ctx, "Snapshot policy created successfully")
 	}
 	return nil
 }

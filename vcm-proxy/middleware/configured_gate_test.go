@@ -26,7 +26,7 @@ func TestConfiguredGate_AllowsWhenConfigured(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/pools", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/clusters", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -40,7 +40,7 @@ func TestConfiguredGate_BlocksUnconfiguredNonAllowlistedRoute(t *testing.T) {
 		nextCalled = true
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/pools", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/clusters", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -103,7 +103,7 @@ func TestConfiguredGate_NilCheckerAllowsAll(t *testing.T) {
 		nextCalled = true
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/pools", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/clusters", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -118,5 +118,5 @@ func TestIsAllowlisted(t *testing.T) {
 	assert.True(t, isAllowlisted("/ready", http.MethodGet, allowlist))
 	assert.False(t, isAllowlisted("/ready", http.MethodPost, allowlist))
 	assert.True(t, isAllowlisted("/v1/config", http.MethodPost, allowlist))
-	assert.False(t, isAllowlisted("/v1/pools", http.MethodPost, allowlist))
+	assert.False(t, isAllowlisted("/v1/clusters", http.MethodPost, allowlist))
 }

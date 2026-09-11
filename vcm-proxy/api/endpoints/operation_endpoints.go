@@ -12,10 +12,12 @@ import (
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	weutil "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-const hostGroupWorkflowTimeout = 10 * time.Minute
+const (
+	hostGroupWorkflowTimeout = 10 * time.Minute
+	volumeWorkflowTimeout    = 10 * time.Minute
+)
 
 func getOperationID() string {
 	return uuid.NewString()
@@ -27,6 +29,10 @@ func getOperationDeadline(timeout time.Duration) time.Time {
 
 func getHostGroupOperationDeadline() time.Time {
 	return getOperationDeadline(hostGroupWorkflowTimeout)
+}
+
+func getVolumeOperationDeadline() time.Time {
+	return getOperationDeadline(volumeWorkflowTimeout)
 }
 
 // describeVCMOperationSurfaceJobErrorDetails reports whether the public operation GET
@@ -83,16 +89,13 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 	}
 	switch job.State {
 	case vcmdb.JobStateNew, vcmdb.JobStateProcessing:
+		if opResponse, ok := operationResponseFromJob(job); ok {
+			response.Response = vcmserver.NewOptOperationV1Response(opResponse)
+		}
 		return response, nil
 	case vcmdb.JobStateDone:
-		if vcmdb.HasPersistableResponsePayload(job.ResponsePayload) {
-			opResponse := make(vcmserver.OperationV1Response)
-			if err := json.Unmarshal([]byte(job.ResponsePayload), &opResponse); err != nil {
-				weutil.GetLogger(ctx).WarnContext(ctx, "operation GET: invalid response payload",
-					"operationId", job.ID, "jobType", job.Type, "error", err)
-			} else if len(opResponse) > 0 {
-				response.Response = vcmserver.NewOptOperationV1Response(opResponse)
-			}
+		if opResponse, ok := operationResponseFromJob(job); ok {
+			response.Response = vcmserver.NewOptOperationV1Response(opResponse)
 		}
 		return response, nil
 	case vcmdb.JobStateError:
@@ -117,6 +120,20 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 			Message: "Operation has an invalid state",
 		}, nil
 	}
+}
+
+func operationResponseFromJob(job *vcmdb.Job) (vcmserver.OperationV1Response, bool) {
+	if job == nil || !vcmdb.HasPersistableResponsePayload(job.ResponsePayload) {
+		return nil, false
+	}
+	opResponse := make(vcmserver.OperationV1Response)
+	if err := json.Unmarshal([]byte(job.ResponsePayload), &opResponse); err != nil {
+		return nil, false
+	}
+	if len(opResponse) == 0 {
+		return nil, false
+	}
+	return opResponse, true
 }
 
 func operationMetadataFromJob(job *vcmdb.Job) vcmserver.OptOperationMetadataV1 {

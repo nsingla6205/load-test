@@ -15,7 +15,7 @@ func VcmDeleteHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ig
 	finishJob := func(workflowErr error) error {
 		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, nil)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return err
+			return returnFinishJobError(workflowErr, err)
 		}
 		return workflowErr
 	}

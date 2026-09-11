@@ -107,6 +107,33 @@ func (s *ClusterConfigV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ClusterCreateV1BadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterCreateV1BadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ClusterCreateV1Conflict) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterCreateV1Conflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ClusterCreateV1InternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterCreateV1InternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *ClusterLayoutV1) SetFake() {
 	{
 		{
@@ -217,6 +244,30 @@ func (s *ClusterShapeV1Mode) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ClusterV1) SetFake() {
+	{
+		{
+			s.RequestId = "string"
+		}
+	}
+	{
+		{
+			s.Deadline = time.Now()
+		}
+	}
+	{
+		{
+			s.ClusterShape.SetFake()
+		}
+	}
+	{
+		{
+			s.ClusterLayout.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *DailyScheduleV1) SetFake() {
 	{
 		{
@@ -252,40 +303,6 @@ func (s *DataLifV1) SetFake() {
 				}
 				s.San = append(s.San, elem)
 			}
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *DeploymentShapeV1) SetFake() {
-	{
-		{
-			s.VsaInstanceType = "string"
-		}
-	}
-	{
-		{
-			s.DataDiskType.SetFake()
-		}
-	}
-	{
-		{
-			s.SystemDiskType.SetFake()
-		}
-	}
-	{
-		{
-			s.MediatorDiskType.SetFake()
-		}
-	}
-	{
-		{
-			s.DataDiskCount.SetFake()
-		}
-	}
-	{
-		{
-			s.SpConfig.SetFake()
 		}
 	}
 }
@@ -625,16 +642,6 @@ func (s *NetInterfaceConfigV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *NilFloat64) SetFake() {
-	s.Null = true
-}
-
-// SetFake set fake values.
-func (s *NilInt64) SetFake() {
-	s.Null = true
-}
-
-// SetFake set fake values.
 func (s *OntapCredentialV1) SetFake() {
 	{
 		{
@@ -666,30 +673,6 @@ func (s *OntapCredentialV1ActiveAuthType) SetFake() {
 // SetFake set fake values.
 func (s *OntapCredentialV1Role) SetFake() {
 	*s = OntapCredentialV1RoleONTAPMODE
-}
-
-// SetFake set fake values.
-func (s *OntapCredentialsV1) SetFake() {
-	{
-		{
-			s.Type.SetFake()
-		}
-	}
-	{
-		{
-			s.CertificateId.SetFake()
-		}
-	}
-	{
-		{
-			s.SecretId.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *OntapCredentialsV1Type) SetFake() {
-	*s = OntapCredentialsV1TypeDefault
 }
 
 // SetFake set fake values.
@@ -883,15 +866,6 @@ func (s *OptDateTime) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptDeploymentShapeV1) SetFake() {
-	var elem DeploymentShapeV1
-	{
-		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
 func (s *OptErrorResponseV1) SetFake() {
 	var elem ErrorResponseV1
 	{
@@ -941,15 +915,6 @@ func (s *OptInfrastructureSpecV1) SetFake() {
 	var elem InfrastructureSpecV1
 	{
 		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
-func (s *OptInt) SetFake() {
-	var elem int
-	{
-		elem = int(0)
 	}
 	s.SetTo(elem)
 }
@@ -1093,15 +1058,6 @@ func (s *OptPasswordAuthCredsV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptPoolV1Mode) SetFake() {
-	var elem PoolV1Mode
-	{
-		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
 func (s *OptProtocolsV1) SetFake() {
 	var elem ProtocolsV1
 	{
@@ -1129,19 +1085,19 @@ func (s *OptSnapshotPolicyV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptSpConfigV1) SetFake() {
-	var elem SpConfigV1
+func (s *OptString) SetFake() {
+	var elem string
 	{
-		elem.SetFake()
+		elem = "string"
 	}
 	s.SetTo(elem)
 }
 
 // SetFake set fake values.
-func (s *OptString) SetFake() {
-	var elem string
+func (s *OptVolumeReadV1SecurityStyle) SetFake() {
+	var elem VolumeReadV1SecurityStyle
 	{
-		elem = "string"
+		elem.SetFake()
 	}
 	s.SetTo(elem)
 }
@@ -1179,234 +1135,8 @@ func (s *PasswordAuthCredsV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *PoolCreateV1BadRequest) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = PoolCreateV1BadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolCreateV1InternalServerError) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = PoolCreateV1InternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolRequestV1) SetFake() {
-	{
-		{
-			s.Pool.SetFake()
-		}
-	}
-	{
-		{
-			s.RequestId = "string"
-		}
-	}
-	{
-		{
-			s.Deadline = time.Now()
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *PoolV1) SetFake() {
-	{
-		{
-			s.ThroughputMibps.SetFake()
-		}
-	}
-	{
-		{
-			s.Iops.SetFake()
-		}
-	}
-	{
-		{
-			s.SizeInBytes.SetFake()
-		}
-	}
-	{
-		{
-			s.HotTierSizeInBytes.SetFake()
-		}
-	}
-	{
-		{
-			s.QosType.SetFake()
-		}
-	}
-	{
-		{
-			s.Mode.SetFake()
-		}
-	}
-	{
-		{
-			s.ProjectId.SetFake()
-		}
-	}
-	{
-		{
-			s.ServiceTenantProject = "string"
-		}
-	}
-	{
-		{
-			s.SNHostProject = "string"
-		}
-	}
-	{
-		{
-			s.KmsConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.AllowAutoTiering.SetFake()
-		}
-	}
-	{
-		{
-			s.ServiceAccountEmail = "string"
-		}
-	}
-	{
-		{
-			s.AutoTierBucketName = "string"
-		}
-	}
-	{
-		{
-			s.NumHAPair = int(0)
-		}
-	}
-	{
-		{
-			s.RegionIdentifier = "string"
-		}
-	}
-	{
-		{
-			s.NetConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.IpConfig.SetFake()
-		}
-	}
-	{
-		{
-			s.VMSerialNumbers = nil
-			for i := 0; i < 0; i++ {
-				var elem string
-				{
-					elem = "string"
-				}
-				s.VMSerialNumbers = append(s.VMSerialNumbers, elem)
-			}
-		}
-	}
-	{
-		{
-			s.OntapLicenseSecretURI.SetFake()
-		}
-	}
-	{
-		{
-			s.OntapModeRbac.SetFake()
-		}
-	}
-	{
-		{
-			s.OntapCredentials = nil
-			for i := 0; i < 0; i++ {
-				var elem OntapCredentialsV1
-				{
-					elem.SetFake()
-				}
-				s.OntapCredentials = append(s.OntapCredentials, elem)
-			}
-		}
-	}
-	{
-		{
-			s.CaUri.SetFake()
-		}
-	}
-	{
-		{
-			s.PrimaryZone = "string"
-		}
-	}
-	{
-		{
-			s.SecondaryZone = "string"
-		}
-	}
-	{
-		{
-			s.MediatorZone = "string"
-		}
-	}
-	{
-		{
-			s.DeploymentId = "string"
-		}
-	}
-	{
-		{
-			s.ForwardingRuleIp.SetFake()
-		}
-	}
-	{
-		{
-			s.PreferredVsaInstanceFamily.SetFake()
-		}
-	}
-	{
-		{
-			s.DeploymentShape.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *PoolV1Mode) SetFake() {
-	*s = PoolV1ModeMODEUNSPECIFIED
-}
-
-// SetFake set fake values.
 func (s *ProtocolsV1) SetFake() {
 	*s = ProtocolsV1PROTOCOLUNSPECIFIED
-}
-
-// SetFake set fake values.
-func (s *RestrictedActionsV1) SetFake() {
-	var unwrapped []RestrictedActionsV1Item
-	{
-		unwrapped = nil
-		for i := 0; i < 0; i++ {
-			var elem RestrictedActionsV1Item
-			{
-				elem.SetFake()
-			}
-			unwrapped = append(unwrapped, elem)
-		}
-	}
-	*s = RestrictedActionsV1(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *RestrictedActionsV1Item) SetFake() {
-	*s = RestrictedActionsV1ItemDELETE
 }
 
 // SetFake set fake values.
@@ -1598,30 +1328,6 @@ func (s *SnapshotPolicyV1) SetFake() {
 	{
 		{
 			s.MonthlySchedule.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *SpConfigV1) SetFake() {
-	{
-		{
-			s.Size.SetFake()
-		}
-	}
-	{
-		{
-			s.Iops.SetFake()
-		}
-	}
-	{
-		{
-			s.Tput.SetFake()
-		}
-	}
-	{
-		{
-			s.IsHeterogeneous.SetFake()
 		}
 	}
 }
@@ -2102,7 +1808,7 @@ func (s *VmLifV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *VolumeV1) SetFake() {
+func (s *VolumeReadV1) SetFake() {
 	{
 		{
 			s.UUID.SetFake()
@@ -2135,12 +1841,56 @@ func (s *VolumeV1) SetFake() {
 	}
 	{
 		{
-			s.ThroughputMibps.SetFake()
+			s.SnapReserve.SetFake()
 		}
 	}
 	{
 		{
-			s.Iops.SetFake()
+			s.SnapshotDirectory.SetFake()
+		}
+	}
+	{
+		{
+			s.UnixPermissions.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *VolumeReadV1SecurityStyle) SetFake() {
+	*s = VolumeReadV1SecurityStyleSECURITYSTYLEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *VolumeV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.UsedBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.ShareName.SetFake()
+		}
+	}
+	{
+		{
+			s.SecurityStyle.SetFake()
 		}
 	}
 	{
@@ -2185,11 +1935,6 @@ func (s *VolumeV1) SetFake() {
 				}
 				s.Protocols = append(s.Protocols, elem)
 			}
-		}
-	}
-	{
-		{
-			s.RestrictedActions.SetFake()
 		}
 	}
 	{

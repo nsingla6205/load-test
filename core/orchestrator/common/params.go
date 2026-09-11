@@ -444,6 +444,20 @@ type CreateVolumeParams struct {
 	// IsExpertModeRestore is true when this restore was started from RestoreForOntapModeVolumeWorkflow (expert mode volume). When true, RestoreBackupWorkflow finalizes by updating expert_mode_volumes instead of volumes.
 	IsExpertModeRestore bool
 	RestrictedActions   []string
+
+	// VCM workflow fields. Unused by Google Proxy.
+	OperationID string
+	Deadline    time.Time
+}
+
+// DeleteVolumeParams describes parameters for volume delete operations.
+type DeleteVolumeParams struct {
+	// VolumeUUID identifies the volume to delete (persisted volume UUID for GCP and VCM).
+	VolumeUUID string
+
+	// VCM workflow fields. Unused by Google Proxy.
+	OperationID string
+	Deadline    time.Time
 }
 
 type SnapmirrorRelationshipParams struct {
@@ -473,6 +487,7 @@ type BlockPropertiesRequest struct {
 type BlockDevice struct {
 	Name            string
 	HostGroups      []string
+	HostGroupNames  []string
 	OSType          string
 	LunSerialNumber string // read-only
 	SizeInBytes     int64  // read-only

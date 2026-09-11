@@ -21,6 +21,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/mqos"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/flexcache_workflows"
@@ -8370,7 +8371,7 @@ func TestCreateVolume_SMBDefaultSecurityStyle(t *testing.T) {
 			CreationToken: "test-creation-token",
 			FileProperties: &models.FileProperties{
 				JunctionPath:  "smbshare",
-				SecurityStyle: UnixSecurityStyle,
+				SecurityStyle: utils.UnixSecurityStyle,
 			},
 		}
 
@@ -8444,99 +8445,6 @@ func TestCreateVolume_SMBDefaultSecurityStyle(t *testing.T) {
 		}
 		// SecurityStyle is never set on volume when not in request.
 		assert.Nil(tt, volumeObj.VolumeAttributes.FileProperties)
-	})
-}
-
-// Test cases to cover lines 1420-1423 (IP validation in validateAllowedClients)
-func Test_validateAllowedClients(t *testing.T) {
-	t.Run("ValidSingleIP", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("ValidMultipleIPs", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1,192.168.1.2,10.0.0.1")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("ValidCIDR", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.0/24")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("ValidMultipleCIDRs", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.0/24,10.0.0.0/8")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("ValidMixedIPsAndCIDRs", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1,192.168.1.0/24,10.0.0.1")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("ValidAllClients", func(tt *testing.T) {
-		err := validateAllowedClients("0.0.0.0/0")
-		assert.NoError(tt, err)
-	})
-
-	t.Run("InvalidIP", func(tt *testing.T) {
-		err := validateAllowedClients("256.256.256.256")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("InvalidCIDR", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1/33")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("InvalidCIDRFormat", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.0/24/32")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("InvalidZeroIPWithNonZeroMask", func(tt *testing.T) {
-		err := validateAllowedClients("0.0.0.0/24")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "0.0.0.0 address can only be used with a 0 bit subnet mask")
-	})
-
-	t.Run("DuplicateIPs", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1,192.168.1.1")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("DuplicateCIDRs", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.0/24,192.168.1.0/24")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("MixedDuplicate", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1,192.168.1.0/24,192.168.1.1")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("EmptyString", func(tt *testing.T) {
-		err := validateAllowedClients("")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("SingleComma", func(tt *testing.T) {
-		err := validateAllowedClients(",")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
-	})
-
-	t.Run("MultipleCommas", func(tt *testing.T) {
-		err := validateAllowedClients("192.168.1.1,,192.168.1.2")
-		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "allowedClients must include unique IPv4 or IPv4 CIDR values")
 	})
 }
 
@@ -10270,7 +10178,7 @@ func TestDeleteVolume(t *testing.T) {
 			storage: store,
 		}
 
-		_, _, err = orch.DeleteVolume(ctx, "non-existent-uuid")
+		_, _, err = orch.DeleteVolume(ctx, &common.DeleteVolumeParams{VolumeUUID: "non-existent-uuid"})
 		assert.EqualError(tt, err, "Volume not found")
 		var customErr *vsaerrors.CustomError
 		errors2.As(err, &customErr)
@@ -17412,7 +17320,7 @@ func TestConvertToDBSnapshotPolicySchedule(t *testing.T) {
 				Minutes:     []int{30},
 			},
 		}
-		result := convertToDBSnapshotPolicySchedule([]*models.SnapshotPolicySchedule{schedule})
+		result := factorycommon.ConvertToDBSnapshotPolicySchedule([]*models.SnapshotPolicySchedule{schedule})
 		assert.Len(tt, result, 1)
 		dbSched := result[0]
 		assert.Equal(tt, int64(5), dbSched.Count)
@@ -17434,7 +17342,7 @@ func TestConvertToDBSnapshotPolicySchedule(t *testing.T) {
 			SnapmirrorLabel: "l2",
 			Schedule:        &models.Schedule{DaysOfWeek: []int{2}},
 		}
-		result := convertToDBSnapshotPolicySchedule([]*models.SnapshotPolicySchedule{s1, s2})
+		result := factorycommon.ConvertToDBSnapshotPolicySchedule([]*models.SnapshotPolicySchedule{s1, s2})
 		assert.Len(tt, result, 2)
 		assert.Equal(tt, int64(1), result[0].Count)
 		assert.Equal(tt, "l1", result[0].SnapmirrorLabel)
@@ -23059,38 +22967,6 @@ func TestConvertDatastoreVolumeToModel_RestrictedActions(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, []string{"DELETE"}, result.RestrictedActions)
 	})
-}
-
-func TestValidateAllowedClients(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{"Single valid IPv4", "192.168.1.1", false},
-		{"Multiple valid IPv4", "10.0.0.1,192.168.1.2", false},
-		{"Valid IPv4 CIDR", "10.0.0.0/24", false},
-		{"Mix of IPv4 and CIDR", "10.0.0.1,10.0.0.0/24", false},
-		{"Invalid IP", "999.999.999.999", true},
-		{"Invalid CIDR", "10.0.0.0/33", true},
-		{"IP not matching CIDR base", "10.0.0.5/24", true},
-		{"Duplicate IPs", "10.0.0.1,10.0.0.1", true},
-		{"Duplicate CIDRs", "10.0.0.0/24,10.0.0.0/24", true},
-		{"Empty string", "", true},
-		{"Zero address with nonzero mask", "0.0.0.0/8", true},
-		{"Allow all clients", models.AllowedAllClients, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateAllowedClients(tt.input)
-			if tt.wantErr {
-				assert.Error(t, err, "expected error for input: %q", tt.input)
-			} else {
-				assert.NoError(t, err, "expected no error for input: %q", tt.input)
-			}
-		})
-	}
 }
 
 func TestValidateDeleteVolumeParams(t *testing.T) {

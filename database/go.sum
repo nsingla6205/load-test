@@ -224,6 +224,7 @@ github.com/googleapis/go-gorm-spanner v1.10.1/go.mod h1:vDirtqBfnhVF2XaxA+epvTYg
 github.com/googleapis/go-sql-spanner v1.25.0 h1:KFAxkBK8J/5ULMRG9i351Ou+7GYzsafuRAxU0d7BpUo=
 github.com/googleapis/go-sql-spanner v1.25.0/go.mod h1:JbLMI18UvSaH/3JqUC2L16paz7IVbEJWiGwkrGQgdOU=
 github.com/greenqloud/cloud-volumes-network v0.0.0-20260811082136-7688888e511f h1:WL+lU1TA2n6DO/uXLiTG/UaPUohAjjuLEOuBMYLd4TQ=
+github.com/greenqloud/cloud-volumes-network v0.0.0-20260811082136-7688888e511f/go.mod h1:wv+mn2N+LGlBLaMaMrNQx93M9x4RLxu2TO9pIUlWB3E=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 h1:sGm2vDRFUrQJO/Veii4h4zG2vvqG6uWNkBHSTqXOZk0=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2/go.mod h1:wd1YpapPLivG6nQgbf7ZkG1hhSOXDhhn4MLTknx2aAc=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 h1:8Tjv8EJ+pM1xP8mK6egEbD1OgnVTyacbefKhmbLhIhU=

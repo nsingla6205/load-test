@@ -76,7 +76,7 @@ func poolCredentialsFromSetConfig(creds []vcmserver.OntapCredentialV1) (*datamod
 		return nil, err
 	}
 	mapped := mapOntapCredential(entry)
-	switch activeAuthType(entry) {
+	switch effectiveAuthType(entry) {
 	case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
 		if mapped.SecretID == "" {
 			return nil, fmt.Errorf("VCM ontapCredentials.passwordAuthCreds.passwordSecretId is required when activeAuthType is PWD")
@@ -104,8 +104,8 @@ func poolCredentialsFromSetConfig(creds []vcmserver.OntapCredentialV1) (*datamod
 
 // ToVCMOntapCredentials maps OntapCredential_v1 entries onto workflow credential
 // identifiers, selecting CertificateID vs SecretID from each credential's
-// activeAuthType so every consumer of the stored SetConfig agrees on which
-// secret material is used.
+// effective auth type (see effectiveAuthType) so every consumer of the stored
+// SetConfig agrees on which secret material is used.
 func ToVCMOntapCredentials(creds []vcmserver.OntapCredentialV1) []commonparams.VCMOntapCredential {
 	if len(creds) == 0 {
 		return nil
@@ -121,17 +121,65 @@ func mapOntapCredential(credential vcmserver.OntapCredentialV1) commonparams.VCM
 	mapped := commonparams.VCMOntapCredential{
 		Type: internalCredentialType(credential.Role),
 	}
-	switch activeAuthType(credential) {
+	// Only the material for the effective auth type is carried over, so
+	// downstream consumers derive the same auth type from the fields present.
+	switch effectiveAuthType(credential) {
 	case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
 		pwd := credential.PasswordAuthCreds.Value
 		mapped.SecretID = pwd.PasswordSecretId.Or("")
 		mapped.Username = pwd.Username.Or("")
-	default: // CERT (default when unset)
+	default: // CERT (default when unset for non-admin roles)
 		cert := credential.CertificateAuthCreds.Value
 		mapped.CertificateID = cert.CertSecretId.Or("")
 		mapped.SecretID = cert.CertPrivateKeySecretId.Or("")
 	}
 	return mapped
+}
+
+// effectiveAuthType returns the auth type VCM must use to resolve a credential.
+//
+// The ADMIN role is password-only: the ONTAP admin/bootstrap user is provisioned
+// for password authentication, so an ADMIN credential is always resolved via its
+// passwordAuthCreds regardless of the declared activeAuthType. Every other role
+// honors the credential's activeAuthType (CERT or PWD), defaulting to CERT when
+// unset.
+func effectiveAuthType(credential vcmserver.OntapCredentialV1) vcmserver.OntapCredentialV1ActiveAuthType {
+	if credential.Role == vcmserver.OntapCredentialV1RoleADMIN {
+		return vcmserver.OntapCredentialV1ActiveAuthTypePWD
+	}
+	return activeAuthType(credential)
+}
+
+// validateOntapCredentials rejects a credential whose role is unset or whose
+// effective auth type is not backed by the material needed to resolve it.
+//
+// The role is mandatory: it drives effectiveAuthType (ADMIN is password-only)
+// and internalCredentialType, so an unset role would silently resolve as the
+// wrong kind of credential downstream.
+//
+// This has to be checked up front because the declared auth type is not carried
+// past mapOntapCredential: consumers re-derive it from which identifier is
+// populated. An incomplete credential would therefore resolve as the wrong type
+// instead of failing - a CERT entry missing certSecretId, for instance, leaves
+// only the private-key secret set and would be dereferenced as a password.
+func validateOntapCredentials(creds []vcmserver.OntapCredentialV1) error {
+	for _, credential := range creds {
+		role := string(credential.Role)
+		if role == "" {
+			return fmt.Errorf("VCM ontapCredentials: role is required and must be one of %v", vcmserver.OntapCredentialV1Role("").AllValues())
+		}
+		switch effectiveAuthType(credential) {
+		case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
+			if credential.PasswordAuthCreds.Value.PasswordSecretId.Or("") == "" {
+				return fmt.Errorf("VCM ontapCredentials[role=%s]: passwordAuthCreds.passwordSecretId is required to resolve this credential via password authentication", role)
+			}
+		default: // CERT
+			if credential.CertificateAuthCreds.Value.CertSecretId.Or("") == "" {
+				return fmt.Errorf("VCM ontapCredentials[role=%s]: certificateAuthCreds.certSecretId is required when activeAuthType is CERT", role)
+			}
+		}
+	}
+	return nil
 }
 
 // activeAuthType returns the credential's declared auth type, defaulting to CERT

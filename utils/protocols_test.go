@@ -1,32 +1,10 @@
 package utils
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestGetProtocolInfo(t *testing.T) {
-	t.Run("WhenProtocolExists", func(tt *testing.T) {
-		info := GetProtocolInfo(ProtocolNFSv3)
-		assert.Equal(tt, "nfs3", info.OntapValue)
-		assert.Equal(tt, ProtocolTypeNAS, info.ProtocolType)
-	})
-
-	t.Run("WhenProtocolDoesNotExist", func(tt *testing.T) {
-		info := GetProtocolInfo("INVALID")
-		assert.Equal(tt, ProtocolInfo{}, info)
-	})
-
-	t.Run("AllProtocolsExist", func(tt *testing.T) {
-		protocols := []string{ProtocolNFS, ProtocolNFSv3, ProtocolNFSv4, ProtocolSMB, ProtocolISCSI}
-		for _, protocol := range protocols {
-			info := GetProtocolInfo(protocol)
-			assert.NotEqual(tt, ProtocolInfo{}, info, "Protocol %s should have valid info", protocol)
-		}
-	})
-}
 
 func TestGetOntapValue(t *testing.T) {
 	t.Run("WhenProtocolExists", func(tt *testing.T) {
@@ -124,52 +102,6 @@ func TestIsSANProtocol(t *testing.T) {
 	})
 }
 
-func TestGetNASProtocols(t *testing.T) {
-	t.Run("ReturnsAllNASProtocols", func(tt *testing.T) {
-		nasProtocols := GetNASProtocols()
-		expectedProtocols := []string{ProtocolNFS, ProtocolNFSv3, ProtocolNFSv4, ProtocolSMB}
-
-		// Sort both slices for comparison since map iteration order is not guaranteed
-		sort.Strings(nasProtocols)
-		sort.Strings(expectedProtocols)
-
-		assert.Equal(tt, expectedProtocols, nasProtocols)
-	})
-
-	t.Run("DoesNotIncludeSANProtocols", func(tt *testing.T) {
-		nasProtocols := GetNASProtocols()
-		assert.NotContains(tt, nasProtocols, ProtocolISCSI)
-	})
-
-	t.Run("ReturnsNonEmptySlice", func(tt *testing.T) {
-		nasProtocols := GetNASProtocols()
-		assert.NotEmpty(tt, nasProtocols)
-	})
-}
-
-func TestGetSANProtocols(t *testing.T) {
-	t.Run("ReturnsAllSANProtocols", func(tt *testing.T) {
-		sanProtocols := GetSANProtocols()
-		expectedProtocols := []string{ProtocolISCSI, ProtocolNVMe}
-
-		assert.ElementsMatch(tt, expectedProtocols, sanProtocols)
-	})
-
-	t.Run("DoesNotIncludeNASProtocols", func(tt *testing.T) {
-		sanProtocols := GetSANProtocols()
-		nasProtocols := []string{ProtocolNFSv3, ProtocolNFSv4, ProtocolSMB}
-
-		for _, nasProtocol := range nasProtocols {
-			assert.NotContains(tt, sanProtocols, nasProtocol)
-		}
-	})
-
-	t.Run("ReturnsNonEmptySlice", func(tt *testing.T) {
-		sanProtocols := GetSANProtocols()
-		assert.NotEmpty(tt, sanProtocols)
-	})
-}
-
 func TestProtocolMapConsistency(t *testing.T) {
 	t.Run("AllProtocolsHaveCorrectMapping", func(tt *testing.T) {
 		expectedMappings := map[string]struct {
@@ -203,8 +135,8 @@ func TestProtocolMapConsistency(t *testing.T) {
 		}
 
 		for protocol, expected := range expectedMappings {
-			info := GetProtocolInfo(protocol)
-			assert.NotEqual(tt, ProtocolInfo{}, info, "Protocol %s should exist in ProtocolMap", protocol)
+			info, ok := ProtocolMap[protocol]
+			assert.True(tt, ok, "Protocol %s should exist in ProtocolMap", protocol)
 			assert.Equal(tt, expected.ontapValue, info.OntapValue, "OntapValue mismatch for %s", protocol)
 			assert.Equal(tt, expected.protocolType, info.ProtocolType, "ProtocolType mismatch for %s", protocol)
 		}
@@ -224,7 +156,6 @@ func TestProtocolConstants(t *testing.T) {
 	})
 
 	t.Run("OntapConstantsAreCorrect", func(tt *testing.T) {
-		// Test that the ONTAP values are returned correctly through the public API
 		nfsValue := GetOntapValue(ProtocolNFS)
 		assert.Equal(tt, "nfs", nfsValue)
 
@@ -375,23 +306,6 @@ func TestIsNFSOnlyProtocols(t *testing.T) {
 	})
 }
 
-func TestCreateJunctionPath(t *testing.T) {
-	tests := []struct {
-		token    string
-		expected string
-	}{
-		{"abc", "/abc"},
-		{"", "/"},
-		{"/already", "//already"},
-		{"123/xyz", "/123/xyz"},
-	}
-
-	for _, tt := range tests {
-		result := CreateJunctionPath(tt.token)
-		assert.Equal(t, tt.expected, result, "CreateJunctionPath(%q)", tt.token)
-	}
-}
-
 func TestResolveEffectiveUnixSecurityStyle(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -447,6 +361,86 @@ func TestResolveEffectiveUnixSecurityStyle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ResolveEffectiveUnixSecurityStyle(tt.protocols, tt.securityStyle, tt.explicitlySet, tt.unixPermissions)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestValidateUnixPermissions(t *testing.T) {
+	tests := []struct {
+		name       string
+		protocols  []string
+		permission string
+		style      string
+		wantErr    bool
+		errMsg     string
+	}{
+		{
+			name:       "Valid NFS permissions",
+			protocols:  []string{"NFSV3"},
+			permission: "0755",
+			style:      "unix",
+			wantErr:    false,
+		},
+		{
+			name:       "Empty permissions",
+			protocols:  []string{"NFSV3"},
+			permission: "",
+			style:      "unix",
+			wantErr:    true,
+			errMsg:     "UnixPermissions cannot be empty.",
+		},
+		{
+			name:       "Invalid permission format",
+			protocols:  []string{"NFSV3"},
+			permission: "08",
+			style:      "unix",
+			wantErr:    true,
+			errMsg:     "Unix permissions should be 4 digit long in octal format",
+		},
+		{
+			name:       "Mismatched security style",
+			protocols:  []string{"NFSV3"},
+			permission: "0755",
+			style:      "ntfs",
+			wantErr:    true,
+			errMsg:     "Unix permissions are only supported with unix security-style",
+		},
+		{
+			name:       "NFS-only without explicit security style",
+			protocols:  []string{"NFSV3"},
+			permission: "0755",
+			style:      "",
+			wantErr:    false,
+		},
+		{
+			name:       "Dual protocol without explicit security style",
+			protocols:  []string{"NFSV3", "SMB"},
+			permission: "0755",
+			style:      "",
+			wantErr:    true,
+			errMsg:     "Unix permissions are only supported with unix security-style",
+		},
+		{
+			name:       "Unsupported protocol",
+			protocols:  []string{"SMB"},
+			permission: "0755",
+			style:      "unix",
+			wantErr:    true,
+			errMsg:     "Unix permissions is only supported with NFS protocol volumes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateUnixPermissions(tt.protocols, tt.permission, tt.style)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

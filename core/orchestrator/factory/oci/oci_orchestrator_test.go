@@ -368,7 +368,7 @@ func TestOCIOrchestrator_DeleteVolume(t *testing.T) {
 		orch := &OCIOrchestrator{}
 		ctx := context.Background()
 
-		result, jobID, err := orch.DeleteVolume(ctx, "volume-id")
+		result, jobID, err := orch.DeleteVolume(ctx, &commonparams.DeleteVolumeParams{VolumeUUID: "volume-id"})
 
 		assert.Error(tt, err)
 		assert.True(tt, errors.IsNotImplementedYetErr(err))
