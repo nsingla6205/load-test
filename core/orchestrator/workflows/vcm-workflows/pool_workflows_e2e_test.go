@@ -309,31 +309,31 @@ func newPoolParams(requestID string) *commonparams.CreatePoolParams {
 	}
 }
 
-func TestPoolWorkflowE2E_JobNotInNewState_FailsEnsureJobState(t *testing.T) {
+func TestPoolWorkflowE2E_ProcessingJob_ResumesToDone(t *testing.T) {
+	// A crash-recovery re-dispatch hands the workflow a job that is already
+	// PROCESSING. With the NEW-state guard gone, the workflow must resume and
+	// drive the (idempotent) provision path to DONE instead of rejecting it.
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
+
 	reqID := uuid.NewString()
-	// A job that already advanced past NEW models a resumed/duplicate run; the
-	// workflow must refuse to proceed.
 	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateProcessing})
 
-	err := runPoolWorkflowE2E(t, store, newPoolParams(reqID))
+	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+	require.NoError(t, err, "a PROCESSING job must resume and complete, not be rejected")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid state")
-	// EnsureJobState fails before the workflow marks anything, so no state
-	// transition should have been persisted.
-	_, ok := store.lastUpdate()
-	assert.False(t, ok, "no job update expected when the NEW-state precondition fails")
-}
-
-func TestPoolWorkflowE2E_JobNotFound_FailsEnsureJobState(t *testing.T) {
-	reqID := uuid.NewString()
-	// No seeded job: GetJob returns nil, so EnsureJobState reports not-found.
-	store := newE2EJobStore()
-
-	err := runPoolWorkflowE2E(t, store, newPoolParams(reqID))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State, "a resumed provision must leave the job DONE")
+	assert.Equal(t, jobStepCompleted, last.Step)
 }
 
 func TestPoolWorkflowE2E_ProvisionFails_MarksJobError(t *testing.T) {

@@ -2,6 +2,7 @@ package vcm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -101,6 +102,48 @@ func TestCreatePool_Success_ReturnsRequestIDAsOperationID(t *testing.T) {
 	assert.Equal(t, vcmdb.JobStateNew, store.created.State)
 	assert.True(t, store.created.DeadlineAt.Equal(params.VCM.Deadline.UTC()))
 	assert.Empty(t, store.updated, "no ERROR cleanup expected on the success path")
+}
+
+func TestCreatePool_PersistsRequestPayloadForRecovery(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	params := validParams()
+	_, _, err := o.CreatePool(context.Background(), params)
+	require.NoError(t, err)
+
+	require.NotNil(t, store.created)
+	require.NotEmpty(t, store.created.RequestPayload,
+		"the request payload must be persisted so a crash-recovery restart can rebuild and re-dispatch the workflow")
+
+	var got commonparams.VCMCreatePoolParams
+	require.NoError(t, json.Unmarshal([]byte(store.created.RequestPayload), &got),
+		"persisted payload must round-trip into the workflow input type")
+	assert.Equal(t, params.VCM.DeploymentID, got.DeploymentID)
+	assert.Equal(t, params.VCM.RequestID, got.RequestID)
+}
+
+func TestCreatePool_PayloadMarshalError_IsWrappedAndSkipsJobCreate(t *testing.T) {
+	// If the request payload cannot be serialized, the job must not be created
+	// and no workflow is dispatched. time.Time.MarshalJSON fails for a year
+	// outside [0,9999], which deterministically forces the marshal to error.
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	params := validParams()
+	params.VCM.Deadline = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	_, operationID, err := o.CreatePool(context.Background(), params)
+
+	require.Error(t, err)
+	assert.Empty(t, operationID, "no operation id is returned when the payload cannot be marshaled")
+	assert.Contains(t, err.Error(), "failed to marshal request payload")
+	assert.Contains(t, err.Error(), params.VCM.RequestID, "the error must identify the job")
+	assert.Nil(t, store.created, "job must not be persisted when the payload cannot be marshaled")
+	assert.False(t, starter.called, "dispatch must not run when the payload cannot be marshaled")
+	assert.Empty(t, store.updated, "no ERROR cleanup expected when the job was never created")
 }
 
 func TestCreatePool_JobCreateError_IsWrappedAndSkipsDispatch(t *testing.T) {

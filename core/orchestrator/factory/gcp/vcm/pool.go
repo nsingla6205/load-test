@@ -2,6 +2,7 @@ package vcm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -34,13 +35,19 @@ func (o *VCMOrchestrator) CreatePool(ctx context.Context, params *commonparams.C
 	// Derive the workflow inputs before dispatch so they stay stable across replays.
 	params.VCM.Derived = params.VCM.DeriveInputs()
 
+	// Persist the request payload
+	requestPayload, err := json.Marshal(params.VCM)
+	if err != nil {
+		return nil, "", fmt.Errorf("CreatePool: failed to marshal request payload for job %q: %w", operationID, err)
+	}
 	// Create the durable job in NEW before starting the workflow.
 	job := &vcmdb.Job{
-		ID:         operationID,
-		ResourceID: deploymentID,
-		Type:       vcmdb.JobTypePoolCreate,
-		State:      vcmdb.JobStateNew,
-		DeadlineAt: params.VCM.Deadline.UTC(),
+		ID:             operationID,
+		ResourceID:     deploymentID,
+		Type:           vcmdb.JobTypePoolCreate,
+		State:          vcmdb.JobStateNew,
+		RequestPayload: string(requestPayload),
+		DeadlineAt:     params.VCM.Deadline.UTC(),
 	}
 	if err := o.store.CreateJob(ctx, job); err != nil {
 		if !errors.Is(err, vcmdb.ErrJobAlreadyExists) {

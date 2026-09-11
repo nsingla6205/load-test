@@ -100,14 +100,13 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 		"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "deadline", wf.req.Deadline,
 		"region", wf.inputs.Region, "primaryZone", wf.req.PrimaryZone)
 
-	// Reject resumed/duplicate runs whose job already advanced past NEW.
-	if err := wf.EnsureJobState(ctx, vcmdb.JobStateNew); err != nil {
-		logger.Error("workflow: job not in expected NEW state",
-			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
-		return nil, err
-	}
-
-	// Move the job to PROCESSING before doing any work.
+	// Move the job to PROCESSING before doing any work. Two callers reach this
+	// point: the API path (CreatePool), which has already created a fresh job
+	// and rejected duplicates via ErrJobAlreadyExists, and crash recovery, which
+	// re-dispatches an existing NEW or PROCESSING job to resume it. The workflow
+	// therefore does not re-check job state; the transition below is idempotent
+	// when the job is already PROCESSING, and the provision steps are safe to
+	// replay.
 	wf.Status = workflowStatusRunning
 	wf.currentStep = jobStepStarting
 	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, jobStepStarting, nil, nil); err != nil {

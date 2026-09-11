@@ -21,7 +21,9 @@ import (
 	vcmjob "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	vcm "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/vcm/recovery"
 	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
+	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
@@ -103,6 +105,18 @@ func main() {
 
 	// Wire the VLM config rebuild dispatcher into the config store.
 	configStore.SetVLMConfigRebuildStarter(vcm.NewVLMConfigRebuildDispatcher(workflowRunner.WorkflowStarter()))
+
+	// Wire crash-recovery: on every startup (after the DB is validated) the
+	// coordinator resumes durable jobs left NEW or PROCESSING by a previous
+	// process. Each job type registers a handler that rebuilds and re-dispatches
+	// its workflow; the config store fires the coordinator once the DB is ready.
+	recoveryCoordinator := recovery.NewCoordinator(configStore, logger)
+	if err := recoveryCoordinator.Register(vcmdb.JobTypePoolCreate,
+		vcm.NewCreatePoolRecoveryHandler(workflowRunner.WorkflowStarter(), logger)); err != nil {
+		logger.ErrorContext(ctx, "failed to register create-pool recovery handler", "error", err)
+		os.Exit(1)
+	}
+	configStore.SetOngoingJobResumer(recoveryCoordinator)
 
 	serverState := vcmapi.NewServerState()
 	handler := &vcmapi.Handler{
