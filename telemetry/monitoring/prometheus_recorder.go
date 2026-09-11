@@ -70,3 +70,18 @@ func (p *PrometheusRecorder) RecordBillingMetricsSubmission(params *MetricRecord
 	submittedTimeStamp := params.SubmittedTimeStamp.Format(time.RFC3339)
 	billingMetricsSubmissionTotal.WithLabelValues(params.SinkType, params.MeasuredType, submittedTimeStamp).Set(params.SubmittedQuantity)
 }
+
+func (p *PrometheusRecorder) RecordReportSuccess(report, sinkType string, completedAt time.Time) {
+	if completedAt.IsZero() {
+		return
+	}
+	if !isSupportedReportSink(report, sinkType) {
+		return
+	}
+	reportLastSuccess.WithLabelValues(report, sinkType).Set(float64(completedAt.UTC().Unix()))
+}
+
+func isSupportedReportSink(report, sinkType string) bool {
+	return (report == ReportBizOps && sinkType == SinkTypeGCS) ||
+		(report == ReportUsageAggregation && sinkType == SinkTypeDatabase)
+}

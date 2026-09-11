@@ -84,6 +84,7 @@ func (wf *registerNodeToHarvestFarmWorkflow) Setup(ctx workflow.Context, input i
 func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	input := args[0].(RegisterNodeToHarvestFarmWorkflowInput)
 	registerActivity := &activities.RegisterNodeToHarvestFarmActivity{}
+	var err error
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, ConvertToVSAError(err)

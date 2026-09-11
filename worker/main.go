@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/metricsinterface"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/active_directory_activities"
@@ -39,6 +42,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
@@ -48,6 +52,11 @@ import (
 	"go.temporal.io/sdk/client"
 	workerSDK "go.temporal.io/sdk/worker"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	harvestMetricsRestoreInterval = time.Minute
+	harvestMetricsRestoreTimeout  = 10 * time.Second
 )
 
 func init() {
@@ -82,6 +91,69 @@ func newWorkerWithOpts(c client.Client, taskQueue string, maxActivity, maxWorkfl
 		"taskQueueActivitiesPerSec", opts.TaskQueueActivitiesPerSecond,
 	)
 	return tManagerPkg.NewWorker(c, taskQueue, opts)
+}
+
+func restoreHarvestMetrics(ctx context.Context, storage database.Storage, emitter metricsinterface.HarvestMetricsEmitter, logger log.Logger) {
+	config, err := storage.GetAppConfig(ctx, metricsinterface.HarvestReconcileStateAppConfigKey)
+	if err != nil {
+		if isCheckpointNotFoundErr(err) {
+			logger.Debug("Harvest metrics checkpoint unavailable", "error", err.Error())
+			return
+		}
+		logger.Warn("Harvest metrics checkpoint unavailable", "error", err.Error())
+		return
+	}
+
+	var state metricsinterface.HarvestReconcileState
+	if json.Unmarshal([]byte(config.Value), &state) == nil && !state.LastSuccessfulRunStartAt.IsZero() {
+		emitter.SetHarvestDriftSnapshot(metricsinterface.HarvestDriftStageDetected, state.DetectedSnapshot)
+		emitter.SetHarvestDriftSnapshot(metricsinterface.HarvestDriftStageRemaining, state.RemainingSnapshot)
+		emitter.SetHarvestRetryBacklog(state.PendingRetries, state.ExhaustedRetries)
+		emitter.SetHarvestLastSuccessfulReconcile(state.LastSuccessfulRunStartAt)
+		return
+	}
+
+	runStart, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(config.Value))
+	if err != nil {
+		logger.Warn("Harvest metrics checkpoint is invalid", "error", err.Error())
+		return
+	}
+	emitter.SetHarvestLastSuccessfulReconcile(runStart)
+}
+
+func isCheckpointNotFoundErr(err error) bool {
+	if utilerrors.IsNotFoundErr(err) {
+		return true
+	}
+	var customErr *vsaerrors.CustomError
+	return vsaerrors.As(err, &customErr) && customErr.IsError(vsaerrors.ErrResourceNotFound)
+}
+
+func restoreHarvestMetricsPeriodically(
+	ctx context.Context,
+	storage database.Storage,
+	emitter metricsinterface.HarvestMetricsEmitter,
+	logger log.Logger,
+	interval time.Duration,
+	timeout time.Duration,
+) {
+	if interval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			restoreCtx, cancel := context.WithTimeout(ctx, timeout)
+			restoreHarvestMetrics(restoreCtx, storage, emitter, logger)
+			cancel()
+		}
+	}
 }
 
 // main is the entry point of the worker application. It initializes the Temporal worker,
@@ -200,6 +272,27 @@ func main() {
 	defer database2.CloseDatabase(dbConn, logger)
 	logger.Info("Database connection established", "connection", dbConn)
 
+	var harvestMetricsEmitter metricsinterface.HarvestMetricsEmitter
+	if env.GetHyperscaler() != orchcommon.ProviderOCI && workerType == workflowEngine.BackgroundWorkerType {
+		if err := metrics.RegisterHarvestMetrics(); err != nil {
+			logger.Error("Failed to register Harvest metrics", "error", err.Error())
+			os.Exit(1)
+		}
+		harvestMetricsEmitter = metrics.NewPrometheusHarvestMetricsEmitter()
+		restoreHarvestMetrics(ctx, dbConn, harvestMetricsEmitter, logger)
+		eg.Go(func() error {
+			restoreHarvestMetricsPeriodically(
+				ctx,
+				dbConn,
+				harvestMetricsEmitter,
+				logger,
+				harvestMetricsRestoreInterval,
+				harvestMetricsRestoreTimeout,
+			)
+			return nil
+		})
+	}
+
 	var telemetryDBConn metricsdb.Storage
 	metricsDbCleanupEnabled := env.GetBool("METRICS_DB_CLEANUP_ENABLED", false)
 	if metricsDbCleanupEnabled {
@@ -316,7 +409,13 @@ func main() {
 			RegisterOCIBackgroundWorkflowsAndActivities(*worker, workflowClient.GetTemporalClient(), dbConn, telemetryDBConn)
 		} else {
 			logger.Info("registering background workflows and activities")
-			RegisterBackgroundWorkflowsAndActivities(*worker, workflowClient.GetTemporalClient(), dbConn, telemetryDBConn)
+			RegisterBackgroundWorkflowsAndActivities(
+				*worker,
+				workflowClient.GetTemporalClient(),
+				dbConn,
+				telemetryDBConn,
+				harvestMetricsEmitter,
+			)
 		}
 
 	default:
@@ -573,7 +672,6 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&replicationActivities.StopVolumeReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.UnRegisterNodeFromHarvestActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.HarvestNodesRefreshActivity{SE: dbcon})
-	worker.RegisterActivity(&activities.HarvestPollerDriftReconcileActivity{SE: dbcon})
 	worker.RegisterActivity(&replicationActivities.DeleteVolumeReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.BackupPolicyActivity{SE: dbcon, Scheduler: temporalScheduler})
 	worker.RegisterActivity(&resource_events_activities.ResourceEventsActivity{SE: dbcon, Scheduler: temporalScheduler})
@@ -612,7 +710,13 @@ func RegisterOCIBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, temp
 	worker.RegisterActivity(activities.NewCancellationActivity(temporal))
 }
 
-func RegisterBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, temporal client.Client, conn database.Storage, telemetryDBConn metricsdb.Storage) {
+func RegisterBackgroundWorkflowsAndActivities(
+	worker tManagerPkg.Worker,
+	temporal client.Client,
+	conn database.Storage,
+	telemetryDBConn metricsdb.Storage,
+	harvestMetricsEmitter metricsinterface.HarvestMetricsEmitter,
+) {
 	hyperscaler.SetCloudResolver(hyperscaler.NewCloudServiceResolver(env.GetHyperscaler()))
 	worker.RegisterWorkflow(jobmanagerworkflows.JobManagerWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.VolumeDetailsWorkflow)
@@ -736,7 +840,10 @@ func RegisterBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, tempora
 	worker.RegisterActivity(&backgroundactivities.ScanRegionalAddressesActivity{})
 	worker.RegisterActivity(&backgroundactivities.ScanGCEDisksActivity{})
 	worker.RegisterActivity(&activities.PollerRebalanceActivities{SE: conn})
-	worker.RegisterActivity(&activities.HarvestPollerDriftReconcileActivity{SE: conn})
+	worker.RegisterActivity(&activities.HarvestPollerDriftReconcileActivity{
+		SE:             conn,
+		MetricsEmitter: harvestMetricsEmitter,
+	})
 	worker.RegisterActivity(&backgroundactivities.TrialAccountSyncActivity{
 		SE:   conn,
 		CCFE: trial.NewClient(auth.GenerateCallbackToken),

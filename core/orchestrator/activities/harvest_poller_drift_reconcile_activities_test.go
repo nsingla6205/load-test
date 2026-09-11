@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/metricsinterface"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -1069,6 +1070,87 @@ func TestReconcileReadyPoolsAndRetries_NoCandidates(t *testing.T) {
 	assert.Equal(t, 0, exhausted)
 }
 
+func TestReconcileReadyPoolsAndRetries_TracksInitialSnapshot(t *testing.T) {
+	tests := []struct {
+		name                 string
+		nodeDeleted          bool
+		retryCreate          bool
+		expectedDBWithoutPVC int
+	}{
+		{
+			name:                 "live node is eligible",
+			expectedDBWithoutPVC: 1,
+		},
+		{
+			name:        "soft-deleted node is ineligible",
+			nodeDeleted: true,
+		},
+		{
+			name:        "soft-deleted node with create retry is terminal",
+			nodeDeleted: true,
+			retryCreate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			gormDB, smock := newSQLMockGormDB(t)
+			smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			mapping := readyPoolMapping(201, "pool-a", "lease-a", false)
+			if tt.retryCreate {
+				mapping.RetryState = &datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{ShouldRetry: true, Retries: 1},
+				}
+			}
+			node := nodeWithPoolID(mapping.NodeID, 9)
+			if tt.nodeDeleted {
+				node.DeletedAt = deletedAt()
+			}
+
+			mockSE := database.NewMockStorage(t)
+			mockSE.On("DB").Return(gormDB)
+			expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+			mockSE.On("GetNodeByID", mock.Anything, mapping.NodeID).Return(node, nil).Once()
+			mockSE.On("GetPoolByID", mock.Anything, int64(9)).
+				Return(readyPool(9, datamodel.LifeCycleStateREADY), nil).
+				Once()
+			if tt.retryCreate {
+				expectCreateRetryStateUpdate(mockSE, mapping)
+			}
+
+			tracker := newHarvestMetricsTracker(harvestPollerInventory{
+				InventorySet: map[string]struct{}{},
+			})
+			act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+			created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
+				ctx,
+				map[string]struct{}{},
+				time.Now().Add(-time.Hour),
+				time.Now(),
+				false,
+				tracker,
+			)
+			require.NoError(t, err)
+			assert.Zero(t, created)
+			assert.Zero(t, queued)
+			assert.Zero(t, exhausted)
+
+			detected, remaining, _, _ := tracker.snapshots()
+			assert.Equal(t, tt.expectedDBWithoutPVC, detected.DBWithoutPVCCount)
+			assert.Equal(t, tt.expectedDBWithoutPVC, remaining.DBWithoutPVCCount)
+			if tt.retryCreate {
+				require.NotNil(t, mapping.RetryState.Create)
+				assert.False(t, mapping.RetryState.Create.ShouldRetry)
+				assert.Contains(t, mapping.RetryState.Create.LastRunMsg, "node is deleted")
+			}
+			require.NoError(t, smock.ExpectationsWereMet())
+		})
+	}
+}
+
 func TestReconcileHarvestPollerDrift_EmptyLeaseInventoryNotDeleted(t *testing.T) {
 	inventoryBody, err := json.Marshal([]map[string]interface{}{
 		{"leaseName": "", "node_id": 99, "file_name": "harvest-99.yaml"},
@@ -1572,18 +1654,112 @@ func TestReconcileReadyPoolsAndRetries_SkipsUploadWhenMapNoLongerActive(t *testi
 	t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	tracker := newHarvestMetricsTracker(harvestPollerInventory{InventorySet: map[string]struct{}{}})
 	created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
 		ctx,
 		map[string]struct{}{},
 		time.Now().Add(-time.Hour),
 		time.Now(),
 		false,
+		tracker,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created)
 	assert.Equal(t, 0, queued)
 	assert.Equal(t, 0, exhausted)
 	assert.Equal(t, 0, postCalls)
+	_, remaining, _, _ := tracker.snapshots()
+	assert.Zero(t, remaining.DBWithoutPVCCount)
+}
+
+func TestReconcileReadyPoolsAndRetries_FinalRevalidationUpdatesSnapshot(t *testing.T) {
+	tests := []struct {
+		name      string
+		finalPool *datamodel.Pool
+	}{
+		{
+			name: "pool is deleted",
+			finalPool: func() *datamodel.Pool {
+				pool := readyPool(20, datamodel.LifeCycleStateREADY)
+				pool.DeletedAt = deletedAt()
+				return pool
+			}(),
+		},
+		{
+			name:      "pool is ineligible",
+			finalPool: readyPool(20, datamodel.LifeCycleStateCreating),
+		},
+		{
+			name: "pool is unresolved",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapping := readyPoolMapping(110, "pool-final-check", "lease-final-check", true)
+			initialPool := readyPool(20, datamodel.LifeCycleStateREADY)
+
+			gormDB, smock := newSQLMockGormDB(t)
+			smock.ExpectQuery(`SELECT`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(20)))
+
+			mockSE := database.NewMockStorage(t)
+			mockSE.On("DB").Return(gormDB)
+			expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+			mockSE.On("GetPoolByID", mock.Anything, int64(20)).Return(initialPool, nil).Once()
+			mockSE.On("GetNodeByID", mock.Anything, mapping.NodeID).
+				Return(nodeWithPoolID(mapping.NodeID, 20), nil).Times(2)
+			mockSE.On("GetPoolByID", mock.Anything, int64(20)).Return(initialPool, nil).Once()
+			mockSE.On("GetPoolByID", mock.Anything, int64(20)).Return(tt.finalPool, nil).Once()
+			expectActiveNodeNodeGroupMapForUpload(mockSE, mapping, 2)
+			expectCreateRetryStateUpdate(mockSE, mapping)
+
+			oldLeaseExists := leaseExists
+			leaseExists = func(ctx context.Context, leaseNameSpace, leaseName string) (bool, error) {
+				return true, nil
+			}
+			t.Cleanup(func() { leaseExists = oldLeaseExists })
+
+			oldAuth := smHarvestAuthEnabled
+			smHarvestAuthEnabled = true
+			t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
+
+			tracker := newHarvestMetricsTracker(harvestPollerInventory{
+				InventorySet: map[string]struct{}{},
+			})
+			act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+			type reconcileCounts struct {
+				Created   int
+				Queued    int
+				Exhausted int
+			}
+			reconcile := func(ctx context.Context) (reconcileCounts, error) {
+				created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
+					ctx,
+					map[string]struct{}{},
+					time.Now().Add(-time.Hour),
+					time.Now(),
+					false,
+					tracker,
+				)
+				return reconcileCounts{Created: created, Queued: queued, Exhausted: exhausted}, err
+			}
+			ts := &testsuite.WorkflowTestSuite{}
+			env := ts.NewTestActivityEnvironment()
+			env.RegisterActivity(reconcile)
+			res, err := env.ExecuteActivity(reconcile)
+			require.NoError(t, err)
+			var counts reconcileCounts
+			require.NoError(t, res.Get(&counts))
+			assert.Zero(t, counts.Created)
+			assert.Zero(t, counts.Queued)
+			assert.Zero(t, counts.Exhausted)
+
+			_, remaining, _, _ := tracker.snapshots()
+			assert.Zero(t, remaining.DBWithoutPVCCount)
+			require.NoError(t, smock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestReadyForHarvestCreateUpload(t *testing.T) {
@@ -1597,8 +1773,9 @@ func TestReadyForHarvestCreateUpload(t *testing.T) {
 			Return(nil, utilerrors.NewNotFoundErr("node_node_group_map", nil))
 		act.SE = mockSE
 
-		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		pool, mappingActive, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
 		require.NoError(t, err)
+		assert.False(t, mappingActive)
 		assert.False(t, ready)
 		assert.Nil(t, pool)
 	})
@@ -1614,10 +1791,11 @@ func TestReadyForHarvestCreateUpload(t *testing.T) {
 		expectCreateRetryStateUpdate(mockSE, mapping)
 		act.SE = mockSE
 
-		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		pool, mappingActive, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
 		require.NoError(t, err)
+		assert.True(t, mappingActive)
 		assert.False(t, ready)
-		assert.Nil(t, pool)
+		assert.Equal(t, deletedPool, pool)
 	})
 
 	t.Run("returns fresh eligible pool before upload", func(t *testing.T) {
@@ -1629,8 +1807,9 @@ func TestReadyForHarvestCreateUpload(t *testing.T) {
 		expectPoolResolutionByNode(mockSE, mapping.NodeID, 17, eligiblePool)
 		act.SE = mockSE
 
-		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		pool, mappingActive, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
 		require.NoError(t, err)
+		assert.True(t, mappingActive)
 		assert.True(t, ready)
 		require.NotNil(t, pool)
 		assert.Equal(t, eligiblePool, pool)
@@ -2777,12 +2956,15 @@ func TestCleanupMapsForDeletedPools_DeletesYAMLWhenInInventory(t *testing.T) {
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 	inventorySet := map[string]struct{}{"lease-b|20": {}}
+	tracker := newHarvestMetricsTracker(harvestPollerInventory{InventorySet: inventorySet})
 	candidates := map[string]int64{}
-	softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, inventorySet, candidates)
+	softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, inventorySet, candidates, tracker)
 	require.NoError(t, err)
 	assert.Equal(t, 1, softDeleted)
 	assert.Equal(t, 1, yamlDeleted)
 	_, ok := inventorySet["lease-b|20"]
+	assert.False(t, ok)
+	_, ok = tracker.currentInventory["lease-b|20"]
 	assert.False(t, ok)
 }
 
@@ -3268,6 +3450,46 @@ func TestCleanupMapsForDeletedPools_EdgeCases(t *testing.T) {
 		assert.Equal(t, 0, softDeleted)
 		assert.Equal(t, 0, yamlDeleted)
 	})
+
+	t.Run("tracks YAML deletion when map cleanup fails", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
+		overrideHarvestEndpoint(t, srv)
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 3},
+			NodeID:      30,
+			NodeGroupID: 7,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-partial"},
+		}
+		mockSE := database.NewMockStorage(t)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapRow})
+		expectPoolResolutionByNode(mockSE, 30, 9, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 9, DeletedAt: deletedAt()},
+		})
+		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(3)).
+			Return(errors.New("map delete failed"))
+		act.SE = mockSE
+
+		inventorySet := map[string]struct{}{"lease-partial|30": {}}
+		tracker := newHarvestMetricsTracker(harvestPollerInventory{InventorySet: inventorySet})
+		softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(
+			ctx,
+			inventorySet,
+			map[string]int64{},
+			tracker,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 0, softDeleted)
+		assert.Equal(t, 0, yamlDeleted)
+		_, ok := inventorySet["lease-partial|30"]
+		assert.False(t, ok)
+		_, ok = tracker.currentInventory["lease-partial|30"]
+		assert.False(t, ok)
+	})
 }
 
 func TestDeleteCandidateAndPersist(t *testing.T) {
@@ -3284,11 +3506,16 @@ func TestDeleteCandidateAndPersist(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(errors.New("map delete failed"))
 		act.SE = mockSE
+		tracker := newHarvestMetricsTracker(harvestPollerInventory{
+			InventorySet: map[string]struct{}{"lease-a|10": {}},
+		})
 
-		handled, orphan, err := act.deleteCandidateAndPersist(ctx, entry, mapRow, false)
+		handled, orphan, err := act.deleteCandidateAndPersist(ctx, entry, mapRow, false, tracker)
 		require.Error(t, err)
 		assert.False(t, handled)
 		assert.False(t, orphan)
+		_, ok := tracker.currentInventory["lease-a|10"]
+		assert.False(t, ok)
 	})
 
 	t.Run("orphan yaml without map row", func(t *testing.T) {
@@ -3802,4 +4029,228 @@ func TestReconcileHarvestPollerDrift_DeletedPoolMapWithoutYAML(t *testing.T) {
 	assert.Equal(t, 1, result.SoftDeletedMaps)
 	assert.Equal(t, 1, result.DeletedLeases)
 	assert.Equal(t, 1, result.SoftDeletedNodeGroups)
+}
+
+func TestHarvestSnapshot_RetryEligibility(t *testing.T) {
+	tests := []struct {
+		name      string
+		row       harvestPollerSnapshotRow
+		inventory map[string]struct{}
+		pending   int
+		exhausted int
+	}{
+		{
+			name: "eligible create retry",
+			row: harvestPollerSnapshotRow{
+				LeaseName: "lease",
+				NodeID:    1,
+				PoolID:    1,
+				PoolState: datamodel.LifeCycleStateREADY,
+				RetryState: datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+			pending: 1,
+		},
+		{
+			name: "exhausted create retry",
+			row: harvestPollerSnapshotRow{
+				LeaseName: "lease",
+				NodeID:    1,
+				PoolID:    1,
+				PoolState: datamodel.LifeCycleStateREADY,
+				RetryState: datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{Retries: harvestDriftReconcileRetryLimit},
+				},
+			},
+			exhausted: 1,
+		},
+		{
+			name: "successful exhausted retry is ignored",
+			row: harvestPollerSnapshotRow{
+				LeaseName: "lease",
+				NodeID:    1,
+				PoolID:    1,
+				PoolState: datamodel.LifeCycleStateREADY,
+				RetryState: datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{
+						Retries:    harvestDriftReconcileRetryLimit,
+						LastRunMsg: "success",
+					},
+				},
+			},
+		},
+		{
+			name: "ineligible create retry is ignored",
+			row: harvestPollerSnapshotRow{
+				LeaseName: "lease",
+				NodeID:    1,
+				PoolID:    1,
+				PoolState: "CREATING",
+				RetryState: datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+		},
+		{
+			name: "soft-deleted mapping does not count create retry",
+			row: harvestPollerSnapshotRow{
+				LeaseName:  "lease",
+				NodeID:     1,
+				MapDeleted: true,
+				PoolID:     1,
+				PoolState:  datamodel.LifeCycleStateREADY,
+				RetryState: datamodel.HarvestRetryState{
+					Create: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+		},
+		{
+			name: "delete retry counts when yaml still exists",
+			row: harvestPollerSnapshotRow{
+				LeaseName:  "lease",
+				NodeID:     1,
+				MapDeleted: true,
+				RetryState: datamodel.HarvestRetryState{
+					Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+			inventory: map[string]struct{}{
+				pollerInventoryKey("lease", 1): {},
+			},
+			pending: 1,
+		},
+		{
+			name: "delete retry is ignored when yaml is already gone",
+			row: harvestPollerSnapshotRow{
+				LeaseName:  "lease",
+				NodeID:     1,
+				MapDeleted: true,
+				RetryState: datamodel.HarvestRetryState{
+					Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+		},
+		{
+			name: "live mapping does not count delete retry",
+			row: harvestPollerSnapshotRow{
+				LeaseName: "lease",
+				NodeID:    1,
+				PoolID:    1,
+				PoolState: datamodel.LifeCycleStateREADY,
+				RetryState: datamodel.HarvestRetryState{
+					Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+				},
+			},
+			inventory: map[string]struct{}{
+				pollerInventoryKey("lease", 1): {},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, pending, exhausted := harvestSnapshot(map[int64]harvestPollerSnapshotRow{1: tt.row}, tt.inventory)
+			assert.Equal(t, tt.pending, pending)
+			assert.Equal(t, tt.exhausted, exhausted)
+		})
+	}
+}
+
+func TestHarvestMetricsTrackerTracksReconcileChanges(t *testing.T) {
+	inventory := harvestPollerInventory{
+		InventorySet: map[string]struct{}{
+			"lease-1|1":     {},
+			"wrong-lease|2": {},
+			"lease-3|3":     {},
+		},
+	}
+	tracker := newHarvestMetricsTracker(inventory)
+
+	tracker.observeMapping(&datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 1},
+		NodeID:    1,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"},
+	}, readyPool(1, datamodel.LifeCycleStateREADY))
+	tracker.observeMapping(&datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 2},
+		NodeID:    2,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-2"},
+	}, readyPool(2, datamodel.LifeCycleStateREADY))
+	tracker.observeMapping(&datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{
+			ID:        3,
+			DeletedAt: &gorm.DeletedAt{Valid: true},
+		},
+		NodeID:    3,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-3"},
+		RetryState: &datamodel.HarvestRetryState{
+			Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true},
+		},
+	}, nil)
+	tracker.observeMapping(&datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 4},
+		NodeID:    4,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-4"},
+	}, readyPool(4, datamodel.LifeCycleStateREADY))
+
+	detected, remaining, pending, exhausted := tracker.snapshots()
+	assert.Equal(t, metricsinterface.HarvestDriftSnapshotMetrics{
+		DBWithoutPVCCount: 2,
+		OrphanCount:       1,
+		PVCWithoutDBCount: 1,
+	}, detected)
+	assert.Equal(t, detected, remaining)
+	assert.Equal(t, 1, pending)
+	assert.Zero(t, exhausted)
+
+	tracker.markMappingDeleted(3)
+	tracker.markInventoryDeleted("lease-3|3")
+	tracker.markInventoryDeleted("wrong-lease|2")
+	tracker.markInventoryCreated("lease-2|2")
+	_, ok := tracker.currentInventory["lease-3|3"]
+	assert.False(t, ok)
+	_, ok = tracker.currentInventory["wrong-lease|2"]
+	assert.False(t, ok)
+	_, ok = tracker.currentInventory["lease-2|2"]
+	assert.True(t, ok)
+
+	detectedAfter, remaining, pending, exhausted := tracker.snapshots()
+	assert.Equal(t, detected, detectedAfter)
+	assert.Equal(t, metricsinterface.HarvestDriftSnapshotMetrics{
+		DBWithoutPVCCount: 1,
+		OrphanCount:       0,
+		PVCWithoutDBCount: 0,
+	}, remaining)
+	assert.Zero(t, pending)
+	assert.Zero(t, exhausted)
+
+	deletedNodeMapping := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 5},
+		NodeID:    5,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-5"},
+	}
+	tracker.observeMappingState(deletedNodeMapping, readyPool(5, datamodel.LifeCycleStateREADY), true)
+	tracker.observeMapping(deletedNodeMapping, readyPool(5, datamodel.LifeCycleStateREADY))
+	deletedNodeSnapshot := tracker.currentMappings[deletedNodeMapping.ID]
+	assert.True(t, deletedNodeSnapshot.NodeDeleted)
+	assert.False(t, isHarvestCreateEligible(&deletedNodeSnapshot))
+}
+
+func TestGetWindowStart_RestoresJSONCheckpoint(t *testing.T) {
+	runStart := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	value, err := json.Marshal(metricsinterface.HarvestReconcileState{
+		LastSuccessfulRunStartAt: runStart,
+	})
+	require.NoError(t, err)
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(&datamodel.AppConfig{Value: string(value)}, nil)
+	activity := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	start, fullScan, err := activity.getWindowStart(context.Background(), runStart.Add(time.Hour))
+	require.NoError(t, err)
+	assert.False(t, fullScan)
+	assert.Equal(t, runStart, start)
 }

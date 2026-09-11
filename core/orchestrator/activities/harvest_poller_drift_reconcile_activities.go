@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/metricsinterface"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -26,7 +27,7 @@ import (
 
 const (
 	harvestDriftReconcileRetryLimit           = 5
-	harvestDriftCheckpointAppConfigKey        = "harvest_poller_drift_reconcile_last_successful_run_start_at"
+	harvestDriftCheckpointAppConfigKey        = metricsinterface.HarvestReconcileStateAppConfigKey
 	harvestRetryFlowCreate                    = "create"
 	harvestRetryFlowDelete                    = "delete"
 	harvestDriftReconcileMapPageSize          = 100
@@ -36,14 +37,16 @@ const (
 var fetchOnTapCredentialsForDriftReconcile = fetchOnTapCredentials
 
 type harvestDriftPoolCache struct {
-	byNodeID map[int64]*datamodel.Pool
-	byID     map[int64]*datamodel.Pool
+	byNodeID    map[int64]*datamodel.Pool
+	byID        map[int64]*datamodel.Pool
+	nodeDeleted map[int64]bool
 }
 
 func newHarvestDriftPoolCache() *harvestDriftPoolCache {
 	return &harvestDriftPoolCache{
-		byNodeID: make(map[int64]*datamodel.Pool),
-		byID:     make(map[int64]*datamodel.Pool),
+		byNodeID:    make(map[int64]*datamodel.Pool),
+		byID:        make(map[int64]*datamodel.Pool),
+		nodeDeleted: make(map[int64]bool),
 	}
 }
 
@@ -61,7 +64,8 @@ var (
 )
 
 type HarvestPollerDriftReconcileActivity struct {
-	SE database.Storage
+	SE             database.Storage
+	MetricsEmitter metricsinterface.HarvestMetricsEmitter
 }
 
 type HarvestPollerFileEntry struct {
@@ -79,6 +83,227 @@ type HarvestPollerDriftReconcileResult struct {
 	RetryQueued           int
 	RetryExhausted        int
 	OrphanYAMLHandled     int
+}
+
+type harvestPollerSnapshotRow struct {
+	MapID       int64                       `gorm:"column:map_id"`
+	NodeID      int64                       `gorm:"column:node_id"`
+	LeaseName   string                      `gorm:"column:lease_name"`
+	MapDeleted  bool                        `gorm:"column:map_deleted"`
+	NodeDeleted bool                        `gorm:"column:node_deleted"`
+	PoolID      int64                       `gorm:"column:pool_id"`
+	PoolState   string                      `gorm:"column:pool_state"`
+	PoolDeleted bool                        `gorm:"column:pool_deleted"`
+	RetryState  datamodel.HarvestRetryState `gorm:"column:retry_state"`
+}
+
+type harvestMetricsTracker struct {
+	initialInventory map[string]struct{}
+	currentInventory map[string]struct{}
+	initialMappings  map[int64]harvestPollerSnapshotRow
+	currentMappings  map[int64]harvestPollerSnapshotRow
+}
+
+func newHarvestMetricsTracker(inventory harvestPollerInventory) *harvestMetricsTracker {
+	return &harvestMetricsTracker{
+		initialInventory: cloneHarvestInventorySet(inventory.InventorySet),
+		currentInventory: cloneHarvestInventorySet(inventory.InventorySet),
+		initialMappings:  make(map[int64]harvestPollerSnapshotRow),
+		currentMappings:  make(map[int64]harvestPollerSnapshotRow),
+	}
+}
+
+func cloneHarvestInventorySet(inventory map[string]struct{}) map[string]struct{} {
+	clone := make(map[string]struct{}, len(inventory))
+	for key := range inventory {
+		clone[key] = struct{}{}
+	}
+	return clone
+}
+
+func (t *harvestMetricsTracker) observeMapping(mapping *datamodel.NodeNodeGroupMap, pool *datamodel.Pool) {
+	t.observeMappingState(mapping, pool, false)
+}
+
+func (t *harvestMetricsTracker) observeMappingState(
+	mapping *datamodel.NodeNodeGroupMap,
+	pool *datamodel.Pool,
+	nodeDeleted bool,
+) {
+	if t == nil || mapping == nil || mapping.ID == 0 {
+		return
+	}
+	row := harvestPollerSnapshotRow{
+		MapID:       mapping.ID,
+		NodeID:      mapping.NodeID,
+		MapDeleted:  mapping.DeletedAt != nil && mapping.DeletedAt.Valid,
+		NodeDeleted: nodeDeleted,
+	}
+	if mapping.NodeGroup != nil {
+		row.LeaseName = strings.TrimSpace(mapping.NodeGroup.LeaseName)
+	}
+	if mapping.RetryState != nil {
+		row.RetryState = *cloneHarvestRetryState(mapping.RetryState)
+	}
+	if pool != nil {
+		row.PoolID = pool.ID
+		row.PoolState = pool.State
+		row.PoolDeleted = isPoolDeleted(pool)
+	}
+	t.currentMappings[mapping.ID] = mergeHarvestSnapshotRow(t.currentMappings[mapping.ID], row)
+	if _, exists := t.initialMappings[mapping.ID]; !exists {
+		t.initialMappings[mapping.ID] = row
+	}
+}
+
+func mergeHarvestSnapshotRow(previous, current harvestPollerSnapshotRow) harvestPollerSnapshotRow {
+	if current.LeaseName == "" {
+		current.LeaseName = previous.LeaseName
+	}
+	if current.PoolID == 0 {
+		current.PoolID = previous.PoolID
+		current.PoolState = previous.PoolState
+		current.PoolDeleted = previous.PoolDeleted
+	}
+	if current.RetryState.Create == nil && current.RetryState.Delete == nil {
+		current.RetryState = previous.RetryState
+	}
+	current.MapDeleted = current.MapDeleted || previous.MapDeleted
+	current.NodeDeleted = current.NodeDeleted || previous.NodeDeleted
+	return current
+}
+
+func (t *harvestMetricsTracker) markInventoryDeleted(key string) {
+	if t != nil {
+		delete(t.currentInventory, key)
+	}
+}
+
+func (t *harvestMetricsTracker) markInventoryCreated(key string) {
+	if t != nil {
+		t.currentInventory[key] = struct{}{}
+	}
+}
+
+func (t *harvestMetricsTracker) markMappingDeleted(mappingID int64) {
+	if t != nil {
+		row := t.currentMappings[mappingID]
+		row.MapDeleted = true
+		t.currentMappings[mappingID] = row
+	}
+}
+
+func (t *harvestMetricsTracker) markMappingPoolUnavailable(mappingID int64) {
+	if t != nil {
+		row := t.currentMappings[mappingID]
+		row.PoolID = 0
+		row.PoolState = ""
+		row.PoolDeleted = false
+		t.currentMappings[mappingID] = row
+	}
+}
+
+func (t *harvestMetricsTracker) snapshots() (
+	metricsinterface.HarvestDriftSnapshotMetrics,
+	metricsinterface.HarvestDriftSnapshotMetrics,
+	int,
+	int,
+) {
+	if t == nil {
+		return metricsinterface.HarvestDriftSnapshotMetrics{}, metricsinterface.HarvestDriftSnapshotMetrics{}, 0, 0
+	}
+	detected, _, _ := harvestSnapshot(t.initialMappings, t.initialInventory)
+	remaining, pending, exhausted := harvestSnapshot(t.currentMappings, t.currentInventory)
+	return detected, remaining, pending, exhausted
+}
+
+func harvestSnapshot(
+	mappings map[int64]harvestPollerSnapshotRow,
+	inventory map[string]struct{},
+) (metricsinterface.HarvestDriftSnapshotMetrics, int, int) {
+	desiredKeys := make(map[string]struct{})
+	activeNodeIDs := make(map[int64]struct{})
+	desiredNodeIDs := make(map[int64]struct{})
+	pendingRetries := 0
+	exhaustedRetries := 0
+
+	for _, row := range mappings {
+		if row.MapDeleted {
+			if _, exists := inventory[pollerInventoryKey(row.LeaseName, row.NodeID)]; exists {
+				pending, exhausted := addHarvestRetryState(row.RetryState.Delete, pendingRetries, exhaustedRetries)
+				pendingRetries = pending
+				exhaustedRetries = exhausted
+			}
+			continue
+		}
+		activeNodeIDs[row.NodeID] = struct{}{}
+		if isHarvestCreateEligible(&row) {
+			key := pollerInventoryKey(row.LeaseName, row.NodeID)
+			desiredKeys[key] = struct{}{}
+			desiredNodeIDs[row.NodeID] = struct{}{}
+			pending, exhausted := addHarvestRetryState(row.RetryState.Create, pendingRetries, exhaustedRetries)
+			pendingRetries = pending
+			exhaustedRetries = exhausted
+		}
+		if row.PoolDeleted {
+			if _, exists := inventory[pollerInventoryKey(row.LeaseName, row.NodeID)]; exists {
+				pending, exhausted := addHarvestRetryState(row.RetryState.Delete, pendingRetries, exhaustedRetries)
+				pendingRetries = pending
+				exhaustedRetries = exhausted
+			}
+		}
+	}
+
+	snapshot := metricsinterface.HarvestDriftSnapshotMetrics{}
+	for key := range inventory {
+		entryParts := strings.SplitN(key, "|", 2)
+		if len(entryParts) != 2 {
+			continue
+		}
+		nodeID, err := strconv.ParseInt(entryParts[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		if _, ok := desiredKeys[key]; ok {
+			continue
+		}
+		if _, ok := activeNodeIDs[nodeID]; !ok {
+			snapshot.OrphanCount++
+			continue
+		}
+		if _, ok := desiredNodeIDs[nodeID]; ok {
+			snapshot.PVCWithoutDBCount++
+		}
+	}
+	for key := range desiredKeys {
+		if _, ok := inventory[key]; !ok {
+			snapshot.DBWithoutPVCCount++
+		}
+	}
+	return snapshot, pendingRetries, exhaustedRetries
+}
+
+func isHarvestCreateEligible(row *harvestPollerSnapshotRow) bool {
+	return row != nil &&
+		strings.TrimSpace(row.LeaseName) != "" &&
+		!row.MapDeleted &&
+		!row.NodeDeleted &&
+		row.PoolID != 0 &&
+		!row.PoolDeleted &&
+		(row.PoolState == datamodel.LifeCycleStateREADY || row.PoolState == datamodel.LifeCycleStateUpdating)
+}
+
+func addHarvestRetryState(state *datamodel.HarvestFlowRetryState, pending, exhausted int) (int, int) {
+	if state == nil {
+		return pending, exhausted
+	}
+	if state.ShouldRetry && state.Retries < harvestDriftReconcileRetryLimit {
+		return pending + 1, exhausted
+	}
+	if !state.ShouldRetry && state.Retries >= harvestDriftReconcileRetryLimit && state.LastRunMsg != "success" {
+		return pending, exhausted + 1
+	}
+	return pending, exhausted
 }
 
 func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx context.Context) (*HarvestPollerDriftReconcileResult, error) {
@@ -102,6 +327,10 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 	}
 	inventoryEntries := inventory.FileEntries
 	inventorySet := inventory.InventorySet
+	metricsTracker := (*harvestMetricsTracker)(nil)
+	if a.MetricsEmitter != nil {
+		metricsTracker = newHarvestMetricsTracker(inventory)
+	}
 	logger.Infof(
 		"harvest drift reconcile: inventory yaml entries=%d empty leases=%d",
 		len(inventoryEntries),
@@ -112,7 +341,7 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 	leaseCleanupCandidates := make(map[string]int64)
 	for i, item := range inventoryEntries {
 		recordDriftReconcileHeartbeat(ctx, fmt.Sprintf("delete pass: entry %d/%d lease=%s node=%d", i+1, len(inventoryEntries), item.LeaseName, item.NodeID))
-		handled, orphanHandled, nodeGroupID, deleteErr := a.handleInventoryDeleteCandidate(ctx, item)
+		handled, orphanHandled, nodeGroupID, deleteErr := a.handleInventoryDeleteCandidate(ctx, item, metricsTracker)
 		if deleteErr != nil {
 			logger.Warnf("failed handling delete candidate lease=%s node=%d: %v", item.LeaseName, item.NodeID, deleteErr)
 			continue
@@ -123,11 +352,12 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 				result.OrphanYAMLHandled++
 			}
 			delete(inventorySet, pollerInventoryKey(item.LeaseName, item.NodeID))
+			metricsTracker.markInventoryDeleted(pollerInventoryKey(item.LeaseName, item.NodeID))
 			recordLeaseCleanupCandidate(leaseCleanupCandidates, item.LeaseName, nodeGroupID)
 		}
 	}
 
-	softDeletedMaps, extraDeletedYAMLs, mapCleanupErr := a.cleanupMapsForDeletedPools(ctx, inventorySet, leaseCleanupCandidates)
+	softDeletedMaps, extraDeletedYAMLs, mapCleanupErr := a.cleanupMapsForDeletedPools(ctx, inventorySet, leaseCleanupCandidates, metricsTracker)
 	result.SoftDeletedMaps = softDeletedMaps
 	result.DeletedYAMLs += extraDeletedYAMLs
 	if mapCleanupErr != nil {
@@ -141,7 +371,7 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 		logger.Warnf("harvest drift reconcile: empty lease cleanup pass failed: %v", leaseCleanupErr)
 	}
 
-	created, retryQueued, retryExhausted, createErr := a.reconcileReadyPoolsAndRetries(ctx, inventorySet, windowStart, runStart, fullHistoricalScan)
+	created, retryQueued, retryExhausted, createErr := a.reconcileReadyPoolsAndRetries(ctx, inventorySet, windowStart, runStart, fullHistoricalScan, metricsTracker)
 	result.CreatedYAMLs += created
 	result.RetryQueued += retryQueued
 	result.RetryExhausted += retryExhausted
@@ -153,12 +383,41 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 		return nil, createErr
 	}
 
-	if err := a.SE.UpsertAppConfig(ctx, harvestDriftCheckpointAppConfigKey, runStart.Format(time.RFC3339Nano)); err != nil {
+	checkpointValue := runStart.Format(time.RFC3339Nano)
+	var (
+		detectedSnapshot  metricsinterface.HarvestDriftSnapshotMetrics
+		remainingSnapshot metricsinterface.HarvestDriftSnapshotMetrics
+		pendingRetries    int
+		exhaustedRetries  int
+	)
+	if metricsTracker != nil {
+		detectedSnapshot, remainingSnapshot, pendingRetries, exhaustedRetries = metricsTracker.snapshots()
+		state := metricsinterface.HarvestReconcileState{
+			LastSuccessfulRunStartAt: runStart,
+			DetectedSnapshot:         detectedSnapshot,
+			RemainingSnapshot:        remainingSnapshot,
+			PendingRetries:           pendingRetries,
+			ExhaustedRetries:         exhaustedRetries,
+		}
+		stateValue, marshalErr := json.Marshal(state)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("marshal Harvest reconcile state: %w", marshalErr)
+		}
+		checkpointValue = string(stateValue)
+	}
+
+	if err := a.SE.UpsertAppConfig(ctx, harvestDriftCheckpointAppConfigKey, checkpointValue); err != nil {
 		logger.Errorf(
 			"harvest drift reconcile checkpoint persist failed after partial run: deleted=%d deletedLeases=%d created=%d retryQueued=%d retryExhausted=%d err=%v",
 			result.DeletedYAMLs, result.DeletedLeases, result.CreatedYAMLs, result.RetryQueued, result.RetryExhausted, err,
 		)
 		return nil, err
+	}
+	if metricsTracker != nil {
+		a.MetricsEmitter.SetHarvestDriftSnapshot(metricsinterface.HarvestDriftStageDetected, detectedSnapshot)
+		a.MetricsEmitter.SetHarvestDriftSnapshot(metricsinterface.HarvestDriftStageRemaining, remainingSnapshot)
+		a.MetricsEmitter.SetHarvestRetryBacklog(pendingRetries, exhaustedRetries)
+		a.MetricsEmitter.SetHarvestLastSuccessfulReconcile(runStart)
 	}
 
 	logger.Infof(
@@ -173,7 +432,11 @@ func recordDriftReconcileHeartbeat(ctx context.Context, msg string) {
 	activity.RecordHeartbeat(ctx, msg)
 }
 
-func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx context.Context, entry HarvestPollerFileEntry) (bool, bool, int64, error) {
+func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx context.Context, entry HarvestPollerFileEntry, trackers ...*harvestMetricsTracker) (bool, bool, int64, error) {
+	var tracker *harvestMetricsTracker
+	if len(trackers) > 0 {
+		tracker = trackers[0]
+	}
 	logger := util.GetLogger(ctx)
 	if strings.TrimSpace(entry.LeaseName) == "" {
 		logger.Warnf("harvest drift reconcile: skip delete candidate node=%d; empty lease name in inventory", entry.NodeID)
@@ -182,6 +445,9 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 	mapRow, mapErr := a.SE.GetNodeNodeGroupMapByNodeID(ctx, entry.NodeID)
 	if mapErr != nil && !utilerrors.IsNotFoundErr(mapErr) {
 		return false, false, 0, mapErr
+	}
+	if mapErr == nil && mapRow.DeletedAt != nil && mapRow.DeletedAt.Valid {
+		tracker.observeMapping(mapRow, nil)
 	}
 
 	// Case: map exists and is soft-deleted -> direct cleanup when delete retry remains.
@@ -194,17 +460,19 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 			)
 			return false, false, nodeGroupIDFromMap(mapRow), nil
 		}
-		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false)
+		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false, tracker)
+		tracker.observeMapping(mapRow, nil)
 		return handled, orphan, nodeGroupIDFromMap(mapRow), err
 	}
 
 	// Case: map exists and active -> pool state decides cleanup.
 	if mapErr == nil {
-		pool, poolErr := a.resolvePoolForMap(ctx, mapRow)
+		pool, nodeDeleted, poolErr := a.resolvePoolAndNodeDeletedForMap(ctx, mapRow)
 		if poolErr != nil {
 			return false, false, 0, poolErr
 		}
 		if pool == nil {
+			tracker.observeMappingState(mapRow, nil, nodeDeleted)
 			logger.Infof(
 				"harvest drift reconcile: skip delete candidate lease=%s node=%d; pool is unresolved",
 				entry.LeaseName,
@@ -213,10 +481,12 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 			return false, false, 0, nil
 		}
 		if !isPoolDeleted(pool) {
+			tracker.observeMappingState(mapRow, pool, nodeDeleted)
 			if hasFlowRetryRemaining(mapRow, harvestRetryFlowDelete) {
 				if err := a.clearStaleDeleteRetry(ctx, mapRow); err != nil {
 					return false, false, 0, err
 				}
+				tracker.observeMappingState(mapRow, pool, nodeDeleted)
 				logger.Infof(
 					"harvest drift reconcile: cleared stale delete retry lease=%s node=%d; pool not deleted",
 					entry.LeaseName,
@@ -231,6 +501,7 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 			}
 			return false, false, 0, nil
 		}
+		tracker.observeMappingState(mapRow, pool, nodeDeleted)
 		if !shouldProcessDeleteCandidate(mapRow) {
 			logger.Infof(
 				"harvest drift reconcile: skip delete candidate lease=%s node=%d; delete retry exhausted",
@@ -239,17 +510,31 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 			)
 			return false, false, nodeGroupIDFromMap(mapRow), nil
 		}
-		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false)
+		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false, tracker)
+		tracker.observeMappingState(mapRow, pool, nodeDeleted)
+		if err == nil {
+			tracker.markMappingDeleted(mapRow.ID)
+		}
 		return handled, orphan, nodeGroupIDFromMap(mapRow), err
 	}
 
 	// Case: orphan YAML (no map row) => delete stale inventory artifact.
 	logger.Infof("harvest drift reconcile: deleting orphan yaml lease=%s node=%d; no node_node_group_map found", entry.LeaseName, entry.NodeID)
-	handled, orphan, err := a.deleteCandidateAndPersist(ctx, entry, nil, true)
+	handled, orphan, err := a.deleteCandidateAndPersist(ctx, entry, nil, true, tracker)
 	return handled, orphan, 0, err
 }
 
-func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx context.Context, inventorySet map[string]struct{}, windowStart, windowEnd time.Time, fullHistoricalScan bool) (int, int, int, error) {
+func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(
+	ctx context.Context,
+	inventorySet map[string]struct{},
+	windowStart, windowEnd time.Time,
+	fullHistoricalScan bool,
+	trackers ...*harvestMetricsTracker,
+) (int, int, int, error) {
+	var tracker *harvestMetricsTracker
+	if len(trackers) > 0 {
+		tracker = trackers[0]
+	}
 	readyPoolIDs, err := a.listReadyPoolIDsInWindow(ctx, windowStart, windowEnd, fullHistoricalScan)
 	if err != nil {
 		return 0, 0, 0, err
@@ -282,14 +567,24 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 		if m == nil {
 			continue
 		}
+		pool, nodeDeleted, poolErr := a.resolvePoolAndNodeDeletedForMapCached(ctx, m, poolCache)
+		if poolErr != nil {
+			return 0, 0, 0, poolErr
+		}
+		tracker.observeMappingState(m, pool, nodeDeleted)
+		if nodeDeleted {
+			if hasFlowRetryRemaining(m, harvestRetryFlowCreate) {
+				if err := a.markRetryTerminal(ctx, m, "node is deleted; stopping create retry"); err != nil {
+					return 0, 0, 0, err
+				}
+				tracker.observeMappingState(m, pool, true)
+			}
+			continue
+		}
 		if hasFlowRetryRemaining(m, harvestRetryFlowCreate) {
 			candidateMaps[m.NodeID] = m
 			retryPending++
 			continue
-		}
-		pool, poolErr := a.resolvePoolForMapCached(ctx, m, poolCache)
-		if poolErr != nil {
-			return 0, 0, 0, poolErr
 		}
 		if pool == nil || !isPoolEligibleForHarvestCreateDrift(pool) {
 			continue
@@ -332,6 +627,7 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 				if err := a.markRetryTerminal(ctx, mapping, "pool is deleted; stopping create retry"); err != nil {
 					return created, retryQueued, retryExhausted, err
 				}
+				tracker.observeMapping(mapping, pool)
 			}
 			continue
 		}
@@ -340,6 +636,7 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 				if err := a.markRetryTerminal(ctx, mapping, fmt.Sprintf("pool state %q is not eligible for create retry; stopping", pool.State)); err != nil {
 					return created, retryQueued, retryExhausted, err
 				}
+				tracker.observeMapping(mapping, pool)
 			}
 			continue
 		}
@@ -374,6 +671,7 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 				mapping.NodeID,
 				mapping.ID,
 			)
+			tracker.markMappingDeleted(mapping.ID)
 			continue
 		}
 
@@ -385,6 +683,7 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 			if stateErr != nil {
 				return created, retryQueued, retryExhausted, stateErr
 			}
+			tracker.observeMapping(mapping, pool)
 			continue
 		}
 		if len(updatedMappings) > 0 {
@@ -401,15 +700,24 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 				if stateErr != nil {
 					return created, retryQueued, retryExhausted, stateErr
 				}
+				tracker.observeMapping(mapping, pool)
 				continue
 			}
 		}
 
-		uploadPool, ready, readyErr := a.readyForHarvestCreateUpload(ctx, mapping)
+		uploadPool, mappingActive, ready, readyErr := a.readyForHarvestCreateUpload(ctx, mapping)
 		if readyErr != nil {
 			return created, retryQueued, retryExhausted, readyErr
 		}
 		if !ready {
+			if !mappingActive {
+				tracker.markMappingDeleted(mapping.ID)
+				continue
+			}
+			tracker.observeMapping(mapping, uploadPool)
+			if uploadPool == nil {
+				tracker.markMappingPoolUnavailable(mapping.ID)
+			}
 			continue
 		}
 
@@ -421,15 +729,18 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 			if stateErr != nil {
 				return created, retryQueued, retryExhausted, stateErr
 			}
+			tracker.observeMapping(mapping, uploadPool)
 			continue
 		}
 
 		if err := a.markRetrySuccess(ctx, mapping); err != nil {
 			return created, retryQueued, retryExhausted, err
 		}
+		tracker.observeMapping(mapping, uploadPool)
 		logger.Infof("harvest drift reconcile: created/backfilled yaml lease=%s node=%d", mapping.NodeGroup.LeaseName, mapping.NodeID)
 		created++
 		inventorySet[key] = struct{}{}
+		tracker.markInventoryCreated(key)
 	}
 
 	return created, retryQueued, retryExhausted, nil
@@ -452,12 +763,15 @@ func (a *HarvestPollerDriftReconcileActivity) nodeNodeGroupMapStillActiveForUplo
 // readyForHarvestCreateUpload re-validates mapping liveness and current pool eligibility
 // immediately before an external YAML upload. Unregister can soft-delete the map and remove
 // YAML while lease validation or credential fetch runs earlier in the loop.
-func (a *HarvestPollerDriftReconcileActivity) readyForHarvestCreateUpload(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (*datamodel.Pool, bool, error) {
+func (a *HarvestPollerDriftReconcileActivity) readyForHarvestCreateUpload(
+	ctx context.Context,
+	mapping *datamodel.NodeNodeGroupMap,
+) (*datamodel.Pool, bool, bool, error) {
 	logger := util.GetLogger(ctx)
 
 	stillActive, activeErr := a.nodeNodeGroupMapStillActiveForUpload(ctx, mapping)
 	if activeErr != nil {
-		return nil, false, activeErr
+		return nil, false, false, activeErr
 	}
 	if !stillActive {
 		leaseName := ""
@@ -476,26 +790,26 @@ func (a *HarvestPollerDriftReconcileActivity) readyForHarvestCreateUpload(ctx co
 			nodeID,
 			mapID,
 		)
-		return nil, false, nil
+		return nil, false, false, nil
 	}
 
 	pool, poolErr := a.resolvePoolForMap(ctx, mapping)
 	if poolErr != nil {
-		return nil, false, poolErr
+		return nil, true, false, poolErr
 	}
 	if pool == nil || isPoolDeleted(pool) {
 		if hasFlowRetryRemaining(mapping, harvestRetryFlowCreate) {
 			if err := a.markRetryTerminal(ctx, mapping, "pool is deleted; stopping create retry"); err != nil {
-				return nil, false, err
+				return nil, true, false, err
 			}
 		}
 		logger.Infof("harvest drift reconcile: skip upload node=%d; pool deleted before upload", mapping.NodeID)
-		return nil, false, nil
+		return pool, true, false, nil
 	}
 	if !isPoolEligibleForHarvestCreateDrift(pool) {
 		if hasFlowRetryRemaining(mapping, harvestRetryFlowCreate) {
 			if err := a.markRetryTerminal(ctx, mapping, fmt.Sprintf("pool state %q is not eligible for create retry; stopping", pool.State)); err != nil {
-				return nil, false, err
+				return nil, true, false, err
 			}
 		}
 		logger.Infof(
@@ -503,9 +817,9 @@ func (a *HarvestPollerDriftReconcileActivity) readyForHarvestCreateUpload(ctx co
 			mapping.NodeID,
 			pool.State,
 		)
-		return nil, false, nil
+		return pool, true, false, nil
 	}
-	return pool, true, nil
+	return pool, true, true, nil
 }
 
 func (a *HarvestPollerDriftReconcileActivity) markRetryFailure(ctx context.Context, mapping *datamodel.NodeNodeGroupMap, msg string) (int, int, error) {
@@ -663,23 +977,33 @@ func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMapCached(
 	mapRow *datamodel.NodeNodeGroupMap,
 	cache *harvestDriftPoolCache,
 ) (*datamodel.Pool, error) {
+	pool, _, err := a.resolvePoolAndNodeDeletedForMapCached(ctx, mapRow, cache)
+	return pool, err
+}
+
+func (a *HarvestPollerDriftReconcileActivity) resolvePoolAndNodeDeletedForMapCached(
+	ctx context.Context,
+	mapRow *datamodel.NodeNodeGroupMap,
+	cache *harvestDriftPoolCache,
+) (*datamodel.Pool, bool, error) {
 	if mapRow == nil || mapRow.NodeID == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if cache != nil {
 		if pool, ok := cache.byNodeID[mapRow.NodeID]; ok {
-			return pool, nil
+			return pool, cache.nodeDeleted[mapRow.NodeID], nil
 		}
 	}
-	pool, err := a.resolvePoolForMap(ctx, mapRow)
+	pool, nodeDeleted, err := a.resolvePoolAndNodeDeletedForMap(ctx, mapRow)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if cache != nil && pool != nil {
 		cache.byNodeID[mapRow.NodeID] = pool
 		cache.byID[pool.ID] = pool
+		cache.nodeDeleted[mapRow.NodeID] = nodeDeleted
 	}
-	return pool, nil
+	return pool, nodeDeleted, nil
 }
 
 func (a *HarvestPollerDriftReconcileActivity) deleteCandidateAndPersist(
@@ -687,10 +1011,16 @@ func (a *HarvestPollerDriftReconcileActivity) deleteCandidateAndPersist(
 	entry HarvestPollerFileEntry,
 	mapRow *datamodel.NodeNodeGroupMap,
 	isOrphan bool,
+	trackers ...*harvestMetricsTracker,
 ) (bool, bool, error) {
 	if err := deleteHarvestPollerFromFarm(ctx, entry.LeaseName, entry.NodeID); err != nil {
 		return false, false, err
 	}
+	var tracker *harvestMetricsTracker
+	if len(trackers) > 0 {
+		tracker = trackers[0]
+	}
+	tracker.markInventoryDeleted(pollerInventoryKey(entry.LeaseName, entry.NodeID))
 	if mapRow != nil && (mapRow.DeletedAt == nil || !mapRow.DeletedAt.Valid) {
 		if err := a.SE.DeleteNodeNodeGroupMap(ctx, mapRow.ID); err != nil {
 			return false, false, err
@@ -704,8 +1034,9 @@ func (a *HarvestPollerDriftReconcileActivity) processDeleteCandidate(
 	entry HarvestPollerFileEntry,
 	mapRow *datamodel.NodeNodeGroupMap,
 	isOrphan bool,
+	trackers ...*harvestMetricsTracker,
 ) (bool, bool, error) {
-	handled, orphanHandled, err := a.deleteCandidateAndPersist(ctx, entry, mapRow, isOrphan)
+	handled, orphanHandled, err := a.deleteCandidateAndPersist(ctx, entry, mapRow, isOrphan, trackers...)
 	if err != nil {
 		if mapRow != nil {
 			if stateErr := a.markDeleteRetryFailure(ctx, mapRow, err.Error()); stateErr != nil {
@@ -783,7 +1114,12 @@ func (a *HarvestPollerDriftReconcileActivity) cleanupMapsForDeletedPools(
 	ctx context.Context,
 	inventorySet map[string]struct{},
 	leaseCleanupCandidates map[string]int64,
+	trackers ...*harvestMetricsTracker,
 ) (softDeletedMaps int, deletedYAMLs int, err error) {
+	var tracker *harvestMetricsTracker
+	if len(trackers) > 0 {
+		tracker = trackers[0]
+	}
 	logger := util.GetLogger(ctx)
 	maps, err := a.listActiveNodeNodeGroupMapsPaginated(ctx)
 	if err != nil {
@@ -795,18 +1131,23 @@ func (a *HarvestPollerDriftReconcileActivity) cleanupMapsForDeletedPools(
 			continue
 		}
 		recordDriftReconcileHeartbeat(ctx, fmt.Sprintf("deleted-pool map cleanup: %d/%d node=%d", i+1, len(maps), mapping.NodeID))
-		pool, poolErr := a.resolvePoolForMapCached(ctx, mapping, poolCache)
+		pool, nodeDeleted, poolErr := a.resolvePoolAndNodeDeletedForMapCached(ctx, mapping, poolCache)
 		if poolErr != nil {
 			return softDeletedMaps, deletedYAMLs, poolErr
 		}
+		tracker.observeMappingState(mapping, pool, nodeDeleted)
 		if !isPoolDeleted(pool) {
 			continue
 		}
 		yamlDeleted, cleanupErr := a.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, leaseCleanupCandidates)
+		if yamlDeleted && mapping.NodeGroup != nil {
+			tracker.markInventoryDeleted(pollerInventoryKey(mapping.NodeGroup.LeaseName, mapping.NodeID))
+		}
 		if cleanupErr != nil {
 			logger.Warnf("harvest drift reconcile: deleted-pool map cleanup failed node=%d: %v", mapping.NodeID, cleanupErr)
 			continue
 		}
+		tracker.markMappingDeleted(mapping.ID)
 		softDeletedMaps++
 		if yamlDeleted {
 			deletedYAMLs++
@@ -1119,6 +1460,13 @@ func (a *HarvestPollerDriftReconcileActivity) getWindowStart(ctx context.Context
 		return time.Time{}, false, err
 	}
 	windowStart, parseErr := time.Parse(time.RFC3339Nano, strings.TrimSpace(cfg.Value))
+	if parseErr != nil {
+		var state metricsinterface.HarvestReconcileState
+		if jsonErr := json.Unmarshal([]byte(cfg.Value), &state); jsonErr == nil && !state.LastSuccessfulRunStartAt.IsZero() {
+			windowStart = state.LastSuccessfulRunStartAt
+			parseErr = nil
+		}
+	}
 	if parseErr != nil {
 		logger.Warnf("harvest drift reconcile checkpoint parse failed, using full historical scan err=%v", parseErr)
 		return time.Time{}, true, nil
@@ -1551,20 +1899,29 @@ func isPoolEligibleForHarvestCreateDrift(pool *datamodel.Pool) bool {
 }
 
 func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMap(ctx context.Context, mapRow *datamodel.NodeNodeGroupMap) (*datamodel.Pool, error) {
+	pool, _, err := a.resolvePoolAndNodeDeletedForMap(ctx, mapRow)
+	return pool, err
+}
+
+func (a *HarvestPollerDriftReconcileActivity) resolvePoolAndNodeDeletedForMap(
+	ctx context.Context,
+	mapRow *datamodel.NodeNodeGroupMap,
+) (*datamodel.Pool, bool, error) {
 	if mapRow == nil || mapRow.NodeID == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	node, err := a.SE.GetNodeByID(ctx, mapRow.NodeID)
 	if err != nil {
 		if utilerrors.IsNotFoundErr(err) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
 	if node == nil || node.PoolID == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
-	return a.resolvePoolByID(ctx, node.PoolID)
+	pool, err := a.resolvePoolByID(ctx, node.PoolID)
+	return pool, node.DeletedAt != nil && node.DeletedAt.Valid, err
 }
 
 func (a *HarvestPollerDriftReconcileActivity) resolvePoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error) {

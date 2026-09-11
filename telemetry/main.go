@@ -11,13 +11,13 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/sync/errgroup"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/connection"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/aggregator"
@@ -38,6 +38,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	retryutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -113,9 +114,15 @@ func main() {
 	provider := collector.NewGoogleProvider(tenantProvider, wrapper, config.VolumeMetrics, googleSink)
 	billingProvider := aggregator.NewBillingProvider(telemetryDbConn, VCPDbConn, metricscommon.LoadConfig(), billingSink)
 	bizopsProvider := bizops.NewBizOpsProvider(telemetryDbConn, VCPDbConn, bizopsSink)
-	metricsProcessor := processor.NewMetricsProcessor(VCPDbConn, telemetryDbConn, googleSink, provider, billingProvider, bizopsProvider)
+	metricsProcessor := processor.NewMetricsProcessor(VCPDbConn, telemetryDbConn, googleSink, provider, billingProvider, bizopsProvider, metricsRecorder)
 
 	queue := utils.NewQueue(tdb, &metricsProcessor, metricsRecorder)
+	if err := queue.RestoreBizOpsReportFreshness(signalCtx); err != nil {
+		logger.Warnf("Failed to restore BizOps report freshness: %v", err)
+	}
+	if err := queue.RestoreUsageAggregationFreshness(signalCtx); err != nil {
+		logger.Warnf("Failed to restore usage aggregation freshness: %v", err)
+	}
 	provider.SetJobQueue(queue)
 	billingProvider.SetJobQueue(queue)
 	// provider.SetJobQueue(queue)

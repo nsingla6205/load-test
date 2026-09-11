@@ -67,6 +67,7 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Setup(ctx workflow.Context, inp
 func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	input := args[0].(*unRegisterNodeFromHarvestFarmParams)
 	unRegisterActivity := &activities.UnRegisterNodeFromHarvestActivity{}
+	var err error
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, ConvertToVSAError(err)
@@ -89,17 +90,17 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 		TenantProjectID:   input.TenantProjectID,
 	}
 
-	defer func() {
-		if err != nil {
-			_ = workflow.ExecuteActivity(ctx, unRegisterActivity.AlertHarvestUnRegisterFailure, err.Error()).Get(ctx, nil)
-		}
-	}()
-
 	ctx = workflow.WithActivityOptions(ctx, ao)
 	retryStateVersion := workflow.GetVersion(ctx, harvestUnregisterRetryStateChangeID, workflow.DefaultVersion, harvestUnregisterRetryStateVersion)
 
 	// Create a separate context with shorter heartbeat timeout for DB operations
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+
+	defer func() {
+		if err != nil {
+			_ = workflow.ExecuteActivity(ctx, unRegisterActivity.AlertHarvestUnRegisterFailure, err.Error()).Get(ctx, nil)
+		}
+	}()
 
 	// deleteMappings/pollerDeleteErr track the outcome of DeletePollersFromHarvestFarm specifically.
 	// ValidateAndReleaseLease runs after it and can fail independently (lease/node-group cleanup),
@@ -137,6 +138,7 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 		var appErr *temporal.ApplicationError
 		if errors.As(err, &appErr) && appErr.NonRetryable() && appErr.Type() == activities.UnRegisterNodesInfoNotAvailable {
 			wf.Logger.Infof("no nodes available to perform unregister from harvest farm")
+			err = nil
 			return nil, nil
 		}
 		return nil, ConvertToVSAError(err)
@@ -156,6 +158,7 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 		var appErr *temporal.ApplicationError
 		if errors.As(err, &appErr) && appErr.NonRetryable() && appErr.Type() == activities.UnRegisterNodeGroupMapNotAvailable {
 			wf.Logger.Infof("no nodeGroupMap available to perform unregister from harvest farm")
+			err = nil
 			return nil, nil
 		}
 		return nil, ConvertToVSAError(err)

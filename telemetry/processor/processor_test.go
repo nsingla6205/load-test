@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	metricdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	metricsdm "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
@@ -21,6 +22,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/performance"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -1293,16 +1295,47 @@ func TestCollectMetrics_EmptyMetricsSlice(t *testing.T) {
 
 func TestMetricsProcessor_ProcessBizOps(t *testing.T) {
 	ctx := context.Background()
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Nil params", func(t *testing.T) {
 		mockProvider := &bizops.MockBizOpsProvider{}
 		mp := &MetricsProcessor{bizopsProvider: mockProvider}
-		params := &utils.BizOpsReportParams{}
+
+		err := mp.ProcessBizOps(ctx, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "BizOps report params must not be nil")
+		mockProvider.AssertNotCalled(t, "ProcessBizOps", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		mockProvider := &bizops.MockBizOpsProvider{}
+		recorder := &monitoring.MockMetricsRecorder{}
+		mp := &MetricsProcessor{bizopsProvider: mockProvider, metricsRecorder: recorder}
+		params := &utils.BizOpsReportParams{SinkType: "gcs"}
 		mockProvider.On("ProcessBizOps", ctx, mock.Anything, params).Return(nil)
+		recorder.On(
+			"RecordReportSuccess",
+			monitoring.ReportBizOps,
+			monitoring.SinkTypeGCS,
+			mock.AnythingOfType("time.Time"),
+		).Once()
 		err := mp.ProcessBizOps(ctx, params)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
 		mockProvider.AssertCalled(t, "ProcessBizOps", ctx, mock.Anything, params)
+		recorder.AssertExpectations(t)
+	})
+	t.Run("Terminal output does not refresh freshness", func(t *testing.T) {
+		mockProvider := &bizops.MockBizOpsProvider{}
+		recorder := &monitoring.MockMetricsRecorder{}
+		mp := &MetricsProcessor{bizopsProvider: mockProvider, metricsRecorder: recorder}
+		params := &utils.BizOpsReportParams{SinkType: "terminal"}
+		mockProvider.On("ProcessBizOps", ctx, mock.Anything, params).Return(nil)
+
+		err := mp.ProcessBizOps(ctx, params)
+
+		assert.NoError(t, err)
+		recorder.AssertNotCalled(t, "RecordReportSuccess", mock.Anything, mock.Anything, mock.Anything)
 	})
 	t.Run("Failure", func(t *testing.T) {
 		mockProvider := &bizops.MockBizOpsProvider{}
@@ -1318,7 +1351,7 @@ func TestMetricsProcessor_ProcessBizOps(t *testing.T) {
 }
 
 func Test_NewMetricsProcessor(t *testing.T) {
-	mp := NewMetricsProcessor(nil, nil, nil, nil, nil, nil)
+	mp := NewMetricsProcessor(nil, nil, nil, nil, nil, nil, nil)
 	if mp.vcpDatastore != nil {
 		t.Errorf("expected vcpDatastore to be set")
 	}
@@ -1445,12 +1478,20 @@ func TestMetricsProcessor_ProcessUsageMetrics_AggregationTimingVerification(t *t
 	// Create a real BillingProvider with mocks
 	config := &common.TelemetryConfig{}
 	billingProvider := aggregator.NewBillingProvider(telemetryStore, vcpStore, config, nil)
+	recorder := monitoring.NewMockMetricsRecorder(t)
 
 	mp := &MetricsProcessor{
 		vcpDatastore:       vcpStore,
 		telemetryDatastore: telemetryStore,
 		billingProvider:    billingProvider,
+		metricsRecorder:    recorder,
 	}
+	recorder.On(
+		"RecordReportSuccess",
+		monitoring.ReportUsageAggregation,
+		monitoring.SinkTypeDatabase,
+		mock.AnythingOfType("time.Time"),
+	).Once()
 
 	// Record time before calling method to verify aggregation timing calculation
 	beforeCall := time.Now()
@@ -1481,6 +1522,7 @@ func TestMetricsProcessor_ProcessUsageMetrics_AggregationTimingVerification(t *t
 	vcpStore.AssertCalled(t, "ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	// GetAggregatedUsageWithPagination is called multiple times by the billing provider, so just verify expectations are met
 	telemetryStore.AssertExpectations(t)
+	recorder.AssertExpectations(t)
 }
 
 func TestMetricsProcessor_ProcessUsageMetrics_NilBillingProvider(t *testing.T) {

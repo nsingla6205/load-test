@@ -2556,7 +2556,180 @@ func newRealQueueMock(t *testing.T, recorder *monitoring.MockMetricsRecorder) (*
 	t.Helper()
 	db, sqlMock, err := sqlmock.New()
 	require.NoError(t, err)
-	return NewQueue(db, nil, recorder), sqlMock, func() { _ = db.Close() }
+	var metricsRecorder monitoring.MetricsRecorder
+	if recorder != nil {
+		metricsRecorder = recorder
+	}
+	return NewQueue(db, nil, metricsRecorder), sqlMock, func() { _ = db.Close() }
+}
+
+func TestJobQueue_RestoreBizOpsReportFreshness(t *testing.T) {
+	t.Run("restores GCS after non-GCS history", func(t *testing.T) {
+		recorder := monitoring.NewMockMetricsRecorder(t)
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		finishedAt := time.Date(2026, 8, 19, 6, 0, 0, 0, time.UTC)
+		sqlMock.ExpectQuery("LIMIT \\$3").
+			WithArgs(JOB_STATUS_FINISHED, BizOpsReportQueue, maxBizOpsFreshnessRestoreRows).
+			WillReturnRows(sqlmock.NewRows([]string{"data", "finished_at"}).
+				AddRow("{", finishedAt).
+				AddRow(`{"BizOpsParams":{"SinkType":"terminal"}}`, finishedAt).
+				AddRow(`{"BizOpsParams":{"SinkType":"gcs"}}`, finishedAt))
+		recorder.On(
+			"RecordReportSuccess",
+			monitoring.ReportBizOps,
+			monitoring.SinkTypeGCS,
+			finishedAt,
+		).Once()
+
+		require.NoError(t, queue.RestoreBizOpsReportFreshness(context.Background()))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("does not scan beyond the restore cap", func(t *testing.T) {
+		recorder := monitoring.NewMockMetricsRecorder(t)
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		finishedAt := time.Date(2026, 8, 19, 5, 0, 0, 0, time.UTC)
+		terminalData := `{"BizOpsParams":{"SinkType":"terminal"}}`
+		rows := sqlmock.NewRows([]string{"data", "finished_at"})
+		for i := 0; i < maxBizOpsFreshnessRestoreRows; i++ {
+			rows.AddRow(terminalData, finishedAt)
+		}
+		rows.AddRow(`{"BizOpsParams":{"SinkType":"gcs"}}`, finishedAt)
+
+		sqlMock.ExpectQuery("LIMIT \\$3").
+			WithArgs(JOB_STATUS_FINISHED, BizOpsReportQueue, maxBizOpsFreshnessRestoreRows).
+			WillReturnRows(rows)
+
+		require.NoError(t, queue.RestoreBizOpsReportFreshness(context.Background()))
+		recorder.AssertNotCalled(t, "RecordReportSuccess", mock.Anything, mock.Anything, mock.Anything)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+func TestJobQueue_RestoreUsageAggregationFreshness(t *testing.T) {
+	t.Run("restores latest successful usage aggregation", func(t *testing.T) {
+		recorder := monitoring.NewMockMetricsRecorder(t)
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		finishedAt := time.Date(2026, 8, 19, 7, 0, 0, 0, time.UTC)
+		sqlMock.ExpectQuery("SELECT MAX\\(finished_at\\)").
+			WithArgs(JOB_STATUS_FINISHED, UsageQueue).
+			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(finishedAt))
+		recorder.On(
+			"RecordReportSuccess",
+			monitoring.ReportUsageAggregation,
+			monitoring.SinkTypeDatabase,
+			finishedAt,
+		).Once()
+
+		require.NoError(t, queue.RestoreUsageAggregationFreshness(context.Background()))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("leaves metric absent when no usage aggregation exists", func(t *testing.T) {
+		recorder := monitoring.NewMockMetricsRecorder(t)
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		sqlMock.ExpectQuery("SELECT MAX\\(finished_at\\)").
+			WithArgs(JOB_STATUS_FINISHED, UsageQueue).
+			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(nil))
+
+		require.NoError(t, queue.RestoreUsageAggregationFreshness(context.Background()))
+		recorder.AssertNotCalled(t, "RecordReportSuccess", mock.Anything, mock.Anything, mock.Anything)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("returns database errors", func(t *testing.T) {
+		recorder := monitoring.NewMockMetricsRecorder(t)
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		sqlMock.ExpectQuery("SELECT MAX\\(finished_at\\)").
+			WithArgs(JOB_STATUS_FINISHED, UsageQueue).
+			WillReturnError(errors.New("database unavailable"))
+
+		err := queue.RestoreUsageAggregationFreshness(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "database unavailable")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+func TestJobQueue_RestoreFreshness_ErrorPaths(t *testing.T) {
+	t.Run("BizOps restore skips database when recorder is nil", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, nil)
+		defer cleanup()
+
+		require.NoError(t, queue.RestoreBizOpsReportFreshness(context.Background()))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("BizOps query error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		sqlMock.ExpectQuery("LIMIT \\$3").
+			WithArgs(JOB_STATUS_FINISHED, BizOpsReportQueue, maxBizOpsFreshnessRestoreRows).
+			WillReturnError(errors.New("BizOps query failed"))
+
+		err := queue.RestoreBizOpsReportFreshness(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "BizOps query failed")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("BizOps row scan error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		sqlMock.ExpectQuery("LIMIT \\$3").
+			WithArgs(JOB_STATUS_FINISHED, BizOpsReportQueue, maxBizOpsFreshnessRestoreRows).
+			WillReturnRows(sqlmock.NewRows([]string{"data", "finished_at"}).
+				AddRow(`{"BizOpsParams":{"SinkType":"gcs"}}`, "invalid timestamp"))
+
+		err := queue.RestoreBizOpsReportFreshness(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scan successful BizOps report")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("BizOps rows error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		sqlMock.ExpectQuery("LIMIT \\$3").
+			WithArgs(JOB_STATUS_FINISHED, BizOpsReportQueue, maxBizOpsFreshnessRestoreRows).
+			WillReturnRows(sqlmock.NewRows([]string{"data", "finished_at"}).
+				AddRow(`{"BizOpsParams":{"SinkType":"terminal"}}`, time.Now().UTC()).
+				RowError(0, errors.New("BizOps rows failed")))
+
+		err := queue.RestoreBizOpsReportFreshness(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "BizOps rows failed")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("usage restore skips database when recorder is nil", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, nil)
+		defer cleanup()
+
+		require.NoError(t, queue.RestoreUsageAggregationFreshness(context.Background()))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("usage query no rows is ignored", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		sqlMock.ExpectQuery("SELECT MAX\\(finished_at\\)").
+			WithArgs(JOB_STATUS_FINISHED, UsageQueue).
+			WillReturnError(sql.ErrNoRows)
+
+		require.NoError(t, queue.RestoreUsageAggregationFreshness(context.Background()))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
 }
 
 // TestJobQueue_FinalizeJob_RealQueue exercises the real finalizeJob terminal

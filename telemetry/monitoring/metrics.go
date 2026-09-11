@@ -15,6 +15,7 @@ const (
 	vcpTelemetryJobsRetriesExhaustedTotal    = "vcp_telemetry_jobs_retries_exhausted_total"
 	vcpTelemetrySinkDeliveredTotal           = "vcp_telemetry_metrics_delivered_total"
 	vcpTelemetryBillingMetricsSubmittedTotal = "vcp_telemetry_billing_metrics_submission_total"
+	vcpTelemetryReportLastSuccess            = "vcp_telemetry_report_last_success_timestamp_seconds"
 )
 
 var (
@@ -108,6 +109,13 @@ var (
 		},
 		[]string{"sink_type", "measured_type", "timestamp"},
 	)
+	reportLastSuccess = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: vcpTelemetryReportLastSuccess,
+			Help: "Unix timestamp of the latest successfully completed telemetry report by report and sink.",
+		},
+		[]string{"report", "sink_type"},
+	)
 )
 
 func init() {
@@ -122,5 +130,6 @@ func init() {
 		jobsRetriesExhaustedTotal,
 		sinkDeliveredTotal,
 		billingMetricsSubmissionTotal,
+		reportLastSuccess,
 	)
 }

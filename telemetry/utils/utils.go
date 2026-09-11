@@ -5,12 +5,16 @@ import (
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
 )
 
 const (
 	dateLayout = "2006-01-02"
 	UTC        = "UTC"
 	PST        = "PST"
+
+	// BizOpsSinkGCS identifies the durable BizOps report sink.
+	BizOpsSinkGCS = monitoring.SinkTypeGCS
 )
 
 var (

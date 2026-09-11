@@ -27,6 +27,10 @@ const (
 	JOB_STATUS_IN_PROGRESS = "in_progress"
 	JOB_STATUS_FINISHED    = "finished"
 	JOB_STATUS_FAILED      = "failed"
+
+	// Production BizOps jobs use the GCS sink. The cap keeps startup restoration
+	// bounded while allowing occasional ad hoc terminal jobs to be skipped.
+	maxBizOpsFreshnessRestoreRows = 100
 )
 
 var errJobPanicked = errors.New("job panicked")
@@ -179,6 +183,95 @@ func NewQueueWithConfig(db *sql.DB, p interface{}, metricRecorder monitoring.Met
 		metricsRecorder: metricRecorder,
 		config:          config.normalized(),
 	}
+}
+
+// RestoreBizOpsReportFreshness restores the latest successful GCS BizOps report timestamp.
+func (j *JobQueue) RestoreBizOpsReportFreshness(ctx context.Context) error {
+	if j.metricsRecorder == nil {
+		return nil
+	}
+
+	rows, err := j.db.QueryContext(
+		ctx,
+		`SELECT data, finished_at
+		 FROM `+JobsTableName+`
+		 WHERE status = $1 AND queue = $2 AND finished_at IS NOT NULL
+		 ORDER BY finished_at DESC
+		 LIMIT $3`,
+		JOB_STATUS_FINISHED,
+		BizOpsReportQueue,
+		maxBizOpsFreshnessRestoreRows,
+	)
+	if err != nil {
+		return fmt.Errorf("query successful BizOps reports: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	logger := util.GetLogger(ctx)
+	rowsScanned := 0
+	for rowsScanned < maxBizOpsFreshnessRestoreRows && rows.Next() {
+		rowsScanned++
+		var data string
+		var finishedAt time.Time
+		if err := rows.Scan(&data, &finishedAt); err != nil {
+			return fmt.Errorf("scan successful BizOps report: %w", err)
+		}
+
+		var payload struct {
+			Params struct {
+				SinkType string `json:"SinkType"`
+			} `json:"BizOpsParams"`
+		}
+		if err := json.Unmarshal([]byte(data), &payload); err != nil {
+			logger.Warnf("skip malformed historical BizOps job: %v", err)
+			continue
+		}
+		if payload.Params.SinkType != BizOpsSinkGCS {
+			continue
+		}
+
+		j.metricsRecorder.RecordReportSuccess(
+			monitoring.ReportBizOps,
+			monitoring.SinkTypeGCS,
+			finishedAt,
+		)
+		return nil
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read successful BizOps reports: %w", err)
+	}
+	return nil
+}
+
+// RestoreUsageAggregationFreshness restores the latest successful usage aggregation timestamp.
+func (j *JobQueue) RestoreUsageAggregationFreshness(ctx context.Context) error {
+	if j.metricsRecorder == nil {
+		return nil
+	}
+
+	var finishedAt sql.NullTime
+	err := j.db.QueryRowContext(
+		ctx,
+		`SELECT MAX(finished_at)
+		 FROM `+JobsTableName+`
+		 WHERE status = $1 AND queue = $2 AND finished_at IS NOT NULL`,
+		JOB_STATUS_FINISHED,
+		UsageQueue,
+	).Scan(&finishedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("query successful usage aggregations: %w", err)
+	}
+	if finishedAt.Valid {
+		j.metricsRecorder.RecordReportSuccess(
+			monitoring.ReportUsageAggregation,
+			monitoring.SinkTypeDatabase,
+			finishedAt.Time,
+		)
+	}
+	return nil
 }
 
 func (j *JobQueue) EnqueueAt(ctx context.Context, job Job, queue string, at time.Time) error {

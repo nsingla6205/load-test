@@ -299,6 +299,52 @@ func TestPrometheusRecorder_RecordBillingMetricsSubmission_UpdatesExistingValue(
 	assert.Equal(t, float64(150), testutil.ToFloat64(gauge))
 }
 
+func TestPrometheusRecorder_RecordReportSuccess(t *testing.T) {
+	completedAt := time.Date(2026, 8, 19, 6, 0, 0, 0, time.FixedZone("IST", 19800))
+	tests := []struct {
+		name        string
+		report      string
+		sinkType    string
+		completedAt time.Time
+		wantCount   int
+	}{
+		{
+			name:        "records supported report",
+			report:      ReportBizOps,
+			sinkType:    SinkTypeGCS,
+			completedAt: completedAt,
+			wantCount:   1,
+		},
+		{
+			name:      "ignores zero timestamp",
+			report:    ReportBizOps,
+			sinkType:  SinkTypeGCS,
+			wantCount: 0,
+		},
+		{
+			name:        "ignores unknown labels",
+			report:      "unknown",
+			sinkType:    "unknown",
+			completedAt: completedAt,
+			wantCount:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reportLastSuccess.Reset()
+			NewPrometheusRecorder().RecordReportSuccess(tt.report, tt.sinkType, tt.completedAt)
+
+			assert.Equal(t, tt.wantCount, testutil.CollectAndCount(reportLastSuccess))
+			if tt.wantCount > 0 {
+				assert.Equal(t, float64(tt.completedAt.UTC().Unix()), testutil.ToFloat64(
+					reportLastSuccess.WithLabelValues(tt.report, tt.sinkType),
+				))
+			}
+		})
+	}
+}
+
 func TestPrometheusRecorder_MultipleOperations(t *testing.T) {
 	// Test that multiple operations work together correctly
 	recorder := NewPrometheusRecorder()

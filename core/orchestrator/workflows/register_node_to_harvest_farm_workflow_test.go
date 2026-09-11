@@ -33,9 +33,13 @@ func mockMarkCreateRetryState(env *testsuite.TestWorkflowEnvironment, activity *
 	env.OnActivity(activity.MarkCreateRetryState, mock.Anything, mock.Anything).Return(nil)
 }
 
+func newRegisterHarvestWorkflowTestEnvironment(ts *testsuite.WorkflowTestSuite) *testsuite.TestWorkflowEnvironment {
+	return ts.NewTestWorkflowEnvironment()
+}
+
 func TestRegisterNodeToHarvestFarmWorkflow_ExecutesSuccessfully(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 5, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -80,7 +84,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_ExecutesSuccessfully(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_ActivityFails(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 5, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -105,7 +109,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_ActivityFails(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_InvalidInput(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 0, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -137,7 +141,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_InvalidInput(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_SameNodeIDs(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 5, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -170,7 +174,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_SameNodeIDs(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_LargeGroupSize(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	// Test with a large group size
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 1000, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
@@ -215,7 +219,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_LargeGroupSize(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_LeaseCreateFailure(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 5, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -246,7 +250,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_LeaseCreateFailure(t *testing.T) {
 
 func TestRegisterNodeToHarvestFarmWorkflow_UpdateNodeNodeGroupMapFails(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{PoolID: 1, MaxNodesPerGroup: 5, CustomerProjectID: "customer-project", TenantProjectID: "tenant-project"}
 
@@ -297,7 +301,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_UpdateNodeNodeGroupMapFails(t *testin
 
 func TestRegisterNodeToHarvestFarmWorkflow_UploadHarvestTemplateFails(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{
 		PoolID:            1,
@@ -344,7 +348,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_UploadHarvestTemplateFails(t *testing
 
 func TestRegisterNodeToHarvestFarmWorkflow_GetCredentialsReturnsNil(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{
 		PoolID:            1,
@@ -402,7 +406,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_GetCredentialsReturnsNil(t *testing.T
 
 func TestRegisterNodeToHarvestFarmWorkflow_Version1UploadsPerNode(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{
 		PoolID:            1,
@@ -451,7 +455,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_Version1UploadsPerNode(t *testing.T) 
 
 func TestRegisterNodeToHarvestFarmWorkflow_DefaultVersionUsesBatchUpload(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{
 		PoolID:            1,
@@ -500,7 +504,7 @@ func TestRegisterNodeToHarvestFarmWorkflow_DefaultVersionUsesBatchUpload(t *test
 
 func TestRegisterNodeToHarvestFarmWorkflow_LoadsMappingsFromDBOnFailureWhenEmpty(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestWorkflowEnvironment()
+	env := newRegisterHarvestWorkflowTestEnvironment(ts)
 
 	input := RegisterNodeToHarvestFarmWorkflowInput{
 		PoolID:            1,

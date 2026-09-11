@@ -15,6 +15,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/performance"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -28,14 +29,24 @@ type MetricsProcessor struct {
 	googleMetricProvider collector.VolumeMetricsProvider
 	billingProvider      *aggregator.BillingProvider
 	bizopsProvider       bizops.BizOpsProvider
+	metricsRecorder      monitoring.MetricsRecorder
 }
 
 func NewMetricsProcessor(
 	vcpDatastore database.Storage, telemetryDatastore metricdb.Storage,
 	sink performance.Sink, metricsProvider collector.VolumeMetricsProvider,
 	billingProvider *aggregator.BillingProvider, bizopsProvider bizops.BizOpsProvider,
+	metricsRecorder monitoring.MetricsRecorder,
 ) MetricsProcessor {
-	return MetricsProcessor{vcpDatastore: vcpDatastore, telemetryDatastore: telemetryDatastore, sink: sink, googleMetricProvider: metricsProvider, billingProvider: billingProvider, bizopsProvider: bizopsProvider}
+	return MetricsProcessor{
+		vcpDatastore:         vcpDatastore,
+		telemetryDatastore:   telemetryDatastore,
+		sink:                 sink,
+		googleMetricProvider: metricsProvider,
+		billingProvider:      billingProvider,
+		bizopsProvider:       bizopsProvider,
+		metricsRecorder:      metricsRecorder,
+	}
 }
 
 func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context) error {
@@ -222,6 +233,13 @@ func (mp *MetricsProcessor) ProcessUsageMetrics(ctx context.Context, timestamp t
 		logger.Error("Failed to aggregate hydrated metrics", "error", err.Error())
 		return err
 	}
+	if mp.metricsRecorder != nil {
+		mp.metricsRecorder.RecordReportSuccess(
+			monitoring.ReportUsageAggregation,
+			monitoring.SinkTypeDatabase,
+			time.Now().UTC(),
+		)
+	}
 	return nil
 }
 
@@ -249,10 +267,20 @@ func (mp *MetricsProcessor) CollectMetrics(ctx context.Context, projectId string
 
 func (mp *MetricsProcessor) ProcessBizOps(ctx context.Context, params *utils.BizOpsReportParams) error {
 	logger := util.GetLogger(ctx)
+	if params == nil {
+		return fmt.Errorf("BizOps report params must not be nil")
+	}
 	err := mp.bizopsProvider.ProcessBizOps(ctx, logger, params)
 	if err != nil {
 		logger.Error("Failed to process BizOps metrics", "error", err.Error())
 		return err
+	}
+	if params.SinkType == utils.BizOpsSinkGCS && mp.metricsRecorder != nil {
+		mp.metricsRecorder.RecordReportSuccess(
+			monitoring.ReportBizOps,
+			monitoring.SinkTypeGCS,
+			time.Now().UTC(),
+		)
 	}
 	logger.Infof("Successfully processed BizOps Report for start time: '%v' with timezone:'%s' ", params.StartDate, params.TimeZone)
 	return nil

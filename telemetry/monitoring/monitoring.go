@@ -4,6 +4,17 @@ import (
 	"time"
 )
 
+const (
+	// ReportBizOps identifies the BizOps report freshness series.
+	ReportBizOps = "bizops"
+	// ReportUsageAggregation identifies the usage aggregation freshness series.
+	ReportUsageAggregation = "usage_aggregation"
+	// SinkTypeGCS identifies the durable GCS report sink.
+	SinkTypeGCS = "gcs"
+	// SinkTypeDatabase identifies the usage aggregation database sink.
+	SinkTypeDatabase = "database"
+)
+
 type MetricRecorderParams struct {
 	EndPoint           string
 	Method             string
@@ -39,4 +50,5 @@ type MetricsRecorder interface {
 	// Sink operations
 	RecordSinkDelivered(params *MetricRecorderParams)
 	RecordBillingMetricsSubmission(params *MetricRecorderParams)
+	RecordReportSuccess(report, sinkType string, completedAt time.Time)
 }
