@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,14 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"go.temporal.io/sdk/testsuite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -105,7 +110,7 @@ func TestValidateAndGetNodes_FailWithNoNodes(t *testing.T) {
 	testPoolID := int64(1)
 
 	mockStorage.On("GetNodesByPoolID", mock.Anything, testPoolID).Return(nil,
-		vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("node", nil)))
+		vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, utilerrors.NewNotFoundErr("node", nil)))
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		PoolID: testPoolID,
 	}
@@ -180,7 +185,7 @@ func TestGetNodeGroupMapping_SkipsNodeWithNoMap(t *testing.T) {
 	nodesInfo := getUnRegisterNodes()
 	nodeGroupMapInfo := getNodeGroupMap(false, true)
 
-	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil))
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, utilerrors.NewNotFoundErr("nodeGroupMap", nil))
 
 	// Node 0 has no mapping (skipped); node 1 has a mapping and must still be returned.
 	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodesInfo[0].ID).Return(nil, notFoundErr)
@@ -249,7 +254,7 @@ func TestGetNodeGroupMapping_LargePoolMultiHADisabled_SkipsNodeWithNoMap(t *test
 		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 102}, Name: "group-2", LeaseName: "lease-2"},
 	}
 
-	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil))
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, utilerrors.NewNotFoundErr("nodeGroupMap", nil))
 
 	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(0)).Return(nodeGroupMap0, nil)
 	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(1)).Return(nil, notFoundErr)
@@ -311,7 +316,7 @@ func TestGetNodeGroupMapping_FlagToggledOn_StillCleansExistingMappings(t *testin
 		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 101}, Name: "group-1", LeaseName: "lease-1"},
 	}
 
-	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil))
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, utilerrors.NewNotFoundErr("nodeGroupMap", nil))
 
 	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(0)).Return(nodeGroupMap0, nil)
 	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(1)).Return(nodeGroupMap1, nil)
@@ -697,15 +702,405 @@ func TestDeletePollersFromHarvestFarm_EmptyLeaseName_Skips(t *testing.T) {
 	assert.Equal(t, []int64{22}, attempted)
 }
 
-// Below  test case will validate and issue lease client delete of k8's leases
+// mockReleaseLeaseWithTransaction configures sqlmock-backed WithTransaction calls for releaseEmptyNodeGroupLease.
+// txTimes is the number of WithTransaction invocations expected (1 for precheck-only paths, 2 for full release).
+// finalDelete=true expects a soft-delete UPDATE on the last transaction.
+func mockReleaseLeaseWithTransaction(t *testing.T, mockSE *database.MockStorage, nodeGroupID int64, leaseName string, txTimes int, finalDelete bool) {
+	t.Helper()
+	txCallCount := 0
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		txCallCount++
+		fn := args.Get(1).(func(dbutils.Transaction) error)
+		db, smock, err := sqlmock.New()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = db.Close() })
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{SkipDefaultTransaction: true})
+		require.NoError(t, err)
+		mockTx := dbutils.NewMockTransaction(t)
+		mockTx.On("GORM").Return(gormDB)
+
+		smock.ExpectQuery(`SELECT`).WillReturnRows(
+			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(nodeGroupID, leaseName),
+		)
+		smock.ExpectQuery(`SELECT count`).WillReturnRows(
+			sqlmock.NewRows([]string{"count"}).AddRow(0),
+		)
+		if finalDelete && txCallCount == txTimes {
+			smock.ExpectExec(`UPDATE`).WillReturnResult(sqlmock.NewResult(0, 1))
+		}
+		require.NoError(t, fn(mockTx))
+		require.NoError(t, smock.ExpectationsWereMet())
+	}).Return(nil).Times(txTimes)
+}
+
+type releaseLeaseTxBehavior struct {
+	groupFound       bool
+	dbLeaseName      string
+	lockErr          error
+	leaseDrift       bool // SELECT returns dbLeaseName; code skips count when it differs from param
+	activeCount      int64
+	countErr         error
+	deleteErr        error
+	expectSoftDelete bool
+}
+
+func mockReleaseLeaseTransactions(t *testing.T, mockSE *database.MockStorage, nodeGroupID int64, times int, behaviors []releaseLeaseTxBehavior) {
+	t.Helper()
+	require.Len(t, behaviors, times)
+	call := 0
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(func(_ context.Context, fn func(dbutils.Transaction) error) error {
+		call++
+		b := behaviors[call-1]
+		db, smock, err := sqlmock.New()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = db.Close() })
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{SkipDefaultTransaction: true})
+		require.NoError(t, err)
+		mockTx := dbutils.NewMockTransaction(t)
+		mockTx.On("GORM").Return(gormDB)
+
+		if b.lockErr != nil {
+			smock.ExpectQuery(`SELECT`).WillReturnError(b.lockErr)
+		} else if !b.groupFound {
+			smock.ExpectQuery(`SELECT`).WillReturnError(gorm.ErrRecordNotFound)
+		} else {
+			smock.ExpectQuery(`SELECT`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(nodeGroupID, b.dbLeaseName),
+			)
+			if !b.leaseDrift {
+				if b.countErr != nil {
+					smock.ExpectQuery(`SELECT count`).WillReturnError(b.countErr)
+				} else {
+					smock.ExpectQuery(`SELECT count`).WillReturnRows(
+						sqlmock.NewRows([]string{"count"}).AddRow(b.activeCount),
+					)
+					if b.expectSoftDelete {
+						if b.deleteErr != nil {
+							smock.ExpectExec(`UPDATE`).WillReturnError(b.deleteErr)
+						} else {
+							smock.ExpectExec(`UPDATE`).WillReturnResult(sqlmock.NewResult(0, 1))
+						}
+					}
+				}
+			}
+		}
+		txErr := fn(mockTx)
+		require.NoError(t, smock.ExpectationsWereMet())
+		return txErr
+	}).Times(times)
+}
+
+func TestValidateAndReleaseLease_NilNodeGroup(t *testing.T) {
+	activity := &UnRegisterNodeFromHarvestActivity{SE: database.NewMockStorage(t)}
+	params := &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: []*datamodel.NodeNodeGroupMap{{NodeGroupID: 99, NodeGroup: nil}},
+	}
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.ValidateAndReleaseLease)
+	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, params)
+	require.NoError(t, err)
+}
+
+func TestValidateAndReleaseLease_EmptyLeaseName(t *testing.T) {
+	activity := &UnRegisterNodeFromHarvestActivity{SE: database.NewMockStorage(t)}
+	params := &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: []*datamodel.NodeNodeGroupMap{{
+			NodeGroupID: 1,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "   "},
+		}},
+	}
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.ValidateAndReleaseLease)
+	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, params)
+	require.NoError(t, err)
+}
+
+func TestValidateAndReleaseLease_DeduplicatesSameNodeGroup(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	sharedGroup := &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 42}, LeaseName: "harvest-l42"}
+	maps := []*datamodel.NodeNodeGroupMap{
+		{NodeGroupID: 42, NodeGroup: sharedGroup},
+		{NodeGroupID: 42, NodeGroup: sharedGroup},
+	}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(42)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 42, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l42", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l42", activeCount: 0, expectSoftDelete: true},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.ValidateAndReleaseLease)
+	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, &UnRegisterNodeFromHarvestActivityParams{NodeGroupsMap: maps})
+	require.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestReleaseEmptyNodeGroupLease_NodeGroupAlreadyDeletedPrecheck(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{{groupFound: false}})
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_PrecheckLockError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", lockErr: errors.New("lock failed")},
+	})
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "precheck release lease")
+}
+
+func TestReleaseEmptyNodeGroupLease_LeaseDriftBeforeRelease(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "other-lease", leaseDrift: true},
+	})
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_PrecheckCountError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", countErr: errors.New("count failed")},
+	})
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "precheck release lease")
+}
+
+func TestReleaseEmptyNodeGroupLease_PrecheckTransactionError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockStorage.On("WithTransaction", mock.Anything, mock.Anything).Return(errors.New("tx failed"))
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "precheck release lease")
+}
+
+func TestReleaseEmptyNodeGroupLease_RecheckCountErrorBeforeK8sDelete(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Once()
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), errors.New("recheck failed")).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+	})
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recheck node group 1 count before k8s lease delete")
+}
+
+func TestReleaseEmptyNodeGroupLease_K8sLeaseNotFound(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0, expectSoftDelete: true},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return errors.New("Lease Not Found") }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_RecheckCountErrorBeforeSoftDelete(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(2)
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), errors.New("recheck failed")).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recheck node group 1 count before soft-delete")
+}
+
+func TestReleaseEmptyNodeGroupLease_SkipsSoftDeleteWhenPollersAfterK8sDelete(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	getCount := 0
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(func(context.Context, int64) (int64, error) {
+		getCount++
+		if getCount <= 2 {
+			return 0, nil
+		}
+		return 1, nil
+	})
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_NodeGroupAlreadyDeletedFinalTx(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: false},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_FinalTxLockError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l1", lockErr: errors.New("final lock failed")},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "final lock failed")
+}
+
+func TestReleaseEmptyNodeGroupLease_LeaseDriftFinalTx(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "other-lease", leaseDrift: true},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_FinalCountError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l1", countErr: errors.New("final count failed")},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+}
+
+func TestReleaseEmptyNodeGroupLease_SkipsSoftDeletePollersUnderFinalLock(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 2},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	require.NoError(t, act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1"))
+}
+
+func TestReleaseEmptyNodeGroupLease_FinalDeleteError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseTransactions(t, mockStorage, 1, 2, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0},
+		{groupFound: true, dbLeaseName: "harvest-l1", activeCount: 0, deleteErr: errors.New("delete failed"), expectSoftDelete: true},
+	})
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+}
+
+func TestReleaseEmptyNodeGroupLease_FinalTransactionError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	act := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil).Times(3)
+	mockStorage.On("WithTransaction", mock.Anything, mock.Anything).Return(func(_ context.Context, fn func(dbutils.Transaction) error) error {
+		db, smock, err := sqlmock.New()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = db.Close() })
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{SkipDefaultTransaction: true})
+		require.NoError(t, err)
+		mockTx := dbutils.NewMockTransaction(t)
+		mockTx.On("GORM").Return(gormDB)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(
+			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(1, "harvest-l1"),
+		)
+		smock.ExpectQuery(`SELECT count`).WillReturnRows(
+			sqlmock.NewRows([]string{"count"}).AddRow(0),
+		)
+		txErr := fn(mockTx)
+		require.NoError(t, smock.ExpectationsWereMet())
+		return txErr
+	}).Once()
+	mockStorage.On("WithTransaction", mock.Anything, mock.Anything).Return(errors.New("final tx failed")).Once()
+	oldDelete := deleteKubernetesLease
+	deleteKubernetesLease = func(context.Context, string, string) error { return nil }
+	defer func() { deleteKubernetesLease = oldDelete }()
+
+	err := act.releaseEmptyNodeGroupLease(context.Background(), 1, "harvest-l1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "final tx failed")
+}
+
+// Below test case will validate and issue lease client delete of k8's leases
 func TestValidateAndReleaseLease(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
 
 	for _, nodeGroupMap := range nodeGroupMapInfo {
-		mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMap.NodeGroupID).Return(int64(0), nil)
-		mockStorage.On("DeleteNodeGroup", mock.Anything, nodeGroupMap.NodeGroupID).Return(nil)
+		mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMap.NodeGroupID).Return(int64(0), nil).Times(3)
+		mockReleaseLeaseWithTransaction(t, mockStorage, nodeGroupMap.NodeGroupID, nodeGroupMap.NodeGroup.LeaseName, 2, true)
 	}
 
 	oldDeleteKubernetesLease := deleteKubernetesLease
@@ -758,8 +1153,8 @@ func TestValidateAndReleaseLease_SingleLeaseToDelete(t *testing.T) {
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
 
 	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[0].NodeGroupID).Return(int64(1), nil)
-	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[1].NodeGroupID).Return(int64(0), nil)
-	mockStorage.On("DeleteNodeGroup", mock.Anything, nodeGroupMapInfo[1].NodeGroupID).Return(nil)
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[1].NodeGroupID).Return(int64(0), nil).Times(3)
+	mockReleaseLeaseWithTransaction(t, mockStorage, nodeGroupMapInfo[1].NodeGroupID, nodeGroupMapInfo[1].NodeGroup.LeaseName, 2, true)
 
 	oldDeleteKubernetesLease := deleteKubernetesLease
 	// Mock delete lease which is in utils
@@ -788,7 +1183,8 @@ func TestValidateAndReleaseLease_LeaseClientError(t *testing.T) {
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
 
 	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[0].NodeGroupID).Return(int64(1), nil)
-	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[1].NodeGroupID).Return(int64(0), nil)
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, nodeGroupMapInfo[1].NodeGroupID).Return(int64(0), nil).Times(2)
+	mockReleaseLeaseWithTransaction(t, mockStorage, nodeGroupMapInfo[1].NodeGroupID, nodeGroupMapInfo[1].NodeGroup.LeaseName, 1, false)
 
 	oldDeleteKubernetesLease := deleteKubernetesLease
 	// Mock delete lease which is in utils
@@ -831,6 +1227,83 @@ func TestValidateAndReleaseLease_DBError(t *testing.T) {
 	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, testActParams)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "db-error")
+	mockStorage.AssertExpectations(t)
+}
+
+func TestValidateAndReleaseLease_SkipsWhenRepopulatedBeforeK8sDelete(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	nodeGroupMapInfo := getNodeGroupMap(true, true)
+	group := nodeGroupMapInfo[0]
+	group.NodeGroupID = 5
+	group.NodeGroup.ID = 5
+	group.NodeGroup.LeaseName = "harvest-l5"
+
+	getCountCall := 0
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(func(context.Context, int64) (int64, error) {
+		getCountCall++
+		if getCountCall == 1 {
+			return 0, nil
+		}
+		return 1, nil
+	})
+	mockReleaseLeaseWithTransaction(t, mockStorage, 5, "harvest-l5", 1, false)
+
+	k8sDeleteCalled := false
+	oldDeleteKubernetesLease := deleteKubernetesLease
+	deleteKubernetesLease = func(ctx context.Context, leaseNameSpace, leaseName string) error {
+		k8sDeleteCalled = true
+		return nil
+	}
+	defer func() { deleteKubernetesLease = oldDeleteKubernetesLease }()
+
+	testActParams := &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: []*datamodel.NodeNodeGroupMap{group},
+	}
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.ValidateAndReleaseLease)
+
+	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, testActParams)
+	require.NoError(t, err)
+	assert.False(t, k8sDeleteCalled, "k8s lease delete must be skipped when pollers appear after lock precheck")
+	mockStorage.AssertExpectations(t)
+}
+
+func TestValidateAndReleaseLease_SkipsWhenPollersAssignedUnderLock(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	nodeGroupMapInfo := getNodeGroupMap(true, true)
+	group := nodeGroupMapInfo[0]
+	group.NodeGroupID = 7
+	group.NodeGroup.ID = 7
+	group.NodeGroup.LeaseName = "harvest-l7"
+
+	mockStorage.On("GetNodeGroupMapNodeCount", mock.Anything, int64(7)).Return(int64(0), nil).Once()
+	mockReleaseLeaseTransactions(t, mockStorage, 7, 1, []releaseLeaseTxBehavior{
+		{groupFound: true, dbLeaseName: "harvest-l7", activeCount: 1},
+	})
+
+	k8sDeleteCalled := false
+	oldDeleteKubernetesLease := deleteKubernetesLease
+	deleteKubernetesLease = func(ctx context.Context, leaseNameSpace, leaseName string) error {
+		k8sDeleteCalled = true
+		return nil
+	}
+	defer func() { deleteKubernetesLease = oldDeleteKubernetesLease }()
+
+	testActParams := &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: []*datamodel.NodeNodeGroupMap{group},
+	}
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.ValidateAndReleaseLease)
+
+	_, err := env.ExecuteActivity(activity.ValidateAndReleaseLease, testActParams)
+	require.NoError(t, err)
+	assert.False(t, k8sDeleteCalled)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -973,7 +1446,7 @@ func TestListAllMapsWithDeletedNodes_NodeNotFound_SkipsMap(t *testing.T) {
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 	m1 := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 10, NodeGroupID: 100}
 	m2 := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 2}, NodeID: 20, NodeGroupID: 100}
-	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.NewNotFoundErr("node", nil))
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, utilerrors.NewNotFoundErr("node", nil))
 	nodeDeleted := &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 20}, State: datamodel.LifeCycleStateDeleted}
 	mockStorage.On("ListNodeNodeGroupMapAfterID", mock.Anything, false, int64(0), 50).Return([]*datamodel.NodeNodeGroupMap{m1, m2}, nil)
 	mockStorage.On("GetNodeByID", mock.Anything, int64(10)).Return((*datamodel.Node)(nil), notFoundErr)

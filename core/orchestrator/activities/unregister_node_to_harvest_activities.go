@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -16,6 +17,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -196,35 +199,151 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) ValidateAndRel
 	logger := util.GetLogger(dbHbCtx)
 	activity.RecordHeartbeat(dbHbCtx, "ValidateAndReleaseLease started")
 
-	se := unRegisterNodeToHarvest.SE
+	seen := make(map[int64]struct{})
 	for i, nodeGroupMap := range activityParams.NodeGroupsMap {
 		activity.RecordHeartbeat(dbHbCtx, fmt.Sprintf("Validating and releasing lease %d/%d", i+1, len(activityParams.NodeGroupsMap)))
-		nodesCount, err := se.GetNodeGroupMapNodeCount(dbHbCtx, nodeGroupMap.NodeGroupID)
-		if err != nil {
+		if nodeGroupMap.NodeGroup == nil {
+			logger.Warnf("NodeGroup is nil for NodeGroupID: %d", nodeGroupMap.NodeGroupID)
+			continue
+		}
+		leaseName := strings.TrimSpace(nodeGroupMap.NodeGroup.LeaseName)
+		if leaseName == "" {
+			continue
+		}
+		if _, ok := seen[nodeGroupMap.NodeGroupID]; ok {
+			continue
+		}
+		seen[nodeGroupMap.NodeGroupID] = struct{}{}
+
+		if err := unRegisterNodeToHarvest.releaseEmptyNodeGroupLease(dbHbCtx, nodeGroupMap.NodeGroupID, leaseName); err != nil {
 			return err
 		}
-		if nodesCount == 0 {
-			if nodeGroupMap.NodeGroup != nil {
-				logger.Infof("Releasing kubernetes lease:%s for node group %d", nodeGroupMap.NodeGroup.LeaseName, nodeGroupMap.NodeGroupID)
-				err := deleteKubernetesLease(dbHbCtx, vcpLeaseNameSpace, nodeGroupMap.NodeGroup.LeaseName)
-				if err != nil {
-					if strings.Contains(err.Error(), "not found") {
-						logger.Warnf("kubernetes lease not found for node group %d: %v", nodeGroupMap.NodeGroupID, err)
-						continue
-					}
-					logger.Errorf("Failed to delete kubernetes lease for node group %d: %v", nodeGroupMap.NodeGroupID, err)
-					return err
-				}
-				// Delete lease table
-				err = se.DeleteNodeGroup(dbHbCtx, nodeGroupMap.NodeGroupID)
-				if err != nil {
-					logger.Errorf("Failed to delete node group %d: %v", nodeGroupMap.NodeGroupID, err)
-					return err
-				}
-			} else {
-				logger.Warnf("NodeGroup is nil for NodeGroupID: %d", nodeGroupMap.NodeGroupID)
+	}
+	return nil
+}
+
+// releaseEmptyNodeGroupLease removes the Kubernetes lease and soft-deletes the node group when it has
+// zero active pollers. Row locks and count re-checks mirror CleanupEmptyLeaseActivity so concurrent
+// assigners cannot delete a lease/group that was just repopulated.
+// If the K8s lease delete succeeds but the final soft-delete transaction fails, retries are
+// idempotent: a missing K8s lease is treated as not-found and soft-delete is re-attempted.
+func (a *UnRegisterNodeFromHarvestActivity) releaseEmptyNodeGroupLease(
+	ctx context.Context,
+	nodeGroupID int64,
+	leaseName string,
+) error {
+	logger := util.GetLogger(ctx)
+	se := a.SE
+
+	n, err := se.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+
+	shouldProceed := false
+	err = se.WithTransaction(ctx, func(tx dbutils.Transaction) error {
+		g := tx.GORM().WithContext(ctx)
+		var lockedGroup datamodel.NodeGroup
+		if err := g.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", nodeGroupID).
+			First(&lockedGroup).Error; err != nil {
+			if stderrors.Is(err, gorm.ErrRecordNotFound) {
+				logger.Warnf("releaseEmptyNodeGroupLease: node group %d already deleted, skip", nodeGroupID)
+				return nil
 			}
+			return err
 		}
+		if strings.TrimSpace(lockedGroup.LeaseName) != leaseName {
+			logger.Infof("releaseEmptyNodeGroupLease: skip node group %d (lease drift before release: db %q expected %q)",
+				nodeGroupID, lockedGroup.LeaseName, leaseName)
+			return nil
+		}
+		var cnt int64
+		if err := g.Model(&datamodel.NodeNodeGroupMap{}).
+			Where("node_group_id = ? AND deleted_at IS NULL", nodeGroupID).
+			Count(&cnt).Error; err != nil {
+			return err
+		}
+		if cnt > 0 {
+			logger.Infof("releaseEmptyNodeGroupLease: skip node group %d; %d poller(s) assigned under lock", nodeGroupID, cnt)
+			return nil
+		}
+		shouldProceed = true
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("precheck release lease for node group %d: %w", nodeGroupID, err)
+	}
+	if !shouldProceed {
+		return nil
+	}
+
+	n, err = se.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+	if err != nil {
+		return fmt.Errorf("recheck node group %d count before k8s lease delete: %w", nodeGroupID, err)
+	}
+	if n > 0 {
+		logger.Infof("releaseEmptyNodeGroupLease: skip k8s lease delete for node group %d (%d poller(s) after precheck)", nodeGroupID, n)
+		return nil
+	}
+
+	logger.Infof("Releasing kubernetes lease:%s for node group %d", leaseName, nodeGroupID)
+	if err := deleteKubernetesLease(ctx, vcpLeaseNameSpace, leaseName); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			logger.Warnf("kubernetes lease not found for node group %d: %v", nodeGroupID, err)
+		} else {
+			logger.Errorf("Failed to delete kubernetes lease for node group %d: %v", nodeGroupID, err)
+			return err
+		}
+	}
+
+	n, err = se.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+	if err != nil {
+		return fmt.Errorf("recheck node group %d count before soft-delete: %w", nodeGroupID, err)
+	}
+	if n > 0 {
+		logger.Infof("releaseEmptyNodeGroupLease: skip soft-delete for node group %d (%d poller(s) after k8s delete)", nodeGroupID, n)
+		return nil
+	}
+
+	err = se.WithTransaction(ctx, func(tx dbutils.Transaction) error {
+		g := tx.GORM().WithContext(ctx)
+		var lockedGroup datamodel.NodeGroup
+		if err := g.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", nodeGroupID).
+			First(&lockedGroup).Error; err != nil {
+			if stderrors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if strings.TrimSpace(lockedGroup.LeaseName) != leaseName {
+			logger.Infof("releaseEmptyNodeGroupLease: skip soft-delete for node group %d (lease drift after lock: db %q expected %q)",
+				nodeGroupID, lockedGroup.LeaseName, leaseName)
+			return nil
+		}
+		var cnt int64
+		if err := g.Model(&datamodel.NodeNodeGroupMap{}).
+			Where("node_group_id = ? AND deleted_at IS NULL", nodeGroupID).
+			Count(&cnt).Error; err != nil {
+			return err
+		}
+		if cnt > 0 {
+			logger.Infof("releaseEmptyNodeGroupLease: skip soft-delete for node group %d; %d poller(s) under lock", nodeGroupID, cnt)
+			return nil
+		}
+		if err := g.Where("id = ? AND deleted_at IS NULL", nodeGroupID).
+			Delete(&datamodel.NodeGroup{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Errorf("Failed to delete node group %d: %v", nodeGroupID, err)
+		return fmt.Errorf("soft-delete node group %d after k8s lease delete: %w", nodeGroupID, err)
 	}
 	return nil
 }
