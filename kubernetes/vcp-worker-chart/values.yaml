@@ -586,6 +586,8 @@ workerConfig:
     aggregatedUsageRetentionDays: 30
     # Days of hydrated_metrics to retain before cleanup (HYDRATED_METRICS_RETENTION_DAYS).
     hydratedMetricsRetentionDays: 30
+    # Days of tombstoned backup_chain_histories to retain before cleanup (BACKUP_CHAIN_HISTORY_RETENTION_DAYS).
+    backupChainHistoryRetentionDays: 7
     enablePollerRebalancing: false
   adc:
     image: "" # path of ADC image in gcp cloud image registry

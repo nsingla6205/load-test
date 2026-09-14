@@ -180,26 +180,43 @@ func TestMetricsCleanupActivity_CleanupJobsTableActivity_Error(t *testing.T) {
 }
 
 func TestMetricsCleanupActivity_CleanupBackupChainHistoryActivity_Success(t *testing.T) {
-	// Setup
+	t.Setenv("BACKUP_CHAIN_HISTORY_RETENTION_DAYS", "")
+
 	mockSE := database.NewMockStorage(t)
 	activity := &MetricsCleanupActivity{SE: mockSE}
 	ctx := context.Background()
 
-	// Expected cutoff time (approximately 7 days ago)
 	expectedRowsDeleted := int64(25)
+	retentionDays := database.BackupChainHistoryRetentionDays()
 
-	// Mock the delete operation
 	mockSE.On("DeleteBackupChainHistoryOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
-		// Verify cutoff is approximately 7 days ago (within 1 minute tolerance)
-		weekAgo := time.Now().AddDate(0, 0, -7)
-		diff := cutoff.Sub(weekAgo).Abs()
-		return diff < time.Minute
+		expectedCutoff := time.Now().AddDate(0, 0, -retentionDays)
+		return cutoff.Sub(expectedCutoff).Abs() < time.Minute
 	})).Return(expectedRowsDeleted, nil)
 
-	// Execute
 	err := activity.CleanupBackupChainHistoryActivity(ctx)
 
-	// Assert
+	assert.NoError(t, err)
+	mockSE.AssertExpectations(t)
+}
+
+func TestMetricsCleanupActivity_CleanupBackupChainHistoryActivity_UsesConfiguredRetention(t *testing.T) {
+	t.Setenv("BACKUP_CHAIN_HISTORY_RETENTION_DAYS", "14")
+
+	mockSE := database.NewMockStorage(t)
+	activity := &MetricsCleanupActivity{SE: mockSE}
+	ctx := context.Background()
+
+	retentionDays := database.BackupChainHistoryRetentionDays()
+	assert.Equal(t, 14, retentionDays)
+
+	mockSE.On("DeleteBackupChainHistoryOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
+		expectedCutoff := time.Now().AddDate(0, 0, -retentionDays)
+		return cutoff.Sub(expectedCutoff).Abs() < time.Minute
+	})).Return(int64(3), nil)
+
+	err := activity.CleanupBackupChainHistoryActivity(ctx)
+
 	assert.NoError(t, err)
 	mockSE.AssertExpectations(t)
 }
@@ -230,12 +247,12 @@ func TestMetricsCleanupActivity_CleanupBackupChainHistoryActivity_ZeroRecordsDel
 	activity := &MetricsCleanupActivity{SE: mockSE}
 	ctx := context.Background()
 
-	// Mock the delete operation with zero records deleted
+	t.Setenv("BACKUP_CHAIN_HISTORY_RETENTION_DAYS", "")
+	retentionDays := database.BackupChainHistoryRetentionDays()
+
 	mockSE.On("DeleteBackupChainHistoryOlderThan", mock.Anything, mock.MatchedBy(func(cutoff time.Time) bool {
-		// Verify cutoff is approximately 7 days ago (within 1 minute tolerance)
-		weekAgo := time.Now().AddDate(0, 0, -7)
-		diff := cutoff.Sub(weekAgo).Abs()
-		return diff < time.Minute
+		expectedCutoff := time.Now().AddDate(0, 0, -retentionDays)
+		return cutoff.Sub(expectedCutoff).Abs() < time.Minute
 	})).Return(int64(0), nil)
 
 	// Execute

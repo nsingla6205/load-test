@@ -121,7 +121,8 @@ func CleanupJobsTableWorkflow(ctx workflow.Context) error {
 	return nil
 }
 
-// CleanupBackupChainHistoryWorkflow performs cleanup of backup chain history records with deleted_at older than 7 days
+// CleanupBackupChainHistoryWorkflow performs cleanup of tombstoned backup chain history
+// records older than BackupChainHistoryRetentionDays.
 func CleanupBackupChainHistoryWorkflow(ctx workflow.Context) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting CleanupBackupChainHistoryWorkflow")

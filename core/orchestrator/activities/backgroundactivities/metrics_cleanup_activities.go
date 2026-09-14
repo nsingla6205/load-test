@@ -119,17 +119,18 @@ func (m *MetricsCleanupActivity) CleanupJobsTableActivity(ctx context.Context) e
 	return nil
 }
 
-// CleanupBackupChainHistoryActivity removes backup_chain_history records with deleted_at older than 7 days
+// CleanupBackupChainHistoryActivity removes tombstoned backup_chain_histories older than
+// BackupChainHistoryRetentionDays (BACKUP_CHAIN_HISTORY_RETENTION_DAYS, default 7).
 func (m *MetricsCleanupActivity) CleanupBackupChainHistoryActivity(ctx context.Context) error {
 	logger := util.GetLogger(ctx)
 
-	// Record start time and timestamp
 	startTime := time.Now()
 	logger.Infof("Starting cleanup of backup_chain_history table - Start timestamp: %s", startTime.Format("2006-01-02 15:04:05.000 MST"))
 
-	// Calculate cutoff time (7 days ago) and record time range for deletion
-	cutoffTime := time.Now().AddDate(0, 0, -7) // 7 days ago
-	logger.Infof("Cleanup configuration - Deleting records with deleted_at older than: %s", cutoffTime.Format("2006-01-02 15:04:05.000 MST"))
+	retentionDays := database.BackupChainHistoryRetentionDays()
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+	logger.Infof("Cleanup configuration - Retention days: %d, deleting records with deleted_at older than: %s",
+		retentionDays, cutoffTime.Format("2006-01-02 15:04:05.000 MST"))
 
 	// Perform deletion
 	queryStartTime := time.Now()
