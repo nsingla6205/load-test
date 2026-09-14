@@ -1784,34 +1784,6 @@ func (d *DataStoreRepository) UpdateBackupChainHistory(ctx context.Context, volu
 	return nil
 }
 
-// DeleteBackupChainHistoryOlderThan removes backup chain history records that have been soft deleted and are older than the specified time
-// Uses batch deletion to avoid long-running transactions and lock contention
-func (d *DataStoreRepository) DeleteBackupChainHistoryOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	db := d.db.GORM().WithContext(ctx)
-	logger := util.GetLogger(ctx)
-
-	batchSize := common.LoadConfig().PageSize
-	var totalDeleted int64
-
-	// Batch delete in chunks to avoid long-running transactions and lock contention
-	for {
-		result := db.Unscoped().Where("deleted_at IS NOT NULL AND deleted_at < ?", olderThan).Limit(int(batchSize)).Delete(&datamodel.BackupChainHistory{})
-		if result.Error != nil {
-			logger.Warnf("Ledger: Failed to delete backup chain history older than %s (deleted %d rows so far): %v",
-				olderThan.UTC().Format(time.RFC3339), totalDeleted, result.Error)
-			return totalDeleted, result.Error
-		}
-		if result.RowsAffected == 0 {
-			break
-		}
-		totalDeleted += result.RowsAffected
-	}
-
-	logger.Infof("Ledger: Successfully deleted %d backup chain history entries older than %s",
-		totalDeleted, olderThan.UTC().Format(time.RFC3339))
-	return totalDeleted, nil
-}
-
 // ListBackupChainHistoriesWithPagination retrieves backup chain history entries with pagination and conditions.
 func (d *DataStoreRepository) ListBackupChainHistoriesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.BackupChainHistory, error) {
 	// Use Unscoped to include soft-deleted history rows when deleted_at filters are provided.

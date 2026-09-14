@@ -202,11 +202,6 @@ func (r *DataStoreRepository) DeleteAggregatedUsage(ctx context.Context, id int6
 	return r.db.GORM().WithContext(ctx).Where("id = ?", id).Delete(&datamodel.AggregatedUsage{}).Error
 }
 
-func (r *DataStoreRepository) DeleteAggregatedUsageOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.GORM().WithContext(ctx).Where("aggregation_end < ?", olderThan).Delete(&datamodel.AggregatedUsage{})
-	return result.RowsAffected, result.Error
-}
-
 func (r *DataStoreRepository) DeleteJobsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
 	result := r.db.GORM().WithContext(ctx).Where("finished_at < ?", olderThan).Delete(&datamodel.Job{})
 	return result.RowsAffected, result.Error
