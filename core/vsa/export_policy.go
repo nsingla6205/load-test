@@ -28,10 +28,15 @@ func convertStorageExportPolicyRuleToONTAP(rule ExportRule) *ontapRest.ExportRul
 	roRules = models.ExportAuthenticationFlavorSys
 	rwRules = models.ExportAuthenticationFlavorAny
 
-	accessUnixRead := rule.UnixReadOnly || rule.UnixReadWrite
-	if accessUnixRead {
+	// Read-write access must be derived from the read-write flag only. A
+	// read-only rule must not receive a read-write flavor, otherwise AUTH_SYS
+	// clients would be granted write access on a read-only export.
+	if rule.UnixReadWrite {
 		roRules = models.ExportAuthenticationFlavorSys
 		rwRules = models.ExportAuthenticationFlavorSys
+	} else if rule.UnixReadOnly {
+		roRules = models.ExportAuthenticationFlavorSys
+		rwRules = models.ExportAuthenticationFlavorNever
 	}
 	if utils.IsRuleKerberosSupported(rule.NFSv4, rule.Kerberos5ReadWrite, rule.Kerberos5ReadOnly, rule.Kerberos5pReadWrite,
 		rule.Kerberos5pReadOnly, rule.Kerberos5iReadOnly, rule.Kerberos5iReadWrite) {

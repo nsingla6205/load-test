@@ -1768,6 +1768,46 @@ func TestConvertStorageExportPolicyRuleToONTAP_AuthenticationRules(t *testing.T)
 	}
 }
 
+// TestConvertStorageExportPolicyRuleToONTAP_UnixReadWriteRules verifies that the
+// read-write flavor is derived from the read-write flag only: a UNIX read-only
+// rule must never receive a read-write flavor (which would grant AUTH_SYS clients
+// write access on a read-only export), while a UNIX read-write rule does.
+func TestConvertStorageExportPolicyRuleToONTAP_UnixReadWriteRules(t *testing.T) {
+	tests := []struct {
+		name       string
+		rule       ExportRule
+		expectedRO string
+		expectedRW string
+	}{
+		{
+			name:       "UNIX read-only over NFSv3 does not grant read-write",
+			rule:       ExportRule{NFSv3: true, UnixReadOnly: true, UnixReadWrite: false},
+			expectedRO: models.ExportAuthenticationFlavorSys,
+			expectedRW: models.ExportAuthenticationFlavorNever,
+		},
+		{
+			name:       "UNIX read-write over NFSv3 grants read-write",
+			rule:       ExportRule{NFSv3: true, UnixReadOnly: false, UnixReadWrite: true},
+			expectedRO: models.ExportAuthenticationFlavorSys,
+			expectedRW: models.ExportAuthenticationFlavorSys,
+		},
+		{
+			name:       "UNIX read-only over NFSv4 without kerberos does not grant read-write",
+			rule:       ExportRule{NFSv4: true, UnixReadOnly: true, UnixReadWrite: false},
+			expectedRO: models.ExportAuthenticationFlavorSys,
+			expectedRW: models.ExportAuthenticationFlavorNever,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertStorageExportPolicyRuleToONTAP(tt.rule)
+			assert.Equal(t, tt.expectedRO, result.ReadOnlyRule)
+			assert.Equal(t, tt.expectedRW, result.ReadWriteRule)
+		})
+	}
+}
+
 func TestOntapRestProvider_UpdateExportPolicyRules(t *testing.T) {
 	t.Run("WhenGetOntapClientFuncFails_ShouldReturnError", func(t *testing.T) {
 		provider := &OntapRestProvider{Logger: log.NewLogger()}
