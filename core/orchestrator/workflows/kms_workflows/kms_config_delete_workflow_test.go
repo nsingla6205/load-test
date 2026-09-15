@@ -29,6 +29,15 @@ func newSDEDeleteConflictErr(message string) error {
 	)
 }
 
+// expectDeleteJobIsNew mocks the first GetJob call used by BaseWorkflow.EnsureJobState so the
+// delete workflow's job-state guard passes (job must be in NEW state before PROCESSING).
+// It is scoped with Once so any later rollback GetJob lookup falls through to a subtest's own mock.
+func expectDeleteJobIsNew(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		State: string(datamodel.JobsStateNEW),
+	}, nil).Once()
+}
+
 func TestDeleteKmsConfigWorkflow(t *testing.T) {
 	// These tests cover the SDE path — ensure SDE is enabled
 	origCVPHost := cvp.CVP_HOST
@@ -68,6 +77,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		sdeJobUuid := "job-uuid"
 		// Mock activity responses
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(&sdeJobUuid, nil)
 		env.OnActivity("DescribeSDEDeleteJob", mock.Anything, &sdeJobUuid, params).Return(nil)
@@ -110,6 +120,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		// Mock activity responses
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(nil, nil)
 
@@ -268,6 +279,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		sdeJobUUID := "job-uuid"
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(&sdeJobUUID, nil)
 		env.OnActivity("DescribeSDEDeleteJob", mock.Anything, &sdeJobUUID, params).Return(newSDEDeleteConflictErr("Conflict while deleting KMS config"))
@@ -317,6 +329,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		sdeJobUUID := "job-uuid"
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(&sdeJobUUID, nil)
 		env.OnActivity("DescribeSDEDeleteJob", mock.Anything, &sdeJobUUID, params).Return(errors.New(500, "describe failed"))
@@ -360,6 +373,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		sdeJobUUID := "job-uuid"
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(&sdeJobUUID, nil)
 		env.OnActivity("DescribeSDEDeleteJob", mock.Anything, &sdeJobUUID, params).Return(nil)
@@ -404,6 +418,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		}
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(nil, newSDEDeleteConflictErr("Error deleting CMEK policy - can not delete this policy as it is still in use"))
 		env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{}, nil)
@@ -446,6 +461,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		}
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(nil, newSDEDeleteConflictErr("Conflict while loading rollback state"))
 		env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return((*datamodel.Job)(nil), errors.New(500, "rollback lookup failed"))
@@ -488,6 +504,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		}
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(nil, newSDEDeleteConflictErr("Conflict while deleting KMS config"))
 		env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{
@@ -528,6 +545,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 			CustomerProjectID: "123456789", // Valid project number
 		}
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New(500, "error returned"))
 		// Execute workflow
@@ -575,6 +593,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		sdeJobUuid := "job-uuid"
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
 		env.OnActivity("DeleteSDEKmsConfig", mock.Anything, kmsConfig, params).Return(&sdeJobUuid, nil)
 		env.OnActivity("DescribeSDEDeleteJob", mock.Anything, &sdeJobUuid, params).Return(nil)
@@ -629,6 +648,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		sdeJobUuid := "job-uuid"
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		// Mock cancellation handling activities using string names
 		env.OnActivity("GetCreateJobByResourceUUID", mock.Anything, "kms1-uuid", mock.Anything, string(datamodel.JobTypeCreateKmsConfig)).Return(&common.CreateJobResult{
 			JobUUID:    "create-job-uuid",
@@ -689,6 +709,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		sdeJobUuid := "job-uuid"
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		// Mock cancellation handling activities - correlation ID error means GetCreateJobByResourceUUID returns error
 		env.OnActivity("GetCreateJobByResourceUUID", mock.Anything, "kms1-uuid", mock.Anything, string(datamodel.JobTypeCreateKmsConfig)).Return(nil, errors.New(404, "job not found"))
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
@@ -743,6 +764,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		sdeJobUuid := "job-uuid"
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		// Make GetCreateJobByResourceUUID fail to trigger cancellation handling error
 		env.OnActivity("GetCreateJobByResourceUUID", mock.Anything, "kms1-uuid", mock.Anything, string(datamodel.JobTypeCreateKmsConfig)).Return(nil, errors.New(404, "job not found"))
 		env.OnActivity("GetSignedTokenActivity", mock.Anything, "123456789").Return("test-jwt-token", nil)
@@ -801,6 +823,7 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 
 		sdeJobUuid := "job-uuid"
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		// Mock GetCreateJobByResourceUUID to return a job, then make IsWorkflowRunningActivity fail
 		// This will cause HandleCancellationInDeleteWorkflow to log warnings but still return nil
 		// However, we can test the error path by making UpdateJobStatus fail in a way that could propagate
@@ -822,6 +845,88 @@ func TestDeleteKmsConfigWorkflow(t *testing.T) {
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
 		env.AssertExpectations(t)
+	})
+	t.Run("WhenJobNotInNewState_GuardBlocksDelete", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		env.SetHeader(mockHeader)
+		env.RegisterWorkflow(DeleteKmsConfigWorkflow)
+		env.RegisterActivity(&activities.CommonActivities{})
+		mockStorage := database.NewMockStorage(tt)
+		env.RegisterActivity(&kms_activities.KmsConfigActivity{SE: mockStorage})
+
+		params := &common.DeleteKmsConfigParams{
+			KmsConfigID: "test-config-id",
+			AccountName: "123456789",
+		}
+		kmsConfig := &datamodel.KmsConfig{
+			Name: "kms1",
+			BaseModel: datamodel.BaseModel{
+				UUID: "kms1-uuid",
+			},
+			CustomerProjectID: "123456789",
+		}
+
+		// EnsureJobState guard: the job has already advanced past NEW, so the workflow must bail
+		// out before running any delete activity (GetSignedTokenActivity/DeleteSDEKmsConfig are
+		// intentionally left unmocked to prove they are never reached).
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+			State: string(datamodel.JobsStatePROCESSING),
+		}, nil).Once()
+
+		env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		err := env.GetWorkflowError()
+		assert.Error(tt, err)
+		// Temporal testsuite does not preserve CustomError details on workflow return
+		// (ExtractCustomError → 1011). Same assertion as CreateKmsConfigWorkflow.
+		assert.Contains(tt, err.Error(), "expected NEW")
+		env.AssertExpectations(tt)
+	})
+	t.Run("WhenGuardJobLookupFails_BlocksDelete", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		env.SetHeader(mockHeader)
+		env.RegisterWorkflow(DeleteKmsConfigWorkflow)
+		env.RegisterActivity(&activities.CommonActivities{})
+		mockStorage := database.NewMockStorage(tt)
+		env.RegisterActivity(&kms_activities.KmsConfigActivity{SE: mockStorage})
+
+		params := &common.DeleteKmsConfigParams{
+			KmsConfigID: "test-config-id",
+			AccountName: "123456789",
+		}
+		kmsConfig := &datamodel.KmsConfig{
+			Name: "kms1",
+			BaseModel: datamodel.BaseModel{
+				UUID: "kms1-uuid",
+			},
+			CustomerProjectID: "123456789",
+		}
+
+		// EnsureJobState guard: the job lookup itself fails, so the workflow must bail out.
+		env.OnActivity("GetJob", mock.Anything, mock.Anything).Return((*datamodel.Job)(nil), errors.New(500, "job lookup failed")).Once()
+
+		env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.Error(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
 	})
 }
 
@@ -868,6 +973,7 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 		}
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DisableKmsServiceAccount", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DeleteKmsConfig", mock.Anything, kmsConfig, params).Return(nil)
@@ -898,6 +1004,7 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 		}
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(errors.New(500, "failed to disable SA"))
 		env.OnActivity("UpdateKmsConfigState", mock.Anything, kmsConfig, datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails).Return(nil)
 
@@ -929,6 +1036,7 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 		// Mock only VCP path activities — SDE activities (GetSignedTokenActivity,
 		// DeleteSDEKmsConfig, DescribeSDEDeleteJob) should NOT be called
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DisableKmsServiceAccount", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DeleteKmsConfig", mock.Anything, kmsConfig, params).Return(nil)
@@ -956,6 +1064,7 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 
 		// With empty UUID, DisableKmsServiceAccount and DeleteKmsConfig should NOT be called
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		expectDeleteJobIsNew(env)
 		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 
 		env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)

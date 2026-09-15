@@ -37,6 +37,9 @@ func DeleteKmsConfigWorkflow(ctx workflow.Context, kmsConfig *datamodel.KmsConfi
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
 	}
+	if err = kmsConfigWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
+		return nil, workflows.ConvertToVSAError(err)
+	}
 	kmsConfigWf.Status = workflows.WorkflowStatusRunning
 	err = kmsConfigWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
