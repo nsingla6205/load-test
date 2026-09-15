@@ -730,7 +730,7 @@ func _createExpertModeVolume(ctx context.Context, se database.Storage, temporal 
 	}
 
 	// Look up SVM based on provided parameters
-	svm, err = resolveExpertModeSvm(ctx, se, account, dbPoolView, params)
+	svm, err = resolveExpertModeSvm(ctx, se, dbPoolView, params)
 	if err != nil {
 		return err
 	}
@@ -819,26 +819,17 @@ func _createExpertModeVolume(ctx context.Context, se database.Storage, temporal 
 	return nil
 }
 
-// resolveExpertModeSvm resolves the SVM referenced by params for an expert-mode
-// volume create and validates it belongs to the target pool.
+// resolveExpertModeSvm resolves the SVM referenced by params and validates it
+// belongs to the target pool.
 //
-// For FLEX (shared) pools the SVM->pool mapping is persisted, so membership is
-// validated by looking the SVM up scoped to the pool (by name or external UUID).
-// For non-FLEX (dedicated-hardware) pools the SVM->pool mapping is not persisted,
-// so membership is instead validated against the pool's account: dedicated SVMs are
-// named svm_<accountUUID-without-hyphens>_..., and the SVM record is resolved within
-// the account rather than the pool. Both the svmName and svmUUID inputs follow the
-// same flex/non-flex handling.
-func resolveExpertModeSvm(ctx context.Context, se database.Storage, account *datamodel.Account, dbPoolView *datamodel.PoolView, params *commonparams.ExpertModeVolumeParams) (*datamodel.Svm, error) {
+// The lookup is scoped to dbPoolView.ID for both FLEX and dedicated-hardware pools.
+// An SVM in the pool's account but mapped to another pool is rejected: the volume
+// would land outside the requested pool and be reconciled twice.
+func resolveExpertModeSvm(ctx context.Context, se database.Storage, dbPoolView *datamodel.PoolView, params *commonparams.ExpertModeVolumeParams) (*datamodel.Svm, error) {
 	logger := util.GetLogger(ctx)
-
-	dedicated := dbPoolView.IsDedicatedCapacity()
 
 	switch {
 	case params.SvmUuid != "":
-		if dedicated {
-			return resolveDedicatedPoolSvmByUUID(ctx, se, account, params.SvmUuid)
-		}
 		svm, err := se.GetSvmByExternalUUID(ctx, params.SvmUuid, dbPoolView.ID)
 		if err != nil {
 			logger.Error("Failed to find SVM by external UUID", "svmUuid", params.SvmUuid, "error", err)
@@ -849,9 +840,6 @@ func resolveExpertModeSvm(ctx context.Context, se database.Storage, account *dat
 		}
 		return svm, nil
 	case params.SvmName != "":
-		if dedicated {
-			return resolveDedicatedPoolSvmByName(ctx, se, account, params.SvmName)
-		}
 		svm, err := se.GetSvmByNameAndPoolID(ctx, params.SvmName, dbPoolView.ID)
 		if err != nil {
 			logger.Error("Failed to find SVM by name and poolID", "svmName", params.SvmName, "poolID", dbPoolView.ID, "error", err)
@@ -865,64 +853,6 @@ func resolveExpertModeSvm(ctx context.Context, se database.Storage, account *dat
 		logger.Error("Neither svmName nor svmUUID has been passed")
 		return nil, customerrors.NewBadRequestErr("neither svmName nor svmUUID has been passed")
 	}
-}
-
-// expertModeSvmNamePrefix builds the prefix that a dedicated-pool SVM name must
-// carry for the given account: svm_<accountUUID-without-hyphens>_. GCNV names data
-// SVMs on dedicated hardware after the owning account UUID with hyphens removed.
-func expertModeSvmNamePrefix(accountUUID string) string {
-	return commonparams.GetSVMPrefix(accountUUID)
-}
-
-// resolveDedicatedPoolSvmByName validates that svmName belongs to the pool's account
-// using the svm_<accountUUID>_ naming convention (used instead of the pool-membership
-// check on FLEX pools) and returns the matching SVM record. The SVM is looked up by
-// name within the account rather than by pool, because dedicated-pool SVMs are not
-// keyed to a pool_id.
-func resolveDedicatedPoolSvmByName(ctx context.Context, se database.Storage, account *datamodel.Account, svmName string) (*datamodel.Svm, error) {
-	logger := util.GetLogger(ctx)
-
-	prefix := expertModeSvmNamePrefix(account.UUID)
-	if !strings.HasPrefix(svmName, prefix) {
-		logger.Error("SVM name does not belong to the pool's account", "svmName", svmName, "accountUUID", account.UUID)
-		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with name '%s' not found in pool", svmName))
-	}
-
-	svms, err := se.ListSvmsWithAccountId(ctx, account.ID)
-	if err != nil {
-		logger.Error("Failed to list SVMs for account", "accountID", account.ID, "error", err)
-		return nil, err
-	}
-	for _, svm := range svms {
-		if svm.Name == svmName {
-			return svm, nil
-		}
-	}
-
-	logger.Error("Failed to find SVM by name for account", "svmName", svmName, "accountID", account.ID)
-	return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with name '%s' not found in pool", svmName))
-}
-
-// resolveDedicatedPoolSvmByUUID resolves the SVM by its external UUID within the
-// pool's account (rather than the pool) for non-FLEX pools, where the SVM->pool
-// mapping is not persisted. Membership is enforced by the account scoping of the
-// lookup.
-func resolveDedicatedPoolSvmByUUID(ctx context.Context, se database.Storage, account *datamodel.Account, svmUUID string) (*datamodel.Svm, error) {
-	logger := util.GetLogger(ctx)
-
-	svms, err := se.ListSvmsWithAccountId(ctx, account.ID)
-	if err != nil {
-		logger.Error("Failed to list SVMs for account", "accountID", account.ID, "error", err)
-		return nil, err
-	}
-	for _, svm := range svms {
-		if svm.SvmDetails != nil && svm.SvmDetails.ExternalUUID == svmUUID {
-			return svm, nil
-		}
-	}
-
-	logger.Error("Failed to find SVM by external UUID for account", "svmUuid", svmUUID, "accountID", account.ID)
-	return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with UUID '%s' not found in pool", svmUUID))
 }
 
 func fetchParentVolumeSizeForCloneCreate(ctx context.Context, se database.Storage, pool datamodel.Pool, parentVolumeUUID string, parentVolumeName string) (int64, string, string, error) {
