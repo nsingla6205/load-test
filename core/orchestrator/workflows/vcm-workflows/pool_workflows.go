@@ -223,6 +223,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		return err
 	}
 
+	wf.setStep(ctx, jobStepCreateCluster)
 	logger.Info("workflow: invoking VLM create-cluster deployment child workflow",
 		"deploymentName", deploymentID, "numHAPair", vlmCfg.Deployment.NumHAPair)
 	depRes, err := vcmclient.InvokeCreateClusterDeployment(ctx,
@@ -241,12 +242,12 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	forwardingRuleIP := nodeMgmtIPFromVLMConfig(vlmCfg)
 	logger.Info("workflow: VLM cluster deployment completed",
 		"clusterName", vlmCfg.VsaCluster.ClusterName, "nodeMgmtIp", forwardingRuleIP)
-	wf.publishOperationProgress(ctx, jobStepCreateCluster, "")
 
 	if err := wf.checkDeadline(ctx, "create-svm"); err != nil {
 		return err
 	}
 
+	wf.setStep(ctx, jobStepCreateSVM)
 	svmName, err := commonparams.DeriveVCMSvmName(deploymentID)
 	if err != nil {
 		logger.Error("workflow: derive SVM name failed", "deploymentName", deploymentID, "error", err)
@@ -272,7 +273,6 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	wf.vlmCfg = vlmCfg
 	wf.svmName = svmName
 	logger.Info("workflow: VLM SVM created", "svmName", svmName)
-	wf.publishOperationProgress(ctx, jobStepCreateSVM, svmName)
 
 	qosType := mapQosType(wf.req.QosType)
 	if qosType != utils.QosTypeManual {
@@ -326,21 +326,8 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 // setStep updates the durable job's current_step (best-effort; a failed update
 // is logged but does not abort provisioning).
 func (wf *createPoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
-	wf.publishOperationProgress(ctx, step, wf.svmName)
-}
-
-// publishOperationProgress records current_step and the latest pool ipConfig on
-// the durable job so GET /v1/operations/{operationId} can surface partial layout
-// while the workflow is still running.
-func (wf *createPoolWorkflow) publishOperationProgress(ctx *orchestrator.Context, step string, svmName string) {
 	wf.currentStep = step
-	payload, err := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID, wf.vlmCfg, svmName)
-	if err != nil {
-		wfLogger(ctx).Warn("workflow: failed to marshal pool operation progress payload",
-			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
-		payload = nil
-	}
-	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, payload); err != nil {
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, nil); err != nil {
 		wfLogger(ctx).Warn("workflow: failed to update job step",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
 	}

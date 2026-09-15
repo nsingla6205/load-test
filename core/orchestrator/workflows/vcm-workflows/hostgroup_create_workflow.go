@@ -7,7 +7,6 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
@@ -16,8 +15,8 @@ import (
 const hostGroupActivityTimeout = 600 * time.Second
 
 var (
-	vcmJobActivity       vcmactivities.JobActivity
-	vcmHostGroupActivity vcmactivities.HostGroupActivity
+	vcmJobActivity       activities.JobActivity
+	vcmHostGroupActivity activities.HostGroupActivity
 	svmActivity          activities.SvmActivity
 )
 
@@ -27,14 +26,14 @@ func VcmCreateHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ho
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
 	finishJob := func(workflowErr error, responsePayload *string) error {
-		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
+		params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return returnFinishJobError(workflowErr, err)
+			return err
 		}
 		return workflowErr
 	}
 
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmactivities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, activities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
 		return err
 	}
 
@@ -78,10 +77,3 @@ func vcmHostGroupActivityOptions() orchestrator.ActivityOptions {
 	}
 }
 
-// returnFinishJobError preserves the workflow failure when terminal job persistence also fails.
-func returnFinishJobError(workflowErr, updateErr error) error {
-	if workflowErr != nil {
-		return workflowErr
-	}
-	return updateErr
-}

@@ -15,7 +15,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	coremodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
@@ -70,7 +69,7 @@ func (s *e2eJobStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJo
 	if job, ok := s.jobs[params.JobID]; ok {
 		job.State = params.State
 		job.CurrentStep = params.Step
-		if vcmdb.HasPersistableResponsePayload(params.ResponsePayload) {
+		if vcmdb.HasPersistablePayload(params.ResponsePayload) {
 			job.ResponsePayload = params.ResponsePayload
 		}
 	}
@@ -117,7 +116,7 @@ func runPoolWorkflowE2EWithReg(t *testing.T, store vcmdb.VCMDatastore, params *c
 
 	reg := r.Registrar()
 	reg.RegisterWorkflow(PoolWorkflow)
-	ja := &vcmactivities.JobActivity{Store: store}
+	ja := &activities.JobActivity{Store: store}
 	reg.RegisterActivity(ja.GetJob)
 	reg.RegisterActivity(ja.UpdateJobProgress)
 	if extra != nil {

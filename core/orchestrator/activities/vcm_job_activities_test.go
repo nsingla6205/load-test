@@ -1,4 +1,4 @@
-package vcm
+package activities
 
 import (
 	"context"

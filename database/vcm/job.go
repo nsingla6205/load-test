@@ -34,11 +34,17 @@ type Job struct {
 	ErrorMessage    string    `gorm:"column:error_message;size:65536;not null"`
 	RequestPayload  string    `gorm:"column:request_payload;size:2621440;not null;default:''"`
 	ResponsePayload string    `gorm:"column:response_payload;size:2621440;not null;default:''"`
-	RecoveryValue   string    `gorm:"column:recovery_value;size:128;not null;default:''"`
+	RecoveryPayload string    `gorm:"column:recovery_payload;size:2621440;not null;default:''"`
 	Retriable       bool      `gorm:"column:retriable;not null;default:false"`
 	DeadlineAt      time.Time `gorm:"column:deadline_at;not null"`
 	CreatedAt       time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt       time.Time `gorm:"column:updated_at;not null"`
+}
+
+// RecoveryPayload is the durable checkpoint payload stored in Job.RecoveryPayload.
+// Each workflow writes only the fields it needs for restart recovery.
+type RecoveryPayload struct {
+	VolumeName string `json:"volumeName,omitempty"`
 }
 
 // CreateJob inserts the initial durable state before workflow execution starts.
@@ -128,13 +134,8 @@ type UpdateJobProgressParams struct {
 	TrackingID      int
 	ErrorMessage    string
 	ResponsePayload string
-	RecoveryValue   string
+	RecoveryPayload string
 	Retriable       bool
-}
-
-// HasPersistableResponsePayload reports whether payload is non-empty and not the JSON literal "null".
-func HasPersistableResponsePayload(payload string) bool {
-	return payload != "" && payload != "null"
 }
 
 // UpdateJobProgress persists step, state, and error details after workflow progress.
@@ -155,11 +156,11 @@ func (s *gormStore) UpdateJobProgress(ctx context.Context, params UpdateJobProgr
 		"retriable":     params.Retriable,
 		"updated_at":    time.Now().UTC(),
 	}
-	if HasPersistableResponsePayload(params.ResponsePayload) {
+	if HasPersistablePayload(params.ResponsePayload) {
 		updates["response_payload"] = params.ResponsePayload
 	}
-	if params.RecoveryValue != "" {
-		updates["recovery_value"] = params.RecoveryValue
+	if HasPersistablePayload(params.RecoveryPayload) {
+		updates["recovery_payload"] = params.RecoveryPayload
 	}
 
 	result := db.WithContext(ctx).

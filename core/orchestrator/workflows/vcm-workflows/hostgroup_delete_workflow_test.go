@@ -143,3 +143,23 @@ func TestVcmDeleteHostGroupWorkflow_ProcessingUpdateFails(t *testing.T) {
 	deleteCalls, _, _ := deleter.snapshot()
 	assert.Equal(t, 0, deleteCalls)
 }
+
+func TestVcmDeleteHostGroupWorkflow_FinishJobUpdateFails(t *testing.T) {
+	const operationID = "op-delete-finish-fails"
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateDone,
+		failErr:     errors.New("final job update failed"),
+	}
+	deleter := &stubDeleteIgroupActivity{}
+
+	err := runVcmDeleteHostGroupWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity((&stubSvmActivity{}).GetSvmByName)
+		reg.RegisterActivity(deleter.DeleteIgroup)
+	}, testNode(), "hg-1", testExpectedSvmName)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "final job update failed")
+	deleteCalls, _, _ := deleter.snapshot()
+	assert.Equal(t, 1, deleteCalls)
+}

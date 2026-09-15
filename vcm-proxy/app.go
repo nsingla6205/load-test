@@ -18,7 +18,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
-	vcmjob "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	vcm "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/vcm/recovery"
@@ -236,8 +235,8 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	var volumeCreateActivity activities.VolumeCreateActivity
 	var volumeDeleteActivity activities.VolumeDeleteActivity
 	var volumeUpdateActivity activities.VolumeUpdateActivity
-	var vcmHostGroupActivity vcmjob.HostGroupActivity
-	jobActivity := &vcmjob.JobActivity{Store: store}
+	var vcmHostGroupActivity activities.HostGroupActivity
+	jobActivity := &activities.JobActivity{Store: store}
 
 	reg.RegisterActivity(poolActivity.IdentifyVMs)
 	reg.RegisterActivity(credentialActivity.ResolveOntapAdminPassword)

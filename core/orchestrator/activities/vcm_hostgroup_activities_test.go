@@ -1,4 +1,4 @@
-package vcm
+package activities
 
 import (
 	"context"
@@ -248,4 +248,112 @@ func TestHostGroupActivity_DeleteIgroup_LUNMapsNonRetryable(t *testing.T) {
 	var customErr *vsaerrors.CustomError
 	require.True(t, errors.As(err, &customErr))
 	assert.Equal(t, vsaerrors.ErrHostGroupHasLUNMaps, customErr.TrackingID)
+}
+
+func TestValidateHostGroupsExistInONTAP_GetProviderFails(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, errors.New("provider init failed"))
+	}
+
+	err := HostGroupActivity{}.ValidateHostGroupsExistInONTAP(context.Background(), []string{"hg-1"}, "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestValidateHostGroupsExistInONTAP_IgroupExistsFails(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	mockProvider.EXPECT().IgroupExists("hg-1", nillable.GetStringPtr("test-svm")).Return(false, nil, errors.New("ONTAP unavailable"))
+
+	err := HostGroupActivity{}.ValidateHostGroupsExistInONTAP(context.Background(), []string{"hg-1"}, "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_CreateIgroup_GetProviderFails(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return nil, errors.New("provider init failed")
+	}
+
+	err := HostGroupActivity{}.CreateIgroup(context.Background(), "test-svm", &common.HostParams{
+		HostName: "host1",
+		OsType:   "linux",
+		HostIQNs: []string{"iqn.1"},
+	}, &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_UpdateIgroup_GetProviderFails(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return nil, errors.New("provider init failed")
+	}
+
+	_, err := HostGroupActivity{}.UpdateIgroup(context.Background(), "hg-1", []string{"iqn.1"}, "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_UpdateIgroup_SyncFails(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	mockProvider.EXPECT().IgroupExists("hg-1", nillable.GetStringPtr("test-svm")).Return(false, nil, errors.New("ONTAP sync failed"))
+
+	_, err := HostGroupActivity{}.UpdateIgroup(context.Background(), "hg-1", []string{"iqn.1"}, "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_DeleteIgroup_GetProviderFails(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return nil, errors.New("provider init failed")
+	}
+
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "hg-1", "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_DeleteIgroup_IgroupGetFails(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	mockProvider.EXPECT().IgroupGet(nillable.ToPointer("hg-1"), nillable.ToPointer("test-svm")).Return(nil, errors.New("ONTAP unavailable"))
+
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "hg-1", "test-svm", &models.Node{})
+	require.Error(t, err)
+}
+
+func TestHostGroupActivity_DeleteIgroup_IgroupDeleteFails(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	const igroupUUID = "igroup-uuid-1"
+	mockProvider.EXPECT().IgroupGet(nillable.ToPointer("hg-1"), nillable.ToPointer("test-svm")).Return(&ontapRest.Igroup{
+		Igroup: ontapModels.Igroup{UUID: nillable.ToPointer(igroupUUID)},
+	}, nil)
+	mockProvider.EXPECT().IgroupDelete(igroupUUID).Return(errors.New("ONTAP delete failed"))
+
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "hg-1", "test-svm", &models.Node{})
+	require.Error(t, err)
 }

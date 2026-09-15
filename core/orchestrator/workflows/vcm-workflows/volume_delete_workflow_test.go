@@ -244,7 +244,7 @@ func TestVcmDeleteVolumeWorkflow_Success(t *testing.T) {
 	require.Len(t, calls, 3)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[1].state)
-	assert.Equal(t, "vol-to-delete", calls[1].recoveryValue)
+	assert.JSONEq(t, `{"volumeName":"vol-to-delete"}`, calls[1].recoveryPayload)
 	assert.Equal(t, vcmdb.JobStateDone, calls[2].state)
 	assert.True(t, deleteAct.deleteExportPolicyInvoked)
 	assert.True(t, deleteAct.deleteSnapshotPolicyInvoked)
@@ -320,14 +320,16 @@ func TestVcmDeleteVolumeWorkflow_VolumeAlreadyDeletedOnONTAP_QuotedNameError(t *
 
 func TestVcmDeleteVolumeWorkflow_VolumeNotFoundLoadsNameFromJobContext(t *testing.T) {
 	const operationID = "op-volume-delete-retry-from-job"
-	job := &stubJobActivity{recoveryValue: "persisted-vol-name"}
+	recoveryPayload, err := vcmdb.MarshalPayload(vcmdb.RecoveryPayload{VolumeName: "persisted-vol-name"})
+	require.NoError(t, err)
+	job := &stubJobActivity{recoveryPayload: recoveryPayload}
 	svm := &stubSvmActivity{}
 	update := &stubVolumeUpdateActivity{
 		err: utilErrors.NewNotFoundErr("volume", nillable.ToPointer("persisted-vol-name")),
 	}
 	deleteAct := &stubVolumeDeleteActivity{}
 
-	err := runVcmDeleteVolumeWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
+	err = runVcmDeleteVolumeWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
 		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
 	}, testDeleteVolume(), testNode())
 
@@ -487,4 +489,41 @@ func TestVcmDeleteVolumeWorkflow_DeleteExportPolicyFails(t *testing.T) {
 	require.Len(t, calls, 3)
 	assert.Equal(t, vcmdb.JobStateError, calls[2].state)
 	assert.True(t, deleteAct.deleteExportPolicyInvoked)
+}
+
+func TestVcmDeleteVolumeWorkflow_FinishJobUpdateFails(t *testing.T) {
+	const operationID = "op-delete-finish-fails"
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateDone,
+		failErr:     errors.New("final job update failed"),
+	}
+	svm := &stubSvmActivity{}
+	update := &stubVolumeUpdateActivity{externalUUID: "ontap-vol-uuid"}
+	deleteAct := &stubVolumeDeleteActivity{}
+
+	err := runVcmDeleteVolumeWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
+		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
+	}, testDeleteVolume(), testNode())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "final job update failed")
+	assert.True(t, deleteAct.deleteVolumeInvoked)
+}
+
+func TestVcmDeleteVolumeWorkflow_InvalidRecoveryPayload(t *testing.T) {
+	const operationID = "op-delete-invalid-recovery"
+	job := &stubJobActivity{recoveryPayload: `{invalid`}
+	svm := &stubSvmActivity{}
+	update := &stubVolumeUpdateActivity{
+		err: utilErrors.NewNotFoundErr("volume", nillable.ToPointer("vol-to-delete")),
+	}
+	deleteAct := &stubVolumeDeleteActivity{}
+
+	err := runVcmDeleteVolumeWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
+		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
+	}, testDeleteVolume(), testNode())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unmarshal payload")
+	assert.False(t, deleteAct.deleteVolumeInvoked)
 }

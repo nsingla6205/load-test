@@ -1,4 +1,4 @@
-package vcm
+package activities
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func JobProgressParams(jobID string, state vcmdb.JobState, workflowErr error, re
 	default:
 		params.State = vcmdb.JobStateDone
 	}
-	if responsePayload != nil && vcmdb.HasPersistableResponsePayload(*responsePayload) {
+	if responsePayload != nil && vcmdb.HasPersistablePayload(*responsePayload) {
 		params.ResponsePayload = *responsePayload
 	}
 	return params

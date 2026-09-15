@@ -5,7 +5,6 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -24,9 +23,9 @@ func VcmCreateVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
 	finishJob := func(workflowErr error, responsePayload *string) error {
-		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
+		params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return returnFinishJobError(workflowErr, err)
+			return err
 		}
 		return workflowErr
 	}
@@ -41,7 +40,7 @@ func VcmCreateVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	expectedSvmName := volume.Svm.Name
 	hostGroupNames := hostGroupNamesFromCreateParams(createVolumeParams)
 
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmactivities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, activities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
 		return err
 	}
 

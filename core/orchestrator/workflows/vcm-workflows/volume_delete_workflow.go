@@ -5,7 +5,6 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
@@ -24,9 +23,9 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
 	finishJob := func(workflowErr error) error {
-		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, nil)
+		params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, nil)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return returnFinishJobError(workflowErr, err)
+			return err
 		}
 		return workflowErr
 	}
@@ -39,7 +38,7 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	}
 	expectedSvmName := volume.Svm.Name
 
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmactivities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, activities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
 		return err
 	}
 
@@ -56,15 +55,25 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.GetJob, operationID).Get(activityCtx, &job); err != nil {
 			return finishJob(err)
 		}
-		volume.Name = job.RecoveryValue
-		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName = job.RecoveryValue
+		recovery, err := vcmdb.UnmarshalPayload[vcmdb.RecoveryPayload](job.RecoveryPayload)
+		if err != nil {
+			return finishJob(err)
+		}
+		volume.Name = recovery.VolumeName
+		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName = recovery.VolumeName
 	} else {
 		volume.Name = volResponse.Name
 		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName = volResponse.ExportPolicyName
+		recoveryPayload, err := vcmdb.MarshalPayload(vcmdb.RecoveryPayload{
+			VolumeName: volResponse.Name,
+		})
+		if err != nil {
+			return finishJob(err)
+		}
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmdb.UpdateJobProgressParams{
-			JobID:         operationID,
-			State:         vcmdb.JobStateProcessing,
-			RecoveryValue: volume.Name,
+			JobID:           operationID,
+			State:           vcmdb.JobStateProcessing,
+			RecoveryPayload: recoveryPayload,
 		}).Get(activityCtx, nil); err != nil {
 			return finishJob(err)
 		}

@@ -1,4 +1,4 @@
-package vcm
+package activities
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 )
 
 // HostGroupActivity performs ONTAP igroup operations for VCM workflows.
@@ -22,17 +23,17 @@ func (a HostGroupActivity) ValidateHostGroupsExistInONTAP(ctx context.Context, h
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return apperror.WrapAsAppError(err, false)
 	}
 
 	for _, hostGroupName := range hostGroupNames {
 		orchestrator.RecordHeartbeat(ctx, "Checking host group exists in ONTAP", "hostGroup", hostGroupName, "svm", svmName)
 		exists, _, err := provider.IgroupExists(hostGroupName, &svmName)
 		if err != nil {
-			return vsaerrors.WrapAsTemporalApplicationError(err)
+			return apperror.WrapAsAppError(err, false)
 		}
 		if !exists {
-			return vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrAllHostGroupsNotFoundError, fmt.Errorf("host group %q not found on SVM %q", hostGroupName, svmName)))
+			return apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrAllHostGroupsNotFoundError, fmt.Errorf("host group %q not found on SVM %q", hostGroupName, svmName)), false)
 		}
 	}
 
@@ -46,7 +47,7 @@ func (HostGroupActivity) CreateIgroup(ctx context.Context, svmName string, host 
 	orchestrator.RecordHeartbeat(ctx, "Starting VCM CreateIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return apperror.WrapAsAppError(err, false)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
@@ -60,8 +61,8 @@ func (HostGroupActivity) CreateIgroup(ctx context.Context, svmName string, host 
 			orchestrator.RecordHeartbeat(ctx, "Finished VCM CreateIgroup activity")
 			return nil
 		}
-		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupAlreadyExists,
-			fmt.Errorf("host group %q already exists with different configuration", host.HostName)))
+		return apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupAlreadyExists,
+			fmt.Errorf("host group %q already exists with different configuration", host.HostName)), true)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Creating igroup in ONTAP")
@@ -86,16 +87,16 @@ func (HostGroupActivity) UpdateIgroup(ctx context.Context, igroupName string, de
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return "", vsaerrors.WrapAsTemporalApplicationError(err)
+		return "", apperror.WrapAsAppError(err, false)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Syncing igroup initiators in ONTAP")
 	found, osType, err := vsa.SyncIgroupInitiators(provider, igroupName, desiredHosts, &svmName)
 	if err != nil {
-		return "", vsaerrors.WrapAsTemporalApplicationError(err)
+		return "", apperror.WrapAsAppError(err, false)
 	}
 	if !found {
-		return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupNotFound, fmt.Errorf("igroup %q not found", igroupName)))
+		return "", apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupNotFound, fmt.Errorf("igroup %q not found", igroupName)), true)
 	}
 
 	logger.Debug("Igroup updated successfully", "name", igroupName, "svm", svmName)
@@ -109,7 +110,7 @@ func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupName string, sv
 	orchestrator.RecordHeartbeat(ctx, "Starting VCM DeleteIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return apperror.WrapAsAppError(err, false)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Fetching Igroup details")
@@ -120,16 +121,16 @@ func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupName string, sv
 			orchestrator.RecordHeartbeat(ctx, "Finished VCM DeleteIgroup activity")
 			return nil
 		}
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return apperror.WrapAsAppError(err, false)
 	}
 	if igroup != nil && igroup.UUID != nil {
 		err = provider.IgroupDelete(*igroup.UUID)
 		if err != nil {
 			var customErr *vsaerrors.CustomError
 			if vsaerrors.As(err, &customErr) && customErr.TrackingID == vsaerrors.ErrHostGroupHasLUNMaps {
-				return vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
+				return apperror.WrapAsAppError(err, true)
 			}
-			return vsaerrors.WrapAsTemporalApplicationError(err)
+			return apperror.WrapAsAppError(err, false)
 		}
 		logger.Debug("Igroup deleted successfully", "name", igroupName)
 	} else {

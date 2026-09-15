@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
@@ -16,14 +16,14 @@ func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, node *models.Node, ig
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
 	finishJob := func(workflowErr error, responsePayload *string) error {
-		params := vcmactivities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
+		params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return returnFinishJobError(workflowErr, err)
+			return err
 		}
 		return workflowErr
 	}
 
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmactivities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, activities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
 		return err
 	}
 

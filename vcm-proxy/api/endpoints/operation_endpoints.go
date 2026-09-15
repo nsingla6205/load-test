@@ -123,7 +123,7 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 }
 
 func operationResponseFromJob(job *vcmdb.Job) (vcmserver.OperationV1Response, bool) {
-	if job == nil || !vcmdb.HasPersistableResponsePayload(job.ResponsePayload) {
+	if job == nil || !vcmdb.HasPersistablePayload(job.ResponsePayload) {
 		return nil, false
 	}
 	opResponse := make(vcmserver.OperationV1Response)

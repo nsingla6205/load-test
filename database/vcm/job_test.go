@@ -60,15 +60,19 @@ func TestJobLifecycle(t *testing.T) {
 	assert.Equal(t, "CREATE_CLUSTER", updated.CurrentStep)
 	assert.True(t, updated.Retriable)
 
+	recoveryPayload, err := MarshalPayload(struct {
+		VolumeName string `json:"volumeName"`
+	}{VolumeName: "vol-1"})
+	require.NoError(t, err)
 	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
-		JobID:        job.ID,
-		Step:         "RESOLVE_VOLUME",
-		State:        JobStateProcessing,
-		RecoveryValue: "vol-1",
+		JobID:           job.ID,
+		Step:            "RESOLVE_VOLUME",
+		State:           JobStateProcessing,
+		RecoveryPayload: recoveryPayload,
 	}))
 	withRecovery, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "vol-1", withRecovery.RecoveryValue)
+	assert.JSONEq(t, recoveryPayload, withRecovery.RecoveryPayload)
 
 	ongoing, err := store.ListOngoingJobs(ctx)
 	require.NoError(t, err)

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	vcmactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
@@ -34,7 +34,7 @@ func (bw *baseWorkflow) EnsureJobState(ctx *orchestrator.Context, expected vcmdb
 			errors.New("job id cannot be empty"))
 	}
 
-	ja := &vcmactivities.JobActivity{}
+	ja := &activities.JobActivity{}
 	var job *vcmdb.Job
 	if err := orchestrator.ExecuteActivity(ctx, ja.GetJob, bw.ID).Get(ctx, &job); err != nil {
 		return err
@@ -65,13 +65,13 @@ func (bw *baseWorkflow) UpdateJobStatus(ctx *orchestrator.Context, state vcmdb.J
 		Step:  step,
 		State: state,
 	}
-	if responsePayload != nil && vcmdb.HasPersistableResponsePayload(*responsePayload) {
+	if responsePayload != nil && vcmdb.HasPersistablePayload(*responsePayload) {
 		params.ResponsePayload = *responsePayload
 	}
 	if cause != nil {
 		params.TrackingID, params.ErrorMessage, params.Retriable = jobErrorFields(cause)
 	}
 
-	ja := &vcmactivities.JobActivity{}
+	ja := &activities.JobActivity{}
 	return orchestrator.ExecuteActivity(ctx, ja.UpdateJobProgress, params).Get(ctx, nil)
 }

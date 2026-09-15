@@ -3,6 +3,7 @@ package vcm_workflows
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
@@ -163,4 +164,25 @@ func TestVcmUpdateHostGroupWorkflow_GetSvmByNameFails(t *testing.T) {
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateError, calls[1].state)
 	assert.Contains(t, calls[1].errorMessage, "ONTAP returned no SVM records")
+}
+
+func TestVcmUpdateHostGroupWorkflow_FinishJobUpdateFails(t *testing.T) {
+	const operationID = "op-update-finish-fails"
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateDone,
+		failErr:     errors.New("final job update failed"),
+	}
+	svm := &stubSvmActivity{}
+	updater := &stubUpdateIgroupActivity{osType: "LINUX"}
+
+	err := runVcmUpdateHostGroupWorkflow(t, operationID, func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity(svm.GetSvmByName)
+		reg.RegisterActivity(updater.UpdateIgroup)
+	}, testNode(), "hg-1", []string{"iqn.1998-01.com.vmware:db1"}, testExpectedSvmName)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "final job update failed")
+	updateCalls, _, _, _ := updater.snapshot()
+	assert.Equal(t, 1, updateCalls)
 }

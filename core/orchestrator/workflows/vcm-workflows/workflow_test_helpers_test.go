@@ -26,7 +26,7 @@ type jobProgressCall struct {
 	errorMessage    string
 	retriable       bool
 	responsePayload string
-	recoveryValue string
+	recoveryPayload string
 }
 
 type stubJobActivity struct {
@@ -37,7 +37,7 @@ type stubJobActivity struct {
 	failOnceOnly  bool
 	failedOnce    bool
 	getJobErr     error
-	recoveryValue string
+	recoveryPayload string
 }
 
 func (s *stubJobActivity) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
@@ -50,7 +50,7 @@ func (s *stubJobActivity) UpdateJobProgress(_ context.Context, params vcmdb.Upda
 		errorMessage:    params.ErrorMessage,
 		retriable:       params.Retriable,
 		responsePayload: string(params.ResponsePayload),
-		recoveryValue:   params.RecoveryValue,
+		recoveryPayload: params.RecoveryPayload,
 	})
 	if s.failErr != nil && s.failOnState == params.State {
 		if s.failOnceOnly {
@@ -81,7 +81,7 @@ func (s *stubJobActivity) GetJob(_ context.Context, jobID string) (*vcmdb.Job, e
 	job := &vcmdb.Job{
 		ID:           jobID,
 		State:        vcmdb.JobStateProcessing,
-		RecoveryValue: s.recoveryValue,
+		RecoveryPayload: s.recoveryPayload,
 	}
 	return job, nil
 }
