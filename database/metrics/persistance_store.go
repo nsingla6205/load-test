@@ -399,8 +399,8 @@ func (s *PersistenceStore) GetAggregatedUsage(ctx context.Context, filter map[st
 	return s.dataStore.dataStore.GetAggregatedUsage(ctx, filter)
 }
 
-func (s *PersistenceStore) GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit, offset int) ([]datamodel.AggregatedUsage, error) {
-	return s.dataStore.dataStore.GetLatestAggregatedUsageForAllResources(ctx, aggregationType, limit, offset)
+func (s *PersistenceStore) GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit int, afterResourceUUID, afterMeasuredType string) ([]datamodel.AggregatedUsage, error) {
+	return s.dataStore.dataStore.GetLatestAggregatedUsageForAllResources(ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)
 }
 
 func (s *PersistenceStore) GetAggregatedUsageWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.AggregatedUsage, error) {

@@ -1408,13 +1408,13 @@ func TestProcessMetrics_EmptyMetrics(t *testing.T) {
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
 	// Expect call to GetHydratedMetrics with empty results
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -1453,7 +1453,7 @@ func TestProcessMetrics_DatabaseError(t *testing.T) {
 
 	// Expect call to GetHydratedMetrics with an error (may be called multiple times for different job definitions)
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -2391,7 +2391,7 @@ func TestProcessMetricsSuccess(t *testing.T) {
 	}
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -2544,7 +2544,7 @@ func TestProcessMetricsWithJobDefErrors(t *testing.T) {
 	}
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -2705,7 +2705,7 @@ func TestProcessMetrics_GetUnsentUsagesError(t *testing.T) {
 
 	// Even with retry error, should continue and call GetHydratedMetrics
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -2794,7 +2794,7 @@ func TestProcessMetrics_WithAggregatedRecordsDelivery(t *testing.T) {
 	// Retry logic is now handled via job queue (DeliverBillingMetrics job)
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -2923,7 +2923,7 @@ func TestProcessMetrics_DeliveryError(t *testing.T) {
 	// Retry logic is now handled via job queue (DeliverBillingMetrics job)
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -3522,7 +3522,7 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 
 	// Mock the database call
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -3683,7 +3683,7 @@ func TestFetchMetricsForCounterAggregation_DatabaseError(t *testing.T) {
 
 	// Mock database error
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -3722,7 +3722,7 @@ func TestFetchMetricsForCounterAggregation_FilterValidation(t *testing.T) {
 
 	// Mock the database call with detailed filter validation
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -3855,7 +3855,7 @@ func TestProcessBillingMetrics_NonCounterAggregation(t *testing.T) {
 
 	// Mock the GetHydratedMetrics for non-counter aggregation (this will hit the else branch on line 96)
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -3955,7 +3955,7 @@ func TestProcessBillingMetrics_BackupHistoryFormatterBranch(t *testing.T) {
 		return p.Offset >= 2
 	})).Return([]*datamodel.BackupChainHistory{}, nil)
 
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 	mockDB.On("GetHydratedMetricsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -4036,7 +4036,7 @@ func TestProcessBillingMetrics_CreatedAtInjectionCounterFormatter(t *testing.T) 
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
 	mockVCPDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -4088,7 +4088,7 @@ func TestProcessBillingMetrics_FetchResourceDataError(t *testing.T) {
 
 	// Mock the GetHydratedMetrics calls for all aggregation types
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 
@@ -6957,7 +6957,7 @@ func TestProcessBillingMetrics_CrossRegionRestoreTransferBytes_RegionOverride(t 
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Maybe()
 
-	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(
+	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
 	).Maybe()
 

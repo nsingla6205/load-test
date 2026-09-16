@@ -766,9 +766,9 @@ func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) RunAndReturn(run 
 	return _c
 }
 
-// GetLatestAggregatedUsageForAllResources provides a mock function with given fields: ctx, aggregationType, limit, offset
-func (_m *MockDataStore) GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit int, offset int) ([]datamodel.AggregatedUsage, error) {
-	ret := _m.Called(ctx, aggregationType, limit, offset)
+// GetLatestAggregatedUsageForAllResources provides a mock function with given fields: ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType
+func (_m *MockDataStore) GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit int, afterResourceUUID string, afterMeasuredType string) ([]datamodel.AggregatedUsage, error) {
+	ret := _m.Called(ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetLatestAggregatedUsageForAllResources")
@@ -776,19 +776,19 @@ func (_m *MockDataStore) GetLatestAggregatedUsageForAllResources(ctx context.Con
 
 	var r0 []datamodel.AggregatedUsage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int, int) ([]datamodel.AggregatedUsage, error)); ok {
-		return rf(ctx, aggregationType, limit, offset)
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, string, string) ([]datamodel.AggregatedUsage, error)); ok {
+		return rf(ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, int, int) []datamodel.AggregatedUsage); ok {
-		r0 = rf(ctx, aggregationType, limit, offset)
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, string, string) []datamodel.AggregatedUsage); ok {
+		r0 = rf(ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]datamodel.AggregatedUsage)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, int, int) error); ok {
-		r1 = rf(ctx, aggregationType, limit, offset)
+	if rf, ok := ret.Get(1).(func(context.Context, string, int, string, string) error); ok {
+		r1 = rf(ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -805,14 +805,15 @@ type MockDataStore_GetLatestAggregatedUsageForAllResources_Call struct {
 //   - ctx context.Context
 //   - aggregationType string
 //   - limit int
-//   - offset int
-func (_e *MockDataStore_Expecter) GetLatestAggregatedUsageForAllResources(ctx interface{}, aggregationType interface{}, limit interface{}, offset interface{}) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
-	return &MockDataStore_GetLatestAggregatedUsageForAllResources_Call{Call: _e.mock.On("GetLatestAggregatedUsageForAllResources", ctx, aggregationType, limit, offset)}
+//   - afterResourceUUID string
+//   - afterMeasuredType string
+func (_e *MockDataStore_Expecter) GetLatestAggregatedUsageForAllResources(ctx interface{}, aggregationType interface{}, limit interface{}, afterResourceUUID interface{}, afterMeasuredType interface{}) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
+	return &MockDataStore_GetLatestAggregatedUsageForAllResources_Call{Call: _e.mock.On("GetLatestAggregatedUsageForAllResources", ctx, aggregationType, limit, afterResourceUUID, afterMeasuredType)}
 }
 
-func (_c *MockDataStore_GetLatestAggregatedUsageForAllResources_Call) Run(run func(ctx context.Context, aggregationType string, limit int, offset int)) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
+func (_c *MockDataStore_GetLatestAggregatedUsageForAllResources_Call) Run(run func(ctx context.Context, aggregationType string, limit int, afterResourceUUID string, afterMeasuredType string)) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(int))
+		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(string), args[4].(string))
 	})
 	return _c
 }
@@ -822,7 +823,7 @@ func (_c *MockDataStore_GetLatestAggregatedUsageForAllResources_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockDataStore_GetLatestAggregatedUsageForAllResources_Call) RunAndReturn(run func(context.Context, string, int, int) ([]datamodel.AggregatedUsage, error)) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
+func (_c *MockDataStore_GetLatestAggregatedUsageForAllResources_Call) RunAndReturn(run func(context.Context, string, int, string, string) ([]datamodel.AggregatedUsage, error)) *MockDataStore_GetLatestAggregatedUsageForAllResources_Call {
 	_c.Call.Return(run)
 	return _c
 }

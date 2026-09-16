@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -635,8 +636,8 @@ func TestPreloadCounterValues(t *testing.T) {
 			},
 		}
 
-		mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(usageRecords, nil).Once()
-		mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, nil).Maybe()
+		mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(usageRecords, nil).Once()
+		mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, nil).Maybe()
 
 		result, err := processor.preloadCounterValues(ctx, aggregationStartTime, aggregationEndTime, logger)
 
@@ -669,6 +670,28 @@ func TestPreloadCounterValues(t *testing.T) {
 		mockDB.AssertExpectations(t)
 	})
 
+	t.Run("Zero page size returns error", func(t *testing.T) {
+		mockDBZeroPage := database.NewMockStorage(t)
+		processorZeroPage := &BillingProvider{
+			metricsDB: mockDBZeroPage,
+			config: &common.TelemetryConfig{
+				PoolVolumeLabelPageSize: 0,
+			},
+		}
+
+		mockDBZeroPage.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 0, "", "",
+		).Return(nil, fmt.Errorf("GetLatestAggregatedUsageForAllResources: limit must be positive, got 0"))
+
+		result, err := processorZeroPage.preloadCounterValues(ctx, aggregationStartTime, aggregationEndTime, logger)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "limit must be positive")
+		assert.Nil(t, result)
+		mockDBZeroPage.AssertExpectations(t)
+	})
+
 	t.Run("Database error", func(t *testing.T) {
 		mockDB2 := database.NewMockStorage(t)
 		processor2 := &BillingProvider{
@@ -678,13 +701,174 @@ func TestPreloadCounterValues(t *testing.T) {
 			},
 		}
 
-		mockDB2.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, assert.AnError)
+		mockDB2.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, assert.AnError)
 
 		result, err := processor2.preloadCounterValues(ctx, aggregationStartTime, aggregationEndTime, logger)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		mockDB2.AssertExpectations(t)
+	})
+
+	t.Run("Keyset pagination fetches multiple pages", func(t *testing.T) {
+		mockDBPaginated := database.NewMockStorage(t)
+		processorPaginated := &BillingProvider{
+			metricsDB: mockDBPaginated,
+			config: &common.TelemetryConfig{
+				PoolVolumeLabelPageSize: 2,
+			},
+		}
+
+		counterValue1 := float64(100)
+		counterValue2 := float64(200)
+		counterValue3 := float64(300)
+		page1 := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-a",
+				MeasuredType:     string(metadata.AllocatedSize),
+				LastCounterValue: &counterValue1,
+			},
+			{
+				ResourceUUID:     "resource-b",
+				MeasuredType:     string(metadata.LogicalSize),
+				LastCounterValue: &counterValue2,
+			},
+		}
+		page2 := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-c",
+				MeasuredType:     string(metadata.SnapshotSize),
+				LastCounterValue: &counterValue3,
+			},
+		}
+
+		mockDBPaginated.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "", "",
+		).Return(page1, nil).Once()
+		mockDBPaginated.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "resource-b", string(metadata.LogicalSize),
+		).Return(page2, nil).Once()
+
+		result, err := processorPaginated.fetchAndCacheCounterValues(ctx, "CounterAggregation", 2, logger)
+
+		require.NoError(t, err)
+		require.Len(t, result, 3)
+		mockDBPaginated.AssertExpectations(t)
+	})
+
+	t.Run("Keyset pagination terminates on empty page after exact pageSize multiples", func(t *testing.T) {
+		mockDBFullPages := database.NewMockStorage(t)
+		processorFullPages := &BillingProvider{
+			metricsDB: mockDBFullPages,
+			config: &common.TelemetryConfig{
+				PoolVolumeLabelPageSize: 2,
+			},
+		}
+
+		counterValue1 := float64(100)
+		counterValue2 := float64(200)
+		counterValue3 := float64(300)
+		counterValue4 := float64(400)
+		page1 := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-a",
+				MeasuredType:     string(metadata.AllocatedSize),
+				LastCounterValue: &counterValue1,
+			},
+			{
+				ResourceUUID:     "resource-b",
+				MeasuredType:     string(metadata.LogicalSize),
+				LastCounterValue: &counterValue2,
+			},
+		}
+		page2 := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-c",
+				MeasuredType:     string(metadata.SnapshotSize),
+				LastCounterValue: &counterValue3,
+			},
+			{
+				ResourceUUID:     "resource-d",
+				MeasuredType:     string(metadata.TotalLogicalSize),
+				LastCounterValue: &counterValue4,
+			},
+		}
+
+		mockDBFullPages.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "", "",
+		).Return(page1, nil).Once()
+		mockDBFullPages.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "resource-b", string(metadata.LogicalSize),
+		).Return(page2, nil).Once()
+		// Full pages do not break the loop; an empty sentinel page ends pagination (OFFSET-era contract).
+		mockDBFullPages.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "resource-d", string(metadata.TotalLogicalSize),
+		).Return([]datamodel2.AggregatedUsage{}, nil).Once()
+
+		result, err := processorFullPages.fetchAndCacheCounterValues(ctx, "CounterAggregation", 2, logger)
+
+		require.NoError(t, err)
+		require.Len(t, result, 4)
+		mockDBFullPages.AssertExpectations(t)
+	})
+
+	t.Run("Stalled keyset cursor returns error", func(t *testing.T) {
+		mockDBStalled := database.NewMockStorage(t)
+		processorStalled := &BillingProvider{
+			metricsDB: mockDBStalled,
+			config: &common.TelemetryConfig{
+				PoolVolumeLabelPageSize: 2,
+			},
+		}
+
+		counterValue1 := float64(100)
+		counterValue2 := float64(200)
+		page1 := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-a",
+				MeasuredType:     string(metadata.AllocatedSize),
+				LastCounterValue: &counterValue1,
+			},
+			{
+				ResourceUUID:     "resource-b",
+				MeasuredType:     string(metadata.LogicalSize),
+				LastCounterValue: &counterValue2,
+			},
+		}
+		// Full page whose last row matches the cursor — cursor cannot advance.
+		pageStuck := []datamodel2.AggregatedUsage{
+			{
+				ResourceUUID:     "resource-a",
+				MeasuredType:     string(metadata.AllocatedSize),
+				LastCounterValue: &counterValue1,
+			},
+			{
+				ResourceUUID:     "resource-b",
+				MeasuredType:     string(metadata.LogicalSize),
+				LastCounterValue: &counterValue2,
+			},
+		}
+
+		mockDBStalled.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "", "",
+		).Return(page1, nil).Once()
+		mockDBStalled.On(
+			"GetLatestAggregatedUsageForAllResources",
+			mock.Anything, "CounterAggregation", 2, "resource-b", string(metadata.LogicalSize),
+		).Return(pageStuck, nil).Once()
+
+		result, err := processorStalled.fetchAndCacheCounterValues(ctx, "CounterAggregation", 2, logger)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "stalled keyset cursor")
+		assert.Nil(t, result)
+		mockDBStalled.AssertExpectations(t)
 	})
 
 	t.Run("Propagates last_transfer_type from DB record into cache entry", func(t *testing.T) {
@@ -712,8 +896,8 @@ func TestPreloadCounterValues(t *testing.T) {
 			},
 		}
 
-		mockDB3.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return(usageRecords, nil).Once()
-		mockDB3.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, nil).Maybe()
+		mockDB3.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(usageRecords, nil).Once()
+		mockDB3.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]datamodel2.AggregatedUsage{}, nil).Maybe()
 
 		result, err := processor3.preloadCounterValues(ctx, aggregationStartTime, aggregationEndTime, logger)
 

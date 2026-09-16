@@ -1501,7 +1501,7 @@ func TestMetricsProcessor_ProcessUsageMetrics_AggregationTimingVerification(t *t
 	vcpStore.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.VolumeResourceData{}, nil)
 	// Allow multiple calls to GetAggregatedUsageWithPagination with any parameters (billing provider makes many calls)
 	telemetryStore.On("GetAggregatedUsageWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
-	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
+	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
 	telemetryStore.On("GetHydratedMetricsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.HydratedMetrics{}, nil)
 	telemetryStore.On("CreateAggregatedUsageBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
@@ -1566,7 +1566,7 @@ func TestMetricsProcessor_ProcessUsageMetrics_RetryRecordsAndNewRecords(t *testi
 	vcpStore.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.VolumeResourceData{}, nil)
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
-	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
+	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
 
 	// Mock all GetAggregatedUsageWithPagination calls with flexible matching - the billing provider makes many different calls
 	telemetryStore.On("GetAggregatedUsageWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()

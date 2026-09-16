@@ -2316,35 +2316,33 @@ func (p *BillingProvider) shouldSkipAutoTieringMetric(resourceIdentifier Resourc
 	return false, ""
 }
 
-// fetchAndCacheCounterValues fetches all latest aggregated counter values using pagination and builds the cache
+// fetchAndCacheCounterValues fetches all latest aggregated counter values using keyset pagination and builds the cache
 func (p *BillingProvider) fetchAndCacheCounterValues(ctx context.Context, aggregationType string, pageSize int, logger log.Logger) (CounterAggregationCache, error) {
 	result := make(CounterAggregationCache)
-	offset := 0
 	totalProcessed := 0
 	batchCount := 0
 	cachedCount := 0
+	var afterResourceUUID, afterMeasuredType string
 
-	// Use pagination to fetch all records and build cache
 	for {
-		// Fetch paginated records using the database method
-		usageRecords, err := p.metricsDB.GetLatestAggregatedUsageForAllResources(ctx, aggregationType, pageSize, offset)
+		usageRecords, err := p.metricsDB.GetLatestAggregatedUsageForAllResources(
+			ctx, aggregationType, pageSize, afterResourceUUID, afterMeasuredType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch latest counter records from aggregated_usages (offset %d): %v", offset, err)
+			return nil, fmt.Errorf(
+				"failed to fetch latest counter records from aggregated_usages (after %q|%q): %w",
+				afterResourceUUID, afterMeasuredType, err)
 		}
 
-		// Break if no records returned
 		if len(usageRecords) == 0 {
 			break
 		}
 
-		// Process current batch and populate cache
 		for i := range usageRecords {
 			record := &usageRecords[i]
 			if record.LastCounterValue == nil {
 				continue
 			}
 
-			// Use CounterAggregationCacheResourceKey as the cache key
 			cacheKey := CounterAggregationCacheResourceKey{
 				ResourceUUID: record.ResourceUUID,
 				MeasuredType: metadata.MeasuredTypeFromValue(record.MeasuredType),
@@ -2360,11 +2358,23 @@ func (p *BillingProvider) fetchAndCacheCounterValues(ctx context.Context, aggreg
 
 		totalProcessed += len(usageRecords)
 		batchCount++
-		logger.Debugf("Processed %d records in batch %d (offset: %d, total processed: %d, cached: %d)",
-			len(usageRecords), batchCount, offset, totalProcessed, cachedCount)
+		logger.Debugf("Processed %d records in batch %d (after %q|%q, total processed: %d, cached: %d)",
+			len(usageRecords), batchCount, afterResourceUUID, afterMeasuredType, totalProcessed, cachedCount)
 
-		// Update offset for next iteration
-		offset += pageSize
+		prevResourceUUID, prevMeasuredType := afterResourceUUID, afterMeasuredType
+		last := usageRecords[len(usageRecords)-1]
+		afterResourceUUID = last.ResourceUUID
+		afterMeasuredType = last.MeasuredType
+
+		if len(usageRecords) < pageSize {
+			break
+		}
+
+		if afterResourceUUID == prevResourceUUID && afterMeasuredType == prevMeasuredType {
+			return nil, fmt.Errorf(
+				"stalled keyset cursor fetching latest counter records from aggregated_usages (after %q|%q, batch %d)",
+				afterResourceUUID, afterMeasuredType, batchCount)
+		}
 	}
 
 	logger.Infof("Preloaded %d counter values into cache from %d total records in %d batches", cachedCount, totalProcessed, batchCount)
@@ -2372,7 +2382,7 @@ func (p *BillingProvider) fetchAndCacheCounterValues(ctx context.Context, aggreg
 }
 
 // preloadCounterValues fetches the latest counter values for all resources directly from the database
-// using a single query with window functions and pagination
+// using a single query with DISTINCT ON + keyset
 func (p *BillingProvider) preloadCounterValues(ctx context.Context, aggregationStartTime, aggregationEndTime time.Time, logger log.Logger) (CounterAggregationCache, error) {
 	// Get page size from config
 	pageSize := p.config.PoolVolumeLabelPageSize

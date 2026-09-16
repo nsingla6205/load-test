@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
@@ -171,31 +172,47 @@ func (r *DataStoreRepository) GetAggregatedUsage(ctx context.Context, filter map
 }
 
 // GetLatestAggregatedUsageForAllResources retrieves the latest aggregated usage records for all resources
-// filtered by aggregation type. It uses a window function to get the most recent record per resource_uuid
-// and measured_type combination.
+// filtered by aggregation type. It uses PostgreSQL DISTINCT ON to pick the most recent row per
+// (resource_uuid, measured_type) and keyset pagination on that pair so each page reuses the index
+// without recomputing window partitions for an OFFSET.
+//
+// Pass empty afterResourceUUID and afterMeasuredType for the first page. Subsequent pages should
+// pass the last row's resource_uuid and measured_type from the prior page.
 //
 // Performance optimization:
 // This query is optimized with a single composite index:
 // - idx_aggregated_usages_latest_for_resources: (aggregation_type, resource_uuid, measured_type, created_at DESC)
 //
-// This single index efficiently supports:
-// - WHERE clause filtering on aggregation_type (first column enables index scan)
-// - PARTITION BY resource_uuid, measured_type in the window function (columns 2-3)
-// - ORDER BY created_at DESC for selecting the latest record (column 4)
-//
-// See migration: database/metrics/migrations/post/0002_add_indexes_for_latest_aggregated_usage.up.sql
-func (r *DataStoreRepository) GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit, offset int) ([]datamodel.AggregatedUsage, error) {
+// See migration: database/metrics/migrations/post/0003_add_indexes_for_latest_aggregated_usage.up.sql
+func (r *DataStoreRepository) GetLatestAggregatedUsageForAllResources(
+	ctx context.Context,
+	aggregationType string,
+	limit int,
+	afterResourceUUID, afterMeasuredType string,
+) ([]datamodel.AggregatedUsage, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("GetLatestAggregatedUsageForAllResources: limit must be positive, got %d", limit)
+	}
+
+	query := `
+SELECT DISTINCT ON (resource_uuid, measured_type)
+	resource_uuid, measured_type, last_counter_value, last_transfer_type
+FROM aggregated_usages
+WHERE aggregation_type = ?
+	AND last_counter_value IS NOT NULL`
+	args := []interface{}{aggregationType}
+	if afterResourceUUID != "" && afterMeasuredType != "" {
+		query += `
+	AND (resource_uuid, measured_type) > (?, ?)`
+		args = append(args, afterResourceUUID, afterMeasuredType)
+	}
+	query += `
+ORDER BY resource_uuid, measured_type, created_at DESC
+LIMIT ?`
+	args = append(args, limit)
+
 	var results []datamodel.AggregatedUsage
-	query := `SELECT resource_uuid, measured_type, last_counter_value, last_transfer_type FROM (
-		SELECT resource_uuid, measured_type, last_counter_value, last_transfer_type, ROW_NUMBER() OVER (
-			PARTITION BY resource_uuid, measured_type 
-			ORDER BY created_at DESC
-		) as rn
-		FROM aggregated_usages 
-		WHERE aggregation_type = ? AND last_counter_value IS NOT NULL
-	) ranked WHERE rn = 1
-	LIMIT ? OFFSET ?`
-	err := r.db.GORM().WithContext(ctx).Raw(query, aggregationType, limit, offset).Scan(&results).Error
+	err := r.db.GORM().WithContext(ctx).Raw(query, args...).Scan(&results).Error
 	return results, err
 }
 
@@ -293,7 +310,7 @@ type (
 		CreateAggregatedUsage(ctx context.Context, a *datamodel.AggregatedUsage) error
 		CreateAggregatedUsageBatch(ctx context.Context, usages []datamodel.AggregatedUsage, batchSize int) error
 		GetAggregatedUsage(ctx context.Context, filter map[string]interface{}) ([]datamodel.AggregatedUsage, error)
-		GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit, offset int) ([]datamodel.AggregatedUsage, error)
+		GetLatestAggregatedUsageForAllResources(ctx context.Context, aggregationType string, limit int, afterResourceUUID, afterMeasuredType string) ([]datamodel.AggregatedUsage, error)
 		GetAggregatedUsageWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.AggregatedUsage, error)
 		UpdateAggregatedUsage(ctx context.Context, id int64, updates map[string]interface{}) error
 		DeleteAggregatedUsage(ctx context.Context, id int64) error
