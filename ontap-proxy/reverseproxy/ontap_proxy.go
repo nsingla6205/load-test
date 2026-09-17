@@ -645,6 +645,11 @@ func BuildOntapRESTProxy() *httputil.ReverseProxy {
 			}
 
 			req.URL.Path = ontapPath
+			// Some ONTAP endpoints expect the trailing file path parameter to be percent-encoded
+			// ("." -> "%2E", "/" -> "%2F"). The request reaches the proxy already decoded, so we
+			// re-encode that portion and set RawPath; EscapedPath() then forwards it verbatim.
+			// For all other endpoints RawPath is cleared so Go uses the default path encoding.
+			req.URL.RawPath = utils.ReencodeOntapFilePath(ontapPath)
 		},
 		Transport:      NewPooledAuthTransport(),
 		ModifyResponse: middleware.ProcessResponseAndRecordBackendMetrics,
@@ -705,7 +710,7 @@ func logCurlCommand(req *http.Request, endpoint string) {
 		curlCmd += " -u \"username:password\""
 	}
 
-	url := fmt.Sprintf("https://%s%s", endpoint, req.URL.Path)
+	url := fmt.Sprintf("https://%s%s", endpoint, req.URL.EscapedPath())
 	if req.URL.RawQuery != "" {
 		url += "?" + req.URL.RawQuery
 	}

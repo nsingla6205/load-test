@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -38,6 +39,14 @@ var (
 
 // uuidPattern matches UUID-like segments in URL paths (8-4-4-4-12 hex).
 var uuidPattern = regexp.MustCompile(`/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}`)
+
+// ontapPathParamPatterns identify ONTAP endpoints whose trailing path parameter is a
+// filesystem path that must be percent-encoded before forwarding. Group 1 is the structural
+// prefix (kept verbatim); group 2 is the path parameter (re-encoded).
+var ontapPathParamPatterns = []*regexp.Regexp{
+	// /api/storage/volumes/{volume.uuid}/files/{path}
+	regexp.MustCompile(`^(/api/storage/volumes/[^/]+/files/)(.+)$`),
+}
 
 // ontapErrorResponse matches the ONTAP REST API error response JSON (same shape as handlers.OntapErrorResponse).
 type ontapErrorResponse struct {
@@ -109,6 +118,30 @@ func ExtractOntapPathRaw(fullPath string) string {
 // NormalizeUUIDs replaces UUID-like path segments with {uuid} for stable matching.
 func NormalizeUUIDs(path string) string {
 	return uuidPattern.ReplaceAllString(path, "/{uuid}")
+}
+
+// EncodeOntapPathParam percent-encodes an ONTAP path parameter ("/"->"%2F", "."->"%2E") so
+// ONTAP's RFC 3986 dot-segment resolution treats it literally. url.PathEscape handles "/" and
+// other unsafe chars but leaves "." alone, so we encode dots ourselves.
+func EncodeOntapPathParam(p string) string {
+	return strings.ReplaceAll(url.PathEscape(p), ".", "%2E")
+}
+
+// ReencodeOntapFilePath re-encodes only the trailing path parameter of a matching ONTAP
+// volumes/files endpoint, keeping the prefix verbatim. Returns "" when the path does not
+// match that endpoint, or when encoding would not change ontapPath (callers should leave
+// URL.RawPath unset so Go uses the default path encoding).
+func ReencodeOntapFilePath(ontapPath string) string {
+	for _, re := range ontapPathParamPatterns {
+		if m := re.FindStringSubmatch(ontapPath); m != nil {
+			encoded := m[1] + EncodeOntapPathParam(m[2])
+			if encoded == ontapPath {
+				return ""
+			}
+			return encoded
+		}
+	}
+	return ""
 }
 
 // WriteErrorResponse writes a JSON error response with code and message to the ResponseWriter.

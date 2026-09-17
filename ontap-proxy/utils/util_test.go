@@ -597,3 +597,70 @@ func TestMapOperationStatusToState(t *testing.T) {
 		assert.Equal(t, "in_progress", MapOperationStatusToState("  "))
 	})
 }
+
+func TestEncodeOntapPathParam(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "snapshot relative path", input: ".snapshot/snap_e2e2", expected: "%2Esnapshot%2Fsnap_e2e2"},
+		{name: "single dot segment", input: ".", expected: "%2E"},
+		{name: "double dot segment", input: "..", expected: "%2E%2E"},
+		{name: "nested directories", input: "d1/d2/d3", expected: "d1%2Fd2%2Fd3"},
+		{name: "filename with extension dot is encoded", input: "file.txt", expected: "file%2Etxt"},
+		{name: "leading slash", input: "/file2.txt", expected: "%2Ffile2%2Etxt"},
+		{name: "plain segment unchanged", input: "data", expected: "data"},
+		{name: "space is percent encoded", input: "my file", expected: "my%20file"},
+		{name: "empty", input: "", expected: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, EncodeOntapPathParam(tt.input))
+		})
+	}
+}
+
+func TestReencodeOntapFilePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "files endpoint encodes only the path param",
+			input:    "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/.snapshot/snap_e2e2",
+			expected: "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/%2Esnapshot%2Fsnap_e2e2",
+		},
+		{
+			name:     "files endpoint with nested path and trailing dot segment",
+			input:    "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/d1/d2/d3/.",
+			expected: "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/d1%2Fd2%2Fd3%2F%2E",
+		},
+		{
+			name:     "files endpoint with plain path param returns empty",
+			input:    "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/data",
+			expected: "",
+		},
+		{
+			name:     "snaplock file endpoint is not re-encoded",
+			input:    "/api/storage/snaplock/file/000dc5fd-4175-11e9-b937-0050568e3f82/dir/file2.txt",
+			expected: "",
+		},
+		{
+			name:     "non-file endpoint returns empty",
+			input:    "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456",
+			expected: "",
+		},
+		{
+			name:     "volumes collection returns empty",
+			input:    "/api/storage/volumes",
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ReencodeOntapFilePath(tt.input))
+		})
+	}
+}

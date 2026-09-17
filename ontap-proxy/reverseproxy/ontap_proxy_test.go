@@ -1162,6 +1162,24 @@ func TestBuildOntapRESTProxy(t *testing.T) {
 		// Director only extracts and sets the ONTAP path, not the full URL
 		// The full URL (with scheme and host) is set later in RoundTrip
 		assert.Equal(t, "/api/storage/qtrees", req.URL.Path)
+		// Non-file endpoints clear RawPath so Go uses the default path encoding.
+		assert.Empty(t, req.URL.RawPath)
+	})
+
+	t.Run("WhenDirectorCalledWithFilePath_ShouldReencodePathParam", func(t *testing.T) {
+		proxy := BuildOntapRESTProxy()
+		req, err := http.NewRequest("GET", "/v1beta/projects/123/locations/us-central1/pools/pool1/ontap/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/.snapshot/snap_e2e2", nil)
+		assert.NoError(t, err, "Failed to create request")
+		req.RemoteAddr = "192.168.1.1:12345"
+
+		setupTestContextWithAuthData(req, "testuser", "testpass")
+
+		proxy.Director(req)
+
+		assert.Equal(t, "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/.snapshot/snap_e2e2", req.URL.Path)
+		assert.Equal(t, "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/%2Esnapshot%2Fsnap_e2e2", req.URL.RawPath)
+		// EscapedPath() is what Go sends upstream; it must carry the encoded form.
+		assert.Equal(t, "/api/storage/volumes/c208d402-47af-11f1-a635-912e2acd4456/files/%2Esnapshot%2Fsnap_e2e2", req.URL.EscapedPath())
 	})
 
 	t.Run("WhenDirectorCalledWithInvalidPath_ShouldReturnEarly", func(t *testing.T) {
