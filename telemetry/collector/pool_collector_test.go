@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	datamodel2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
@@ -44,6 +46,22 @@ func (m *mockStorage) ListPoolsForMetrics(ctx context.Context) ([]*database.Pool
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*database.PoolMetricsData), args.Error(1)
+}
+
+func (m *mockStorage) GetExpertModePoolUsedCapacityAndVolumeCount(ctx context.Context, poolID int64) (*database.ExpertModePoolCapacity, error) {
+	args := m.Called(ctx, poolID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*database.ExpertModePoolCapacity), args.Error(1)
+}
+
+func (m *mockStorage) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*database.ExpertModePoolCapacity, error) {
+	args := m.Called(ctx, poolIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*database.ExpertModePoolCapacity), args.Error(1)
 }
 
 func (m *mockStorage) ListAccountsForTelemetry(ctx context.Context, pagination *utils.Pagination) ([]*database.AccountTelemetryData, error) {
@@ -120,6 +138,319 @@ func Test_GetPoolMetrics_ReturnsMetrics(t *testing.T) {
 	// Verify the type is correct
 	assert.IsType(t, datamodel2.HydratedMetrics{}, result.HydratedMetricsDataModel[0])
 	assert.IsType(t, datamodel2.HydratedMetrics{}, result.HydratedMetricsDataModel[1])
+}
+
+func Test_GetPoolMetrics_ExpertModeUsesExpertModeAllocatedCapacity(t *testing.T) {
+	m := new(mockStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	pools := []*database.PoolMetricsData{
+		{
+			ID:             1,
+			UUID:           "expert-mode-pool-uuid",
+			Name:           "ExpertModePool",
+			ServiceLevel:   commonparams.ServiceLevelExtreme,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    1000,
+			DeploymentName: "gcp-deployment-1",
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName: "Account1",
+			},
+			QuotaInBytes: 500,
+		},
+	}
+
+	m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{1}).
+		Return(map[int64]*database.ExpertModePoolCapacity{
+			1: {TotalSize: 750, VolumeCount: 2},
+		}, nil)
+
+	result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+	assert.NoError(t, err)
+	require.Len(t, result.HydratedMetrics, 2)
+	require.Len(t, result.HydratedMetricsDataModel, 2)
+	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetrics[0].MeasuredType)
+	assert.Equal(t, float64(1000), result.HydratedMetrics[0].Quantity)
+	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetrics[1].MeasuredType)
+	assert.Equal(t, float64(750), result.HydratedMetrics[1].Quantity)
+	for _, metric := range result.HydratedMetrics {
+		assert.NotEqual(t, metadata.PoolTotalThroughputMibps, metric.MeasuredType)
+		assert.NotEqual(t, metadata.PoolTotalIops, metric.MeasuredType)
+	}
+	m.AssertExpectations(t)
+}
+
+func Test_GetPoolMetrics_BatchesExpertModeAllocatedCapacity(t *testing.T) {
+	m := new(mockStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	pools := []*database.PoolMetricsData{
+		{
+			ID:             1,
+			Name:           "ExpertModePool1",
+			ServiceLevel:   commonparams.ServiceLevelExtreme,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    1000,
+			DeploymentName: "gcp-deployment-1",
+			PoolAttributes: &datamodel.PoolAttributes{AccountName: "Account1"},
+		},
+		{
+			ID:             2,
+			Name:           "ExpertModePool2",
+			ServiceLevel:   commonparams.ServiceLevelPremium,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    2000,
+			DeploymentName: "gcp-deployment-2",
+			PoolAttributes: &datamodel.PoolAttributes{AccountName: "Account2"},
+		},
+	}
+
+	m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{1, 2}).
+		Return(map[int64]*database.ExpertModePoolCapacity{
+			1: {TotalSize: 750, VolumeCount: 2},
+			2: {TotalSize: 1250, VolumeCount: 3},
+		}, nil).
+		Once()
+
+	result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+	require.NoError(t, err)
+	assert.Len(t, result.HydratedMetrics, 4)
+	assert.Len(t, result.HydratedMetricsDataModel, 4)
+	m.AssertNotCalled(t, "GetExpertModePoolUsedCapacityAndVolumeCount", mock.Anything, mock.Anything)
+	m.AssertExpectations(t)
+}
+
+func Test_GetPoolMetrics_BatchFailureFallsBackToExistingPerPoolQuery(t *testing.T) {
+	m := new(mockStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	pools := []*database.PoolMetricsData{
+		{
+			ID:             1,
+			Name:           "ExpertModePool",
+			ServiceLevel:   commonparams.ServiceLevelExtreme,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    1000,
+			DeploymentName: "gcp-deployment-1",
+			PoolAttributes: &datamodel.PoolAttributes{AccountName: "Account1"},
+		},
+	}
+
+	m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{1}).
+		Return((map[int64]*database.ExpertModePoolCapacity)(nil), assert.AnError)
+	m.On("GetExpertModePoolUsedCapacityAndVolumeCount", mock.Anything, int64(1)).
+		Return(&database.ExpertModePoolCapacity{TotalSize: 750, VolumeCount: 2}, nil)
+
+	result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+	require.NoError(t, err)
+	require.Len(t, result.HydratedMetrics, 2)
+	require.Len(t, result.HydratedMetricsDataModel, 2)
+	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetrics[1].MeasuredType)
+	assert.Equal(t, float64(750), result.HydratedMetrics[1].Quantity)
+	m.AssertExpectations(t)
+}
+
+func Test_GetPoolMetrics_DefaultModeExtremeKeepsLegacyAllocatedCapacity(t *testing.T) {
+	m := new(mockStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	pools := []*database.PoolMetricsData{
+		{
+			ID:             1,
+			UUID:           "default-pool-uuid",
+			Name:           "DefaultPool",
+			ServiceLevel:   commonparams.ServiceLevelExtreme,
+			APIAccessMode:  commonparams.DEFAULTMode,
+			SizeInBytes:    1000,
+			DeploymentName: "gcp-deployment-1",
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName: "Account1",
+			},
+			QuotaInBytes: 500,
+		},
+	}
+
+	m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+
+	result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+	assert.NoError(t, err)
+	assert.Len(t, result.HydratedMetrics, 4)
+	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetrics[1].MeasuredType)
+	assert.Equal(t, float64(500), result.HydratedMetrics[1].Quantity)
+	m.AssertNotCalled(t, "GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, mock.Anything)
+	m.AssertNotCalled(t, "GetExpertModePoolUsedCapacityAndVolumeCount", mock.Anything, mock.Anything)
+}
+
+func Test_GetPoolMetrics_ExpertModeAllocatedCapacityFailureOmitsOnlyAllocated(t *testing.T) {
+	m := new(mockStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	pools := []*database.PoolMetricsData{
+		{
+			ID:             1,
+			UUID:           "expert-mode-pool-uuid",
+			Name:           "ExpertModePool",
+			ServiceLevel:   commonparams.ServiceLevelPremium,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    1000,
+			DeploymentName: "gcp-deployment-1",
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName: "Account1",
+			},
+			QuotaInBytes: 500,
+		},
+	}
+
+	m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+	m.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{1}).
+		Return((map[int64]*database.ExpertModePoolCapacity)(nil), assert.AnError)
+	m.On("GetExpertModePoolUsedCapacityAndVolumeCount", mock.Anything, int64(1)).
+		Return(nil, assert.AnError)
+
+	result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+	assert.NoError(t, err)
+	assert.Len(t, result.HydratedMetrics, 1)
+	assert.Len(t, result.HydratedMetricsDataModel, 1)
+	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetrics[0].MeasuredType)
+	assert.Equal(t, float64(1000), result.HydratedMetrics[0].Quantity)
+	for _, metric := range result.HydratedMetrics {
+		assert.NotEqual(t, metadata.AllocatedUsed, metric.MeasuredType)
+	}
+	m.AssertExpectations(t)
+}
+
+func Test_GetPoolMetrics_ExpertModeAllocatedCapacityEdgeCases(t *testing.T) {
+	tests := []struct {
+		name              string
+		capacity          *database.ExpertModePoolCapacity
+		expectedCount     int
+		expectAllocated   bool
+		expectedAllocated float64
+	}{
+		{
+			name:              "empty expert mode pool emits zero allocated",
+			capacity:          &database.ExpertModePoolCapacity{TotalSize: 0, VolumeCount: 0},
+			expectedCount:     2,
+			expectAllocated:   true,
+			expectedAllocated: 0,
+		},
+		{
+			name:            "nil helper result omits only allocated",
+			capacity:        nil,
+			expectedCount:   1,
+			expectAllocated: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := new(mockStorage)
+			ctx := context.Background()
+			config := &common.TelemetryConfig{RegionName: "us-east-1"}
+			pools := []*database.PoolMetricsData{
+				{
+					ID:             1,
+					UUID:           "expert-mode-pool-uuid",
+					Name:           "ExpertModePool",
+					ServiceLevel:   commonparams.ServiceLevelExtreme,
+					APIAccessMode:  commonparams.ONTAPMode,
+					SizeInBytes:    1000,
+					DeploymentName: "gcp-deployment-1",
+					PoolAttributes: &datamodel.PoolAttributes{AccountName: "Account1"},
+					QuotaInBytes:   500,
+				},
+			}
+
+			m.On("ListPoolsForMetrics", mock.Anything).Return(pools, nil)
+			m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
+			m.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{1}).
+				Return(map[int64]*database.ExpertModePoolCapacity{1: tt.capacity}, nil)
+			if tt.capacity == nil {
+				m.On("GetExpertModePoolUsedCapacityAndVolumeCount", mock.Anything, int64(1)).
+					Return(nil, nil)
+			}
+
+			result, err := GetPoolMetrics(ctx, m, config, time.Now())
+
+			assert.NoError(t, err)
+			assert.Len(t, result.HydratedMetrics, tt.expectedCount)
+			assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetrics[0].MeasuredType)
+			assert.Equal(t, float64(1000), result.HydratedMetrics[0].Quantity)
+			allocatedFound := false
+			for _, metric := range result.HydratedMetrics {
+				if metric.MeasuredType == metadata.AllocatedUsed {
+					allocatedFound = true
+					assert.Equal(t, tt.expectedAllocated, metric.Quantity)
+				}
+			}
+			assert.Equal(t, tt.expectAllocated, allocatedFound)
+			m.AssertExpectations(t)
+		})
+	}
+}
+
+func TestIsExpertModeMetricsPool(t *testing.T) {
+	tests := []struct {
+		name string
+		pool *database.PoolMetricsData
+		want bool
+	}{
+		{
+			name: "ONTAP extreme from pool column",
+			pool: &database.PoolMetricsData{
+				APIAccessMode: commonparams.ONTAPMode,
+				ServiceLevel:  commonparams.ServiceLevelExtreme,
+			},
+			want: true,
+		},
+		{
+			name: "ONTAP premium from pool attributes",
+			pool: &database.PoolMetricsData{
+				APIAccessMode: commonparams.ONTAPMode,
+				ServiceLevel:  "FLEX",
+				PoolAttributes: &datamodel.PoolAttributes{
+					ServiceLevel: commonparams.ServiceLevelPremium,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "default extreme is not expert mode",
+			pool: &database.PoolMetricsData{
+				APIAccessMode: commonparams.DEFAULTMode,
+				ServiceLevel:  commonparams.ServiceLevelExtreme,
+			},
+			want: false,
+		},
+		{
+			name: "ONTAP flex is not eligible expert mode",
+			pool: &database.PoolMetricsData{
+				APIAccessMode: commonparams.ONTAPMode,
+				ServiceLevel:  "FLEX",
+			},
+			want: false,
+		},
+		{name: "nil pool", pool: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isExpertModeMetricsPool(tt.pool))
+		})
+	}
 }
 
 func derefString(s *string) string {
@@ -669,6 +1000,8 @@ func Test_AssemblePoolMetadata_WithThroughputAndResourceID(t *testing.T) {
 		Name:           "TestPool",
 		SizeInBytes:    8192,
 		DeploymentName: "test-deployment",
+		ServiceLevel:   commonparams.ServiceLevelExtreme,
+		APIAccessMode:  commonparams.ONTAPMode,
 		PoolAttributes: &datamodel.PoolAttributes{
 			ThroughputMibps: 1000,
 			AccountName:     "TestAccount",
@@ -692,6 +1025,8 @@ func Test_AssemblePoolMetadata_WithThroughputAndResourceID(t *testing.T) {
 	assert.Equal(t, 1000.0, *result.Throughput, "Throughput should match")
 	assert.NotNil(t, result.ResourceID, "ResourceID should be set")
 	assert.Equal(t, int64(123), *result.ResourceID, "ResourceID should match")
+	assert.Equal(t, commonparams.ServiceLevelExtreme, derefString(result.ServiceLevel))
+	assert.Equal(t, commonparams.ONTAPMode, derefString(result.APIAccessMode))
 }
 
 func Test_GetPoolMetrics_NilPoolAttributes(t *testing.T) {

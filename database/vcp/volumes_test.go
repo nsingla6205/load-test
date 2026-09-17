@@ -6751,3 +6751,168 @@ func TestListExpertModeVolumesForTelemetryMetrics_SQLiteErrorPath(t *testing.T) 
 	var vcpErr *vsaerrors.CustomError
 	assert.True(t, errors.As(err, &vcpErr), "expected error to be a VCPError")
 }
+
+func TestListExpertModeVolumesForTelemetryMetrics_UsesDeterministicOrder(t *testing.T) {
+	dbSQL, mockDB, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mockDB.ExpectationsWereMet())
+	})
+
+	dialector := postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true})
+	gormDB, err := gorm.Open(dialector, &gorm.Config{})
+	require.NoError(t, err)
+
+	rows := sqlmock.NewRows([]string{
+		"uuid",
+		"external_uuid",
+		"name",
+	}).AddRow(
+		"internal-uuid",
+		"external-uuid",
+		"volume-1",
+	)
+	mockDB.ExpectQuery(`WHERE expert_mode_volumes.deleted_at IS NULL ORDER BY expert_mode_volumes.id ASC LIMIT \$1 OFFSET \$2`).
+		WillReturnRows(rows)
+
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
+	result, err := store.ListExpertModeVolumesForTelemetryMetrics(
+		context.Background(),
+		&dbutils.Pagination{Limit: 10, Offset: 5},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "internal-uuid", result[0].UUID)
+	assert.Equal(t, "external-uuid", result[0].ExternalUUID)
+}
+
+func TestExpertModeVolumeMetricsData_BackupVolumeUUID(t *testing.T) {
+	t.Run("UsesExternalUUID", func(tt *testing.T) {
+		volume := &ExpertModeVolumeMetricsData{
+			UUID:         "internal-uuid",
+			ExternalUUID: "external-uuid",
+		}
+
+		assert.Equal(tt, "external-uuid", volume.BackupVolumeUUID())
+	})
+
+	t.Run("FallsBackToInternalUUID", func(tt *testing.T) {
+		volume := &ExpertModeVolumeMetricsData{UUID: "internal-uuid"}
+
+		assert.Equal(tt, "internal-uuid", volume.BackupVolumeUUID())
+	})
+}
+
+func TestListExpertModeVolumesForResourceData_PostgresMock(t *testing.T) {
+	dbSQL, mockDB, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mockDB.ExpectationsWereMet())
+	})
+
+	dialector := postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true})
+	gormDB, err := gorm.Open(dialector, &gorm.Config{})
+	require.NoError(t, err)
+
+	rows := sqlmock.NewRows([]string{
+		"uuid",
+		"external_uuid",
+		"name",
+		"pool_api_access_mode",
+		"pool_service_level",
+	}).AddRow(
+		"internal-uuid",
+		"external-uuid",
+		"volume-1",
+		"DEFAULT",
+		"STANDARD",
+	)
+	mockDB.ExpectQuery(`WHERE \(expert_mode_volumes.deleted_at IS NULL OR \(expert_mode_volumes.deleted_at >= \$1 AND expert_mode_volumes.deleted_at <= \$2\)\) ORDER BY expert_mode_volumes.id ASC LIMIT \$3 OFFSET \$4`).
+		WillReturnRows(rows)
+
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
+	result, err := store.ListExpertModeVolumesForResourceData(
+		context.Background(),
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		&dbutils.Pagination{Limit: 10, Offset: 5},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "internal-uuid", result[0].UUID)
+	assert.Equal(t, "external-uuid", result[0].ExternalUUID)
+	assert.Equal(t, "volume-1", result[0].Name)
+	assert.Equal(t, "DEFAULT", result[0].PoolAPIAccessMode)
+	assert.Equal(t, "STANDARD", result[0].PoolServiceLevel)
+}
+
+func TestListExpertModeVolumesForResourceData_QueryError(t *testing.T) {
+	dbSQL, mockDB, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mockDB.ExpectationsWereMet())
+	})
+
+	dialector := postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true})
+	gormDB, err := gorm.Open(dialector, &gorm.Config{})
+	require.NoError(t, err)
+
+	mockDB.ExpectQuery(`FROM "expert_mode_volumes"`).
+		WillReturnError(errors.New("simulated resource-data query failure"))
+
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
+	result, err := store.ListExpertModeVolumesForResourceData(
+		context.Background(),
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		nil,
+	)
+
+	assert.Nil(t, result)
+	require.Error(t, err)
+	var vcpErr *vsaerrors.CustomError
+	assert.True(t, errors.As(err, &vcpErr))
+}
+
+// The query uses the PostgreSQL-specific ::boolean cast, so the SQLite-backed
+// wrapper tests exercise the non-transient error path instead of the success path.
+func TestRetryEngine_ListExpertModeVolumesForResourceData(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	dataStore := NewDataStoreRepository(wrapper)
+	re := &retryEngine{dataStore: dataStore}
+	require.NoError(t, ClearInMemoryDB(dataStore.db.GORM()))
+
+	results, err := re.ListExpertModeVolumesForResourceData(
+		context.Background(),
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		nil,
+	)
+
+	require.Error(t, err, "expected a non-transient DB error from the PostgreSQL-only cast")
+	assert.Nil(t, results)
+}
+
+func TestPersistenceStore_ListExpertModeVolumesForResourceData(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := &PersistenceStore{
+		db:        wrapper,
+		dataStore: retryEngine{dataStore: NewDataStoreRepository(wrapper)},
+	}
+
+	results, err := store.ListExpertModeVolumesForResourceData(
+		context.Background(),
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		&dbutils.Pagination{Limit: 10, Offset: 0},
+	)
+
+	require.Error(t, err, "expected a non-transient DB error from the PostgreSQL-only cast")
+	assert.Nil(t, results)
+}

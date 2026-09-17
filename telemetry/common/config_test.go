@@ -70,6 +70,7 @@ func TestHandlesMissingEnvironmentVariablesGracefully(t *testing.T) {
 	}
 }
 func TestRegionNameDefaultValue(t *testing.T) {
+	t.Setenv("LOCAL_REGION", "")
 	config := LoadConfig()
 
 	if config.RegionName != "" {
@@ -293,5 +294,45 @@ func TestLoadMetricsConfigFromBytesWithEmptyYamlReturnsEmptyConfig(t *testing.T)
 	}
 	if len(config.VolumeMetrics) != 0 {
 		t.Fatalf("Expected VolumeMetrics to be empty, got %d metrics", len(config.VolumeMetrics))
+	}
+}
+
+func TestLoadMetricsConfig_MTSnapshotIsFlagGated(t *testing.T) {
+	const snapshotMetric = "volume_snapshots_size_used"
+
+	for _, metric := range LoadMetricsConfig(false).VolumeMetrics {
+		if metric.Metric == snapshotMetric {
+			t.Fatalf("MT snapshot metric must not be present when disabled")
+		}
+	}
+
+	var matches int
+	for _, metric := range LoadMetricsConfig(true).VolumeMetrics {
+		if metric.Metric == snapshotMetric {
+			matches++
+			if metric.MetricType != "usage" {
+				t.Fatalf("expected MT snapshot metric to be usage, got %q", metric.MetricType)
+			}
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("expected exactly one MT snapshot metric, got %d", matches)
+	}
+}
+
+func TestLoadConfig_MTHarvestVolumeMetricsDefaultAndOverride(t *testing.T) {
+	t.Setenv("ENABLE_MT_HARVEST_VOLUME_METRICS", "")
+	if !LoadConfig().EnableMTHarvestVolumeMetrics {
+		t.Fatal("expected MT Harvest volume metrics to default to true")
+	}
+
+	t.Setenv("ENABLE_MT_HARVEST_VOLUME_METRICS", "false")
+	if LoadConfig().EnableMTHarvestVolumeMetrics {
+		t.Fatal("expected MT Harvest volume metrics to honor the environment")
+	}
+
+	t.Setenv("ENABLE_MT_HARVEST_VOLUME_METRICS", "true")
+	if !LoadConfig().EnableMTHarvestVolumeMetrics {
+		t.Fatal("expected MT Harvest volume metrics to honor the environment")
 	}
 }

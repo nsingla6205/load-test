@@ -30,7 +30,7 @@ Set `enabled: false` only to stop MT resources; single-tenancy `vsa-harvest-otel
 1. **Harvest** — Helm chart [`vsa-harvest-multi-tenancy`](../../kubernetes/vsa-harvest-multi-tenancy)
    - Namespace: **`vcp`** (same as Core / single-tenancy harvest; separate Deployments)
    - One Deployment + Service per `inventory.clusters[]` entry (gcnv-harvest overrides shape)
-   - Poller calls VCP `GET /v1/getAllVolumeTenancy?clusterName=<lowercase-inventory-name>`
+   - Poller calls VCP `GET /v1/getAllVolumeTenancy?clusterName=<exact-inventory-name>`
    - Prometheus metrics on `:12990`
 
 2. **OpenTelemetry** — **in-chart sidecar** on each harvest poller pod (not a separate
@@ -63,11 +63,14 @@ Do not point VCP worker farm registration at the MT chart.
 2. Core API volume-tenancy bulk endpoint deployed
 3. Istio policy allowing `cluster.local/ns/vcp/sa/harvest-multi-tenancy` → `GET /v1/getAllVolumeTenancy`
 4. Workload Identity on harvest SA (ServiceControl + Core API + tenant Metric Writer) — confirm IAM model with PE before pilot
+5. Telemetry deployer configured with `ENABLE_VOLUME_METRICS=true` and
+   `ENABLE_MT_HARVEST_VOLUME_METRICS=true`
 
 ## Inventory
 
-`inventory.clusters[].name` is lowercased for poller identity, VCP `clusterName`, and
-Service DNS. The OTel sidecar does **not** need a separate `clusters[]` list (localhost scrape).
+`inventory.clusters[].name` keeps its exact case for the VCP `clusterName`
+query. Only the Kubernetes poller identity and Service DNS are lowercased. The
+OTel sidecar does **not** need a separate `clusters[]` list (localhost scrape).
 This inventory is **MT-only** — it is not the gcnv-harvest stamp list.
 
 ## Chart version compatibility

@@ -399,6 +399,10 @@ func (s *PersistenceStore) GetExpertModePoolUsedCapacityAndVolumeCount(ctx conte
 	return s.dataStore.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, poolID)
 }
 
+func (s *PersistenceStore) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*ExpertModePoolCapacity, error) {
+	return s.dataStore.GetExpertModePoolsUsedCapacityAndVolumeCount(ctx, poolIDs)
+}
+
 func (s *PersistenceStore) GetExpertModeVolumeByNameAndPoolID(ctx context.Context, name string, poolID int64) (*datamodel.ExpertModeVolumes, error) {
 	return s.dataStore.GetExpertModeVolumeByNameAndPoolID(ctx, name, poolID)
 }
@@ -695,6 +699,10 @@ func (s *PersistenceStore) ListVolumesWithPagination(ctx context.Context, condit
 
 func (s *PersistenceStore) ListVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*VolumeResourceData, error) {
 	return s.dataStore.ListVolumesForResourceData(ctx, startTime, endTime, pagination)
+}
+
+func (s *PersistenceStore) ListExpertModeVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
+	return s.dataStore.ListExpertModeVolumesForResourceData(ctx, startTime, endTime, pagination)
 }
 
 func (s *PersistenceStore) GetVolumeCount(ctx context.Context, accountName string) (int64, error) {

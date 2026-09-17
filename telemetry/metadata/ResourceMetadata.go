@@ -16,6 +16,7 @@ type ResourceMetadata struct {
 	Throughput          *float64
 	ResourceID          *int64
 	ServiceLevel        *string
+	APIAccessMode       *string
 	DeletedAt           *time.Time
 	BackupRegionName    *string
 	SourceRegionName    *string
@@ -66,6 +67,10 @@ func (m *ResourceMetadata) SetResourceID(resourceID int64) {
 
 func (m *ResourceMetadata) SetServiceLevel(serviceLevel string) {
 	m.ServiceLevel = &serviceLevel
+}
+
+func (m *ResourceMetadata) SetAPIAccessMode(apiAccessMode string) {
+	m.APIAccessMode = &apiAccessMode
 }
 
 func (m *ResourceMetadata) SetDeletedAt(deletedAt time.Time) {

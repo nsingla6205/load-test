@@ -1029,15 +1029,15 @@ func getActivePrepopulateJobs(db *gorm.DB) ([]*datamodel.Job, error) {
 // Account name, deployment name, labels, and IsRegionalHA are extracted from volume_attributes JSONB.
 // LargeCapacity is extracted from large_volume_attributes JSONB.
 type VolumeResourceData struct {
-	UUID                  string                           `gorm:"column:uuid"`
-	Name                  string                           `gorm:"column:name"`
-	AccountID             int64                            `gorm:"column:account_id"`
-	VolumeAttributes      *datamodel.VolumeAttributes      `gorm:"column:volume_attributes;type:jsonb"`
-	LargeVolumeAttributes *datamodel.LargeVolumeAttributes `gorm:"column:large_volume_attributes;type:jsonb"`
-	CreatedAt             time.Time                        `gorm:"column:created_at"`
-	BackupVaultServiceType string                          `gorm:"column:backup_vault_service_type"`
-	BackupVaultAccountName string                          `gorm:"column:backup_vault_account_name"`
-	BackupVaultAccountID   int64                           `gorm:"column:backup_vault_account_id"`
+	UUID                   string                           `gorm:"column:uuid"`
+	Name                   string                           `gorm:"column:name"`
+	AccountID              int64                            `gorm:"column:account_id"`
+	VolumeAttributes       *datamodel.VolumeAttributes      `gorm:"column:volume_attributes;type:jsonb"`
+	LargeVolumeAttributes  *datamodel.LargeVolumeAttributes `gorm:"column:large_volume_attributes;type:jsonb"`
+	CreatedAt              time.Time                        `gorm:"column:created_at"`
+	BackupVaultServiceType string                           `gorm:"column:backup_vault_service_type"`
+	BackupVaultAccountName string                           `gorm:"column:backup_vault_account_name"`
+	BackupVaultAccountID   int64                            `gorm:"column:backup_vault_account_id"`
 }
 
 // GetLargeCapacity returns the large capacity flag from LargeVolumeAttributes
@@ -1200,6 +1200,8 @@ type ExpertModeVolumeMetricsData struct {
 	AccountName            string
 	DeploymentName         string
 	PoolIsRegionalHA       bool
+	PoolAPIAccessMode      string
+	PoolServiceLevel       string
 	BackupConfig           *datamodel.DataProtection
 	VolumeAttributes       *datamodel.ExpertModeVolumeAttributes
 	BackupVaultServiceType string
@@ -1251,13 +1253,16 @@ func (d *DataStoreRepository) ListExpertModeVolumesForTelemetryMetrics(ctx conte
 			COALESCE(a.name, '') AS account_name,
 			COALESCE(p.deployment_name, '') AS deployment_name,
 			COALESCE((p.pool_attributes->>'is_regional_ha')::boolean, false) AS pool_is_regional_ha,
+			COALESCE(p.api_access_mode, '') AS pool_api_access_mode,
+			COALESCE(NULLIF(p.pool_attributes->>'service_level', ''), p.service_level, '') AS pool_service_level,
 			expert_mode_volumes.data_protection AS backup_config,
 			expert_mode_volumes.volume_attributes,
 			COALESCE(bv.service_type, '') AS backup_vault_service_type,
 			COALESCE(va.name, '') AS backup_vault_account_name,
 			COALESCE(bv.account_id, 0) AS backup_vault_account_id
 		`).
-		Where("expert_mode_volumes.deleted_at IS NULL")
+		Where("expert_mode_volumes.deleted_at IS NULL").
+		Order("expert_mode_volumes.id ASC")
 
 	if pagination != nil {
 		if pagination.Limit > 0 {
@@ -1270,6 +1275,58 @@ func (d *DataStoreRepository) ListExpertModeVolumesForTelemetryMetrics(ctx conte
 
 	err := query.Find(&results).Error
 
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	return results, nil
+}
+
+// ListExpertModeVolumesForResourceData retrieves expert-mode volumes for aggregator
+// resource-data lookup. Recently deleted volumes whose deleted_at falls in [startTime,
+// endTime] are included so in-flight aggregation windows still resolve.
+// ListExpertModeVolumesForTelemetryMetrics is left unchanged so backup/throughput collectors
+// keep their active-only query.
+func (d *DataStoreRepository) ListExpertModeVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
+	db := d.db.GORM().WithContext(ctx)
+
+	var results []*ExpertModeVolumeMetricsData
+	query := db.Table("expert_mode_volumes").
+		Joins("LEFT JOIN accounts a ON a.id = expert_mode_volumes.account_id").
+		Joins("LEFT JOIN pools p ON p.id = expert_mode_volumes.pool_id").
+		Joins("LEFT JOIN backup_vaults bv ON bv.uuid = expert_mode_volumes.data_protection->>'backup_vault_id'").
+		Joins("LEFT JOIN accounts va ON va.id = bv.account_id").
+		Select(`
+			expert_mode_volumes.uuid,
+			COALESCE(expert_mode_volumes.external_uuid, '') AS external_uuid,
+			expert_mode_volumes.name,
+			expert_mode_volumes.size_in_bytes,
+			expert_mode_volumes.pool_id,
+			COALESCE(a.id, 0) AS account_id,
+			COALESCE(a.name, '') AS account_name,
+			COALESCE(p.deployment_name, '') AS deployment_name,
+			COALESCE((p.pool_attributes->>'is_regional_ha')::boolean, false) AS pool_is_regional_ha,
+			COALESCE(p.api_access_mode, '') AS pool_api_access_mode,
+			COALESCE(NULLIF(p.pool_attributes->>'service_level', ''), p.service_level, '') AS pool_service_level,
+			expert_mode_volumes.data_protection AS backup_config,
+			expert_mode_volumes.volume_attributes,
+			COALESCE(bv.service_type, '') AS backup_vault_service_type,
+			COALESCE(va.name, '') AS backup_vault_account_name,
+			COALESCE(bv.account_id, 0) AS backup_vault_account_id
+		`).
+		Where("(expert_mode_volumes.deleted_at IS NULL OR (expert_mode_volumes.deleted_at >= ? AND expert_mode_volumes.deleted_at <= ?))", startTime, endTime).
+		Order("expert_mode_volumes.id ASC")
+
+	if pagination != nil {
+		if pagination.Limit > 0 {
+			query = query.Limit(pagination.Limit)
+		}
+		if pagination.Offset > 0 {
+			query = query.Offset(pagination.Offset)
+		}
+	}
+
+	err := query.Find(&results).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}

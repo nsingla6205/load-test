@@ -118,6 +118,8 @@ spec:
               value: "us-west2"
             - name: ENABLE_VOLUME_METRICS
               value: "false"
+            - name: ENABLE_MT_HARVEST_VOLUME_METRICS
+              value: "true"
             - name: PUSH_BATCH_SIZE
               value: "1000"
             - name: TELEMETRY_JOB_MAX_RETRY_PERFORMANCE

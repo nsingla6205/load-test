@@ -78,6 +78,12 @@ func TestNewMeasuredType(t *testing.T) {
 			expectedExists: true,
 		},
 		{
+			name:           "Valid MT volume_snapshots_size_used metric",
+			input:          "volume_snapshots_size_used",
+			expectedType:   SnapshotSize,
+			expectedExists: true,
+		},
+		{
 			name:           "Valid volume_size_total metric",
 			input:          "volume_capacity",
 			expectedType:   AllocatedSize,

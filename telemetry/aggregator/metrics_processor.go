@@ -169,6 +169,7 @@ func (p *BillingProvider) ProcessBillingMetrics(ctx context.Context, aggregation
 	// Populate BackfillLimit for all DefaultAggregationJobDefinitions based on config
 	p.populateBackfillLimit(logger)
 	p.applyDataSourceAndFormatterOverrides(logger)
+	jobDefinitions := p.aggregationJobDefinitions()
 
 	// Pre-fetch all counter values for optimization
 	counterCache, cacheErr := p.preloadCounterValues(ctx, aggregationStartTime, aggregationEndTime, logger)
@@ -182,7 +183,7 @@ func (p *BillingProvider) ProcessBillingMetrics(ctx context.Context, aggregation
 	// Pass 1: all jobs except pool-level AT aggregation (which depends on volume-level records in aggregatedRecords)
 	// Pass 2: pool-level AT aggregation only (volume records now available in aggregatedRecords)
 	for pass := 0; pass < 2; pass++ {
-		for key, jobDef := range common.DefaultAggregationJobDefinitions {
+		for key, jobDef := range jobDefinitions {
 			isPoolLevelATJob := p.config.EnableATVolumeBasedPoolBilling &&
 				isPoolResourceType(key.ResourceType) &&
 				(key.MeasuredType == metadata.CoolTierDataReadSizeRaw || key.MeasuredType == metadata.CoolTierDataWriteSizeRaw)
@@ -315,6 +316,33 @@ func (p *BillingProvider) ProcessBillingMetrics(ctx context.Context, aggregation
 	return nil
 }
 
+func (p *BillingProvider) aggregationJobDefinitions() map[metadata.CombinedKeyResourceTypeMeasuredType]common.AggregationJobDefinition {
+	if !p.config.EnableMTHarvestVolumeMetrics {
+		return common.DefaultAggregationJobDefinitions
+	}
+
+	jobDefinitions := make(
+		map[metadata.CombinedKeyResourceTypeMeasuredType]common.AggregationJobDefinition,
+		len(common.DefaultAggregationJobDefinitions)+1,
+	)
+	for key, jobDefinition := range common.DefaultAggregationJobDefinitions {
+		jobDefinitions[key] = jobDefinition
+	}
+
+	jobDefinitions[metadata.CombinedKeyResourceTypeMeasuredType{
+		ResourceType: metadata.Volume,
+		MeasuredType: metadata.SnapshotSize,
+	}] = common.AggregationJobDefinition{
+		AggregationType: common.IntegralAggregation,
+		IsBillable:      false,
+		TimeSeriesFormatter: &common.SampledMetricsFormatter{
+			Mode:          common.Interval,
+			BackfillLimit: time.Duration(p.config.IntervalBackfillLimitMinutes) * time.Minute,
+		},
+	}
+	return jobDefinitions
+}
+
 // populateBackfillLimit sets the BackfillLimit for all job definitions based on config
 func (p *BillingProvider) populateBackfillLimit(logger log.Logger) {
 	for key, jobDef := range common.DefaultAggregationJobDefinitions {
@@ -419,10 +447,10 @@ func (p *BillingProvider) fetchResourceData(ctx context.Context, aggregationStar
 		volumeDataError = err
 	}
 
-	// Fetch expert mode volume resource data so that BackupEnabledVolumeAllocatedSize metrics
-	// emitted for expert mode volumes can be resolved during aggregation.
-	if p.config.EnableExpertModeBackupBilling {
-		if err := p.fetchExpertModeVolumeData(ctx, resourceCollection); err != nil {
+	// Expert-mode resource data supports MT Harvest gauges and expert backup
+	// billing. Deployments using neither path retain their previous query load.
+	if p.config.EnableMTHarvestVolumeMetrics || p.config.EnableExpertModeBackupBilling {
+		if err := p.fetchExpertModeVolumeData(ctx, aggregationStartTime, resourceCollection); err != nil {
 			logger.Errorf("Failed to fetch expert mode volume resource data: %v", err)
 		}
 	}
@@ -760,17 +788,18 @@ func (p *BillingProvider) fetchVolumeData(ctx context.Context, aggregationStartT
 	return nil
 }
 
-// fetchExpertModeVolumeData populates resourceCollection.VolumeData with entries for expert mode
-// volumes so that BackupEnabledVolumeAllocatedSize metrics emitted by the collector can be
-// resolved during aggregation. Without this, processMetricsWithJobDef finds no resource data and
-// silently drops every expert-mode backup billing metric.
-func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, resourceCollection *ResourceCollection) error {
+// fetchExpertModeVolumeData populates resourceCollection.VolumeData for all expert-mode
+// volumes so backup-enabled size metrics retain their existing lookup coverage while Harvest
+// capacity and logical usage gauges can also be resolved. Resource UUID is the Harvest tenancy
+// identity (external UUID). Resource name remains the ONTAP volume name.
+func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, aggregationStartTime time.Time, resourceCollection *ResourceCollection) error {
 	logger := util.GetLogger(ctx)
 
 	offset := 0
 	limit := p.config.PoolVolumeLabelPageSize
 	totalProcessed := 0
 	batchCount := 0
+	aggregationEndTime := time.Now()
 
 	for {
 		pagination := &dbutils.Pagination{
@@ -778,7 +807,7 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, resourc
 			Limit:  limit,
 		}
 
-		volumes, err := p.vcpDataStore.ListExpertModeVolumesForTelemetryMetrics(ctx, pagination)
+		volumes, err := p.vcpDataStore.ListExpertModeVolumesForResourceData(ctx, aggregationStartTime, aggregationEndTime, pagination)
 		if err != nil {
 			return fmt.Errorf("failed to list expert mode volumes for resource data (offset %d): %w", offset, err)
 		}
@@ -802,19 +831,20 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, resourc
 				resourceType = metadata.VolumeRegionalHA
 			}
 
+			resourceUUID := volume.BackupVolumeUUID()
 			var freeTrialEnd *time.Time
 			if p.config.EnableFreeTrialBilling {
 				freeTrialEnd = resourceCollection.FreeTrialAccounts[volume.AccountID]
 			}
 			resourceData := ResourceData{
-				UUID:           volume.UUID,
+				UUID:           resourceUUID,
 				AccountID:      volume.AccountID,
 				FreeTrialEndAt: freeTrialEnd,
 			}
 			addVolumeDataEntry(
 				resourceCollection,
 				resourceType,
-				volume.UUID,
+				resourceUUID,
 				volume.Name,
 				volume.DeploymentName,
 				volume.AccountName,
@@ -823,6 +853,23 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, resourc
 				volume.BackupVaultAccountName,
 				volume.BackupVaultAccountID,
 			)
+			if p.config.EnableMTHarvestVolumeMetrics &&
+				resourceType != metadata.Volume &&
+				volume.PoolAPIAccessMode == commonparams.ONTAPMode &&
+				commonparams.IsPOServiceLevel(volume.PoolServiceLevel) {
+				addVolumeDataEntry(
+					resourceCollection,
+					metadata.Volume,
+					resourceUUID,
+					volume.Name,
+					volume.DeploymentName,
+					volume.AccountName,
+					resourceData,
+					volume.BackupVaultServiceType,
+					volume.BackupVaultAccountName,
+					volume.BackupVaultAccountID,
+				)
+			}
 		}
 
 		totalProcessed += len(volumes)
@@ -1931,8 +1978,15 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 		skippedQty = BytesToMiB(skippedQty)
 	}
 
-	// Determine base billability
+	// MT snapshot is intentionally absent from the shared static map so ST
+	// deployments do not see the job. All existing jobs retain their current
+	// billability lookup behavior.
 	isBillable := common.IsBillableMetric(ctx, metrics.Metadata.ResourceType, metrics.MeasuredType)
+	if p.config.EnableMTHarvestVolumeMetrics &&
+		metrics.Metadata.ResourceType == metadata.Volume &&
+		metrics.MeasuredType == metadata.SnapshotSize {
+		isBillable = jobDef.IsBillable
+	}
 
 	// Disable billing for Large Volumes pools for CRR, Auto Tiering, and Backup features
 	// Only applies when EnableLargeVolumesBilling feature flag is disabled (default: false until GA)

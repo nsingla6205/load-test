@@ -325,6 +325,7 @@ telemetryDeployer:
   enableGcbdrBackupBilling: false
   enableGcbdrBmfBilling: false
   enableExpertModeBackupBilling: false
+  enableMtHarvestVolumeMetrics: true
   enableCrossRegionBackupBillingMetrics: false
   enableSfrCrossRegionRestoreBilling: false
   enableReplicationBillingMetrics: false

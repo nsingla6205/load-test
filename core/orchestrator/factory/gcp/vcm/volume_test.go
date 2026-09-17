@@ -445,4 +445,3 @@ func TestGetVolume_BlockVolumeMapsONTAPFields(t *testing.T) {
 	assert.Nil(t, volume.FileProperties)
 	assert.Nil(t, volume.BlockDevices)
 }
-

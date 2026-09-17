@@ -1,0 +1,5 @@
+# Metrics emitted only by the multi-tenant Harvest deployment.
+metrics:
+  - metric: volume_snapshots_size_used
+    resourceType: custom.googleapis.com
+    metricType: usage

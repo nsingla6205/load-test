@@ -8,6 +8,9 @@
 #
 # Add new metrics as needed, following the structure below.
 # NOTE: Ensure that any new metrics added here are also added to prometheus/tenant section in kubernetes/vsa-harvest-otel/templates/otel-configmap.yaml.
+# MT-only tenant metrics that Harvest already reports to consumer
+# ServiceControl must not be added here; performance entries are republished
+# to the consumer project by VCP telemetry.
 metrics:
   - metric: volume_space_logical_used
     resourceType: custom.googleapis.com

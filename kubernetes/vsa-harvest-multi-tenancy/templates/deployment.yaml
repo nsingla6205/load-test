@@ -62,7 +62,10 @@ spec:
             - name: GCP_SERVICE_URL
               value: {{ required "coreAPI.gcpServiceURL is required for MT tenancy JWT audience" $.Values.coreAPI.gcpServiceURL | quote }}
             - name: TENANCY_CLUSTER_NAME
-              value: {{ $pollerName | quote }}
+              # Core matches this value exactly against
+              # pools.cluster_details.external_name. Kubernetes names and DNS
+              # continue to use the lowercased poller identity.
+              value: {{ $cluster.name | quote }}
             - name: TENANCY_REQUIRED
               value: "true"
             - name: ENABLE_POOL_METRICS
@@ -81,16 +84,21 @@ spec:
               value: {{ $.Values.coreAPI.environment | quote }}
             - name: TENANCY_REFRESH_INTERVAL
               value: {{ $.Values.coreAPI.refreshInterval | quote }}
+            {{- with $.Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ $.Values.service.port }}
               protocol: TCP
+          {{- if $.Values.pollerReadinessProbe.enabled }}
           readinessProbe:
             httpGet:
               path: /metrics
               port: metrics
             initialDelaySeconds: 10
             periodSeconds: 15
+          {{- end }}
           volumeMounts:
             - name: harvest-config
               mountPath: /opt/harvest/harvest.yml
@@ -108,6 +116,10 @@ spec:
             {{- range $.Values.otel.command.extraArgs }}
             - {{ . | quote }}
             {{- end }}
+          {{- with $.Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: otel-health
               containerPort: {{ $.Values.otel.healthCheckPort }}

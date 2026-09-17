@@ -430,6 +430,9 @@ type (
 		// for telemetry billing metrics. Account name and deployment name are resolved via JOINs.
 		// Pass a non-nil Pagination to iterate in pages; nil returns all records.
 		ListExpertModeVolumesForTelemetryMetrics(ctx context.Context, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error)
+		// ListExpertModeVolumesForResourceData returns expert-mode volumes for aggregator
+		// resource lookup, including recently deleted rows in [startTime, endTime].
+		ListExpertModeVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error)
 		// ListExpertModeVolumeTenancyByCluster returns keyset-paginated expert-mode volume tenancy rows for one cluster.
 		ListExpertModeVolumeTenancyByCluster(ctx context.Context, clusterName string, afterID int64, limit int) ([]*ExpertModeVolumeTenancyRow, error)
 		UpdateLatestBackupLogicalSize(ctx context.Context, volumeUUID string, endpointUUID string, newLogicalSize int64) error
@@ -559,6 +562,7 @@ type (
 		CreateExpertModeVolume(ctx context.Context, expertModeVolume *datamodel.ExpertModeVolumes) (*datamodel.ExpertModeVolumes, error)
 		ListExpertModePools(ctx context.Context) ([]*datamodel.Pool, error)
 		GetExpertModePoolUsedCapacityAndVolumeCount(ctx context.Context, poolID int64) (*ExpertModePoolCapacity, error)
+		GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*ExpertModePoolCapacity, error)
 		GetExpertModeVolumeByNameAndPoolID(ctx context.Context, name string, poolID int64) (*datamodel.ExpertModeVolumes, error)
 		GetExpertModeVolumeByUUID(ctx context.Context, volumeUUID string) (*datamodel.ExpertModeVolumes, error)
 		GetExpertModeVolumeByExternalUUID(ctx context.Context, volumeUUID string) (*datamodel.ExpertModeVolumes, error)

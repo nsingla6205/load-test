@@ -39,41 +39,23 @@ data:
             - source: other_ops
               target: netapp.googleapis.com/volume/operation_count
               labels: {type: metadata}
-            - source: read_data
-              target: netapp.googleapis.com/volume/throughput
-              labels: {type: read}
-            - source: write_data
-              target: netapp.googleapis.com/volume/throughput
-              labels: {type: write}
-            - source: other_data
-              target: netapp.googleapis.com/volume/throughput
-              labels: {type: metadata}
-            - source: read_latency
-              target: netapp.googleapis.com/volume/average_latency
-              labels: {method: read}
-            - source: write_latency
-              target: netapp.googleapis.com/volume/average_latency
-              labels: {method: write}
-            - source: other_latency
-              target: netapp.googleapis.com/volume/average_latency
-              labels: {method: metadata}
-            - source: volume_allocated_throughput
-              target: netapp.googleapis.com/volume/throughput_limit
+            # Match the ST ownership split: volume/throughput,
+            # volume/average_latency, volume/throughput_limit,
+            # storage_pool/capacity, and storage_pool/allocated come from VCP
+            # telemetry, not directly from Harvest ServiceControl.
             - source: inode_files_used
               target: netapp.googleapis.com/volume/inode_used
             - source: inode_files_total
               target: netapp.googleapis.com/volume/inode_limit
             - source: new_status_code
               target: netapp.googleapis.com/internal/volume/volume_online
-          pool:
-            - source: pool_capacity
-              target: netapp.googleapis.com/storage_pool/capacity
-            - source: capacity
-              target: netapp.googleapis.com/storage_pool/allocated
     Defaults:
       collectors:
+        # KeyPerf emits read_ops/write_ops/read_data/read_latency (including
+        # idle zeros). RestPerf uses vol_* names that ServiceControl does not map.
         - Rest
         - RestPerf
+        - KeyPerf
       use_insecure_tls: true
     Pollers:
       {{ $pollerName }}:
@@ -84,6 +66,7 @@ data:
         exporters:
           - prometheus
           - service_control
+{{- if $.Values.externalSecrets.enabled }}
 ---
 apiVersion: {{ $.Values.externalSecrets.apiVersion }}
 kind: ExternalSecret
@@ -110,5 +93,6 @@ spec:
   dataFrom:
     - extract:
         key: {{ $secretKey | quote }}
+{{- end }}
 {{- end }}
 {{- end }}

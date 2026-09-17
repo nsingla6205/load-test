@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	metricdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	metricsdm "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
@@ -50,6 +51,71 @@ func createTestPoolMetricsData(name, accountName string) *database.PoolMetricsDa
 			AccountName: accountName,
 		},
 	}
+}
+
+func TestCollectAndProcessMetrics_ExpertModeVolumeThroughputReachesSinkBatch(t *testing.T) {
+	ctx := context.Background()
+	vcpStore := &database.MockStorage{}
+	mp := &MetricsProcessor{vcpDatastore: vcpStore}
+	config := &common.TelemetryConfig{RegionName: "us-central1"}
+	timestamp := time.Now()
+
+	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
+		{
+			ID:             7,
+			UUID:           "expert-mode-pool-uuid",
+			Name:           "ExpertModePool",
+			ServiceLevel:   commonparams.ServiceLevelExtreme,
+			APIAccessMode:  commonparams.ONTAPMode,
+			SizeInBytes:    4096,
+			DeploymentName: "deployment1",
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName:     "Account1",
+				ServiceLevel:    commonparams.ServiceLevelExtreme,
+				ThroughputMibps: 512,
+			},
+		},
+	}, nil)
+	vcpStore.On("GetExpertModePoolsUsedCapacityAndVolumeCount", mock.Anything, []int64{7}).
+		Return(map[int64]*database.ExpertModePoolCapacity{
+			7: {TotalSize: 2048, VolumeCount: 1},
+		}, nil)
+	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+		Return([]*database.AccountTelemetryData{}, nil)
+	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).
+		Return([]*database.VolumeMetricsData{}, nil)
+	vcpStore.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+		Return([]*database.ExpertModeVolumeMetricsData{
+			{
+				UUID:              "internal-volume-uuid",
+				ExternalUUID:      "ontap-volume-uuid",
+				Name:              "ExpertModeVolume",
+				SizeInBytes:       2048,
+				PoolID:            7,
+				AccountName:       "Account1",
+				DeploymentName:    "deployment1",
+				PoolAPIAccessMode: commonparams.ONTAPMode,
+				PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+			},
+		}, nil)
+
+	_, sinkMetrics, err := mp.collectAndProcessMetrics(ctx, config, timestamp)
+
+	assert.NoError(t, err)
+	var throughputMetric *entity.HydratedMetric
+	for i := range sinkMetrics {
+		if sinkMetrics[i].MeasuredType == metadata.VolumeAllocatedThroughput {
+			throughputMetric = &sinkMetrics[i]
+			break
+		}
+	}
+	if assert.NotNil(t, throughputMetric) {
+		assert.Equal(t, float64(512), throughputMetric.Quantity)
+		assert.Equal(t, "ontap-volume-uuid", *throughputMetric.Metadata.ResourceUUID)
+		assert.Equal(t, "Account1", *throughputMetric.Metadata.AccountName)
+		assert.Equal(t, metadata.Volume, throughputMetric.Metadata.ResourceType)
+	}
+	vcpStore.AssertExpectations(t)
 }
 
 // MockBillingProvider is a mock implementation of BillingProvider for testing
@@ -1499,6 +1565,7 @@ func TestMetricsProcessor_ProcessUsageMetrics_AggregationTimingVerification(t *t
 	// Mock all the database calls that the billing provider will make
 	vcpStore.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.PoolResourceData{}, nil)
 	vcpStore.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.VolumeResourceData{}, nil)
+	vcpStore.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	// Allow multiple calls to GetAggregatedUsageWithPagination with any parameters (billing provider makes many calls)
 	telemetryStore.On("GetAggregatedUsageWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
 	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()
@@ -1564,6 +1631,7 @@ func TestMetricsProcessor_ProcessUsageMetrics_RetryRecordsAndNewRecords(t *testi
 	// Mock successful resource data fetching (pools and volumes)
 	vcpStore.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.PoolResourceData{}, nil)
 	vcpStore.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.VolumeResourceData{}, nil)
+	vcpStore.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
 	telemetryStore.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return([]metricsdm.AggregatedUsage{}, nil).Maybe()

@@ -15,8 +15,9 @@ vcp
 {{- end -}}
 
 {{/*
-Lowercase cluster name used for poller identity, TENANCY_CLUSTER_NAME, and
-Service DNS (harvest-poller-<name>). OTel sidecar scrapes localhost on the pod.
+Lowercase cluster name used for poller identity, Kubernetes resources, and
+Service DNS (harvest-poller-<name>). TENANCY_CLUSTER_NAME uses the exact
+inventory name because Core matches cluster_details.external_name exactly.
 */}}
 {{- define "vsa-harvest-multi-tenancy.clusterName" -}}
 {{- . | lower -}}

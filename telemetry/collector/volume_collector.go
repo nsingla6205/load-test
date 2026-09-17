@@ -14,6 +14,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
@@ -47,20 +48,42 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	}
 	logger.Info(fmt.Sprintf("Found %d volume metrics", len(volumes)))
 
-	// Early return only when there are no regular volumes AND expert mode backup billing
-	// is not enabled (expert mode volumes are processed separately below).
-	if len(volumes) == 0 && !(config.EnableBackupBillingMetrics && config.EnableExpertModeBackupBilling) {
-		return &VolumeMetricsResult{}, nil
-	}
+	expertModeBackupEnabled := config.EnableBackupBillingMetrics && config.EnableExpertModeBackupBilling
 
-	// Fetch all accounts and create a map of account name -> account state for efficient lookup
-	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+	// Preserve the regular ST empty-volume path. Expert-mode volume throughput
+	// loads account state lazily only if the expert table contains an eligible
+	// volume.
+	var accountStateMap map[string]string
+	if len(volumes) > 0 || expertModeBackupEnabled {
+		accountStateMap = buildAccountStateMap(ctx, vcpDB)
+	}
 
 	// Initialize a slice to hold the hydrated metrics
 	var metrics []entity.HydratedMetric
 	var volumeAllocatedThroughputMetrics []entity.HydratedMetric
 	var sfrMetrics []entity.HydratedMetric
 	var hydratedMetrics []datamodel2.HydratedMetrics
+
+	expertModeThroughputFound := false
+	if !expertModeBackupEnabled && hasExpertModeMetricsPoolMetadata(poolMetadataMap) {
+		expertModeThroughputMetrics, err := getExpertModeVolumeAllocatedThroughputMetrics(
+			ctx,
+			vcpDB,
+			config,
+			poolMetadataMap,
+			accountStateMap,
+			timestamp,
+		)
+		if err != nil {
+			logger.Error("Failed to get expert mode volume allocated throughput metrics", "error", err.Error())
+		} else {
+			volumeAllocatedThroughputMetrics = append(volumeAllocatedThroughputMetrics, expertModeThroughputMetrics...)
+			expertModeThroughputFound = len(expertModeThroughputMetrics) > 0
+		}
+	}
+	if len(volumes) == 0 && !expertModeBackupEnabled && !expertModeThroughputFound {
+		return &VolumeMetricsResult{}, nil
+	}
 
 	// Tracks BMF rows already emitted to prevent double-billing a (volume, billing project)
 	// pair — e.g. when the active vault and a detached vault belong to the same project.
@@ -223,12 +246,13 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 
 	// Expert-mode BMF; map stays empty when expert mode billing is disabled.
 	expertVolumeMap := make(map[string]*database.ExpertModeVolumeMetricsData)
-	if config.EnableBackupBillingMetrics && config.EnableExpertModeBackupBilling {
-		expertModeMetrics, fetchedExpertVolumes, err := getExpertModeVolumeBackupMetrics(ctx, vcpDB, config, poolMetadataMap, backupVaultMap, accountStateMap, emittedBMF, timestamp)
+	if expertModeBackupEnabled {
+		expertModeMetrics, expertModeThroughputMetrics, fetchedExpertVolumes, err := getExpertModeVolumeBackupMetrics(ctx, vcpDB, config, poolMetadataMap, backupVaultMap, accountStateMap, emittedBMF, timestamp)
 		if err != nil {
 			logger.Error("Failed to get expert mode volume backup metrics", "error", err.Error())
 		} else {
 			hydratedMetrics = append(hydratedMetrics, expertModeMetrics...)
+			volumeAllocatedThroughputMetrics = append(volumeAllocatedThroughputMetrics, expertModeThroughputMetrics...)
 			expertVolumeMap = fetchedExpertVolumes
 		}
 	}
@@ -253,6 +277,124 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	}, nil
 }
 
+func hasExpertModeMetricsPoolMetadata(poolMetadataMap map[int64]metadata.ResourceMetadata) bool {
+	for _, poolMetadata := range poolMetadataMap {
+		if poolMetadata.APIAccessMode != nil &&
+			poolMetadata.ServiceLevel != nil &&
+			isExpertModeMetricsPoolValues(*poolMetadata.APIAccessMode, *poolMetadata.ServiceLevel) {
+			return true
+		}
+	}
+	return false
+}
+
+// getExpertModeVolumeAllocatedThroughputMetrics emits the same configured
+// throughput-limit metric as regular ST volumes, using volumes from the
+// expert_mode_volumes table. Expert-mode volumes do not have a per-volume VPG,
+// so their configured throughput falls back to the containing pool.
+func getExpertModeVolumeAllocatedThroughputMetrics(
+	ctx context.Context,
+	vcpDB database.Storage,
+	config *common.TelemetryConfig,
+	poolMetadataMap map[int64]metadata.ResourceMetadata,
+	accountStateMap map[string]string,
+	timestamp time.Time,
+) ([]entity.HydratedMetric, error) {
+	logger := util.GetLogger(ctx)
+	var metrics []entity.HydratedMetric
+	offset := 0
+	const limit = 1000
+	accountStateLoaded := accountStateMap != nil
+
+	for {
+		pagination := &dbutils.Pagination{Offset: offset, Limit: limit}
+		expertVolumes, err := vcpDB.ListExpertModeVolumesForTelemetryMetrics(ctx, pagination)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list expert mode volumes for allocated throughput metrics (offset %d): %w", offset, err)
+		}
+		if len(expertVolumes) == 0 {
+			break
+		}
+
+		for _, volume := range expertVolumes {
+			if !accountStateLoaded &&
+				isExpertModeMetricsPoolValues(volume.PoolAPIAccessMode, volume.PoolServiceLevel) {
+				accountStateMap = buildAccountStateMap(ctx, vcpDB)
+				accountStateLoaded = true
+			}
+			if metric := createExpertModeVolumeAllocatedThroughputMetric(
+				logger,
+				volume,
+				config,
+				poolMetadataMap,
+				accountStateMap,
+				timestamp,
+			); metric != nil {
+				metrics = append(metrics, *metric)
+			}
+		}
+
+		offset += len(expertVolumes)
+		if len(expertVolumes) < limit {
+			break
+		}
+	}
+
+	return metrics, nil
+}
+
+func createExpertModeVolumeAllocatedThroughputMetric(
+	logger log.Logger,
+	volume *database.ExpertModeVolumeMetricsData,
+	config *common.TelemetryConfig,
+	poolMetadataMap map[int64]metadata.ResourceMetadata,
+	accountStateMap map[string]string,
+	timestamp time.Time,
+) *entity.HydratedMetric {
+	if !isExpertModeMetricsPoolValues(volume.PoolAPIAccessMode, volume.PoolServiceLevel) {
+		return nil
+	}
+	if volume.ExternalUUID == "" {
+		logger.Warnf("Skipping expert mode volume %s allocated throughput metric because external UUID is missing", volume.Name)
+		return nil
+	}
+	if volume.Name == "" || volume.AccountName == "" {
+		logger.Warnf("Skipping expert mode volume %s allocated throughput metric because name or account is missing", volume.ExternalUUID)
+		return nil
+	}
+	if accountState, exists := accountStateMap[volume.AccountName]; exists &&
+		accountState == datamodel.AccountStateHyperscalerDisabled {
+		return nil
+	}
+
+	poolMetadata, exists := poolMetadataMap[volume.PoolID]
+	if !exists {
+		logger.Warnf("Pool metadata missing for PoolID %d (expert mode volume %s)", volume.PoolID, volume.ExternalUUID)
+		return nil
+	}
+
+	throughput := 0.0
+	if poolMetadata.Throughput != nil {
+		throughput = *poolMetadata.Throughput
+	}
+
+	volumeMetadata := assembleExpertModeVolumeMetadata(volume, config)
+	volumeMetadata.SetResourceUUID(volume.ExternalUUID)
+	resourceType := metadata.Volume
+	if poolMetadata.ResourceType == metadata.VolumePoolRegionalHA {
+		resourceType = metadata.VolumeRegionalHA
+	}
+	volumeMetadata.SetResourceType(resourceType)
+
+	metric := setupHydratedMetric(
+		timestamp,
+		volumeMetadata,
+		metadata.VolumeAllocatedThroughput,
+		throughput,
+	)
+	return &metric
+}
+
 // getExpertModeVolumeBackupMetrics generates BackupEnabledVolumeAllocatedSize hydrated metrics
 // for expert mode volumes that have active backup chains, emitting the
 // /BackupManagementFeeGbBillable SKU when the volume qualifies for billing. It also returns a
@@ -266,10 +408,11 @@ func getExpertModeVolumeBackupMetrics(
 	accountStateMap map[string]string,
 	emittedBMF map[bmfDedupeKey]struct{},
 	timestamp time.Time,
-) ([]datamodel2.HydratedMetrics, map[string]*database.ExpertModeVolumeMetricsData, error) {
+) ([]datamodel2.HydratedMetrics, []entity.HydratedMetric, map[string]*database.ExpertModeVolumeMetricsData, error) {
 	logger := util.GetLogger(ctx)
 
 	var hydratedMetrics []datamodel2.HydratedMetrics
+	var throughputMetrics []entity.HydratedMetric
 	expertVolumeDataMap := make(map[string]*database.ExpertModeVolumeMetricsData)
 
 	offset := 0
@@ -284,7 +427,7 @@ func getExpertModeVolumeBackupMetrics(
 
 		expertVolumes, err := vcpDB.ListExpertModeVolumesForTelemetryMetrics(ctx, pagination)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list expert mode volumes for backup billing metrics (offset %d): %w", offset, err)
+			return nil, nil, nil, fmt.Errorf("failed to list expert mode volumes for backup billing metrics (offset %d): %w", offset, err)
 		}
 
 		if len(expertVolumes) == 0 {
@@ -294,6 +437,16 @@ func getExpertModeVolumeBackupMetrics(
 		logger.Info(fmt.Sprintf("Processing %d expert mode volumes for backup billing metrics (offset %d)", len(expertVolumes), offset))
 
 		for _, volume := range expertVolumes {
+			if metric := createExpertModeVolumeAllocatedThroughputMetric(
+				logger,
+				volume,
+				config,
+				poolMetadataMap,
+				accountStateMap,
+				timestamp,
+			); metric != nil {
+				throughputMetrics = append(throughputMetrics, *metric)
+			}
 			// Key by backups.volume_uuid identity (external UUID for expert mode) for detached-vault joins.
 			if volume.BackupVolumeUUID() != "" {
 				expertVolumeDataMap[volume.BackupVolumeUUID()] = volume
@@ -367,7 +520,7 @@ func getExpertModeVolumeBackupMetrics(
 
 	logger.Info(fmt.Sprintf("Processed %d expert mode volumes for backup billing metrics", totalProcessed))
 
-	return hydratedMetrics, expertVolumeDataMap, nil
+	return hydratedMetrics, throughputMetrics, expertVolumeDataMap, nil
 }
 
 // assembleExpertModeVolumeMetadata creates ResourceMetadata for an expert mode volume.

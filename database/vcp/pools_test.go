@@ -5151,11 +5151,14 @@ func TestListPoolsForMetrics(t *testing.T) {
 		pool1 := &datamodel.Pool{
 			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid-1"},
 			Name:           "test_pool_1",
+			ServiceLevel:   "EXTREME",
+			APIAccessMode:  "ONTAP",
 			SizeInBytes:    1000000,
 			AccountID:      account.ID,
 			DeploymentName: "deployment-1",
 			PoolAttributes: &datamodel.PoolAttributes{
-				AccountName: "test_account",
+				AccountName:  "test_account",
+				ServiceLevel: "PREMIUM",
 			},
 		}
 
@@ -5167,6 +5170,9 @@ func TestListPoolsForMetrics(t *testing.T) {
 		assert.Len(tt, results, 1)
 		assert.Equal(tt, "test-pool-uuid-1", results[0].UUID)
 		assert.Equal(tt, "test_pool_1", results[0].Name)
+		assert.Equal(tt, "EXTREME", results[0].ServiceLevel)
+		assert.Equal(tt, "ONTAP", results[0].APIAccessMode)
+		assert.Equal(tt, "PREMIUM", results[0].GetEffectiveServiceLevel())
 		assert.Equal(tt, int64(1000000), results[0].SizeInBytes)
 		assert.Equal(tt, "deployment-1", results[0].DeploymentName)
 		assert.Equal(tt, "test_account", results[0].GetAccountName())
@@ -6120,6 +6126,34 @@ func TestPoolResourceData_IsZoneSwitched(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{IsZoneSwitched: true},
 		}
 		assert.True(t, p.IsZoneSwitched())
+	})
+}
+
+func TestPoolMetricsData_GetEffectiveServiceLevel(t *testing.T) {
+	t.Run("UsesPoolAttributes", func(tt *testing.T) {
+		pool := &PoolMetricsData{
+			ServiceLevel: "EXTREME",
+			PoolAttributes: &datamodel.PoolAttributes{
+				ServiceLevel: "PREMIUM",
+			},
+		}
+
+		assert.Equal(tt, "PREMIUM", pool.GetEffectiveServiceLevel())
+	})
+
+	t.Run("FallsBackWhenPoolAttributesServiceLevelIsEmpty", func(tt *testing.T) {
+		pool := &PoolMetricsData{
+			ServiceLevel:   "EXTREME",
+			PoolAttributes: &datamodel.PoolAttributes{},
+		}
+
+		assert.Equal(tt, "EXTREME", pool.GetEffectiveServiceLevel())
+	})
+
+	t.Run("FallsBackWhenPoolAttributesAreNil", func(tt *testing.T) {
+		pool := &PoolMetricsData{ServiceLevel: "PREMIUM"}
+
+		assert.Equal(tt, "PREMIUM", pool.GetEffectiveServiceLevel())
 	})
 }
 

@@ -52,6 +52,7 @@ type TelemetryConfig struct {
 	EnableGcbdrBackupBilling                     bool
 	EnableGcbdrBmfBilling                        bool
 	EnableExpertModeBackupBilling                bool
+	EnableMTHarvestVolumeMetrics                 bool
 	EnableCrossRegionBackupBillingMetrics        bool
 	EnableSFRCrossRegionRestoreBilling           bool
 	EnableReplicationBillingMetrics              bool
@@ -108,6 +109,9 @@ type MetricsConfig struct {
 //go:embed metricList.yaml
 var metricListYAML []byte
 
+//go:embed metricList_mt.yaml
+var mtMetricListYAML []byte
+
 func LoadConfig() *TelemetryConfig {
 	performanceRootURL := env.GetString("PERFORMANCE_ROOT_URL", "https://servicecontrol.googleapis.com")
 	usageRootURL := env.GetString("USAGE_ROOT_URL", "https://servicecontrol.googleapis.com")
@@ -123,6 +127,7 @@ func LoadConfig() *TelemetryConfig {
 	enableGcbdrBackupBilling := env.GetBool("ENABLE_GCBDR_BACKUP_BILLING", false)
 	enableGcbdrBmfBilling := env.GetBool("ENABLE_GCBDR_BMF_BILLING", false)
 	enableExpertModeBackupBilling := env.GetBool("ENABLE_EXPERT_MODE_BACKUP_BILLING", false)
+	enableMTHarvestVolumeMetrics := env.GetBool("ENABLE_MT_HARVEST_VOLUME_METRICS", true)
 	enableReplicationBillingMetrics := env.GetBool("ENABLE_REPLICATION_BILLING_METRICS", false)
 	enableBidirectionalReplicationBillingMetrics := env.GetBool("ENABLE_BIDIRECTIONAL_REPLICATION_BILLING_METRICS", false)
 	skipHybridReplicationBaselineBilling := env.GetBool("SKIP_HYBRID_REPLICATION_BASELINE_BILLING", true)
@@ -183,6 +188,7 @@ func LoadConfig() *TelemetryConfig {
 		EnableGcbdrBackupBilling:                     enableGcbdrBackupBilling,
 		EnableGcbdrBmfBilling:                        enableGcbdrBmfBilling,
 		EnableExpertModeBackupBilling:                enableExpertModeBackupBilling,
+		EnableMTHarvestVolumeMetrics:                 enableMTHarvestVolumeMetrics,
 		EnableCrossRegionBackupBillingMetrics:        enableCrossRegionBackupBillingMetrics,
 		EnableSFRCrossRegionRestoreBilling:           enableSFRCrossRegionRestoreBilling,
 		EnableReplicationBillingMetrics:              enableReplicationBillingMetrics,
@@ -224,9 +230,23 @@ func LoadConfig() *TelemetryConfig {
 }
 
 func LoadMetricsConfigFromBytes() *MetricsConfig {
+	return LoadMetricsConfig(false)
+}
+
+// LoadMetricsConfig loads shared metrics and optionally appends metrics emitted
+// only by the multi-tenant Harvest deployment.
+func LoadMetricsConfig(enableMTHarvestVolumeMetrics bool) *MetricsConfig {
 	var config MetricsConfig
 	if err := yaml.Unmarshal(metricListYAML, &config); err != nil {
 		log.Fatalf("Failed to unmarshal metrics config: %v", err)
+	}
+
+	if enableMTHarvestVolumeMetrics {
+		var mtConfig MetricsConfig
+		if err := yaml.Unmarshal(mtMetricListYAML, &mtConfig); err != nil {
+			log.Fatalf("Failed to unmarshal MT metrics config: %v", err)
+		}
+		config.VolumeMetrics = append(config.VolumeMetrics, mtConfig.VolumeMetrics...)
 	}
 
 	return &config

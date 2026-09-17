@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
@@ -374,6 +375,114 @@ func TestGetExpertModePoolUsedCapacity_EffectiveUsedFloorsAtZeroWhenSharedBytesE
 	assert.NotNil(t, capacity)
 	assert.Equal(t, int64(0), capacity.TotalSize)
 	assert.Equal(t, int64(1), capacity.VolumeCount)
+}
+
+func TestGetExpertModePoolsUsedCapacityAndVolumeCount(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+
+	account1, pool1 := createTestAccountAndPoolForExpertMode(t, store)
+	svm1 := createTestSVMForExpertMode(t, store, pool1.ID, account1.ID, "batch-svm-1", utils.RandomUUID())
+	account2, pool2 := createTestAccountAndPoolForExpertMode(t, store)
+	svm2 := createTestSVMForExpertMode(t, store, pool2.ID, account2.ID, "batch-svm-2", utils.RandomUUID())
+	_, emptyPool := createTestAccountAndPoolForExpertMode(t, store)
+
+	volumes := []*datamodel.ExpertModeVolumes{
+		{
+			Name:         "batch-volume-1",
+			SizeInBytes:  1000,
+			SharedBytes:  200,
+			PoolID:       pool1.ID,
+			AccountID:    account1.ID,
+			SvmID:        svm1.ID,
+			ExternalUUID: utils.RandomUUID(),
+			State:        datamodel.LifeCycleStateAvailable,
+		},
+		{
+			Name:         "batch-volume-2",
+			SizeInBytes:  100,
+			SharedBytes:  250,
+			PoolID:       pool2.ID,
+			AccountID:    account2.ID,
+			SvmID:        svm2.ID,
+			ExternalUUID: utils.RandomUUID(),
+			State:        datamodel.LifeCycleStateAvailable,
+		},
+	}
+	for _, volume := range volumes {
+		_, err := store.CreateExpertModeVolume(ctx, volume)
+		require.NoError(t, err)
+	}
+
+	capacities, err := store.GetExpertModePoolsUsedCapacityAndVolumeCount(
+		ctx,
+		[]int64{pool1.ID, pool2.ID, emptyPool.ID},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, capacities, 3)
+	assert.Equal(t, &ExpertModePoolCapacity{TotalSize: 800, VolumeCount: 1}, capacities[pool1.ID])
+	assert.Equal(t, &ExpertModePoolCapacity{TotalSize: 0, VolumeCount: 1}, capacities[pool2.ID])
+	assert.Equal(t, &ExpertModePoolCapacity{}, capacities[emptyPool.ID])
+}
+
+func TestGetExpertModePoolsUsedCapacityAndVolumeCount_EmptyPoolIDs(t *testing.T) {
+	store := setup(t)
+
+	capacities, err := store.GetExpertModePoolsUsedCapacityAndVolumeCount(context.Background(), nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, capacities)
+}
+
+func TestRetryEngine_GetExpertModePoolsUsedCapacityAndVolumeCount(t *testing.T) {
+	store := setup(t)
+	re := &retryEngine{dataStore: store}
+
+	capacities, err := re.GetExpertModePoolsUsedCapacityAndVolumeCount(context.Background(), nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, capacities)
+}
+
+func TestRetryEngine_GetExpertModePoolsUsedCapacityAndVolumeCount_QueryError(t *testing.T) {
+	store := setup(t)
+	sqlDB, err := store.db.GORM().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	re := &retryEngine{dataStore: store}
+
+	capacities, err := re.GetExpertModePoolsUsedCapacityAndVolumeCount(context.Background(), []int64{1})
+
+	require.Error(t, err)
+	assert.Nil(t, capacities)
+}
+
+func TestPersistenceStore_GetExpertModePoolsUsedCapacityAndVolumeCount(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := &PersistenceStore{
+		db:        wrapper,
+		dataStore: retryEngine{dataStore: NewDataStoreRepository(wrapper)},
+	}
+
+	capacities, err := store.GetExpertModePoolsUsedCapacityAndVolumeCount(context.Background(), nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, capacities)
+}
+
+func TestGetExpertModePoolsUsedCapacityAndVolumeCount_QueryError(t *testing.T) {
+	store := setup(t)
+	sqlDB, err := store.db.GORM().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	capacities, err := store.GetExpertModePoolsUsedCapacityAndVolumeCount(context.Background(), []int64{1})
+
+	require.Error(t, err)
+	assert.Nil(t, capacities)
 }
 
 func TestUpdateExpertModeVolumeFields_UpdatesSharedBytesColumn(t *testing.T) {

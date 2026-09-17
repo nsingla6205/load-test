@@ -50,6 +50,11 @@ inventory:
 
 Secret Manager payload per `secret` key: `pvt_ip`, `username`, `password`.
 
+The inventory `name` must exactly match
+`pools.cluster_details.external_name`. Harvest sends that exact value to
+`getAllVolumeTenancy`; only Kubernetes resource names, Service DNS, and the
+poller identity are lowercased.
+
 ## Install
 
 ```bash
@@ -73,10 +78,36 @@ overrides should keep the image on an accessible mirror and pin its digest.
 
 ## Exports
 
-- **Consumer project**: Harvest ServiceControl (`project` label)
+- **Consumer project**:
+  - Harvest ServiceControl (`project` label) owns volume capacity, logical and
+    snapshot usage, operations, inode, and online metrics.
+  - VCP telemetry republishes volume throughput and latency from the tenant
+    project, matching the single-tenancy flow.
 - **Tenant project**: OTel sidecar (`tenant_project` → `gcp.project.id`);
   samples without `tenant_project` are dropped. No stamp/monitoring dual export
   on the MT path.
+
+Poller defaults include `Rest`, `RestPerf`, and `KeyPerf`. KeyPerf supplies the
+canonical `read_ops`, `read_data`, and latency fields (including idle zero
+samples). Operations are sent directly to consumer ServiceControl; throughput
+and latency are sent to the tenant project and republished by VCP telemetry.
+The tenant-project OTel allowlist intentionally excludes operations and inode
+series because Harvest already owns their consumer-project export. RestPerf's
+`vol_*` fields do not satisfy the ServiceControl mappings.
+
+The MT tenant pipeline admits expert-mode volume capacity, logical and snapshot
+usage plus throughput and latency. Snapshot usage is persisted by VCP and
+aggregated as non-billable usage; operations and inode metrics bypass VCP and
+remain Harvest ServiceControl-only. Expert-mode pool `capacity` and clone-aware
+`allocated` remain first-party consumer-project metrics from VCP telemetry.
+Expert-mode volume `throughput_limit` is also
+consumer-only and comes from VCP telemetry, using the pool's configured
+throughput just as ST does. Harvest ServiceControl mappings for volume
+throughput, latency, `volume_allocated_throughput`, `pool_capacity`, and pool
+`capacity` are omitted so Harvest does not duplicate VCP telemetry series.
+VCP does not republish Harvest-owned capacity, logical, snapshot, operation, or
+inode series to the consumer project. The single-tenancy chart and its metric
+admission remain unchanged.
 
 ## Dependencies
 

@@ -14,8 +14,8 @@ image:
   # Keep the default on the Artifact Registry mirror used by vsa-harvest-otel;
   # GKE environments do not have credentials for this private ghcr.io image.
   repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-container-images-us/harvest-multi
-  tag: "26.08.14-1"
-  digest: "sha256:6398640c27433e685f3cc5f27b364d9403afae325e7c45b260bd2d036c397a89"
+  tag: "26.08.24-1"
+  digest: "sha256:ecf871de1328c914a98ff1ee72d1f831da5df432587def1e4ac36f32a223ecb9"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -59,7 +59,7 @@ otel:
     extraArgs: []
   # Align with single-tenancy vsa-harvest-otel prometheus/tenant keep list.
   # Expand when admitting additional tenant-project series (e.g. pool_*).
-  tenantMetricRegex: "volume_space_logical_used|volume_capacity|snapmirror_total_transfer_bytes|volume_read_latency|volume_write_latency|volume_other_latency|volume_read_data|volume_write_data|volume_other_data|wafl_volume_client_protocol_reads|wafl_volume_cloud_bin_operation_size|pool_client_protocol_reads|pool_cloud_bin_operation_size|pool_client_protocol_reads_raw|pool_cloud_bin_operation_size_raw|wafl_volume_client_protocol_reads_raw|wafl_volume_cloud_bin_operation_size_raw|pool_capacity_tier_logical_footprint"
+  tenantMetricRegex: "volume_space_logical_used|volume_capacity|volume_snapshots_size_used|volume_read_latency|volume_write_latency|volume_other_latency|volume_read_data|volume_write_data|volume_other_data|snapmirror_total_transfer_bytes"
   resources:
     requests:
       cpu: 100m
@@ -71,6 +71,7 @@ otel:
 # Same External Secrets pattern as gcnv-harvest: each cluster secret must
 # contain pvt_ip, username, and password.
 externalSecrets:
+  enabled: true
   apiVersion: external-secrets.io/v1beta1
   refreshInterval: 5m
   secretStoreRef:
@@ -100,6 +101,9 @@ resources:
     cpu: 1
     memory: 1Gi
 
+pollerReadinessProbe:
+  enabled: true
+
 # Match vsa-harvest-otel: wait for Istio before Harvest dials ONTAP.
 podAnnotations:
   proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
@@ -108,12 +112,14 @@ podLabels: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+# Optional environment variables added to both the poller and OTel containers.
+extraEnv: []
 
 # MT-only inventory (same shape as gcnv-harvest overrides, but a separate list).
 # Do not copy gcnv-harvest stamp inventory here.
 #
-# name: lowercased for --poller, TENANCY_CLUSTER_NAME (VCP getAllVolumeTenancy),
-#       and Service DNS harvest-poller-<name>. OTel sidecar scrapes localhost.
+# name: exact value for TENANCY_CLUSTER_NAME; lowercased only for --poller and
+#       Service DNS harvest-poller-<name>. OTel sidecar scrapes localhost.
 # datacenter: Harvest location label.
 # addr: optional documentation only; live address comes from secret pvt_ip.
 # secret: Secret Manager key (may differ from name).

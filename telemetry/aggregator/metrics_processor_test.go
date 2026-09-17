@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	clientmodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	datamodel2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
@@ -748,6 +749,7 @@ func TestFetchResourceData_WithFreeTrialBillingEnabled(t *testing.T) {
 		},
 	}, nil).Once()
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-time.Hour))
 	assert.NoError(t, err)
@@ -782,6 +784,7 @@ func TestFetchResourceData_FreeTrialFetchError(t *testing.T) {
 	mockVCPDB.On("ListFreeTrialAccountsForBilling", mock.Anything).Return(nil, errors.New("db error"))
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-time.Hour))
 	assert.NoError(t, err)
@@ -988,9 +991,9 @@ func TestFetchVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 	provider := NewBillingProvider(mockMetricsDB, mockVCPDB, config, nil)
 
 	resourceCollection := &ResourceCollection{
-		VolumeData:               make(map[ResourceKey]ResourceData),
-		VolumeToDeploymentName:     make(map[string]string),
-		FreeTrialAccounts:        map[int64]*time.Time{1: &trialEnd},
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+		FreeTrialAccounts:      map[int64]*time.Time{1: &trialEnd},
 	}
 
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{
@@ -1008,6 +1011,7 @@ func TestFetchVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 		},
 	}, nil).Once()
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	err := provider.fetchVolumeData(ctx, time.Now().Add(-time.Hour), resourceCollection)
 	assert.NoError(t, err)
@@ -1405,6 +1409,7 @@ func TestProcessMetrics_EmptyMetrics(t *testing.T) {
 	vcpDB.On("GetBlockOnlyPoolIDs", mock.Anything).Return(map[int64]bool{}, nil).Once()
 	vcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Mock the counter cache preload call (returns empty list to stop pagination)
@@ -1449,6 +1454,7 @@ func TestProcessMetrics_DatabaseError(t *testing.T) {
 	// Mock VCP database calls for label fetching
 	vcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Expect call to GetHydratedMetrics with an error (may be called multiple times for different job definitions)
@@ -2349,6 +2355,7 @@ func TestProcessMetricsSuccess(t *testing.T) {
 		},
 	}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{
 		{
 			BaseModel: datamodel.BaseModel{UUID: "vol-rep-uuid"},
@@ -2502,6 +2509,7 @@ func TestProcessMetricsWithJobDefErrors(t *testing.T) {
 		},
 	}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{
 		{
 			BaseModel: datamodel.BaseModel{UUID: "vol-rep-uuid"},
@@ -2701,6 +2709,7 @@ func TestProcessMetrics_GetUnsentUsagesError(t *testing.T) {
 	vcpDB.On("GetBlockOnlyPoolIDs", mock.Anything).Return(map[int64]bool{}, nil).Once()
 	vcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Even with retry error, should continue and call GetHydratedMetrics
@@ -2788,6 +2797,7 @@ func TestProcessMetrics_WithAggregatedRecordsDelivery(t *testing.T) {
 		},
 	}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Note: ProcessBillingMetrics no longer calls GetAggregatedUsage directly
@@ -2892,6 +2902,7 @@ func TestProcessMetrics_DeliveryError(t *testing.T) {
 		},
 	}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Create test metrics that will be processed
@@ -3252,6 +3263,7 @@ func TestFetchResourceData(t *testing.T) {
 			},
 		}, nil).Once()
 		mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+		mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 		mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{
 			{
 				BaseModel: datamodel.BaseModel{UUID: "vol-rep-uuid"},
@@ -3295,6 +3307,7 @@ func TestFetchResourceData(t *testing.T) {
 			},
 		}, nil).Once()
 		mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+		mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 		mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{
 			{
 				BaseModel: datamodel.BaseModel{UUID: "vol-rep-uuid"},
@@ -3354,6 +3367,7 @@ func TestFetchResourceData(t *testing.T) {
 		}, nil).Once()
 		mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 		mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("volume error")).Once()
+		mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 		mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{
 			{
 				BaseModel: datamodel.BaseModel{UUID: "vol-rep-uuid"},
@@ -3384,6 +3398,7 @@ func TestFetchResourceData(t *testing.T) {
 	t.Run("Both pool and volume fetch fail", func(t *testing.T) {
 		mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("pool error")).Once()
 		mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("volume error")).Once()
+		mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 		mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("volume replication error")).Once()
 		resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
 		assert.Error(t, err)
@@ -3421,6 +3436,7 @@ func TestFetchResourceData(t *testing.T) {
 			},
 		}, nil).Once()
 		mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+		mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("volume replication error")).Once()
 
@@ -3851,6 +3867,7 @@ func TestProcessBillingMetrics_NonCounterAggregation(t *testing.T) {
 	// Mock the VCP database calls for resource data
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVCPDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 	// Mock the GetHydratedMetrics for non-counter aggregation (this will hit the else branch on line 96)
@@ -3899,6 +3916,7 @@ func TestProcessBillingMetrics_BackupHistoryFormatterBranch(t *testing.T) {
 	// Resource data fetches (return empty)
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVCPDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	// Backup metadata pagination (no labels)
@@ -4034,6 +4052,7 @@ func TestProcessBillingMetrics_CreatedAtInjectionCounterFormatter(t *testing.T) 
 	}, nil).Once()
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVCPDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -4084,6 +4103,7 @@ func TestProcessBillingMetrics_FetchResourceDataError(t *testing.T) {
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("pool fetch error"))
 	// Mock volume data fetch failure
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("volume fetch error"))
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVCPDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 	// Mock the GetHydratedMetrics calls for all aggregation types
@@ -4551,6 +4571,7 @@ func TestFetchResourceData_BackupBillingDisabled(t *testing.T) {
 	// Mock the calls that fetchResourceData makes
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 	assert.NoError(t, err)
@@ -5474,6 +5495,7 @@ func TestFetchResourceData_SkipsPoolWithEmptyAccountName(t *testing.T) {
 	}, nil).Once()
 	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -5516,6 +5538,7 @@ func TestFetchResourceData_SkipsVolumeWithEmptyAccountName(t *testing.T) {
 		},
 	}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -5558,6 +5581,7 @@ func TestFetchResourceData_SkipsVolumeWithEmptyDeploymentName(t *testing.T) {
 		},
 	}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -5587,6 +5611,7 @@ func TestFetchResourceData_PoolWithNilPoolAttributes(t *testing.T) {
 	}, nil).Once()
 	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -5615,6 +5640,7 @@ func TestFetchResourceData_VolumeWithNilVolumeAttributes(t *testing.T) {
 		},
 	}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -5650,6 +5676,7 @@ func TestFetchResourceData_GetBlockOnlyPoolIDsQueryOptimization(t *testing.T) {
 		// Mock the calls that fetchResourceData makes
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5683,6 +5710,7 @@ func TestFetchResourceData_GetBlockOnlyPoolIDsQueryOptimization(t *testing.T) {
 		// Mock the calls that fetchResourceData makes
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5720,6 +5748,7 @@ func TestFetchResourceData_GetBlockOnlyPoolIDsQueryOptimization(t *testing.T) {
 		// Mock the calls that fetchResourceData makes
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5756,6 +5785,7 @@ func TestFetchResourceData_GetBlockOnlyPoolIDsQueryOptimization(t *testing.T) {
 		// Mock the calls that fetchResourceData makes
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil)
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		// Should NOT return error - gracefully handles GetBlockOnlyPoolIDs error
@@ -5811,6 +5841,7 @@ func TestFetchResourceData_GetBlockOnlyPoolIDsQueryOptimization(t *testing.T) {
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(poolData, nil).Once()
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5872,6 +5903,7 @@ func TestFetchPoolData_HasOnlyBlockVolumesMapping(t *testing.T) {
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(poolData, nil).Once()
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5923,6 +5955,7 @@ func TestFetchPoolData_HasOnlyBlockVolumesMapping(t *testing.T) {
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(poolData, nil).Once()
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -5973,6 +6006,7 @@ func TestFetchPoolData_HasOnlyBlockVolumesMapping(t *testing.T) {
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(poolData, nil).Once()
 		mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 		mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil)
+		mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 		resourceCollection, err := provider.fetchResourceData(ctx, aggregationStartTime)
 		assert.NoError(t, err)
@@ -6100,6 +6134,7 @@ func TestFetchPoolData_AllowAutoTieringField(t *testing.T) {
 	}, nil).Once()
 	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, startTime)
 	assert.NoError(t, err)
@@ -6794,6 +6829,7 @@ func TestFetchResourceData_PopulatesIsONTAPModeFromAPIAccessMode(t *testing.T) {
 	}, nil).Once()
 	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
 	mockVcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+	mockVcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	mockVcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Once()
 
 	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-1*time.Hour))
@@ -6955,6 +6991,7 @@ func TestProcessBillingMetrics_CrossRegionRestoreTransferBytes_RegionOverride(t 
 		},
 	}, nil).Once()
 	vcpDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Maybe()
+	vcpDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil).Maybe()
 	vcpDB.On("ListVolumeReplicationsWithPagination", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.VolumeReplication{}, nil).Maybe()
 
 	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, "CounterAggregation", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -9203,10 +9240,10 @@ func TestFetchExpertModeVolumeData_DBError(t *testing.T) {
 	}
 	rc := &ResourceCollection{VolumeData: make(map[ResourceKey]ResourceData)}
 
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(([]*database2.ExpertModeVolumeMetricsData)(nil), errors.New("db error"))
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "db error")
 	assert.Empty(t, rc.VolumeData)
@@ -9224,10 +9261,10 @@ func TestFetchExpertModeVolumeData_SkipsVolumeWithEmptyAccountName(t *testing.T)
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{UUID: "vol-1", Name: "vol1", AccountName: "", DeploymentName: "dep1"},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	assert.Empty(t, rc.VolumeData)
 }
@@ -9244,10 +9281,10 @@ func TestFetchExpertModeVolumeData_SkipsVolumeWithEmptyDeploymentName(t *testing
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{UUID: "vol-1", Name: "vol1", AccountName: "account1", DeploymentName: ""},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	assert.Empty(t, rc.VolumeData)
 }
@@ -9274,10 +9311,10 @@ func TestFetchExpertModeVolumeData_PopulatesStandardVolume(t *testing.T) {
 			PoolIsRegionalHA: false,
 		},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	require.Len(t, rc.VolumeData, 1)
 
@@ -9316,10 +9353,10 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 			PoolIsRegionalHA: true,
 		},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	require.Len(t, rc.VolumeData, 1)
 
@@ -9334,6 +9371,76 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 	assert.Equal(t, "vol-ha-uuid", data.UUID)
 	assert.Equal(t, int64(7), data.AccountID)
 	assert.Equal(t, "dep1", rc.VolumeToDeploymentName["vol-ha-uuid"])
+}
+
+func TestFetchExpertModeVolumeData_AddsMTVolumeAliasForPORegionalHA(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	provider := &BillingProvider{
+		vcpDataStore: mockVCPDB,
+		config: &common.TelemetryConfig{
+			EnableMTHarvestVolumeMetrics: true,
+		},
+	}
+	rc := &ResourceCollection{
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+	}
+
+	volumes := []*database2.ExpertModeVolumeMetricsData{
+		{
+			UUID:              "internal-uuid",
+			ExternalUUID:      "ontap-uuid",
+			Name:              "vol-ha",
+			AccountID:         7,
+			AccountName:       "account1",
+			DeploymentName:    "dep1",
+			PoolIsRegionalHA:  true,
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+	}
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
+	require.NoError(t, err)
+	require.Len(t, rc.VolumeData, 2)
+
+	for _, resourceType := range []metadata.ResourceType{metadata.Volume, metadata.VolumeRegionalHA} {
+		key := ResourceKey{
+			ResourceType:   resourceType,
+			ResourceName:   "vol-ha",
+			DeploymentName: "dep1",
+			ConsumerID:     "account1",
+		}
+		data, ok := rc.VolumeData[key]
+		require.True(t, ok)
+		assert.Equal(t, "ontap-uuid", data.UUID)
+	}
+}
+
+func TestAggregationJobDefinitions_MTSnapshotIsFlagGated(t *testing.T) {
+	key := metadata.CombinedKeyResourceTypeMeasuredType{
+		ResourceType: metadata.Volume,
+		MeasuredType: metadata.SnapshotSize,
+	}
+
+	disabled := (&BillingProvider{config: &common.TelemetryConfig{}}).aggregationJobDefinitions()
+	_, exists := disabled[key]
+	assert.False(t, exists)
+	_, exists = common.DefaultAggregationJobDefinitions[key]
+	assert.False(t, exists)
+
+	enabled := (&BillingProvider{config: &common.TelemetryConfig{
+		EnableMTHarvestVolumeMetrics: true,
+		IntervalBackfillLimitMinutes: 45,
+	}}).aggregationJobDefinitions()
+	job, exists := enabled[key]
+	require.True(t, exists)
+	assert.Equal(t, common.IntegralAggregation, job.AggregationType)
+	assert.False(t, job.IsBillable)
+	assert.Equal(t, 45*time.Minute, job.TimeSeriesFormatter.GetBackfillLimit())
 }
 
 func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
@@ -9365,10 +9472,10 @@ func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 			BackupVaultAccountID:   99,
 		},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	require.Len(t, rc.VolumeData, 2)
 
@@ -9412,10 +9519,10 @@ func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
 		// skipped: empty deployment
 		{UUID: "vol-nodep", Name: "nodep", AccountName: "acct", DeploymentName: ""},
 	}
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
 
-	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	assert.Len(t, rc.VolumeData, 2)
 	_, hasStd := rc.VolumeData[ResourceKey{ResourceType: metadata.Volume, ResourceName: "std", DeploymentName: "dep", ConsumerID: "acct"}]
@@ -9446,7 +9553,7 @@ func TestFetchResourceData_ExpertModeBackupBilling_ErrorIsLogged(t *testing.T) {
 	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*database2.VolumeResourceData{}, nil)
 	// Expert mode volumes fetch returns an error — must be logged, not returned.
-	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(([]*database2.ExpertModeVolumeMetricsData)(nil), errors.New("expert mode db error"))
 	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*database2.PoolResourceData{}, nil)
@@ -9456,6 +9563,27 @@ func TestFetchResourceData_ExpertModeBackupBilling_ErrorIsLogged(t *testing.T) {
 	assert.NotNil(t, resourceCollection)
 	assert.Empty(t, resourceCollection.VolumeData)
 
+	mockVCPDB.AssertExpectations(t)
+}
+
+func TestFetchResourceData_STFlagsDisabledSkipsExpertModeQuery(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	mockMetricsDB := database.NewMockStorage(t)
+	provider := NewBillingProvider(mockMetricsDB, mockVCPDB, &common.TelemetryConfig{
+		PoolVolumeLabelPageSize:       10,
+		GoogleBillingLabelsMaxEntries: 10,
+	}, nil)
+
+	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*database2.VolumeResourceData{}, nil)
+	mockVCPDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*database2.PoolResourceData{}, nil)
+
+	resourceCollection, err := provider.fetchResourceData(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.NotNil(t, resourceCollection)
+	mockVCPDB.AssertNotCalled(t, "ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	mockVCPDB.AssertExpectations(t)
 }
 

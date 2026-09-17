@@ -77,6 +77,7 @@ func init() {
 	CombinedKeyResourceTypeMeasuredTypeMap["pool_total_iops_regional_ha"] = CombinedKeyResourceTypeMeasuredType{ResourceType: VolumePoolRegionalHA, MeasuredType: PoolTotalIops}
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_space_logical_used"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: LogicalSize}
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_snapshot_reserve_used"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: SnapshotSize}
+	CombinedKeyResourceTypeMeasuredTypeMap["volume_snapshots_size_used"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: SnapshotSize}
 	CombinedKeyResourceTypeMeasuredTypeMap["backup_logical_size"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Backup, MeasuredType: BackupLogicalSize}
 	CombinedKeyResourceTypeMeasuredTypeMap["backup_volume_allocated_size"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: BackupEnabledVolumeAllocatedSize}
 	CombinedKeyResourceTypeMeasuredTypeMap["backup_volume_allocated_size_regional_ha"] = CombinedKeyResourceTypeMeasuredType{ResourceType: VolumeRegionalHA, MeasuredType: BackupEnabledVolumeAllocatedSize}

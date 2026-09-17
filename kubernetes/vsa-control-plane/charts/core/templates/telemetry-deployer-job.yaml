@@ -193,6 +193,8 @@ spec:
               value: {{ .Values.telemetryDeployer.enableGcbdrBmfBilling | default "false" | quote }}
             - name: ENABLE_EXPERT_MODE_BACKUP_BILLING
               value: {{ .Values.telemetryDeployer.enableExpertModeBackupBilling | default "false" | quote }}
+            - name: ENABLE_MT_HARVEST_VOLUME_METRICS
+              value: {{ .Values.telemetryDeployer.enableMtHarvestVolumeMetrics | default "true" | quote }}
             - name: ENABLE_REPLICATION_BILLING_METRICS
               value: {{ .Values.telemetryDeployer.enableReplicationBillingMetrics | default "false" | quote }}
             - name: ENABLE_BIDIRECTIONAL_REPLICATION_BILLING_METRICS

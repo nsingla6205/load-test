@@ -5362,6 +5362,22 @@ func (re *retryEngine) ListExpertModeVolumesForTelemetryMetrics(ctx context.Cont
 	return var0, err
 }
 
+func (re *retryEngine) ListExpertModeVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
+	var var0 []*ExpertModeVolumeMetricsData
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListExpertModeVolumesForResourceData(ctx, startTime, endTime, pagination)
+		if err != nil {
+			re.logError("ListExpertModeVolumesForResourceData", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) ListExpertModeVolumeTenancyByCluster(ctx context.Context, clusterName string, afterID int64, limit int) ([]*ExpertModeVolumeTenancyRow, error) {
 	var var0 []*ExpertModeVolumeTenancyRow
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -6790,6 +6806,22 @@ func (re *retryEngine) GetExpertModePoolUsedCapacityAndVolumeCount(ctx context.C
 		var0, err = re.dataStore.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, poolID)
 		if err != nil {
 			re.logError("GetExpertModePoolUsedCapacityAndVolumeCount", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*ExpertModePoolCapacity, error) {
+	var var0 map[int64]*ExpertModePoolCapacity
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetExpertModePoolsUsedCapacityAndVolumeCount(ctx, poolIDs)
+		if err != nil {
+			re.logError("GetExpertModePoolsUsedCapacityAndVolumeCount", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

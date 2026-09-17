@@ -647,7 +647,6 @@ func (d *DataStoreRepository) CountActivePoolsByNetwork(ctx context.Context, net
 	return count, nil
 }
 
-
 // SumPoolSizeByHostUUID returns the total size_in_bytes of non-deleted pools on a host.
 func (d *DataStoreRepository) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
 	hostUUID = strings.TrimSpace(hostUUID)
@@ -989,6 +988,8 @@ type PoolMetricsData struct {
 	ID                int64                        `gorm:"column:id"`
 	UUID              string                       `gorm:"column:uuid"`
 	Name              string                       `gorm:"column:name"`
+	ServiceLevel      string                       `gorm:"column:service_level"`
+	APIAccessMode     string                       `gorm:"column:api_access_mode"`
 	SizeInBytes       int64                        `gorm:"column:size_in_bytes"`
 	DeploymentName    string                       `gorm:"column:deployment_name"`
 	PoolAttributes    *datamodel.PoolAttributes    `gorm:"column:pool_attributes;type:jsonb"`
@@ -1004,6 +1005,15 @@ func (p *PoolMetricsData) GetAccountName() string {
 		return p.PoolAttributes.AccountName
 	}
 	return ""
+}
+
+// GetEffectiveServiceLevel returns the service level persisted in pool attributes
+// when available, falling back to the pool column for older records.
+func (p *PoolMetricsData) GetEffectiveServiceLevel() string {
+	if p.PoolAttributes != nil && p.PoolAttributes.ServiceLevel != "" {
+		return p.PoolAttributes.ServiceLevel
+	}
+	return p.ServiceLevel
 }
 
 // ListPoolUUIDs retrieves pool identifiers that match the provided filter
@@ -1131,6 +1141,8 @@ func (d *DataStoreRepository) ListPoolsForMetrics(ctx context.Context) ([]*PoolM
 			id,
 			uuid,
 			name,
+			service_level,
+			api_access_mode,
 			size_in_bytes,
 			deployment_name,
 			pool_attributes,

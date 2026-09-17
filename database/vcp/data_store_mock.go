@@ -10758,6 +10758,63 @@ func (_c *MockDataStore_GetExpertModePoolUsedCapacityAndVolumeCount_Call) RunAnd
 	return _c
 }
 
+// GetExpertModePoolsUsedCapacityAndVolumeCount provides a mock function with given fields: ctx, poolIDs
+func (_m *MockDataStore) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*ExpertModePoolCapacity, error) {
+	ret := _m.Called(ctx, poolIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetExpertModePoolsUsedCapacityAndVolumeCount")
+	}
+
+	var r0 map[int64]*ExpertModePoolCapacity
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []int64) (map[int64]*ExpertModePoolCapacity, error)); ok {
+		return rf(ctx, poolIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []int64) map[int64]*ExpertModePoolCapacity); ok {
+		r0 = rf(ctx, poolIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[int64]*ExpertModePoolCapacity)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []int64) error); ok {
+		r1 = rf(ctx, poolIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetExpertModePoolsUsedCapacityAndVolumeCount'
+type MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call struct {
+	*mock.Call
+}
+
+// GetExpertModePoolsUsedCapacityAndVolumeCount is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx interface{}, poolIDs interface{}) *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call {
+	return &MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call{Call: _e.mock.On("GetExpertModePoolsUsedCapacityAndVolumeCount", ctx, poolIDs)}
+}
+
+func (_c *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call) Run(run func(ctx context.Context, poolIDs []int64)) *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call) Return(_a0 map[int64]*ExpertModePoolCapacity, _a1 error) *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call) RunAndReturn(run func(context.Context, []int64) (map[int64]*ExpertModePoolCapacity, error)) *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetExpertModeVolumeByExternalUUID provides a mock function with given fields: ctx, volumeUUID
 func (_m *MockDataStore) GetExpertModeVolumeByExternalUUID(ctx context.Context, volumeUUID string) (*datamodel.ExpertModeVolumes, error) {
 	ret := _m.Called(ctx, volumeUUID)
@@ -19819,6 +19876,63 @@ func (_c *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call) Return(_a
 }
 
 func (_c *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call) RunAndReturn(run func(context.Context, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)) *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListExpertModeVolumesForResourceData provides a mock function with given fields: ctx, startTime, endTime, pagination
+func (_m *MockDataStore) ListExpertModeVolumesForResourceData(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
+	ret := _m.Called(ctx, startTime, endTime, pagination)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListExpertModeVolumesForResourceData")
+	}
+
+	var r0 []*ExpertModeVolumeMetricsData
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)); ok {
+		return rf(ctx, startTime, endTime, pagination)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) []*ExpertModeVolumeMetricsData); ok {
+		r0 = rf(ctx, startTime, endTime, pagination)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*ExpertModeVolumeMetricsData)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, *utils.Pagination) error); ok {
+		r1 = rf(ctx, startTime, endTime, pagination)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListExpertModeVolumesForResourceData_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListExpertModeVolumesForResourceData'
+type MockDataStore_ListExpertModeVolumesForResourceData_Call struct {
+	*mock.Call
+}
+
+// ListExpertModeVolumesForResourceData is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) ListExpertModeVolumesForResourceData(ctx interface{}, startTime interface{}, endTime interface{}, pagination interface{}) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	return &MockDataStore_ListExpertModeVolumesForResourceData_Call{Call: _e.mock.On("ListExpertModeVolumesForResourceData", ctx, startTime, endTime, pagination)}
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Run(run func(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time), args[3].(*utils.Pagination))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Return(_a0 []*ExpertModeVolumeMetricsData, _a1 error) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	datamodel2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
@@ -58,6 +59,28 @@ func GetPoolMetrics(ctx context.Context, vcpDB database.Storage, config *common.
 	// Create a pool metadata map for all pools
 	poolMetadataMap := make(map[int64]metadata.ResourceMetadata)
 
+	expertModePoolIDs := make([]int64, 0)
+	for _, pool := range pools {
+		accountName := pool.GetAccountName()
+		if accountName == "" || pool.PoolAttributes == nil || !isExpertModeMetricsPool(pool) {
+			continue
+		}
+		if accountState, exists := accountStateMap[accountName]; exists && accountState == datamodel.AccountStateHyperscalerDisabled {
+			continue
+		}
+		expertModePoolIDs = append(expertModePoolIDs, pool.ID)
+	}
+
+	expertModeCapacities := make(map[int64]*database.ExpertModePoolCapacity)
+	var expertModeCapacityErr error
+	if len(expertModePoolIDs) > 0 {
+		expertModeCapacities, expertModeCapacityErr = vcpDB.GetExpertModePoolsUsedCapacityAndVolumeCount(ctx, expertModePoolIDs)
+		if expertModeCapacityErr != nil {
+			logger.Error("Failed to batch calculate expert mode pool allocated capacity; falling back to per-pool queries",
+				"poolCount", len(expertModePoolIDs), "error", expertModeCapacityErr.Error())
+		}
+	}
+
 	// Iterate over all pools and generate metrics
 	for _, pool := range pools {
 		accountName := pool.GetAccountName()
@@ -76,15 +99,45 @@ func GetPoolMetrics(ctx context.Context, vcpDB database.Storage, config *common.
 		// Add to the pool metadata map
 		poolMetadataMap[pool.ID] = poolMetadata
 
-		// Create a metric for the pool
-		metricsToCollect := []struct {
+		allocatedUsed := float64(pool.QuotaInBytes)
+		emitAllocatedUsed := true
+		expertModeMetricsPool := isExpertModeMetricsPool(pool)
+		if expertModeMetricsPool {
+			capacity := expertModeCapacities[pool.ID]
+			capacityErr := expertModeCapacityErr
+			if expertModeCapacityErr != nil || capacity == nil {
+				capacity, capacityErr = vcpDB.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, pool.ID)
+			}
+			if capacityErr != nil {
+				logger.Error("Failed to calculate expert mode pool allocated capacity; omitting AllocatedUsed metric",
+					"poolID", pool.ID, "poolName", pool.Name, "error", capacityErr.Error())
+				emitAllocatedUsed = false
+			} else if capacity == nil {
+				logger.Error("Expert mode pool allocated capacity result was nil; omitting AllocatedUsed metric",
+					"poolID", pool.ID, "poolName", pool.Name)
+				emitAllocatedUsed = false
+			} else {
+				allocatedUsed = float64(capacity.TotalSize)
+			}
+		}
+
+		// Create metrics for the pool. Capacity always comes directly from the
+		// pool record; only expert mode allocated capacity uses expert-mode volumes.
+		type poolMetric struct {
 			measureType metadata.MeasuredType
 			value       float64
-		}{
+		}
+		metricsToCollect := []poolMetric{
 			{metadata.PoolAllocatedSize, float64(pool.SizeInBytes)},
-			{metadata.AllocatedUsed, float64(pool.QuotaInBytes)},
-			{metadata.PoolTotalThroughputMibps, float64(pool.PoolAttributes.ThroughputMibps)},
-			{metadata.PoolTotalIops, float64(pool.PoolAttributes.Iops)},
+		}
+		if emitAllocatedUsed {
+			metricsToCollect = append(metricsToCollect, poolMetric{metadata.AllocatedUsed, allocatedUsed})
+		}
+		if !expertModeMetricsPool {
+			metricsToCollect = append(metricsToCollect,
+				poolMetric{metadata.PoolTotalThroughputMibps, float64(pool.PoolAttributes.ThroughputMibps)},
+				poolMetric{metadata.PoolTotalIops, float64(pool.PoolAttributes.Iops)},
+			)
 		}
 
 		for _, m := range metricsToCollect {
@@ -158,6 +211,8 @@ func assemblePoolMetadata(pool *database.PoolMetricsData, config *common.Telemet
 	met.SetDeploymentName(pool.DeploymentName)
 	met.SetThroughput(float64(pool.PoolAttributes.ThroughputMibps))
 	met.SetResourceID(pool.ID)
+	met.SetServiceLevel(pool.GetEffectiveServiceLevel())
+	met.SetAPIAccessMode(pool.APIAccessMode)
 	return met
 }
 
@@ -168,6 +223,17 @@ func setupHydratedMetric(now time.Time, poolMetadata metadata.ResourceMetadata, 
 		MeasuredType: metricType,
 		Quantity:     value,
 	}
+}
+
+func isExpertModeMetricsPool(pool *database.PoolMetricsData) bool {
+	return pool != nil &&
+		isExpertModeMetricsPoolValues(pool.APIAccessMode, pool.GetEffectiveServiceLevel())
+}
+
+func isExpertModeMetricsPoolValues(apiAccessMode, serviceLevel string) bool {
+	return apiAccessMode == commonparams.ONTAPMode &&
+		(serviceLevel == commonparams.ServiceLevelExtreme ||
+			serviceLevel == commonparams.ServiceLevelPremium)
 }
 
 func setupHydratedMetricsDataModel(measuredType metadata.MeasuredType, resourceType metadata.ResourceType, projectID string, resourceMetadata metadata.ResourceMetadata, timestamp time.Time, quantity float64) *datamodel2.HydratedMetrics {

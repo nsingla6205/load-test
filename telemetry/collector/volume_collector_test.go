@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	datamodel2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
@@ -42,11 +43,16 @@ func (m *mockVolumeStorage) ListVolumesForTelemetryMetrics(ctx context.Context) 
 }
 
 func (m *mockVolumeStorage) ListExpertModeVolumesForTelemetryMetrics(ctx context.Context, pagination *utils.Pagination) ([]*database.ExpertModeVolumeMetricsData, error) {
-	args := m.Called(ctx, pagination)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+	for _, expectedCall := range m.ExpectedCalls {
+		if expectedCall.Method == "ListExpertModeVolumesForTelemetryMetrics" {
+			args := m.Called(ctx, pagination)
+			if args.Get(0) == nil {
+				return nil, args.Error(1)
+			}
+			return args.Get(0).([]*database.ExpertModeVolumeMetricsData), args.Error(1)
+		}
 	}
-	return args.Get(0).([]*database.ExpertModeVolumeMetricsData), args.Error(1)
+	return []*database.ExpertModeVolumeMetricsData{}, nil
 }
 
 func (m *mockVolumeStorage) GetBackupVault(ctx context.Context, backupVaultID string) (*datamodel.BackupVault, error) {
@@ -185,6 +191,194 @@ func Test_GetVolumeMetrics_ReturnsMetrics(t *testing.T) {
 
 	// Verify the type is correct
 	assert.IsType(t, datamodel2.HydratedMetrics{}, result.HydratedMetricsDataModel[0])
+}
+
+func Test_GetVolumeMetrics_ExpertModeThroughputWithoutRegularVolumes(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	poolMetadata := metadata.ResourceMetadata{ResourceType: metadata.VolumePoolRegionalHA}
+	poolMetadata.SetThroughput(512)
+	poolMetadata.SetAPIAccessMode(commonparams.ONTAPMode)
+	poolMetadata.SetServiceLevel(commonparams.ServiceLevelExtreme)
+	poolMetadataMap := map[int64]metadata.ResourceMetadata{7: poolMetadata}
+
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			UUID:              "internal-volume-uuid",
+			ExternalUUID:      "ontap-volume-uuid",
+			Name:              "ExpertModeVolume",
+			SizeInBytes:       2048,
+			PoolID:            7,
+			AccountName:       "Account1",
+			DeploymentName:    "test-deployment",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+	}
+
+	m.On("ListVolumesForTelemetryMetrics", mock.Anything).
+		Return([]*database.VolumeMetricsData{}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+		Return([]*database.AccountTelemetryData{}, nil)
+	m.On(
+		"ListExpertModeVolumesForTelemetryMetrics",
+		mock.Anything,
+		mock.MatchedBy(func(p *utils.Pagination) bool {
+			return p.Offset == 0 && p.Limit == 1000
+		}),
+	).Return(expertVolumes, nil)
+
+	result, err := GetVolumeMetrics(ctx, m, config, poolMetadataMap, time.Now())
+
+	require.NoError(t, err)
+	require.Len(t, result.VolumeAllocatedThroughputHydratedMetrics, 1)
+	metric := result.VolumeAllocatedThroughputHydratedMetrics[0]
+	assert.Equal(t, metadata.VolumeAllocatedThroughput, metric.MeasuredType)
+	assert.Equal(t, float64(512), metric.Quantity)
+	assert.Equal(t, "ontap-volume-uuid", derefString(metric.Metadata.ResourceUUID))
+	assert.Equal(t, "ExpertModeVolume", derefString(metric.Metadata.ResourceName))
+	assert.Equal(t, "Account1", derefString(metric.Metadata.AccountName))
+	assert.Equal(t, metadata.VolumeRegionalHA, metric.Metadata.ResourceType)
+	m.AssertExpectations(t)
+}
+
+func Test_GetExpertModeVolumeAllocatedThroughputMetrics_FiltersIneligiblePools(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	poolMetadata := metadata.ResourceMetadata{ResourceType: metadata.VolumePool}
+	poolMetadata.SetThroughput(256)
+	poolMetadataMap := map[int64]metadata.ResourceMetadata{7: poolMetadata}
+
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			ExternalUUID:      "expert-mode-volume",
+			Name:              "ExpertModeVolume",
+			PoolID:            7,
+			AccountName:       "Account1",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelPremium,
+		},
+		{
+			ExternalUUID:      "default-extreme-volume",
+			Name:              "DefaultExtreme",
+			PoolID:            7,
+			AccountName:       "Account1",
+			PoolAPIAccessMode: commonparams.DEFAULTMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+		{
+			ExternalUUID:      "ontap-flex-volume",
+			Name:              "OntapFlex",
+			PoolID:            7,
+			AccountName:       "Account1",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  "FLEX",
+		},
+	}
+
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+		Return(expertVolumes, nil)
+
+	metrics, err := getExpertModeVolumeAllocatedThroughputMetrics(
+		ctx,
+		m,
+		config,
+		poolMetadataMap,
+		map[string]string{},
+		time.Now(),
+	)
+
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "expert-mode-volume", derefString(metrics[0].Metadata.ResourceUUID))
+	assert.Equal(t, float64(256), metrics[0].Quantity)
+	m.AssertExpectations(t)
+}
+
+func Test_GetExpertModeVolumeAllocatedThroughputMetrics_SkipsInvalidVolumes(t *testing.T) {
+	m := new(mockVolumeStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{RegionName: "us-east-1"}
+	poolMetadata := metadata.ResourceMetadata{ResourceType: metadata.VolumePool}
+	poolMetadata.SetThroughput(128)
+	poolMetadataMap := map[int64]metadata.ResourceMetadata{7: poolMetadata}
+
+	expertVolumes := []*database.ExpertModeVolumeMetricsData{
+		{
+			Name:              "MissingExternalUUID",
+			PoolID:            7,
+			AccountName:       "Account1",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+		{
+			ExternalUUID:      "disabled-account-volume",
+			Name:              "DisabledAccount",
+			PoolID:            7,
+			AccountName:       "DisabledAccount",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+		{
+			ExternalUUID:      "missing-pool-volume",
+			Name:              "MissingPool",
+			PoolID:            99,
+			AccountName:       "Account1",
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
+		},
+	}
+
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+		Return(expertVolumes, nil)
+
+	metrics, err := getExpertModeVolumeAllocatedThroughputMetrics(
+		ctx,
+		m,
+		config,
+		poolMetadataMap,
+		map[string]string{"DisabledAccount": datamodel.AccountStateHyperscalerDisabled},
+		time.Now(),
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, metrics)
+	m.AssertExpectations(t)
+}
+
+func Test_GetExpertModeVolumeAllocatedThroughputMetrics_QueryError(t *testing.T) {
+	m := new(mockVolumeStorage)
+	m.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).
+		Return(nil, assert.AnError)
+
+	metrics, err := getExpertModeVolumeAllocatedThroughputMetrics(
+		context.Background(),
+		m,
+		&common.TelemetryConfig{RegionName: "us-east-1"},
+		map[int64]metadata.ResourceMetadata{},
+		map[string]string{},
+		time.Now(),
+	)
+
+	require.Error(t, err)
+	assert.Empty(t, metrics)
+	m.AssertExpectations(t)
+}
+
+func TestHasExpertModeMetricsPoolMetadata(t *testing.T) {
+	expertModePool := metadata.ResourceMetadata{}
+	expertModePool.SetAPIAccessMode(commonparams.ONTAPMode)
+	expertModePool.SetServiceLevel(commonparams.ServiceLevelPremium)
+
+	defaultPool := metadata.ResourceMetadata{}
+	defaultPool.SetAPIAccessMode(commonparams.DEFAULTMode)
+	defaultPool.SetServiceLevel(commonparams.ServiceLevelExtreme)
+
+	assert.True(t, hasExpertModeMetricsPoolMetadata(map[int64]metadata.ResourceMetadata{1: expertModePool}))
+	assert.False(t, hasExpertModeMetricsPoolMetadata(map[int64]metadata.ResourceMetadata{1: defaultPool}))
+	assert.False(t, hasExpertModeMetricsPoolMetadata(nil))
 }
 
 func Test_GetVolumeMetrics_MultipleVolumes(t *testing.T) {

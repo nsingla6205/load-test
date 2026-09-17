@@ -98,8 +98,9 @@ func main() {
 	// Initialize metrics recorder
 	metricsRecorder := telementrymonitoring.NewPrometheusRecorder()
 
-	googleSink := performance.NewSink(signalCtx, metricscommon.LoadConfig(), metricsRecorder)
-	billingSink := usage.NewSink(signalCtx, metricscommon.LoadConfig(), telemetryDbConn, metricsRecorder)
+	telemetryConfig := metricscommon.LoadConfig()
+	googleSink := performance.NewSink(signalCtx, telemetryConfig, metricsRecorder)
+	billingSink := usage.NewSink(signalCtx, telemetryConfig, telemetryDbConn, metricsRecorder)
 	bizopsSink, err := bizops.NewSink(bizops.GCP)
 	if err != nil {
 		logger.Warnf("Failed to initialize Bizops Sink:%v", err)
@@ -110,9 +111,9 @@ func main() {
 		logger.Warnf("Failed to create MetricClient: %v", err)
 	}
 	wrapper := collector.NewMetricClientWrapper(client)
-	config := metricscommon.LoadMetricsConfigFromBytes()
+	config := metricscommon.LoadMetricsConfig(telemetryConfig.EnableMTHarvestVolumeMetrics)
 	provider := collector.NewGoogleProvider(tenantProvider, wrapper, config.VolumeMetrics, googleSink)
-	billingProvider := aggregator.NewBillingProvider(telemetryDbConn, VCPDbConn, metricscommon.LoadConfig(), billingSink)
+	billingProvider := aggregator.NewBillingProvider(telemetryDbConn, VCPDbConn, telemetryConfig, billingSink)
 	bizopsProvider := bizops.NewBizOpsProvider(telemetryDbConn, VCPDbConn, bizopsSink)
 	metricsProcessor := processor.NewMetricsProcessor(VCPDbConn, telemetryDbConn, googleSink, provider, billingProvider, bizopsProvider, metricsRecorder)
 
@@ -163,7 +164,6 @@ func main() {
 	}
 
 	cfg := common.LoadConfig()
-	telemetryConfig := metricscommon.LoadConfig()
 	// Setup HTTP server with proper timeouts
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.MetricsServerPort,

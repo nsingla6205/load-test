@@ -18,6 +18,13 @@ type ExpertModePoolCapacity struct {
 	VolumeCount int64
 }
 
+type expertModePoolCapacityRow struct {
+	PoolID           int64 `gorm:"column:pool_id"`
+	TotalVolumeSize  int64 `gorm:"column:total_volume_size"`
+	TotalSharedBytes int64 `gorm:"column:total_shared_bytes"`
+	VolumeCount      int64 `gorm:"column:volume_count"`
+}
+
 var (
 	getMultipleVolumesWithExpertMode = _getMultipleVolumesWithExpertMode
 )
@@ -62,6 +69,47 @@ func (d *DataStoreRepository) GetExpertModePoolUsedCapacityAndVolumeCount(ctx co
 		TotalSize:   effectiveUsed,
 		VolumeCount: volumeCount,
 	}, nil
+}
+
+// GetExpertModePoolsUsedCapacityAndVolumeCount calculates effective used size and
+// volume count for each requested pool in one grouped query.
+func (d *DataStoreRepository) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx context.Context, poolIDs []int64) (map[int64]*ExpertModePoolCapacity, error) {
+	capacities := make(map[int64]*ExpertModePoolCapacity, len(poolIDs))
+	for _, poolID := range poolIDs {
+		capacities[poolID] = &ExpertModePoolCapacity{}
+	}
+	if len(poolIDs) == 0 {
+		return capacities, nil
+	}
+
+	var rows []expertModePoolCapacityRow
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.ExpertModeVolumes{}).
+		Select(`
+			pool_id,
+			COALESCE(SUM(size_in_bytes), 0) AS total_volume_size,
+			COALESCE(SUM(COALESCE(shared_bytes, 0)), 0) AS total_shared_bytes,
+			COUNT(*) AS volume_count
+		`).
+		Where("pool_id IN ?", poolIDs).
+		Group("pool_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		effectiveUsed := row.TotalVolumeSize - row.TotalSharedBytes
+		if effectiveUsed < 0 {
+			effectiveUsed = 0
+		}
+		capacities[row.PoolID] = &ExpertModePoolCapacity{
+			TotalSize:   effectiveUsed,
+			VolumeCount: row.VolumeCount,
+		}
+	}
+
+	return capacities, nil
 }
 
 func (d *DataStoreRepository) getExpertModePoolTotalVolumeSizeAndCount(ctx context.Context, poolID int64) (int64, int64, error) {
