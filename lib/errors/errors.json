@@ -1277,6 +1277,12 @@
     "retriable": false,
     "http_code": 500
   },
+  "9021": {
+    "description": "VLM Customer Subnet IP Exhaustion",
+    "message": "The subnet does not have enough free IP addresses to complete this operation. Please free up addresses in the subnet or use a subnet with a larger IP range.",
+    "retriable": false,
+    "http_code": 400
+  },
   "7006": {
     "description": "VolumeRevert failure",
     "message": "Error reverting volume - Cannot revert a Volume Replication Destination Volume",

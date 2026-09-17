@@ -45,6 +45,13 @@ const (
 	vlmErrPatternResourceNotFoundInZone     = "resource not found in zone"
 	vlmErrPatternNotFoundInZone             = "not found in zone"
 
+	// Customer subnet IP address exhaustion
+	vlmErrPatternIPSpaceExhausted = "ip_space_exhausted"
+	vlmErrPatternIPExhaustion     = "ip_exhaustion"
+	vlmErrPatternIPSpace          = "ip space"
+	vlmErrPatternExhausted        = "exhausted"
+	vlmErrPatternNoAvailableIP    = "no available ip"
+
 	// OCI-specific VLM error patterns (safe-to-expose, message passthrough)
 	ociVLMErrPatternLimitExceeded           = "limitexceeded"
 	ociVLMErrPatternDailyResourceLimit      = "daily resource creation limit"
@@ -176,6 +183,11 @@ func (h *VLMErrorHandler) handleNonTemporalError(err error) error {
 	errMsg := strings.ToLower(err.Error())
 
 	// Check for common error patterns
+	if isIPExhaustionError(errMsg) {
+		h.logger.Info("Classified as IP exhaustion error", "error", err.Error())
+		return errors.NewVCPError(errors.ErrVLMIPExhaustion, err)
+	}
+
 	if h.isConflictError(errMsg) {
 		h.logger.Info("Classified as resource-already-exists conflict", "error", err.Error())
 		return errors.NewVCPError(errors.ErrGCPResourceAlreadyExistsError, err)
@@ -253,6 +265,8 @@ func (h *VLMErrorHandler) mapVLMErrorToUserFacingError(vlmErr VLMClientError, or
 			return h.handleResourceExhaustionWithDetailsError(vlmErr, originalErr)
 		case "RESOURCE_OPERATION_RATE_EXCEEDED":
 			return h.handleRateLimitError(vlmErr, originalErr)
+		case "IP_EXHAUSTION", "IP_SPACE_EXHAUSTED":
+			return h.handleIPExhaustionError(vlmErr, originalErr)
 		case "SERVICE_ACCOUNT_ACCESS_DENIED":
 			return errors.NewVCPError(errors.ErrVLMServiceAccountAccessDenied, originalErr)
 		case "RESOURCE_NOT_READY":
@@ -480,6 +494,30 @@ func (h *VLMErrorHandler) handleResourceExhaustionWithDetailsError(vlmErr VLMCli
 	return errors.NewVCPError(errors.ErrVLMZoneResourcePoolExhaustedWithDetails, originalErr)
 }
 
+// handleIPExhaustionError handles customer subnet IP address exhaustion. This is
+// a customer-actionable condition, so it maps to a 400 rather than the generic
+// VLM workflow error, which is a 500.
+func (h *VLMErrorHandler) handleIPExhaustionError(vlmErr VLMClientError, originalErr error) error {
+	h.logger.Info("Processing IP exhaustion error",
+		"code", vlmErr.Code,
+		"message", vlmErr.Message,
+		"causes", vlmErr.Cause)
+
+	return errors.NewVCPError(errors.ErrVLMIPExhaustion, h.appendCauseToOriginalError(originalErr, vlmErr))
+}
+
+// isIPExhaustionError reports whether the given lower-cased error text indicates
+// the customer's subnet ran out of assignable IP addresses.
+func isIPExhaustionError(errorStr string) bool {
+	if strings.Contains(errorStr, vlmErrPatternIPSpaceExhausted) ||
+		strings.Contains(errorStr, vlmErrPatternIPExhaustion) ||
+		strings.Contains(errorStr, vlmErrPatternNoAvailableIP) {
+		return true
+	}
+
+	return strings.Contains(errorStr, vlmErrPatternIPSpace) && strings.Contains(errorStr, vlmErrPatternExhausted)
+}
+
 // handleRateLimitError handles rate limit errors
 func (h *VLMErrorHandler) handleRateLimitError(vlmErr VLMClientError, originalErr error) error {
 	message := strings.ToLower(vlmErr.Message)
@@ -511,6 +549,12 @@ func (h *VLMErrorHandler) handleCloudOperationFailed(vlmErr VLMClientError, orig
 
 		// Check for specific error patterns in the cause
 		primaryCauseLower := strings.ToLower(primaryCause)
+
+		// IP exhaustion is reported as a cloud operation failure during VM
+		// creation, so it must be classified before the VM-creation branch below.
+		if isIPExhaustionError(primaryCauseLower) {
+			return h.handleIPExhaustionError(vlmErr, originalErr)
+		}
 
 		// VM creation failures
 		if strings.Contains(primaryCauseLower, "failed to create vm") {
@@ -588,6 +632,13 @@ func (h *VLMErrorHandler) handleStringBasedError(vlmErr VLMClientError, original
 
 	h.logger.Debug("Processing string-based error",
 		"error_string", errorStr)
+
+	// Customer subnet IP exhaustion. Checked first: the underlying provider text
+	// also matches broader patterns below (for example "subnet"), which would
+	// otherwise mask it behind a generic error.
+	if isIPExhaustionError(errorStr) {
+		return h.handleIPExhaustionError(vlmErr, originalErr)
+	}
 
 	// Resource exhaustion/stockout patterns
 	if strings.Contains(errorStr, vlmErrPatternNotFound) || strings.Contains(errorStr, vlmErrPatternDoesNotExistInZone) {

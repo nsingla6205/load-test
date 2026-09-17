@@ -1189,3 +1189,56 @@ func TestVLMErrorHandler_IsConflictError(t *testing.T) {
 	assert.True(t, handler.isConflictError("the svm already exists in the cluster"))
 	assert.False(t, handler.isConflictError("connection refused"))
 }
+
+// TestVLMErrorHandler_IPExhaustion verifies that subnet IP exhaustion reaches the
+// customer as ErrVLMIPExhaustion (HTTP 400) instead of the generic VLM workflow
+// error (HTTP 500), across each way VLM can report it.
+func TestVLMErrorHandler_IPExhaustion(t *testing.T) {
+	handler := NewVLMErrorHandler()
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "explicit IP_EXHAUSTION code",
+			err:  createVLMApplicationError(VLMClientError{HttpCode: 500, Code: "IP_EXHAUSTION", Message: "IP exhaustion"}, "vlm error"),
+		},
+		{
+			name: "explicit IP_SPACE_EXHAUSTED code",
+			err:  createVLMApplicationError(VLMClientError{HttpCode: 500, Code: "IP_SPACE_EXHAUSTED", Message: "IP space exhausted"}, "vlm error"),
+		},
+		{
+			name: "cloud operation failure during VM create",
+			err: createVLMApplicationError(VLMClientError{
+				HttpCode: 502,
+				Code:     "CLOUD_OPERATION_FAILED",
+				Message:  "Cloud operation failed to complete",
+				Cause:    []string{"Failed to create VM request: IP_SPACE_EXHAUSTED: IP space of subnetwork 'vsa-subnet' is exhausted"},
+			}, "vlm error"),
+		},
+		{
+			name: "message-only signature",
+			err:  createVLMApplicationError(VLMClientError{HttpCode: 500, Message: "IP space of subnetwork 'vsa-subnet' is exhausted"}, "vlm error"),
+		},
+		{
+			name: "non-temporal error flattened to a string",
+			err:  fmt.Errorf("provisioning failed: no available ip addresses in subnetwork 'vsa-subnet'"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.HandleVLMError(tt.err)
+
+			var customErr *errors.CustomError
+			assert.True(t, errors.As(result, &customErr))
+			assert.Equal(t, errors.ErrVLMIPExhaustion, customErr.TrackingID)
+
+			hasCode, httpCode := customErr.GetHttpCode()
+			assert.True(t, hasCode)
+			assert.Equal(t, 400, httpCode)
+			assert.False(t, customErr.IsRetriable())
+		})
+	}
+}

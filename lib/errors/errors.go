@@ -98,6 +98,7 @@ const (
 	ErrVLMWorkflowError                        = 9018
 	ErrVLMCloudVMOffline                       = 9019
 	ErrVLMConfigParseError                     = 9020
+	ErrVLMIPExhaustion                         = 9021
 
 	// OCI-specific error codes (3100-3199 range)
 	ErrOCIClientInitializationError = 3100
