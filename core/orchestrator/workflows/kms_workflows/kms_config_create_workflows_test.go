@@ -1,6 +1,7 @@
 package kms_workflows
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -568,6 +570,52 @@ func TestCreateKmsConfig(t *testing.T) {
 		// Activities with RecordHeartbeat would fail if HeartbeatTimeout wasn't set
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
+		env.AssertExpectations(t)
+	})
+	t.Run("CreateActivitiesUse5mStartToCloseAndPollUses10m", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		env.SetHeader(&commonpb.Header{
+			Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+		})
+		env.RegisterActivity(&activities.CommonActivities{})
+		env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+
+		timeouts := map[string]time.Duration{}
+		heartbeats := map[string]time.Duration{}
+		env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+			timeouts[info.ActivityType.Name] = info.StartToCloseTimeout
+			heartbeats[info.ActivityType.Name] = info.HeartbeatTimeout
+		})
+
+		params := &common.CreateKmsConfigParams{
+			Name:        "test-kms",
+			AccountName: "test-account",
+		}
+		kmsConfig := &datamodel.KmsConfig{KmsAttributes: &datamodel.KmsAttributes{}}
+		cvpKmsConfig := &cvpmodels.KmsConfigV1beta{}
+		expectJobIsNew(env)
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetSignedTokenActivity", mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+		env.OnActivity("PollKmsConfigOperationActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("DescribeSDEKmsConfigurationActivity", mock.Anything, mock.Anything, mock.Anything).Return(cvpKmsConfig, nil)
+		env.OnActivity("UpdateKmsConfigAttributesActivity", mock.Anything, mock.Anything, mock.Anything).Return(kmsConfig, nil)
+		env.OnActivity("CreateVSAKmsConfigSAKeyActivity", mock.Anything, mock.Anything).Return(kmsConfig, nil)
+		env.OnActivity("GrantRoleActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CreatedKmsConfigActivity", mock.Anything, mock.Anything).Return(nil)
+
+		env.ExecuteWorkflow(CreateKmsConfigWorkflow, params, kmsConfig)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		assert.Equal(t, 5*time.Minute, timeouts["GetSignedTokenActivity"])
+		assert.Equal(t, 4*time.Minute, heartbeats["GetSignedTokenActivity"])
+		assert.Equal(t, 5*time.Minute, timeouts["CreateVSAKmsConfigSAKeyActivity"])
+		assert.Equal(t, 4*time.Minute, heartbeats["CreateVSAKmsConfigSAKeyActivity"])
+		assert.Equal(t, 10*time.Minute, timeouts["PollKmsConfigOperationActivity"])
+		assert.Equal(t, 4*time.Minute, heartbeats["PollKmsConfigOperationActivity"])
 		env.AssertExpectations(t)
 	})
 	t.Run("WhenCancellationSignalReceivedBeforeGetSignedTokenActivity", func(t *testing.T) {
@@ -1481,6 +1529,40 @@ func TestCreateKmsConfigVCPPath(t *testing.T) {
 
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
+		env.AssertExpectations(t)
+	})
+
+	t.Run("VCPCreateActivitiesUse5mStartToClose", func(t *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		env := setupWorkflowEnv(t)
+		timeouts := map[string]time.Duration{}
+		heartbeats := map[string]time.Duration{}
+		env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+			timeouts[info.ActivityType.Name] = info.StartToCloseTimeout
+			heartbeats[info.ActivityType.Name] = info.HeartbeatTimeout
+		})
+		params := &common.CreateKmsConfigParams{
+			Name:        "test-kms",
+			AccountName: "test-account",
+		}
+		kmsConfig := &datamodel.KmsConfig{KmsAttributes: &datamodel.KmsAttributes{CreationMode: datamodel.KmsCreationModeVCP}}
+		expectJobIsNew(env)
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CreateGCPServiceAccountActivity", mock.Anything, mock.Anything).Return(kmsConfig, nil)
+		env.OnActivity("EnableGCPServiceAccountActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CreateVSAKmsConfigSAKeyActivity", mock.Anything, mock.Anything).Return(kmsConfig, nil)
+		env.OnActivity("CreatedKmsConfigActivity", mock.Anything, mock.Anything).Return(nil)
+
+		env.ExecuteWorkflow(CreateKmsConfigWorkflow, params, kmsConfig)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		assert.Equal(t, 5*time.Minute, timeouts["CreateGCPServiceAccountActivity"])
+		assert.Equal(t, 4*time.Minute, heartbeats["CreateGCPServiceAccountActivity"])
+		assert.Equal(t, 5*time.Minute, timeouts["EnableGCPServiceAccountActivity"])
 		env.AssertExpectations(t)
 	})
 

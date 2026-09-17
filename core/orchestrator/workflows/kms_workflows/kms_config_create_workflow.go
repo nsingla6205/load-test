@@ -25,8 +25,10 @@ type createKmsConfigWorkflow struct {
 var _ workflows.WorkflowInterface = &createKmsConfigWorkflow{}
 
 var (
-	cvpMaxPollTimeout = env.GetUint64("CVP_JOB_POLL_TIMEOUT_MIN", 10)
-	cvpPollInterval   = env.GetUint64("CVP_JOB_POLL_INTERVAL_SEC", 30)
+	cvpMaxPollTimeout                    = env.GetUint64("CVP_JOB_POLL_TIMEOUT_MIN", 10)
+	cvpPollInterval                      = env.GetUint64("CVP_JOB_POLL_INTERVAL_SEC", 30)
+	kmsCreateActivityStartToCloseTimeout = env.GetDuration("KMS_CREATE_ACTIVITY_START_TO_CLOSE_TIMEOUT", 5*time.Minute)
+	kmsCreateActivityHeartbeatTimeout    = env.GetDuration("KMS_CREATE_ACTIVITY_HEARTBEAT_TIMEOUT", 4*time.Minute)
 )
 
 const (
@@ -97,8 +99,8 @@ func (kmsConfigWorkflow *createKmsConfigWorkflow) Run(ctx workflow.Context, args
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
-		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
+		StartToCloseTimeout: kmsCreateActivityStartToCloseTimeout,
+		HeartbeatTimeout:    kmsCreateActivityHeartbeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -155,7 +157,7 @@ func (kmsConfigWorkflow *createKmsConfigWorkflow) Run(ctx workflow.Context, args
 
 		pollingOptions := workflow.ActivityOptions{
 			StartToCloseTimeout: time.Duration(cvpMaxPollTimeout) * time.Minute,
-			HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
+			HeartbeatTimeout:    kmsCreateActivityHeartbeatTimeout,
 			RetryPolicy: &temporal.RetryPolicy{
 				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
 				InitialInterval:        time.Duration(cvpPollInterval) * time.Second,

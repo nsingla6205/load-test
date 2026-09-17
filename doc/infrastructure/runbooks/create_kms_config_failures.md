@@ -165,6 +165,8 @@ All fixes, workarounds, and configuration changes **MUST** go through proper cha
 
 **KMS Workflow Timeouts:**
 - `CMEK_WORKFLOW_GLOBAL_TIMEOUT_MINUTES` (default: 14 minutes) - **Global timeout for KMS workflows**
+- `KMS_CREATE_ACTIVITY_START_TO_CLOSE_TIMEOUT` (default: 5 minutes, Go duration e.g. `5m`) - create-path non-poll activities
+- `KMS_CREATE_ACTIVITY_HEARTBEAT_TIMEOUT` (default: 4 minutes, Go duration e.g. `4m`) - must be less than start-to-close
 - `CVP_JOB_POLL_TIMEOUT_MIN` (default: 10 minutes)
 - `CVP_JOB_POLL_INTERVAL_SEC` (default: 30 seconds)
 

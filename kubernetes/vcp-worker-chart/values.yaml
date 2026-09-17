@@ -350,6 +350,8 @@ workerConfig:
 
   workflowGlobalTimeoutMinutes: "60" # Global timeout for workflows in minutes
   cmekWorkflowGlobalTimeoutMinutes: "14" # Global timeout for CMEK workflows in minutes
+  kmsCreateActivityStartToCloseTimeout: "5m" # Create KMS activity start-to-close timeout (Go duration, e.g. 5m)
+  kmsCreateActivityHeartbeatTimeout: "4m" # Create KMS activity heartbeat timeout (Go duration, e.g. 4m)
   createPoolWorkflowTimeoutMinutes: "150" # Create pool workflow run timeout (standard pools) in minutes
   createPoolWorkflowTimeoutMinutesLV: "150" # Create pool workflow run timeout (LV pools) in minutes
   updatePoolWorkflowTimeoutMinutes: "150" # Update pool workflow run timeout (standard pools) in minutes

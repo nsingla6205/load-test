@@ -197,6 +197,8 @@ data:
   FORCE_VCP_KMS_PATH_FOR_TESTING: {{$.Values.workerConfig.forceVcpKmsPathForTesting | quote }}
   WORKFLOW_GLOBAL_TIMEOUT_MINUTES: {{$.Values.workerConfig.workflowGlobalTimeoutMinutes | quote }}
   CMEK_WORKFLOW_GLOBAL_TIMEOUT_MINUTES: {{$.Values.workerConfig.cmekWorkflowGlobalTimeoutMinutes | quote }}
+  KMS_CREATE_ACTIVITY_START_TO_CLOSE_TIMEOUT: {{$.Values.workerConfig.kmsCreateActivityStartToCloseTimeout | quote }}
+  KMS_CREATE_ACTIVITY_HEARTBEAT_TIMEOUT: {{$.Values.workerConfig.kmsCreateActivityHeartbeatTimeout | quote }}
   CMEK_GLOBAL_PROJECT_ID: {{$.Values.workerConfig.cmekGlobalProjectId | quote }}
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.createPoolWorkflowTimeoutMinutes | quote }}
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: {{$.Values.workerConfig.createPoolWorkflowTimeoutMinutesLV | quote }}
