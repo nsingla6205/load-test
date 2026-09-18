@@ -809,6 +809,12 @@ var (
 	CustomerWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0) // 0 = SDK default (1000)
 	CustomerWorkerActivitiesPerSecond                 = GetFloat64NotNegative("CUSTOMER_WORKER_ACTIVITIES_PER_SECOND", 0)               // 0 = unlimited
 	CustomerWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("CUSTOMER_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)    // 0 = unlimited
+	// Temporary TMPRL1101 workaround while workflow code still uses process slog.
+	// Revert the default to 1s after workflows use workflow.GetLogger. Keep below
+	// Temporal's typical 10s WorkflowTaskTimeout.
+	CustomerWorkerDeadlockDetectionTimeout = GetDuration("CUSTOMER_WORKER_DEADLOCK_DETECTION_TIMEOUT", 2*time.Second)
+	// BlockWorkflow retries panicking workflow tasks (TMPRL1101). FailWorkflow fails the execution.
+	CustomerWorkerWorkflowPanicPolicy = GetString("CUSTOMER_WORKER_WORKFLOW_PANIC_POLICY", "BlockWorkflow")
 
 	// background-workflows queue
 	BackgroundWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)       // 0 = SDK default (1000)
@@ -816,6 +822,8 @@ var (
 	BackgroundWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0) // 0 = SDK default (1000)
 	BackgroundWorkerActivitiesPerSecond                 = GetFloat64NotNegative("BACKGROUND_WORKER_ACTIVITIES_PER_SECOND", 0)               // 0 = unlimited
 	BackgroundWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)    // 0 = unlimited
+	BackgroundWorkerDeadlockDetectionTimeout            = GetDuration("BACKGROUND_WORKER_DEADLOCK_DETECTION_TIMEOUT", 2*time.Second)
+	BackgroundWorkerWorkflowPanicPolicy                 = GetString("BACKGROUND_WORKER_WORKFLOW_PANIC_POLICY", "BlockWorkflow")
 
 	// OCIUseTLSSNIOverride selects which connect-by-cert strategy the OCI
 	// cert-auth pool path uses to bring up mTLS against the freshly-

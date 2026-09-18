@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -65,23 +66,66 @@ func init() {
 	backgroundactivities.RegisterWorkflowExecutor(workflows.ExecuteWorkflowSequentially)
 }
 
-// buildWorkerOptions constructs a worker.Options value from the supplied concurrency and rate-limit
-// parameters. WorkflowPanicPolicy is always set to FailWorkflow here so callers do not need to set it.
-func buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64) workerSDK.Options {
+// SDK default deadlock detection is 1s. Zero would also mean "use SDK default"
+// (or unlimited when TEMPORAL_DEBUG is set), so callers pass a positive duration.
+const defaultDeadlockDetectionTimeout = 2 * time.Second
+
+const (
+	workflowPanicPolicyBlock = "BlockWorkflow"
+	workflowPanicPolicyFail  = "FailWorkflow"
+)
+
+// parseWorkflowPanicPolicy maps CUSTOMER/BACKGROUND_WORKER_WORKFLOW_PANIC_POLICY to a Temporal policy.
+// Empty values use BlockWorkflow so a transient panic (for example TMPRL1101 from a slow process slog
+// write) retries the workflow task instead of failing the execution. FailWorkflow restores fail-fast.
+func parseWorkflowPanicPolicy(value string) (workerSDK.WorkflowPanicPolicy, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", strings.ToLower(workflowPanicPolicyBlock):
+		return workerSDK.BlockWorkflow, nil
+	case strings.ToLower(workflowPanicPolicyFail):
+		return workerSDK.FailWorkflow, nil
+	default:
+		return workerSDK.BlockWorkflow, fmt.Errorf("invalid workflow panic policy %q: want %s or %s", value, workflowPanicPolicyBlock, workflowPanicPolicyFail)
+	}
+}
+
+func workflowPanicPolicyName(policy workerSDK.WorkflowPanicPolicy) string {
+	if policy == workerSDK.FailWorkflow {
+		return workflowPanicPolicyFail
+	}
+	return workflowPanicPolicyBlock
+}
+
+func mustParseWorkflowPanicPolicy(value string, logger log.Logger) workerSDK.WorkflowPanicPolicy {
+	policy, err := parseWorkflowPanicPolicy(value)
+	if err != nil {
+		logger.Error("Invalid workflow panic policy", "error", err.Error())
+		os.Exit(1)
+	}
+	return policy
+}
+
+// buildWorkerOptions constructs a worker.Options value from the supplied concurrency, rate-limit,
+// deadlock, and panic-policy parameters.
+func buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64, deadlockTimeout time.Duration, panicPolicy workerSDK.WorkflowPanicPolicy) workerSDK.Options {
+	if deadlockTimeout <= 0 {
+		deadlockTimeout = defaultDeadlockDetectionTimeout
+	}
 	return workerSDK.Options{
 		MaxConcurrentActivityExecutionSize:      maxActivity,
 		MaxConcurrentWorkflowTaskExecutionSize:  maxWorkflow,
 		MaxConcurrentLocalActivityExecutionSize: maxLocalActivity,
 		WorkerActivitiesPerSecond:               activitiesPerSec,
 		TaskQueueActivitiesPerSecond:            taskQueuePerSec,
-		WorkflowPanicPolicy:                     workerSDK.FailWorkflow,
+		WorkflowPanicPolicy:                     panicPolicy,
+		DeadlockDetectionTimeout:                deadlockTimeout,
 	}
 }
 
 // newWorkerWithOpts builds worker options from the supplied concurrency/rate-limit parameters,
 // logs them, and constructs the Temporal worker for the given task queue.
-func newWorkerWithOpts(c client.Client, taskQueue string, maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64, logger log.Logger) *tManagerPkg.Worker {
-	opts := buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity, activitiesPerSec, taskQueuePerSec)
+func newWorkerWithOpts(c client.Client, taskQueue string, maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64, deadlockTimeout time.Duration, panicPolicy workerSDK.WorkflowPanicPolicy, logger log.Logger) *tManagerPkg.Worker {
+	opts := buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity, activitiesPerSec, taskQueuePerSec, deadlockTimeout, panicPolicy)
 	logger.Info("worker concurrency options",
 		"taskQueue", taskQueue,
 		"maxConcurrentActivity", opts.MaxConcurrentActivityExecutionSize,
@@ -89,6 +133,8 @@ func newWorkerWithOpts(c client.Client, taskQueue string, maxActivity, maxWorkfl
 		"maxConcurrentLocalActivity", opts.MaxConcurrentLocalActivityExecutionSize,
 		"workerActivitiesPerSec", opts.WorkerActivitiesPerSecond,
 		"taskQueueActivitiesPerSec", opts.TaskQueueActivitiesPerSecond,
+		"deadlockDetectionTimeout", opts.DeadlockDetectionTimeout,
+		"workflowPanicPolicy", workflowPanicPolicyName(opts.WorkflowPanicPolicy),
 	)
 	return tManagerPkg.NewWorker(c, taskQueue, opts)
 }
@@ -376,6 +422,8 @@ func main() {
 			env.CustomerWorkerMaxConcurrentLocalActivityExecution,
 			env.CustomerWorkerActivitiesPerSecond,
 			env.CustomerWorkerTaskQueueActivitiesPerSecond,
+			env.CustomerWorkerDeadlockDetectionTimeout,
+			mustParseWorkflowPanicPolicy(env.CustomerWorkerWorkflowPanicPolicy, logger),
 			logger,
 		)
 
@@ -401,6 +449,8 @@ func main() {
 			env.BackgroundWorkerMaxConcurrentLocalActivityExecution,
 			env.BackgroundWorkerActivitiesPerSecond,
 			env.BackgroundWorkerTaskQueueActivitiesPerSecond,
+			env.BackgroundWorkerDeadlockDetectionTimeout,
+			mustParseWorkflowPanicPolicy(env.BackgroundWorkerWorkflowPanicPolicy, logger),
 			logger,
 		)
 

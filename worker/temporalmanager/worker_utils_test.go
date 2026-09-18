@@ -78,7 +78,9 @@ func TestNewWorker(t *testing.T) {
 			MaxConcurrentLocalActivityExecutionSize: 8,
 			WorkerActivitiesPerSecond:               3.5,
 			TaskQueueActivitiesPerSecond:            1.0,
-			WorkflowPanicPolicy:                     worker.FailWorkflow,
+			// FailWorkflow rather than the production BlockWorkflow: BlockWorkflow is the
+			// zero value of worker.Options, so it cannot prove the field was forwarded.
+			WorkflowPanicPolicy: worker.FailWorkflow,
 		}
 
 		var captured worker.Options

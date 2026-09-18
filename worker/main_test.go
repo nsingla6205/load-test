@@ -60,13 +60,67 @@ func (r *harvestMetricsRecorder) SetHarvestRetryBacklog(pending, exhausted int) 
 }
 
 func TestBuildWorkerOptions(t *testing.T) {
-	opts := buildWorkerOptions(42, 17, 8, 3.5, 1.0)
+	opts := buildWorkerOptions(42, 17, 8, 3.5, 1.0, defaultDeadlockDetectionTimeout, workerSDK.BlockWorkflow)
 
 	assert.Equal(t, 42, opts.MaxConcurrentActivityExecutionSize)
 	assert.Equal(t, 17, opts.MaxConcurrentWorkflowTaskExecutionSize)
 	assert.Equal(t, 8, opts.MaxConcurrentLocalActivityExecutionSize)
 	assert.Equal(t, 3.5, opts.WorkerActivitiesPerSecond)
 	assert.Equal(t, 1.0, opts.TaskQueueActivitiesPerSecond)
+	assert.Equal(t, defaultDeadlockDetectionTimeout, opts.DeadlockDetectionTimeout)
+	assert.Equal(t, workerSDK.BlockWorkflow, opts.WorkflowPanicPolicy)
+}
+
+func TestBuildWorkerOptions_ZeroDeadlockTimeoutUsesDefault(t *testing.T) {
+	opts := buildWorkerOptions(1, 1, 1, 1, 1, 0, workerSDK.BlockWorkflow)
+	assert.Equal(t, defaultDeadlockDetectionTimeout, opts.DeadlockDetectionTimeout)
+}
+
+func TestBuildWorkerOptions_FailWorkflowPanicPolicy(t *testing.T) {
+	opts := buildWorkerOptions(1, 1, 1, 1, 1, defaultDeadlockDetectionTimeout, workerSDK.FailWorkflow)
+	assert.Equal(t, workerSDK.FailWorkflow, opts.WorkflowPanicPolicy)
+}
+
+func TestParseWorkflowPanicPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    workerSDK.WorkflowPanicPolicy
+		wantErr bool
+	}{
+		{name: "empty defaults to BlockWorkflow", input: "", want: workerSDK.BlockWorkflow},
+		{name: "BlockWorkflow", input: "BlockWorkflow", want: workerSDK.BlockWorkflow},
+		{name: "blockworkflow lowercase", input: "blockworkflow", want: workerSDK.BlockWorkflow},
+		{name: "FailWorkflow", input: "FailWorkflow", want: workerSDK.FailWorkflow},
+		{name: "failworkflow lowercase", input: " failworkflow ", want: workerSDK.FailWorkflow},
+		{name: "invalid", input: "RetryWorkflow", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseWorkflowPanicPolicy(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestWorkflowPanicPolicyName(t *testing.T) {
+	assert.Equal(t, workflowPanicPolicyBlock, workflowPanicPolicyName(workerSDK.BlockWorkflow))
+	assert.Equal(t, workflowPanicPolicyFail, workflowPanicPolicyName(workerSDK.FailWorkflow))
+}
+
+// mustParseWorkflowPanicPolicy exits the process on invalid input, so only the
+// accepted values are covered here.
+func TestMustParseWorkflowPanicPolicy(t *testing.T) {
+	logger := log.NewLogger()
+
+	assert.Equal(t, workerSDK.BlockWorkflow, mustParseWorkflowPanicPolicy("", logger))
+	assert.Equal(t, workerSDK.BlockWorkflow, mustParseWorkflowPanicPolicy(workflowPanicPolicyBlock, logger))
+	assert.Equal(t, workerSDK.FailWorkflow, mustParseWorkflowPanicPolicy(workflowPanicPolicyFail, logger))
 }
 
 func TestNewWorkerWithOpts(t *testing.T) {
@@ -76,7 +130,7 @@ func TestNewWorkerWithOpts(t *testing.T) {
 
 	logger := log.NewLogger()
 
-	w := newWorkerWithOpts(mockClient, "test-queue", 10, 5, 3, 2.5, 1.5, logger)
+	w := newWorkerWithOpts(mockClient, "test-queue", 10, 5, 3, 2.5, 1.5, defaultDeadlockDetectionTimeout, workerSDK.BlockWorkflow, logger)
 
 	assert.NotNil(t, w)
 }

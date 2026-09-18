@@ -115,11 +115,20 @@ workerConfig:
   customerWorkerMaxConcurrentLocalActivityExecution: "0"
   customerWorkerActivitiesPerSecond: "0"
   customerWorkerTaskQueueActivitiesPerSecond: "0"
+  # Temporary TMPRL1101 workaround (slog on workflow goroutine). Revert to 1s after workflow.GetLogger.
+  customerWorkerDeadlockDetectionTimeout: "2s"
+  # Allowed values: BlockWorkflow | FailWorkflow.
+  # BlockWorkflow retries panicking workflow tasks. FailWorkflow fails the execution.
+  customerWorkerWorkflowPanicPolicy: "BlockWorkflow"
   backgroundWorkerMaxConcurrentActivityExecution: "0"
   backgroundWorkerMaxConcurrentWorkflowTaskExecution: "0"
   backgroundWorkerMaxConcurrentLocalActivityExecution: "0"
   backgroundWorkerActivitiesPerSecond: "0"
   backgroundWorkerTaskQueueActivitiesPerSecond: "0"
+  backgroundWorkerDeadlockDetectionTimeout: "2s"
+  # Allowed values: BlockWorkflow | FailWorkflow.
+  # BlockWorkflow retries panicking workflow tasks. FailWorkflow fails the execution.
+  backgroundWorkerWorkflowPanicPolicy: "BlockWorkflow"
   proxyClientTransportSchema: "https"
   vlmWorkflowRetryMaxAttempts: "1"
   smcProjectId: ""

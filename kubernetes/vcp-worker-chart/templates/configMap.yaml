@@ -447,11 +447,15 @@ data:
   CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION: {{$.Values.workerConfig.customerWorkerMaxConcurrentLocalActivityExecution | quote }}
   CUSTOMER_WORKER_ACTIVITIES_PER_SECOND: {{$.Values.workerConfig.customerWorkerActivitiesPerSecond | quote }}
   CUSTOMER_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND: {{$.Values.workerConfig.customerWorkerTaskQueueActivitiesPerSecond | quote }}
+  CUSTOMER_WORKER_DEADLOCK_DETECTION_TIMEOUT: {{$.Values.workerConfig.customerWorkerDeadlockDetectionTimeout | quote }}
+  CUSTOMER_WORKER_WORKFLOW_PANIC_POLICY: {{$.Values.workerConfig.customerWorkerWorkflowPanicPolicy | quote }}
   BACKGROUND_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION: {{$.Values.workerConfig.backgroundWorkerMaxConcurrentActivityExecution | quote }}
   BACKGROUND_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION: {{$.Values.workerConfig.backgroundWorkerMaxConcurrentWorkflowTaskExecution | quote }}
   BACKGROUND_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION: {{$.Values.workerConfig.backgroundWorkerMaxConcurrentLocalActivityExecution | quote }}
   BACKGROUND_WORKER_ACTIVITIES_PER_SECOND: {{$.Values.workerConfig.backgroundWorkerActivitiesPerSecond | quote }}
   BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND: {{$.Values.workerConfig.backgroundWorkerTaskQueueActivitiesPerSecond | quote }}
+  BACKGROUND_WORKER_DEADLOCK_DETECTION_TIMEOUT: {{$.Values.workerConfig.backgroundWorkerDeadlockDetectionTimeout | quote }}
+  BACKGROUND_WORKER_WORKFLOW_PANIC_POLICY: {{$.Values.workerConfig.backgroundWorkerWorkflowPanicPolicy | quote }}
 
   MOCK_ACCESS_TOKEN: {{$.Values.workerConfig.mockAccessToken | quote }}
   INTEGRATION_TEST: {{$.Values.workerConfig.integrationTest | quote }}
