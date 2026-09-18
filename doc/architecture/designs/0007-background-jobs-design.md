@@ -119,10 +119,10 @@ var JobTypeToWorkflow = map[string]interface{}{
 | HARD_DELETE_RESOURCES_AND_ACCOUNT | Daily at 8 AM | Hard delete resources and accounts |
 | ORPHANED_JOB_SCHEDULER | Every 2 minutes | Process orphaned jobs |
 | SYNC_LATEST_BACKUP_LOGICAL_SIZE | Every 5 minutes | Sync backup logical sizes |
-| CLEANUP_HYDRATED_METRICS_TABLE | Daily at midnight | Cleanup metrics data |
-| CLEANUP_AGGREGATED_USAGE_TABLE | Daily at 3 AM | Cleanup usage data |
-| CLEANUP_JOBS_TABLE | Daily at 1 AM | Cleanup jobs data |
-| CLEANUP_BACKUP_CHAIN_HISTORY | Daily at 2 AM | Cleanup backup chain history data |
+| CLEANUP_HYDRATED_METRICS_TABLE | Daily at 10:00 UTC | Cleanup metrics data |
+| CLEANUP_AGGREGATED_USAGE_TABLE | Daily at 22:00 UTC | Cleanup usage data |
+| CLEANUP_JOBS_TABLE | Daily at 16:00 UTC | Cleanup jobs data |
+| CLEANUP_BACKUP_CHAIN_HISTORY | Daily at 04:00 UTC | Cleanup backup chain history data |
 | SYNC_VSA_AUTO_TIERING | Every 5 minutes | Sync auto-tiering data |
 | DELETE_RESOURCES | Daily at midnight | Delete resources |
 | SYNC_BACKUP_ZIZS_METADATA | Every 12 hours | Sync backup metadata |

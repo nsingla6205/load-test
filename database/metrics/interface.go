@@ -17,6 +17,11 @@ type DataStoreRepository struct {
 	db *gormWrapper.Wrapper
 }
 
+const (
+	metricsCleanupBatchSize  = 5000
+	metricsCleanupBatchPause = 100 * time.Millisecond
+)
+
 func NewDataStoreRepository(db *gormWrapper.Wrapper) *DataStoreRepository {
 	return &DataStoreRepository{db: db}
 }
@@ -105,8 +110,7 @@ func (r *DataStoreRepository) DeleteHydratedMetrics(ctx context.Context, id stri
 }
 
 func (r *DataStoreRepository) DeleteHydratedMetricsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.GORM().WithContext(ctx).Where("metric_timestamp < ?", olderThan).Delete(&datamodel.HydratedMetrics{})
-	return result.RowsAffected, result.Error
+	return r.deleteOlderThanInBatches(ctx, "hydrated_metrics", "metric_timestamp", olderThan)
 }
 
 // AggregatedUsage CRUD
@@ -225,13 +229,42 @@ func (r *DataStoreRepository) DeleteAggregatedUsage(ctx context.Context, id int6
 }
 
 func (r *DataStoreRepository) DeleteAggregatedUsageOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.GORM().WithContext(ctx).Where("aggregation_end < ?", olderThan).Delete(&datamodel.AggregatedUsage{})
-	return result.RowsAffected, result.Error
+	return r.deleteOlderThanInBatches(ctx, "aggregated_usages", "aggregation_end", olderThan)
 }
 
 func (r *DataStoreRepository) DeleteJobsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.GORM().WithContext(ctx).Where("finished_at < ?", olderThan).Delete(&datamodel.Job{})
-	return result.RowsAffected, result.Error
+	return r.deleteOlderThanInBatches(ctx, "jobs", "finished_at", olderThan)
+}
+
+func (r *DataStoreRepository) deleteOlderThanInBatches(ctx context.Context, tableName, timestampColumn string, olderThan time.Time) (int64, error) {
+	query := fmt.Sprintf(
+		"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE %s < ? ORDER BY id LIMIT ?)",
+		tableName,
+		tableName,
+		timestampColumn,
+	)
+	var totalDeleted int64
+
+	for {
+		result := r.db.GORM().WithContext(ctx).Exec(query, olderThan, metricsCleanupBatchSize)
+		if result.Error != nil {
+			return totalDeleted, result.Error
+		}
+		totalDeleted += result.RowsAffected
+		if result.RowsAffected < metricsCleanupBatchSize {
+			return totalDeleted, nil
+		}
+
+		timer := time.NewTimer(metricsCleanupBatchPause)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return totalDeleted, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (r *DataStoreRepository) GetRestoreTimestamp(ctx context.Context) (*datamodel.RestoreTimestamp, error) {

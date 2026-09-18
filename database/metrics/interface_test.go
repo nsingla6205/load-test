@@ -94,6 +94,140 @@ func TestDataStoreRepository_HydratedMetricsCRUD(t *testing.T) {
 	assert.Empty(t, metrics)
 }
 
+func TestDataStoreRepository_DeleteOlderThanInBatches(t *testing.T) {
+	const oldRecordCount = metricsCleanupBatchSize + 1
+	cutoff := time.Now()
+
+	t.Run("hydrated metrics", func(t *testing.T) {
+		repo := setupTestDataStoreRepository(t)
+		oldMetrics := make([]datamodel.HydratedMetrics, oldRecordCount)
+		for i := range oldMetrics {
+			oldMetrics[i] = datamodel.HydratedMetrics{
+				MetricTimestamp: cutoff.Add(-time.Hour),
+				MeasuredType:    "test-measured",
+				ResourceType:    "test-resource",
+				Quantity:        1,
+			}
+		}
+		newMetric := &datamodel.HydratedMetrics{
+			MetricTimestamp: cutoff.Add(time.Hour),
+			MeasuredType:    "test-measured",
+			ResourceType:    "test-resource",
+			Quantity:        1,
+		}
+
+		require.NoError(t, repo.db.GORM().CreateInBatches(&oldMetrics, 1000).Error)
+		require.NoError(t, repo.CreateHydratedMetrics(context.Background(), newMetric))
+
+		rowsAffected, err := repo.DeleteHydratedMetricsOlderThan(context.Background(), cutoff)
+		require.NoError(t, err)
+		assert.Equal(t, int64(oldRecordCount), rowsAffected)
+
+		var remaining int64
+		require.NoError(t, repo.db.GORM().Model(&datamodel.HydratedMetrics{}).Count(&remaining).Error)
+		assert.Equal(t, int64(1), remaining)
+	})
+
+	t.Run("aggregated usage", func(t *testing.T) {
+		repo := setupTestDataStoreRepository(t)
+		oldUsages := make([]datamodel.AggregatedUsage, oldRecordCount)
+		for i := range oldUsages {
+			oldUsages[i] = datamodel.AggregatedUsage{
+				ResourceUUID:     fmt.Sprintf("resource-%d", i),
+				AccountID:        "test-account",
+				VendorCustomerID: ptrString("test-customer"),
+				AggregationStart: cutoff.Add(-2 * time.Hour),
+				AggregationEnd:   cutoff.Add(-time.Hour),
+				MeasuredType:     "test-measured",
+				Quantity:         1,
+				ResourceType:     "test-resource",
+				AggregationType:  "sum",
+			}
+		}
+		newUsage := &datamodel.AggregatedUsage{
+			ResourceUUID:     "new-resource",
+			AccountID:        "test-account",
+			VendorCustomerID: ptrString("test-customer"),
+			AggregationStart: cutoff,
+			AggregationEnd:   cutoff.Add(time.Hour),
+			MeasuredType:     "test-measured",
+			Quantity:         1,
+			ResourceType:     "test-resource",
+			AggregationType:  "sum",
+		}
+
+		require.NoError(t, repo.db.GORM().CreateInBatches(&oldUsages, 1000).Error)
+		require.NoError(t, repo.CreateAggregatedUsage(context.Background(), newUsage))
+
+		rowsAffected, err := repo.DeleteAggregatedUsageOlderThan(context.Background(), cutoff)
+		require.NoError(t, err)
+		assert.Equal(t, int64(oldRecordCount), rowsAffected)
+
+		var remaining int64
+		require.NoError(t, repo.db.GORM().Model(&datamodel.AggregatedUsage{}).Count(&remaining).Error)
+		assert.Equal(t, int64(1), remaining)
+	})
+
+	t.Run("jobs", func(t *testing.T) {
+		repo := setupTestDataStoreRepository(t)
+		oldJobs := make([]datamodel.Job, oldRecordCount)
+		for i := range oldJobs {
+			oldJobs[i] = datamodel.Job{
+				TypeName:   "test-job",
+				Status:     "completed",
+				Queue:      "test-queue",
+				FinishedAt: cutoff.Add(-time.Hour),
+			}
+		}
+		newJob := &datamodel.Job{
+			TypeName:   "test-job",
+			Status:     "completed",
+			Queue:      "test-queue",
+			FinishedAt: cutoff.Add(time.Hour),
+		}
+
+		require.NoError(t, repo.db.GORM().CreateInBatches(&oldJobs, 1000).Error)
+		require.NoError(t, repo.db.GORM().Create(newJob).Error)
+
+		rowsAffected, err := repo.DeleteJobsOlderThan(context.Background(), cutoff)
+		require.NoError(t, err)
+		assert.Equal(t, int64(oldRecordCount), rowsAffected)
+
+		var remaining int64
+		require.NoError(t, repo.db.GORM().Model(&datamodel.Job{}).Count(&remaining).Error)
+		assert.Equal(t, int64(1), remaining)
+	})
+
+	t.Run("returns error when the delete statement fails", func(t *testing.T) {
+		repo := setupTestDataStoreRepository(t)
+
+		rowsAffected, err := repo.deleteOlderThanInBatches(context.Background(), "missing_table", "finished_at", cutoff)
+		require.Error(t, err)
+		assert.Zero(t, rowsAffected)
+	})
+
+	t.Run("stops between batches when context is canceled", func(t *testing.T) {
+		repo := setupTestDataStoreRepository(t)
+		oldJobs := make([]datamodel.Job, oldRecordCount)
+		for i := range oldJobs {
+			oldJobs[i] = datamodel.Job{
+				TypeName:   "test-job",
+				Status:     "completed",
+				Queue:      "test-queue",
+				FinishedAt: cutoff.Add(-time.Hour),
+			}
+		}
+		require.NoError(t, repo.db.GORM().CreateInBatches(&oldJobs, 1000).Error)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		time.AfterFunc(metricsCleanupBatchPause/2, cancel)
+
+		rowsAffected, err := repo.DeleteJobsOlderThan(ctx, cutoff)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Less(t, rowsAffected, int64(oldRecordCount))
+	})
+}
+
 func TestDataStoreRepository_AggregatedUsageCRUD(t *testing.T) {
 	repo := setupTestDataStoreRepository(t)
 	ctx := context.Background()
