@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -824,7 +825,8 @@ func _createExpertModeVolume(ctx context.Context, se database.Storage, temporal 
 //
 // The lookup is scoped to dbPoolView.ID for both FLEX and dedicated-hardware pools.
 // An SVM in the pool's account but mapped to another pool is rejected: the volume
-// would land outside the requested pool and be reconciled twice.
+// would land outside the requested pool and be reconciled twice. For ONTAP-mode
+// pools the rejection also names the SVM the caller should have used.
 func resolveExpertModeSvm(ctx context.Context, se database.Storage, dbPoolView *datamodel.PoolView, params *commonparams.ExpertModeVolumeParams) (*datamodel.Svm, error) {
 	logger := util.GetLogger(ctx)
 
@@ -834,7 +836,7 @@ func resolveExpertModeSvm(ctx context.Context, se database.Storage, dbPoolView *
 		if err != nil {
 			logger.Error("Failed to find SVM by external UUID", "svmUuid", params.SvmUuid, "error", err)
 			if customerrors.IsNotFoundErr(err) {
-				return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with UUID '%s' not found in pool", params.SvmUuid))
+				return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with UUID '%s' not found in pool%s", params.SvmUuid, poolSvmHint(ctx, se, dbPoolView)))
 			}
 			return nil, err
 		}
@@ -844,7 +846,7 @@ func resolveExpertModeSvm(ctx context.Context, se database.Storage, dbPoolView *
 		if err != nil {
 			logger.Error("Failed to find SVM by name and poolID", "svmName", params.SvmName, "poolID", dbPoolView.ID, "error", err)
 			if customerrors.IsNotFoundErr(err) {
-				return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with name '%s' not found in pool", params.SvmName))
+				return nil, customerrors.NewBadRequestErr(fmt.Sprintf("SVM with name '%s' not found in pool%s", params.SvmName, poolSvmHint(ctx, se, dbPoolView)))
 			}
 			return nil, err
 		}
@@ -852,6 +854,40 @@ func resolveExpertModeSvm(ctx context.Context, se database.Storage, dbPoolView *
 	default:
 		logger.Error("Neither svmName nor svmUUID has been passed")
 		return nil, customerrors.NewBadRequestErr("neither svmName nor svmUUID has been passed")
+	}
+}
+
+// poolSvmHint returns a message suffix naming the SVMs that actually belong to an
+// ONTAP-mode pool, so a cross-SVM volume create tells the caller which SVM to use.
+// The suffix is empty for non-ONTAP-mode pools and whenever the pool SVMs cannot be
+// resolved, so the caller still gets the plain not-found message.
+func poolSvmHint(ctx context.Context, se database.Storage, dbPoolView *datamodel.PoolView) string {
+	if dbPoolView == nil || dbPoolView.APIAccessMode != commonparams.ONTAPMode {
+		return ""
+	}
+
+	svms, err := se.GetSvmsByPoolID(ctx, dbPoolView.ID)
+	if err != nil {
+		util.GetLogger(ctx).Warn("Failed to list pool SVMs for cross-SVM error message", "poolID", dbPoolView.ID, "error", err)
+		return ""
+	}
+
+	names := make([]string, 0, len(svms))
+	for _, svm := range svms {
+		if svm == nil || svm.Name == "" || (svm.DeletedAt != nil && svm.DeletedAt.Valid) || svm.State == datamodel.LifeCycleStateDeleted {
+			continue
+		}
+		names = append(names, fmt.Sprintf("'%s'", svm.Name))
+	}
+	slices.Sort(names)
+
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("; the SVM for this pool is %s", names[0])
+	default:
+		return fmt.Sprintf("; the SVMs for this pool are %s", strings.Join(names, ", "))
 	}
 }
 

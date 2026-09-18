@@ -440,6 +440,7 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
 
 		pool.ServiceLevel = "PREMIUM"
+		pool.APIAccessMode = APIAccessModeONTAP
 		assert.NoError(tt, store.DB().Save(pool).Error)
 
 		otherPool := &datamodel.Pool{
@@ -481,6 +482,7 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "SVM with name")
 		assert.Contains(tt, err.Error(), "not found in pool")
+		assert.Contains(tt, err.Error(), "the SVM for this pool is 'test-svm'")
 
 		var count int64
 		assert.NoError(tt, store.DB().Model(&datamodel.ExpertModeVolumes{}).Where("name = ?", params.VolumeName).Count(&count).Error)
@@ -496,6 +498,7 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
 
 		pool.ServiceLevel = "PREMIUM"
+		pool.APIAccessMode = APIAccessModeONTAP
 		assert.NoError(tt, store.DB().Save(pool).Error)
 
 		otherPool := &datamodel.Pool{
@@ -537,6 +540,7 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "SVM with UUID")
 		assert.Contains(tt, err.Error(), "not found in pool")
+		assert.Contains(tt, err.Error(), "the SVM for this pool is 'test-svm'")
 
 		var count int64
 		assert.NoError(tt, store.DB().Model(&datamodel.ExpertModeVolumes{}).Where("name = ?", params.VolumeName).Count(&count).Error)
@@ -8957,5 +8961,101 @@ func TestThinProvisioning_OperationCapacityGates(t *testing.T) {
 		assert.NoError(tt, err)
 		mockStorage.AssertExpectations(tt)
 		temporal.AssertExpectations(tt)
+	})
+}
+
+func TestResolveExpertModeSvm_CrossSvmNamesPoolSvm(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+	poolView := func(apiAccessMode string) *datamodel.PoolView {
+		return &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+				Name:          "po-pool",
+				APIAccessMode: apiAccessMode,
+				ServiceLevel:  commonparams.ServiceLevelExtreme,
+				HostUUID:      "host-1",
+			},
+		}
+	}
+	poolSvm := &datamodel.Svm{
+		BaseModel: datamodel.BaseModel{ID: 5, UUID: "svm-uuid"},
+		Name:      "svm_po_01",
+		PoolID:    10,
+		State:     datamodel.LifeCycleStateREADY,
+	}
+
+	t.Run("WhenSvmNameBelongsToAnotherSvm", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(ctx, "svm_other_01", int64(10)).
+			Return(nil, customerrors.NewNotFoundErr("svm", nil)).Once()
+		mockStorage.EXPECT().GetSvmsByPoolID(ctx, int64(10)).Return([]*datamodel.Svm{poolSvm}, nil).Once()
+
+		_, err := resolveExpertModeSvm(ctx, mockStorage, poolView(APIAccessModeONTAP), &commonparams.ExpertModeVolumeParams{
+			SvmName: "svm_other_01",
+		})
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsBadRequestErr(err))
+		assert.Equal(tt, "SVM with name 'svm_other_01' not found in pool; the SVM for this pool is 'svm_po_01'", err.Error())
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenSvmUuidBelongsToAnotherSvm", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetSvmByExternalUUID(ctx, "other-svm-uuid", int64(10)).
+			Return(nil, customerrors.NewNotFoundErr("svm", nil)).Once()
+		mockStorage.EXPECT().GetSvmsByPoolID(ctx, int64(10)).Return([]*datamodel.Svm{poolSvm}, nil).Once()
+
+		_, err := resolveExpertModeSvm(ctx, mockStorage, poolView(APIAccessModeONTAP), &commonparams.ExpertModeVolumeParams{
+			SvmUuid: "other-svm-uuid",
+		})
+		assert.Error(tt, err)
+		assert.Equal(tt, "SVM with UUID 'other-svm-uuid' not found in pool; the SVM for this pool is 'svm_po_01'", err.Error())
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenPoolHasMultipleSvmsDeletedOnesAreExcluded", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(ctx, "svm_other_01", int64(10)).
+			Return(nil, customerrors.NewNotFoundErr("svm", nil)).Once()
+		mockStorage.EXPECT().GetSvmsByPoolID(ctx, int64(10)).Return([]*datamodel.Svm{
+			{Name: "svm_po_02", State: datamodel.LifeCycleStateREADY},
+			poolSvm,
+			{Name: "svm_po_gone", State: datamodel.LifeCycleStateDeleted},
+		}, nil).Once()
+
+		_, err := resolveExpertModeSvm(ctx, mockStorage, poolView(APIAccessModeONTAP), &commonparams.ExpertModeVolumeParams{
+			SvmName: "svm_other_01",
+		})
+		assert.Error(tt, err)
+		assert.Equal(tt, "SVM with name 'svm_other_01' not found in pool; the SVMs for this pool are 'svm_po_01', 'svm_po_02'", err.Error())
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenPoolSvmLookupFailsMessageStaysPlain", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(ctx, "svm_other_01", int64(10)).
+			Return(nil, customerrors.NewNotFoundErr("svm", nil)).Once()
+		mockStorage.EXPECT().GetSvmsByPoolID(ctx, int64(10)).Return(nil, errors.New("db down")).Once()
+
+		_, err := resolveExpertModeSvm(ctx, mockStorage, poolView(APIAccessModeONTAP), &commonparams.ExpertModeVolumeParams{
+			SvmName: "svm_other_01",
+		})
+		assert.Error(tt, err)
+		assert.Equal(tt, "SVM with name 'svm_other_01' not found in pool", err.Error())
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenPoolIsNotOntapModeNoSvmHintIsAdded", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetSvmByNameAndPoolID(ctx, "svm_other_01", int64(10)).
+			Return(nil, customerrors.NewNotFoundErr("svm", nil)).Once()
+
+		_, err := resolveExpertModeSvm(ctx, mockStorage, poolView(commonparams.DEFAULTMode), &commonparams.ExpertModeVolumeParams{
+			SvmName: "svm_other_01",
+		})
+		assert.Error(tt, err)
+		assert.Equal(tt, "SVM with name 'svm_other_01' not found in pool", err.Error())
+		mockStorage.AssertExpectations(tt)
 	})
 }

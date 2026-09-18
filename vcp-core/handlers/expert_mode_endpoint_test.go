@@ -235,7 +235,7 @@ func TestV1ExpertModeVolume(t *testing.T) {
 		}
 
 		// Set up expectations - orchestrator returns bad request error
-		svmNotFoundErr := customerrors.NewBadRequestErr("SVM with UUID 'non-existent-svm-uuid' not found in pool")
+		svmNotFoundErr := customerrors.NewBadRequestErr("SVM with UUID 'non-existent-svm-uuid' not found in pool; the SVM for this pool is 'svm_po_01'")
 		mockOrch.EXPECT().CreateExpertModeVolume(mock.Anything, expectedParams).Return(svmNotFoundErr)
 
 		// Execute
@@ -251,6 +251,7 @@ func TestV1ExpertModeVolume(t *testing.T) {
 		assert.Equal(t, float64(http.StatusBadRequest), badRequest.Code)
 		assert.Contains(t, badRequest.Message, "SVM with UUID")
 		assert.Contains(t, badRequest.Message, "not found")
+		assert.Contains(t, badRequest.Message, "the SVM for this pool is 'svm_po_01'")
 
 		// Verify mock expectations
 		mockOrch.AssertExpectations(t)

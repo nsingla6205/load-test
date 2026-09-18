@@ -530,6 +530,56 @@ func TestVailidateVolumeCreation(t *testing.T) {
 			t.Fatalf("expected reason to mention zero value, got reason=%q", reason)
 		}
 	})
+
+	t.Run("WhenCrossSvmByName_ShouldReturnPoolSvmName", func(t *testing.T) {
+		const coreErr = "SVM with name 'svm_other_01' not found in pool; the SVM for this pool is 'svm_po_01'"
+		var capturedReq *coreapi.ExpertModeVolumeV1
+		submitExpertModeVolumeOperation = func(ctx context.Context, req *coreapi.ExpertModeVolumeV1, jwt string, logger log.Logger) error {
+			capturedReq = req
+			return errors.New(coreErr)
+		}
+		ctx := context.Background()
+		cache.AddToAuthDataCache(cacheKey, &models.AuthData{AccountName: "acc", PoolID: "pool"})
+		ctx = context.WithValue(ctx, models.AuthDataKey, cacheKey)
+		r := httptest.NewRequest(http.MethodPost, "/api/storage/volumes",
+			bytes.NewBufferString(`{"name":"vol1","size":1024,"svm":{"name":"svm_other_01"}}`))
+		r = r.WithContext(ctx)
+		ok, reason := _validateVolumeCreation(r)
+		if ok {
+			t.Fatal("expected cross-SVM create to fail")
+		}
+		if reason != coreErr {
+			t.Fatalf("reason = %q, want %q", reason, coreErr)
+		}
+		if capturedReq == nil || !capturedReq.SvmName.IsSet() || capturedReq.SvmName.Value != "svm_other_01" {
+			t.Fatalf("expected svm.name svm_other_01 forwarded to core, got %+v", capturedReq)
+		}
+	})
+
+	t.Run("WhenCrossSvmByUuid_ShouldReturnPoolSvmName", func(t *testing.T) {
+		const coreErr = "SVM with UUID 'other-svm-uuid' not found in pool; the SVM for this pool is 'svm_po_01'"
+		var capturedReq *coreapi.ExpertModeVolumeV1
+		submitExpertModeVolumeOperation = func(ctx context.Context, req *coreapi.ExpertModeVolumeV1, jwt string, logger log.Logger) error {
+			capturedReq = req
+			return errors.New(coreErr)
+		}
+		ctx := context.Background()
+		cache.AddToAuthDataCache(cacheKey, &models.AuthData{AccountName: "acc", PoolID: "pool"})
+		ctx = context.WithValue(ctx, models.AuthDataKey, cacheKey)
+		r := httptest.NewRequest(http.MethodPost, "/api/storage/volumes",
+			bytes.NewBufferString(`{"name":"vol1","size":1024,"svm":{"uuid":"other-svm-uuid"}}`))
+		r = r.WithContext(ctx)
+		ok, reason := _validateVolumeCreation(r)
+		if ok {
+			t.Fatal("expected cross-SVM create to fail")
+		}
+		if reason != coreErr {
+			t.Fatalf("reason = %q, want %q", reason, coreErr)
+		}
+		if capturedReq == nil || !capturedReq.SvmUuid.IsSet() || capturedReq.SvmUuid.Value != "other-svm-uuid" {
+			t.Fatalf("expected svm.uuid other-svm-uuid forwarded to core, got %+v", capturedReq)
+		}
+	})
 }
 
 func TestValidateVolumeModification(t *testing.T) {
@@ -1089,6 +1139,31 @@ func TestValidatePrivateCLIVolumeCreation(t *testing.T) {
 		ok, reason := _validatePrivateCLIVolumeCreation(r)
 		if ok || !strings.Contains(reason, "invalid value for field \"size\"") {
 			t.Fatalf("expected invalid size error, got ok=%v reason=%q", ok, reason)
+		}
+	})
+
+	t.Run("WhenCrossSvm_ShouldReturnPoolSvmName", func(t *testing.T) {
+		const coreErr = "SVM with name 'svm_other_01' not found in pool; the SVM for this pool is 'svm_po_01'"
+		var capturedReq *coreapi.ExpertModeVolumeV1
+		submitExpertModeVolumeOperation = func(ctx context.Context, req *coreapi.ExpertModeVolumeV1, jwt string, logger log.Logger) error {
+			capturedReq = req
+			return errors.New(coreErr)
+		}
+		ctx := context.Background()
+		cache.AddToAuthDataCache(cacheKey, &models.AuthData{AccountName: "acc", PoolID: "pool"})
+		ctx = context.WithValue(ctx, models.AuthDataKey, cacheKey)
+		r := httptest.NewRequest(http.MethodPost, "/api/private/cli/volume",
+			bytes.NewBufferString(`{"volume":"vol1","vserver":"svm_other_01","size":1024}`))
+		r = r.WithContext(ctx)
+		ok, reason := _validatePrivateCLIVolumeCreation(r)
+		if ok {
+			t.Fatal("expected cross-SVM create to fail")
+		}
+		if reason != coreErr {
+			t.Fatalf("reason = %q, want %q", reason, coreErr)
+		}
+		if capturedReq == nil || !capturedReq.SvmName.IsSet() || capturedReq.SvmName.Value != "svm_other_01" {
+			t.Fatalf("expected vserver svm_other_01 forwarded to core, got %+v", capturedReq)
 		}
 	})
 }
