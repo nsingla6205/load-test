@@ -2013,3 +2013,257 @@ func (s *BackupVaultWorkflowsTestSuite) Test_RotateCmekBackupsWorkflow_UpdateJob
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Error(s.T(), s.env.GetWorkflowError())
 }
+
+func newTestBackupVault() *datamodel.BackupVault {
+	des := "description of backup vault"
+	mrd := int64(30)
+	return &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{ID: int64(1)},
+		Name:        "backup_vault_test",
+		Description: &des,
+		ImmutableAttributes: &datamodel.ImmutableAttributes{
+			IsDailyBackupImmutable:                 true,
+			IsWeeklyBackupImmutable:                true,
+			IsMonthlyBackupImmutable:               true,
+			IsAdhocBackupImmutable:                 true,
+			BackupMinimumEnforcedRetentionDuration: &mrd,
+		},
+	}
+}
+
+// onProcessingSucceedThenFail mocks UpdateJobStatus so the initial PROCESSING
+// transition succeeds and the given terminal transition fails, exercising the
+// "Error when updating the job status" logging paths.
+func (s *BackupVaultWorkflowsTestSuite) onProcessingSucceedThenFail(
+	commonActivity activities.CommonActivities, terminalState datamodel.JobState,
+) {
+	s.env.OnActivity(commonActivity.UpdateJobStatus,
+		mock.Anything,
+		mock.MatchedBy(func(job *datamodel.Job) bool {
+			return job.State == string(datamodel.JobsStatePROCESSING)
+		}),
+	).Return(nil)
+
+	s.env.OnActivity(commonActivity.UpdateJobStatus,
+		mock.Anything,
+		mock.MatchedBy(func(job *datamodel.Job) bool {
+			return job.State == string(terminalState)
+		}),
+	).Return(errors.New("failed to update job status"))
+}
+
+// Test_CreateBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion verifies that a
+// failure to record the DONE transition is logged without failing the workflow.
+func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion() {
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupVaultActivity := activities.BackupVaultActivity{SE: mockStorage}
+
+	backupRegion := "us-west1"
+	bv := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{ID: int64(1), UUID: "src-vault-uuid"},
+		Name:             "backup_vault_test",
+		RegionName:       "us-east4",
+		BackupRegionName: &backupRegion,
+		BackupVaultType:  "CROSS_REGION",
+	}
+	remoteBV := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{UUID: "remote-vault-uuid"},
+		Name:      "backup_vault_test",
+	}
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupVaultActivity.CreateRemoteBackupVault)
+	s.env.RegisterActivity(backupVaultActivity.UpdateBackupVaultFields)
+
+	s.env.OnActivity(backupVaultActivity.CreateRemoteBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(remoteBV, nil)
+	s.env.OnActivity(backupVaultActivity.UpdateBackupVaultFields, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateDONE)
+
+	s.env.ExecuteWorkflow(CreateBackupVaultWorkflow, &common.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_CreateBackupVaultWorkflow_UpdateJobStatusErrorOnFailure verifies that a
+// failure to record the ERROR transition is logged but does not mask the
+// original workflow error.
+func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_UpdateJobStatusErrorOnFailure() {
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupVaultActivity := activities.BackupVaultActivity{SE: mockStorage}
+
+	backupRegion := "us-west1"
+	bv := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{ID: int64(1), UUID: "src-vault-uuid"},
+		Name:             "backup_vault_test",
+		RegionName:       "us-east4",
+		BackupRegionName: &backupRegion,
+		BackupVaultType:  "CROSS_REGION",
+	}
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupVaultActivity.CreateRemoteBackupVault)
+
+	s.env.OnActivity(backupVaultActivity.CreateRemoteBackupVault, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("failed to create remote backup vault in VCP"))
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateERROR)
+
+	s.env.ExecuteWorkflow(CreateBackupVaultWorkflow, &common.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_UpdateBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion verifies that a
+// failure to record the DONE transition is logged without failing the workflow.
+func (s *BackupVaultWorkflowsTestSuite) Test_UpdateBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultUpdateActivity := activities.BackupVaultActivity{SE: mockStorage}
+	bv := newTestBackupVault()
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInVCP)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE, mock.Anything, mock.Anything).Return(nil, nil)
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultInVCP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateDONE)
+
+	s.env.ExecuteWorkflow(UpdateBackupVaultWorkflow, &common.BackupVaultParams{}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_UpdateBackupVaultWorkflow_UpdateJobStatusErrorOnFailure verifies that a
+// failure to record the ERROR transition is logged but does not mask the
+// original workflow error.
+func (s *BackupVaultWorkflowsTestSuite) Test_UpdateBackupVaultWorkflow_UpdateJobStatusErrorOnFailure() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultUpdateActivity := activities.BackupVaultActivity{SE: mockStorage}
+	bv := newTestBackupVault()
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInVCP)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE, mock.Anything, mock.Anything).
+		Return(nil, errors.New("failed to update backup vault in SDE"))
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultStateInCaseOfError, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateERROR)
+
+	s.env.ExecuteWorkflow(UpdateBackupVaultWorkflow, &common.BackupVaultParams{}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_DeleteBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion verifies that a
+// failure to record the DONE transition is logged without failing the workflow.
+func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_UpdateJobStatusErrorOnCompletion() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultDeleteActivity := activities.BackupVaultActivity{SE: mockStorage}
+	bv := newTestBackupVault()
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInSDE)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultBuckets)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultDeleteActivity.GetBackupVaultFromSDE, mock.Anything, mock.Anything).Return(bv, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInSDE, mock.Anything, mock.Anything).Return(nil, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultBuckets, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP, mock.Anything, mock.Anything).Return(nil, nil)
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateDONE)
+
+	s.env.ExecuteWorkflow(DeleteBackupVaultWorkflow, &common.BackupVaultParams{}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_DeleteBackupVaultWorkflow_UpdateJobStatusErrorOnFailure verifies that a
+// failure to record the ERROR transition is logged but does not mask the
+// original workflow error.
+func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_UpdateJobStatusErrorOnFailure() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultDeleteActivity := activities.BackupVaultActivity{SE: mockStorage}
+	bv := newTestBackupVault()
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInSDE)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultBuckets)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP)
+	s.env.RegisterActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP, mock.Anything, mock.Anything).Return(nil, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.GetBackupVaultFromSDE, mock.Anything, mock.Anything).Return(bv, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInSDE, mock.Anything, mock.Anything).
+		Return(nil, errors.New("failed to delete backup vault in SDE"))
+	s.env.OnActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.onProcessingSucceedThenFail(commonActivity, datamodel.JobsStateERROR)
+
+	s.env.ExecuteWorkflow(DeleteBackupVaultWorkflow, &common.BackupVaultParams{}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_DeleteBackupVaultWorkflow_GetBackupVaultFromSDEError verifies the workflow
+// fails when the backup vault cannot be described in SDE.
+func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_GetBackupVaultFromSDEError() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultDeleteActivity := activities.BackupVaultActivity{SE: mockStorage}
+	bv := newTestBackupVault()
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP)
+	s.env.RegisterActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP, mock.Anything, mock.Anything).Return(nil, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.GetBackupVaultFromSDE, mock.Anything, mock.Anything).
+		Return(nil, errors.New("failed to describe backup vault in SDE"))
+	s.env.OnActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(DeleteBackupVaultWorkflow, &common.BackupVaultParams{}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}

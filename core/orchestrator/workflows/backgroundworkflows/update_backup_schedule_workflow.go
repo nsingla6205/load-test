@@ -8,8 +8,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	databaseUtils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -48,13 +46,6 @@ func (wf *updateBackupScheduleWorkflow) Setup(ctx workflow.Context, input interf
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{
-		"workflowID": wf.ID,
-		"requestID":  utils.RandomUUID(),
-	})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -65,12 +56,12 @@ func (wf *updateBackupScheduleWorkflow) Setup(ctx workflow.Context, input interf
 
 // Run executes the main backup schedule update logic: paginates through backup policies and updates their task queues.
 func (wf *updateBackupScheduleWorkflow) Run(ctx workflow.Context, _ ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	logger := wf.Logger
-	logger.Infof("Starting UpdateBackupScheduleWorkflow")
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting UpdateBackupScheduleWorkflow")
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
-		logger.Errorf("Failed to populate retry policy params: %v", err)
+		logger.Error("Failed to populate retry policy params", "error", err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
 	}
 
@@ -101,30 +92,30 @@ func (wf *updateBackupScheduleWorkflow) Run(ctx workflow.Context, _ ...interface
 		var backupPolicies []*datamodel.BackupPolicy
 		err = workflow.ExecuteActivity(ctx, updateBackupScheduleActivity.GetBackupPolicies, pagination).Get(ctx, &backupPolicies)
 		if err != nil {
-			logger.Errorf("Failed to get backup policies at offset %d: %v", offset, err)
+			logger.Error("Failed to get backup policies", "offset", offset, "error", err)
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to get backup policies: %w", err))
 		}
 
 		// If no more policies returned, break the loop
 		if len(backupPolicies) == 0 {
-			logger.Infof("No more backup policies to process. Completed at offset %d", offset)
+			logger.Info("No more backup policies to process", "completedOffset", offset)
 			break
 		}
 
-		logger.Infof("Retrieved %d backup policies at offset %d", len(backupPolicies), offset)
+		logger.Info("Retrieved backup policies", "count", len(backupPolicies), "offset", offset)
 
 		// Update task queue for each backup policy schedule
 		for _, backupPolicy := range backupPolicies {
 			err = workflow.ExecuteActivity(ctx, updateBackupScheduleActivity.UpdateBackupScheduleTaskQueue, backupPolicy.UUID).Get(ctx, nil)
 			if err != nil {
-				logger.Errorf("Failed to update task queue for backup policy %s: %v", backupPolicy.UUID, err)
+				logger.Error("Failed to update task queue for backup policy", "backupPolicyUUID", backupPolicy.UUID, "error", err)
 				// Continue processing other policies even if one fails
 			}
 		}
 
 		// If we got fewer policies than the batch size, we've reached the end
 		if len(backupPolicies) < backgroundactivities.DefaultBackupPolicyBatchSize {
-			logger.Infof("Reached end of backup policies. Total processed: %d", offset+len(backupPolicies))
+			logger.Info("Reached end of backup policies", "totalProcessed", offset+len(backupPolicies))
 			break
 		}
 
@@ -132,6 +123,6 @@ func (wf *updateBackupScheduleWorkflow) Run(ctx workflow.Context, _ ...interface
 		offset += backgroundactivities.DefaultBackupPolicyBatchSize
 	}
 
-	logger.Infof("UpdateBackupScheduleWorkflow completed successfully")
+	logger.Info("UpdateBackupScheduleWorkflow completed successfully")
 	return nil, nil
 }

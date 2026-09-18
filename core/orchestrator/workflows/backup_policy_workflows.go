@@ -8,7 +8,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -25,6 +24,7 @@ var _ WorkflowInterface = &updateBackupPolicyWorkflow{}
 var _ WorkflowInterface = &deleteBackupPolicyWorkflow{}
 
 func UpdateBackupPolicyWorkflow(ctx workflow.Context, params *common.UpdateBackupPolicyParams, dbBackupPolicy *datamodel.BackupPolicy) error {
+	logger := workflow.GetLogger(ctx)
 	updateBackupPolicyWF := new(updateBackupPolicyWorkflow)
 	err := updateBackupPolicyWF.Setup(ctx, params)
 	if err != nil {
@@ -44,14 +44,14 @@ func UpdateBackupPolicyWorkflow(ctx workflow.Context, params *common.UpdateBacku
 		updateBackupPolicyWF.Status = WorkflowStatusFailed
 		err2 := updateBackupPolicyWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			updateBackupPolicyWF.Logger.Errorf("Failed to update job status for workflow %s: %v", updateBackupPolicyWF.ID, err2)
+			logger.Error("Failed to update job status for workflow", "workflowID", updateBackupPolicyWF.ID, "error", err2)
 		}
 		return customErr
 	}
 	updateBackupPolicyWF.Status = WorkflowStatusCompleted
 	err2 := updateBackupPolicyWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		updateBackupPolicyWF.Logger.Errorf("Failed to update job status for workflow %s: %v", updateBackupPolicyWF.ID, err2)
+		logger.Error("Failed to update job status for workflow", "workflowID", updateBackupPolicyWF.ID, "error", err2)
 		return ConvertToVSAError(err2)
 	}
 	return nil
@@ -63,9 +63,6 @@ func (wf *updateBackupPolicyWorkflow) Setup(ctx workflow.Context, input interfac
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = params.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	// Set the query handler in a non-blocking way
 	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
@@ -81,6 +78,7 @@ func (wf *updateBackupPolicyWorkflow) Setup(ctx workflow.Context, input interfac
 }
 
 func (wf *updateBackupPolicyWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	params := args[0].(*common.UpdateBackupPolicyParams)
 	dbBackupPolicy := args[1].(*datamodel.BackupPolicy)
 
@@ -129,7 +127,7 @@ func (wf *updateBackupPolicyWorkflow) Run(ctx workflow.Context, args ...interfac
 		var sdeBackupPolicy *cvpmodels.BackupPolicyV1beta
 		err = workflow.ExecuteActivity(ctx, backupPolicyActivity.UpdateBackupPolicyInSDE, params).Get(ctx, &sdeBackupPolicy)
 		if err != nil {
-			wf.Logger.Errorf("Failed to update backup policy in SDE: backupPolicy: %v, err: %v", dbBackupPolicy, err.Error())
+			logger.Error("Failed to update backup policy in SDE", "backupPolicy", dbBackupPolicy, "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		rollbackManager.AddActivity(backupPolicyActivity.RevertBackupPolicyUpdateInSDE, params, dbBackupPolicy)
@@ -160,7 +158,7 @@ func (wf *updateBackupPolicyWorkflow) Run(ctx workflow.Context, args ...interfac
 
 func DeleteBackupPolicyWorkflow(ctx workflow.Context, params *common.DeleteBackupPolicyParams, dbBackupPolicy *datamodel.BackupPolicy) error {
 	deleteBackupPolicyWF := new(deleteBackupPolicyWorkflow)
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 
 	err := deleteBackupPolicyWF.Setup(ctx, params)
 	if err != nil {
@@ -177,11 +175,11 @@ func DeleteBackupPolicyWorkflow(ctx workflow.Context, params *common.DeleteBacku
 
 	_, customErr := deleteBackupPolicyWF.Run(ctx, params, dbBackupPolicy)
 	if customErr != nil {
-		logger.Errorf("error in delete backup policy workflow: %v", customErr)
+		logger.Error("Error in delete backup policy workflow", "error", customErr)
 		deleteBackupPolicyWF.Status = WorkflowStatusFailed
 		err2 := deleteBackupPolicyWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			logger.Errorf("error updating job status in delete backup policy workflow: %v", err2)
+			logger.Error("Error updating job status in delete backup policy workflow", "error", err2)
 		}
 		return customErr
 	}
@@ -189,7 +187,7 @@ func DeleteBackupPolicyWorkflow(ctx workflow.Context, params *common.DeleteBacku
 	deleteBackupPolicyWF.Status = WorkflowStatusCompleted
 	err2 := deleteBackupPolicyWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		logger.Errorf("error updating job status in delete backup policy workflow: %v", err2)
+		logger.Error("Error updating job status in delete backup policy workflow", "error", err2)
 		return ConvertToVSAError(err2)
 	}
 	return nil
@@ -201,9 +199,6 @@ func (wf *deleteBackupPolicyWorkflow) Setup(ctx workflow.Context, input interfac
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = params.OwnerID
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	// Set the query handler in a non-blocking way
 	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
@@ -219,6 +214,7 @@ func (wf *deleteBackupPolicyWorkflow) Setup(ctx workflow.Context, input interfac
 }
 
 func (wf *deleteBackupPolicyWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	params := args[0].(*common.DeleteBackupPolicyParams)
 	dbBackupPolicy := args[1].(*datamodel.BackupPolicy)
 
@@ -257,21 +253,21 @@ func (wf *deleteBackupPolicyWorkflow) Run(ctx workflow.Context, args ...interfac
 	if utils.IsCVPHostConfigured() {
 		err = workflow.ExecuteActivity(ctx, backupPolicyActivity.DeleteBackupPolicyInSDE, params).Get(ctx, nil)
 		if err != nil {
-			wf.Logger.Errorf("Failed to delete backup policy in SDE: backupPolicy: %v, err: %v", dbBackupPolicy, err.Error())
+			logger.Error("Failed to delete backup policy in SDE", "backupPolicy", dbBackupPolicy, "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 	}
 
 	err = workflow.ExecuteActivity(ctx, backupPolicyActivity.DeleteBackupPolicySchedule, params.BackupPolicyID).Get(ctx, nil)
 	if err != nil {
-		wf.Logger.Errorf("Failed to delete backup policy schedule: backupPolicy: %v, err: %v", dbBackupPolicy, err.Error())
+		logger.Error("Failed to delete backup policy schedule", "backupPolicy", dbBackupPolicy, "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 
 	var deletedBackupPolicy *datamodel.BackupPolicy
 	err = workflow.ExecuteActivity(ctx, backupPolicyActivity.DeleteBackupPolicyInVCP, params.BackupPolicyID).Get(ctx, &deletedBackupPolicy)
 	if err != nil {
-		wf.Logger.Errorf("Failed to delete backup policy in VCP: backupPolicy: %v, err: %v", dbBackupPolicy, err.Error())
+		logger.Error("Failed to delete backup policy in VCP", "backupPolicy", dbBackupPolicy, "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 	return deletedBackupPolicy, nil

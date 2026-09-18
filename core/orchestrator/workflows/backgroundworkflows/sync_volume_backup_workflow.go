@@ -7,7 +7,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -46,11 +45,11 @@ func SyncLatestBackupLogicalSizeWorkflow(ctx workflow.Context) error {
 	_, errRun := syncLatestBackupLogicalSizeWF.Run(ctx, nil)
 	if errRun != nil {
 		syncLatestBackupLogicalSizeWF.Status = workflows.WorkflowStatusFailed
-		syncLatestBackupLogicalSizeWF.Logger.Error("Failed to sync latest backup logical size to volume and backup", "Error", errRun)
+		logger.Error("Failed to sync latest backup logical size to volume and backup", "error", errRun)
 		return errRun
 	}
 	syncLatestBackupLogicalSizeWF.Status = workflows.WorkflowStatusCompleted
-	syncLatestBackupLogicalSizeWF.Logger.Info("Sync latest backup logical size to volume and backup completed successfully")
+	logger.Info("Sync latest backup logical size to volume and backup completed successfully")
 	return nil
 }
 
@@ -59,10 +58,6 @@ func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Setup(ctx workflow.Con
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = "system"
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, workflows.StatusQueryName, func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -73,7 +68,7 @@ func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Setup(ctx workflow.Con
 }
 
 func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	logger := wf.Logger
+	logger := workflow.GetLogger(ctx)
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, vsaerrors.ExtractCustomError(err)
@@ -91,29 +86,31 @@ func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Run(ctx workflow.Conte
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 	syncActivity := &backgroundactivities.VolumeBackupSyncActivity{}
-	logger.Infof("Starting synchronization of latest backup logical size to volume and backup")
+	logger.Info("Starting synchronization of latest backup logical size to volume and backup")
 
 	// Get all volume-backup mappings
 	var volumeBackupMap map[int64]*datamodel.VolumeLatestBackup
 	err = workflow.ExecuteActivity(ctx, syncActivity.GetVolumeLatestBackupMapActivity).Get(ctx, &volumeBackupMap)
 	if err != nil {
-		logger.Error("GetVolumeLatestBackupMapActivity activity execution failed.", "Error", err)
+		logger.Error("GetVolumeLatestBackupMapActivity activity execution failed", "error", err)
 		return nil, vsaerrors.ExtractCustomError(err)
 	}
 
-	logger.Infof("Found %d volumes to sync", len(volumeBackupMap))
+	logger.Info("Found volumes to sync", "volumeCount", len(volumeBackupMap))
 
 	for volumeID, volumeBackup := range volumeBackupMap {
 		// Get object store endpoint info (single latest per volume)
 		var objStoreEndpointInfo *vsa.SmObjectStoreEndpointt
 		err = workflow.ExecuteActivity(ctx, syncActivity.GetObjectStoreEndpointInfoActivity, volumeBackup).Get(ctx, &objStoreEndpointInfo)
 		if err != nil {
-			logger.Errorf("Failed to get object store endpoint info for volume %s (ID: %d): %v", volumeBackup.Volume.Name, volumeID, err)
+			logger.Error("Failed to get object store endpoint info for volume",
+				"volumeName", volumeBackup.Volume.Name, "volumeID", volumeID, "error", err)
 			continue
 		}
 
 		if objStoreEndpointInfo == nil || objStoreEndpointInfo.LogicalSize == nil {
-			logger.Errorf("Object store endpoint info is nil or has nil logical size for volume %s (ID: %d)", volumeBackup.Volume.Name, volumeID)
+			logger.Error("Object store endpoint info is nil or has nil logical size for volume",
+				"volumeName", volumeBackup.Volume.Name, "volumeID", volumeID)
 			continue
 		}
 
@@ -122,20 +119,21 @@ func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Run(ctx workflow.Conte
 		// Update backup and volume with logical size
 		err = workflow.ExecuteActivity(ctx, syncActivity.UpdateBackupAndVolumeActivity, volumeBackup, logicalSize).Get(ctx, nil)
 		if err != nil {
-			logger.Errorf("Failed to update backup and volume for volume %s (ID: %d): %v", volumeBackup.Volume.Name, volumeID, err)
+			logger.Error("Failed to update backup and volume",
+				"volumeName", volumeBackup.Volume.Name, "volumeID", volumeID, "error", err)
 			continue
 		}
 
 		if getGcbdrBackupChainBackpropEnabled() {
 			err = workflow.ExecuteActivity(ctx, syncActivity.BackPropagateGcbdrBackupChainSizesActivity, volumeBackup, logicalSize).Get(ctx, nil)
 			if err != nil {
-				logger.Errorf("Failed to back-propagate GCBDR backup chain sizes for volume ID %d: %v", volumeID, err)
+				logger.Error("Failed to back-propagate GCBDR backup chain sizes", "volumeID", volumeID, "error", err)
 				continue
 			}
 		}
 	}
 
-	logger.Infof("Latest backup logical size sync to volume and backup completed")
+	logger.Info("Latest backup logical size sync to volume and backup completed")
 
 	return nil, nil
 }

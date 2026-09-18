@@ -431,7 +431,6 @@ func TestSyncLatestBackupLogicalSizeToVolumeAndBackupWF_Setup(t *testing.T) {
 				assert.NotEmpty(t, wf.ID)
 				assert.Equal(t, "system", wf.CustomerID)
 				assert.Equal(t, workflows.WorkflowStatusCreated, wf.Status)
-				assert.NotNil(t, wf.Logger)
 			}
 		})
 	}

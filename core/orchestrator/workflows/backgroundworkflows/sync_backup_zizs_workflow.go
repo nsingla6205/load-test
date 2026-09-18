@@ -6,7 +6,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -38,10 +37,6 @@ func (wf *syncBackupZizsWorkflow) Setup(ctx workflow.Context, input interface{})
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -51,7 +46,8 @@ func (wf *syncBackupZizsWorkflow) Setup(ctx workflow.Context, input interface{})
 }
 
 func (wf *syncBackupZizsWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	wf.Logger.Infof("Starting Sync ZiZs Workflow")
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting Sync ZiZs Workflow")
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
@@ -80,44 +76,46 @@ func (wf *syncBackupZizsWorkflow) Run(ctx workflow.Context, args ...interface{})
 		}
 	}()
 
-	wf.Logger.Infof("Getting all backup vaults from database")
+	logger.Info("Getting all backup vaults from database")
 	var backupVaults []*datamodel.BackupVault
 	workflowErr = workflow.ExecuteActivity(ctx, syncBackupZiZsActivity.GetAllBackupVaults).Get(ctx, &backupVaults)
 	if workflowErr != nil {
-		wf.Logger.Errorf("Failed to get backup vaults: %v", workflowErr)
+		logger.Error("Failed to get backup vaults", "error", workflowErr)
 		return nil, workflows.ConvertToVSAError(workflowErr)
 	}
-	wf.Logger.Infof("Successfully retrieved %d backup vaults", len(backupVaults))
+	logger.Info("Successfully retrieved backup vaults", "backupVaultCount", len(backupVaults))
 
 	for i, backupVault := range backupVaults {
-		wf.Logger.Infof("Processing backup vault %d - %s", i+1, backupVault.UUID)
+		logger.Info("Processing backup vault", "index", i+1, "backupVaultUUID", backupVault.UUID)
 
 		if len(backupVault.BucketDetails) == 0 {
-			wf.Logger.Warnf("No bucket details found for backup vault %s, skipping", backupVault.UUID)
+			logger.Warn("No bucket details found for backup vault, skipping", "backupVaultUUID", backupVault.UUID)
 			continue
 		}
 
 		// Process each bucket detail
 		for _, bucketDetail := range backupVault.BucketDetails {
 			if bucketDetail == nil {
-				wf.Logger.Warnf("Bucket details entry is nil for backup vault %s, skipping", backupVault.UUID)
+				logger.Warn("Bucket details entry is nil for backup vault, skipping", "backupVaultUUID", backupVault.UUID)
 				continue
 			}
 			if bucketDetail.BucketName == "" {
-				wf.Logger.Warnf("Bucket name is empty in bucket details for tenant project: %s in backup vault %s, skipping", bucketDetail.TenantProjectNumber, backupVault.UUID)
+				logger.Warn("Bucket name is empty in bucket details, skipping",
+					"tenantProjectNumber", bucketDetail.TenantProjectNumber, "backupVaultUUID", backupVault.UUID)
 				continue
 			}
 
-			wf.Logger.Infof("Processing bucket %s for backup vault %s", bucketDetail.BucketName, backupVault.UUID)
+			logger.Info("Processing bucket", "bucketName", bucketDetail.BucketName, "backupVaultUUID", backupVault.UUID)
 
 			var updatedBucketDetails *datamodel.BucketDetails
 			workflowErr = workflow.ExecuteActivity(ctx, syncBackupZiZsActivity.SyncBucketDetails, bucketDetail).Get(ctx, &updatedBucketDetails)
 			if workflowErr != nil {
-				wf.Logger.Errorf("Failed to get bucket details for bucket %s: %v", bucketDetail.BucketName, workflowErr)
+				logger.Error("Failed to get bucket details", "bucketName", bucketDetail.BucketName, "error", workflowErr)
 				// Continue with next bucket instead of failing entire workflow
 				continue
 			}
-			wf.Logger.Infof("Successfully retrieved bucket details for %s - PZI: %t, PZS: %t", bucketDetail.BucketName, updatedBucketDetails.SatisfiesPzi, updatedBucketDetails.SatisfiesPzs)
+			logger.Info("Successfully retrieved bucket details", "bucketName", bucketDetail.BucketName,
+				"satisfiesPZI", updatedBucketDetails.SatisfiesPzi, "satisfiesPZS", updatedBucketDetails.SatisfiesPzs)
 
 			// Update the bucket detail in the backup vault with the new information
 			bucketDetail.SatisfiesPzi = updatedBucketDetails.SatisfiesPzi
@@ -125,16 +123,16 @@ func (wf *syncBackupZizsWorkflow) Run(ctx workflow.Context, args ...interface{})
 		}
 
 		// Update backup vault with synced ZiZs information
-		wf.Logger.Infof("Updating backup vault %s with synced ZiZs information", backupVault.UUID)
+		logger.Info("Updating backup vault with synced ZiZs information", "backupVaultUUID", backupVault.UUID)
 		workflowErr = workflow.ExecuteActivity(ctx, syncBackupZiZsActivity.UpdateBackupVault, backupVault).Get(ctx, nil)
 		if workflowErr != nil {
-			wf.Logger.Errorf("Failed to update backup vault %s: %v", backupVault.UUID, workflowErr)
+			logger.Error("Failed to update backup vault", "backupVaultUUID", backupVault.UUID, "error", workflowErr)
 			// Continue with next backup vault instead of failing entire workflow
 			continue
 		}
-		wf.Logger.Infof("Successfully updated backup vault %s", backupVault.UUID)
+		logger.Info("Successfully updated backup vault", "backupVaultUUID", backupVault.UUID)
 	}
 
-	wf.Logger.Infof("Sync Backup ZiZs workflow completed successfully")
+	logger.Info("Sync Backup ZiZs workflow completed successfully")
 	return nil, nil
 }

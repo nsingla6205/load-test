@@ -178,6 +178,36 @@ func (s *SyncBackupZiZsWorkflowTestSuite) TestSyncBackupZiZsWorkflow_BackupVault
 	assert.NoError(s.T(), s.env.GetWorkflowError())
 }
 
+// TestSyncBackupZiZsWorkflow_SkipsNilAndUnnamedBucketDetails verifies that nil
+// bucket detail entries and entries without a bucket name are skipped without
+// calling SyncBucketDetails, while the vault itself is still updated.
+func (s *SyncBackupZiZsWorkflowTestSuite) TestSyncBackupZiZsWorkflow_SkipsNilAndUnnamedBucketDetails() {
+	s.registerSyncBackupZiZsActivities()
+
+	backupVaults := []*datamodel.BackupVault{
+		{
+			BaseModel: datamodel.BaseModel{UUID: "vault-1"},
+			Name:      "test-vault-1",
+			BucketDetails: datamodel.BucketDetailsArray{
+				nil,
+				{
+					BucketName:          "",
+					TenantProjectNumber: "123456789",
+				},
+			},
+		},
+	}
+
+	activity := s.getActivity()
+	s.env.OnActivity(activity.GetAllBackupVaults, mock.Anything).Return(backupVaults, nil)
+	s.env.OnActivity(activity.UpdateBackupVault, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(SyncBackupZiZsWorkflow)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NoError(s.T(), s.env.GetWorkflowError())
+}
+
 func (s *SyncBackupZiZsWorkflowTestSuite) TestSyncBackupZiZsWorkflow_SyncBucketDetailsFails() {
 	s.registerSyncBackupZiZsActivities()
 

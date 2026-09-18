@@ -42,10 +42,10 @@ func FetchCCFEBackupVaultsWorkflow(ctx workflow.Context, projectID string, locat
 		"projectID":                             projectID,
 		"locationCount":                         len(locations),
 	})
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 
 	if len(locations) == 0 {
-		logger.Infof("FetchCCFEBackupVaultsWorkflow: no locations supplied; returning empty map projectID=%s", projectID)
+		logger.Info("FetchCCFEBackupVaultsWorkflow: no locations supplied; returning empty map", "projectID", projectID)
 		return map[string][]resourcescope.CachedBackupVault{}, nil
 	}
 
@@ -78,15 +78,15 @@ func FetchCCFEBackupVaultsWorkflow(ctx workflow.Context, projectID string, locat
 	for i, f := range futures {
 		var vaults []resourcescope.CachedBackupVault
 		if err := f.Get(ctx, &vaults); err != nil {
-			logger.Warnf("FetchCCFEBackupVaultsWorkflow: activity failed projectID=%s location=%s after retries: %v",
-				projectID, locations[i], err)
+			logger.Warn("FetchCCFEBackupVaultsWorkflow: activity failed after retries",
+				"projectID", projectID, "location", locations[i], "error", err)
 			failedCount++
 			continue
 		}
 		result[locations[i]] = vaults
 	}
 
-	logger.Infof("FetchCCFEBackupVaultsWorkflow: completed projectID=%s locations=%d successful=%d failed=%d",
-		projectID, len(locations), len(result), failedCount)
+	logger.Info("FetchCCFEBackupVaultsWorkflow: completed",
+		"projectID", projectID, "locations", len(locations), "successful", len(result), "failed", failedCount)
 	return result, nil
 }

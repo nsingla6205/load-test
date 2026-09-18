@@ -58,6 +58,7 @@ func CreateScheduledBackupInitWorkflow(ctx workflow.Context, backupPolicy *datam
 	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{
 		string(middleware.RequestCorrelationID): correlationID,
 	})
+	logger := workflow.GetLogger(ctx)
 
 	createScheduledBackupInitWF := new(createScheduledBackupInitWorkflow)
 	createdJob, err := createScheduledBackupInitWF.CreateJob(
@@ -77,14 +78,14 @@ func CreateScheduledBackupInitWorkflow(ctx workflow.Context, backupPolicy *datam
 		createScheduledBackupInitWF.Status = workflows.WorkflowStatusFailed
 		err2 := createScheduledBackupInitWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			createScheduledBackupInitWF.Logger.Errorf("Failed to update job status: %v", err2)
+			logger.Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	createScheduledBackupInitWF.Status = workflows.WorkflowStatusCompleted
 	err2 := createScheduledBackupInitWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		createScheduledBackupInitWF.Logger.Errorf("Failed to update job status: %v", err2)
+		logger.Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -95,10 +96,6 @@ func (wf *createScheduledBackupInitWorkflow) Setup(ctx workflow.Context, input i
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -109,8 +106,9 @@ func (wf *createScheduledBackupInitWorkflow) Setup(ctx workflow.Context, input i
 
 // Run executes the scheduled backup workflow for the given backup policy.
 func (wf *createScheduledBackupInitWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	backupPolicy := args[0].(*datamodel.BackupPolicy)
-	wf.Logger.Infof("scheduled backup workflow triggered for the backup policy: %s", backupPolicy.UUID)
+	logger.Info("Scheduled backup workflow triggered for the backup policy", "backupPolicyUUID", backupPolicy.UUID)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
@@ -162,7 +160,7 @@ func (wf *createScheduledBackupInitWorkflow) Run(ctx workflow.Context, args ...i
 			// Check if the backup policy was deleted (NotFound error)
 			customErr := workflows.ConvertToVSAError(err)
 			if customErr != nil && customErr.TrackingID == vsaerrors.ErrResourceNotFound {
-				wf.Logger.Infof("Backup policy %s was deleted, exiting workflow", backupPolicy.UUID)
+				logger.Info("Backup policy was deleted, exiting workflow", "backupPolicyUUID", backupPolicy.UUID)
 				return nil, nil
 			}
 			return nil, customErr
@@ -172,16 +170,17 @@ func (wf *createScheduledBackupInitWorkflow) Run(ctx workflow.Context, args ...i
 		switch backupPolicy.LifeCycleState {
 		case datamodel.LifeCycleStateREADY:
 			// Backup policy is ready, proceed with scheduled backup
-			wf.Logger.Infof("Backup policy %s is in READY state, proceeding with scheduled backup", backupPolicy.UUID)
+			logger.Info("Backup policy is in READY state, proceeding with scheduled backup", "backupPolicyUUID", backupPolicy.UUID)
 
 		case datamodel.LifeCycleStateDeleted:
 			// Backup policy was deleted, exit gracefully
-			wf.Logger.Infof("Backup policy %s is DELETED, exiting workflow", backupPolicy.UUID)
+			logger.Info("Backup policy is DELETED, exiting workflow", "backupPolicyUUID", backupPolicy.UUID)
 			return nil, nil
 
 		case datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateDeleting:
 			// Backup policy is in transition state, continue polling
-			wf.Logger.Infof("Backup policy %s is in %s state, waiting for it to reach READY state", backupPolicy.UUID, backupPolicy.LifeCycleState)
+			logger.Info("Backup policy is waiting to reach READY state",
+				"backupPolicyUUID", backupPolicy.UUID, "lifeCycleState", backupPolicy.LifeCycleState)
 			err = workflow.Sleep(ctx, pollBackupPolicyInterval)
 			if err != nil {
 				return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to sleep while waiting for backup policy %s: %w", backupPolicy.UUID, err))
@@ -211,17 +210,19 @@ func (wf *createScheduledBackupInitWorkflow) Run(ctx workflow.Context, args ...i
 			break
 		}
 
-		wf.Logger.Infof("Fetched %d volumes for scheduled backup (backup policy %s, offset %d, batch size %d)",
-			len(volumes), backupPolicy.UUID, offset, scheduledBackupVolumeBatchSize)
+		logger.Info("Fetched volumes for scheduled backup",
+			"volumeCount", len(volumes), "backupPolicyUUID", backupPolicy.UUID,
+			"offset", offset, "batchSize", scheduledBackupVolumeBatchSize)
 
 		for _, volume := range volumes {
 			if volume.VolumeAttributes != nil && volume.VolumeAttributes.CloneParentInfo != nil {
 				if volume.VolumeAttributes.CloneParentInfo.State == datamodel.CloneStateSplitting {
-					wf.Logger.Info("Scheduled Backup creation is skipped when the volume is splitting", "volume_id", volume.UUID)
+					logger.Info("Scheduled Backup creation is skipped when the volume is splitting", "volume_id", volume.UUID)
 					continue
 				}
 			}
-			wf.Logger.Debugf("Creating scheduled backup for volume: %s with backup policy: %s (offset: %d, limit: %d)", volume.UUID, backupPolicy.UUID, offset, scheduledBackupVolumeBatchSize)
+			logger.Debug("Creating scheduled backup for volume", "volumeUUID", volume.UUID,
+				"backupPolicyUUID", backupPolicy.UUID, "offset", offset, "limit", scheduledBackupVolumeBatchSize)
 			_ = workflow.ExecuteChildWorkflow(
 				ctx,
 				CreateScheduledBackupWorkflow,
@@ -241,10 +242,10 @@ func (wf *createScheduledBackupInitWorkflow) Run(ctx workflow.Context, args ...i
 	}
 
 	if totalVolumesProcessed == 0 {
-		wf.Logger.Infof("No volumes found with scheduled backups enabled for backup policy: %s", backupPolicy.UUID)
+		logger.Info("No volumes found with scheduled backups enabled for backup policy", "backupPolicyUUID", backupPolicy.UUID)
 	} else {
-		wf.Logger.Infof("Completed scheduled backup initialization for %d volumes with backup policy: %s",
-			totalVolumesProcessed, backupPolicy.UUID)
+		logger.Info("Completed scheduled backup initialization",
+			"totalVolumesProcessed", totalVolumesProcessed, "backupPolicyUUID", backupPolicy.UUID)
 	}
 
 	return nil, nil
@@ -256,6 +257,7 @@ type createScheduledBackupWorkflow struct {
 
 // CreateScheduledBackupWorkflow creates a scheduled backup for a given volume and backup policy.
 func CreateScheduledBackupWorkflow(ctx workflow.Context, volume *datamodel.Volume, backupPolicy *datamodel.BackupPolicy) error {
+	logger := workflow.GetLogger(ctx)
 	createScheduledBackupWF := new(createScheduledBackupWorkflow)
 	createdJob, err := createScheduledBackupWF.CreateJob(
 		ctx, backupPolicy.AccountID, volume.Name, string(datamodel.JobTypeCreateScheduledBackup))
@@ -277,14 +279,14 @@ func CreateScheduledBackupWorkflow(ctx workflow.Context, volume *datamodel.Volum
 		createScheduledBackupWF.Status = workflows.WorkflowStatusFailed
 		err2 := createScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			createScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+			logger.Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	createScheduledBackupWF.Status = workflows.WorkflowStatusCompleted
 	err2 := createScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		createScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+		logger.Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -297,6 +299,7 @@ func CreateScheduledBackupWorkflowWithContext(ctx workflow.Context, scheduledBac
 			string(middleware.RequestCorrelationID): scheduledBackupContext.CorrelationID,
 		})
 	}
+	logger := workflow.GetLogger(ctx)
 
 	createScheduledBackupWF := new(createScheduledBackupWorkflow)
 	createdJob := scheduledBackupContext.ScheduledBackupParams.Job
@@ -314,7 +317,7 @@ func CreateScheduledBackupWorkflowWithContext(ctx workflow.Context, scheduledBac
 		createScheduledBackupWF.Status = workflows.WorkflowStatusFailed
 		err2 := createScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			createScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+			logger.Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
@@ -322,7 +325,7 @@ func CreateScheduledBackupWorkflowWithContext(ctx workflow.Context, scheduledBac
 	createScheduledBackupWF.Status = workflows.WorkflowStatusCompleted
 	err2 := createScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		createScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+		logger.Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -333,10 +336,6 @@ func (wf *createScheduledBackupWorkflow) Setup(ctx workflow.Context, input inter
 	job := input.(*datamodel.Job)
 	wf.ID = job.UUID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -347,6 +346,7 @@ func (wf *createScheduledBackupWorkflow) Setup(ctx workflow.Context, input inter
 
 // Run executes the scheduled backup workflow for the given volume and backup policy.
 func (wf *createScheduledBackupWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.Volume)
 	backupPolicy := args[1].(*datamodel.BackupPolicy)
 	job := args[2].(*datamodel.Job)
@@ -359,12 +359,14 @@ func (wf *createScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 			Job:          job,
 		},
 	}
-	wf.Logger.Infof("create scheduled backup workflow triggered for the backup policy: %s, volume: %s", backupPolicy.UUID, volume.UUID)
+	logger.Info("Create scheduled backup workflow triggered",
+		"backupPolicyUUID", backupPolicy.UUID, "volumeUUID", volume.UUID)
 	return wf.RunScheduledBackupWithContext(ctx, scheduledBackupActivitiesContext)
 }
 
 // RunScheduledBackupWithContext executes the scheduled backup workflow with context for continuation
 func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workflow.Context, scheduledBackupContext *activities.BackupActivitiesContext) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	volume := scheduledBackupContext.BackupWorkflowInit.Volume
 	backupPolicy := scheduledBackupContext.ScheduledBackupParams.BackupPolicy
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -403,8 +405,9 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 	}()
 	if isContinuation {
-		wf.Logger.Infof("Resuming backup workflow from continuation: workflowID=%s continuedFromRunID=%v snapshotName=%s transferStatus=%v",
-			wf.ID, info.OriginalRunID, scheduledBackupContext.SnapshotName, scheduledBackupContext.TransferStatus)
+		logger.Info("Resuming backup workflow from continuation",
+			"workflowID", wf.ID, "continuedFromRunID", info.OriginalRunID,
+			"snapshotName", scheduledBackupContext.SnapshotName, "transferStatus", scheduledBackupContext.TransferStatus)
 		registerScheduledPreTransferRollback(preTransferRollbackManager, scheduledBackupContext, backupActivities, scheduledBackupActivities)
 	} else {
 		if cid, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx); err == nil {
@@ -429,8 +432,8 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 
 		timestamp := workflow.Now(ctx).Format(scheduledBackupTimestampFormat)
 		if backupPolicy.DailyBackupsToKeep >= 2 {
-			wf.Logger.Infof("Creating daily scheduled backup: volumeUUID=%s backupPolicyUUID=%s",
-				volume.UUID, backupPolicy.UUID)
+			logger.Info("Creating daily scheduled backup",
+				"volumeUUID", volume.UUID, "backupPolicyUUID", backupPolicy.UUID)
 			var backup *datamodel.Backup
 			preTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.CreateScheduledBackup, volume, backupVault, timestamp, common.ScheduleTagDaily, scheduledBackupContext.IsExpertMode).Get(ctx, &backup)
 			if preTransferErr != nil {
@@ -442,8 +445,8 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 
 		today := workflow.Now(ctx).Weekday()
 		if backupPolicy.WeeklyBackupsToKeep > 0 && today == time.Weekday(scheduledWeeklyBackupDay) {
-			wf.Logger.Infof("Creating weekly scheduled backup: volumeUUID=%s backupPolicyUUID=%s",
-				volume.UUID, backupPolicy.UUID)
+			logger.Info("Creating weekly scheduled backup",
+				"volumeUUID", volume.UUID, "backupPolicyUUID", backupPolicy.UUID)
 			var backup *datamodel.Backup
 			preTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.CreateScheduledBackup, volume, backupVault, timestamp, common.ScheduleTagWeekly, scheduledBackupContext.IsExpertMode).Get(ctx, &backup)
 			if preTransferErr != nil {
@@ -455,8 +458,8 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 
 		_, _, day := workflow.Now(ctx).Date()
 		if backupPolicy.MonthlyBackupsToKeep > 0 && day == scheduledMonthlyBackupDay {
-			wf.Logger.Infof("Creating monthly scheduled backup: volumeUUID=%s backupPolicyUUID=%s",
-				volume.UUID, backupPolicy.UUID)
+			logger.Info("Creating monthly scheduled backup",
+				"volumeUUID", volume.UUID, "backupPolicyUUID", backupPolicy.UUID)
 			var backup *datamodel.Backup
 			preTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.CreateScheduledBackup, volume, backupVault, timestamp, common.ScheduleTagMonthly, scheduledBackupContext.IsExpertMode).Get(ctx, &backup)
 			if preTransferErr != nil {
@@ -483,7 +486,8 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
-		wf.Logger.Infof("Using backup vault and object store for scheduled backup: backupVaultUUID=%s objectStoreName=%s", backupVault.UUID, scheduledBackupContext.ObjStoreName)
+		logger.Info("Using backup vault and object store for scheduled backup",
+			"backupVaultUUID", backupVault.UUID, "objectStoreName", scheduledBackupContext.ObjStoreName)
 
 		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.GetOrCreateObjectStoreActivity, scheduledBackupContext).Get(ctx, &scheduledBackupContext)
 		if preTransferErr != nil {
@@ -501,7 +505,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 		scheduledBackupContext.SmSourcePath = smSourcePath
 		scheduledBackupContext.SmDestinationPath = smDestinationPath
-		wf.Logger.Infof("Snapmirror paths for scheduled backup: sourcePath=%s destinationPath=%s", smSourcePath, smDestinationPath)
+		logger.Info("Snapmirror paths for scheduled backup", "sourcePath", smSourcePath, "destinationPath", smDestinationPath)
 		SnapmirrorRelationshipParams := &common.SnapmirrorRelationshipParams{
 			SourcePath:      smSourcePath,
 			DestinationPath: smDestinationPath,
@@ -551,7 +555,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
-		wf.Logger.Infof("Created ONTAP snapshot for scheduled backup: snapshotName=%s", snapshotName)
+		logger.Info("Created ONTAP snapshot for scheduled backup", "snapshotName", snapshotName)
 		scheduledBackupContext.ScheduledBackupParams.OntapSnapshot = ontapSnapshot
 
 		preTransferRollbackManager.AddActivity(backupActivities.DeleteBackupSnapshot, scheduledBackupContext.Node, ontapSnapshot.ExternalUUID, volume.VolumeAttributes.ExternalUUID)
@@ -594,7 +598,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
 
-		wf.Logger.Infof("Starting snapmirror transfer for scheduled backup: snapshotName=%s", snapshotName)
+		logger.Info("Starting snapmirror transfer for scheduled backup", "snapshotName", snapshotName)
 		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorTransfer, scheduledBackupContext.Node, snapmirrorRelationship.UUID, snapshotName).Get(ctx, nil)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
@@ -608,8 +612,9 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 		return nil, workflows.ConvertToVSAError(err)
 	}
-	wf.Logger.Infof("Snapmirror transfer polling complete for scheduled backup: volumeUUID=%s snapshotName=%s backupPolicyUUID=%s",
-		volume.UUID, scheduledBackupContext.SnapshotName, backupPolicy.UUID)
+	logger.Info("Snapmirror transfer polling complete for scheduled backup",
+		"volumeUUID", volume.UUID, "snapshotName", scheduledBackupContext.SnapshotName,
+		"backupPolicyUUID", backupPolicy.UUID)
 
 	// Wait for 30 seconds before proceeding
 	err = workflow.Sleep(ctx, 30*time.Second)
@@ -629,14 +634,15 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		if smRelationship.Healthy != nil && !*smRelationship.Healthy && smRelationship.UnhealthyReason != nil && len(*smRelationship.UnhealthyReason) > 0 {
 			unhealthyMsg = fmt.Sprintf(" Unhealthy reasons: %v", *smRelationship.UnhealthyReason)
 		}
-		wf.Logger.Infof("Snapmirror relationship state is %s, expected %s.%s", *smRelationship.State, datamodel.OntapSnapmirrored, unhealthyMsg)
+		logger.Info("Snapmirror relationship state is not expected",
+			"state", *smRelationship.State, "expectedState", datamodel.OntapSnapmirrored, "unhealthyReason", unhealthyMsg)
 		preTransferErr = vsaerrors.New("snapmirror relationship state is not snapmirrored")
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, preTransferErr)
 	}
 
 	if smRelationship.Healthy != nil && !*smRelationship.Healthy {
 		if smRelationship.UnhealthyReason != nil && len(*smRelationship.UnhealthyReason) > 0 {
-			wf.Logger.Infof("Snapmirror relationship is unhealthy. Reasons: %v", *smRelationship.UnhealthyReason)
+			logger.Info("Snapmirror relationship is unhealthy", "reasons", *smRelationship.UnhealthyReason)
 		}
 		preTransferErr = vsaerrors.New("snapmirror relationship is unhealthy")
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, preTransferErr)
@@ -677,8 +683,9 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		if postTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(postTransferErr)
 		}
-		wf.Logger.Infof("Scheduled backup transfer finished for backup record: backupName=%s sizeInBytes=%d totalTransferBytes=%d volumeUUID=%s",
-			backup.Name, backup.SizeInBytes, backup.Attributes.TotalTransferBytes, volume.UUID)
+		logger.Info("Scheduled backup transfer finished for backup record",
+			"backupName", backup.Name, "sizeInBytes", backup.SizeInBytes,
+			"totalTransferBytes", backup.Attributes.TotalTransferBytes, "volumeUUID", volume.UUID)
 	}
 	// Update ConstituentCount for a backup from Volume
 	if scheduledBackupContext.BackupWorkflowInit.Volume.LargeVolumeAttributes != nil && scheduledBackupContext.BackupWorkflowInit.Volume.LargeVolumeAttributes.LargeCapacity {
@@ -692,7 +699,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	var objectStoreEndpointInfo vsa.SmObjectStoreEndpointt
 	err = workflow.ExecuteActivity(ctx, backupActivities.GetObjectStoreEndpointInfo, scheduledBackupContext.Node, scheduledBackupContext.ObjStore.UUID, backup.Attributes.EndpointUUID).Get(ctx, &objectStoreEndpointInfo)
 	if err != nil {
-		wf.Logger.Errorf("Failed to get object store endpoint info for volume %s: %v", volume.Name, err)
+		logger.Error("Failed to get object store endpoint info for volume", "volumeName", volume.Name, "error", err)
 	} else {
 		backup.LatestLogicalBackupSize = *objectStoreEndpointInfo.LogicalSize
 	}
@@ -700,12 +707,13 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	var objectStoreSnapshot *vsa.SmObjectStoreEndpointSnapshot
 	err = workflow.ExecuteActivity(ctx, backupActivities.GetSnapshotFromObjectStore, scheduledBackupContext.Node, scheduledBackupContext.ObjStore.UUID, backup.Attributes.EndpointUUID, backup.Attributes.SnapshotID).Get(ctx, &objectStoreSnapshot)
 	if err != nil {
-		wf.Logger.Errorf("Failed to get snapshot from object store for volume %s: %v", volume.Name, err)
+		logger.Error("Failed to get snapshot from object store for volume", "volumeName", volume.Name, "error", err)
 	} else {
 		if objectStoreSnapshot.LogicalSize != nil {
 			backup.SizeInBytes = *objectStoreSnapshot.LogicalSize
 		} else {
-			wf.Logger.Errorf("Logical size is nil for snapshot %s in object store for volume %s", backup.Attributes.SnapshotID, volume.Name)
+			logger.Error("Logical size is nil for snapshot in object store",
+				"snapshotID", backup.Attributes.SnapshotID, "volumeName", volume.Name)
 			backup.SizeInBytes = 0
 		}
 	}
@@ -713,7 +721,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	// Update backup size fields in both backup and volume tables.
 	err = workflow.ExecuteActivity(ctx, scheduledBackupActivities.UpdateBackupSize, backup, volume, scheduledBackupContext.IsExpertMode).Get(ctx, nil)
 	if err != nil {
-		wf.Logger.Errorf("Failed to update backup size fields for volume %s: %v", volume.Name, err)
+		logger.Error("Failed to update backup size fields for volume", "volumeName", volume.Name, "error", err)
 	}
 
 	// Create remote backups from VCP if this is a cross-region backup
@@ -721,7 +729,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	err = workflow.ExecuteActivity(ctx, scheduledBackupActivities.CreateRemoteScheduledBackupsFromVCPActivity, scheduledBackupContext.BackupWorkflowInit.BackupVault, backups, volume, volume.Account.Name).Get(ctx, nil)
 	if err != nil {
 		// Log the error but don't fail the entire backup workflow
-		wf.Logger.Errorf("Failed to create remote backups from VCP for scheduled backups: %v", err)
+		logger.Error("Failed to create remote backups from VCP for scheduled backups", "error", err)
 	}
 
 	if hydrationEnabled {
@@ -734,7 +742,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 				volume.Account.Name).Get(ctx, nil)
 			if err != nil {
 				// Log the error but don't fail the entire workflow
-				wf.Logger.Errorf("Failed to hydrate snapshot to CCFE for backup %s: %v", backup.Name, err)
+				logger.Error("Failed to hydrate snapshot to CCFE for backup", "backupName", backup.Name, "error", err)
 			}
 		}
 		postTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.HydrateCreatedBackupsToCCFE, volume, backups, scheduledBackupContext.BackupWorkflowInit.BackupVault.Name).Get(ctx, nil)
@@ -747,7 +755,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 	err = workflow.ExecuteActivity(ctx, backupActivities.CreateBackupMetadataIfFirstBackupActivity, volume, scheduledBackupContext.IsExpertMode).Get(ctx, nil)
 	if err != nil {
 		// Log the error but don't fail the entire backup workflow
-		wf.Logger.Errorf("Failed to create BackupMetadata for volume %s: %v", volume.UUID, err)
+		logger.Error("Failed to create BackupMetadata for volume", "volumeUUID", volume.UUID, "error", err)
 	}
 
 	ctx = workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
@@ -763,6 +771,7 @@ type deleteScheduledBackupWorkflow struct {
 
 // DeleteScheduledBackupWorkflow removes older scheduled backups for a volume and backup policy according to daily, weekly, and monthly retention limits.
 func DeleteScheduledBackupWorkflow(ctx workflow.Context, volume *datamodel.Volume, backupPolicy *datamodel.BackupPolicy) error {
+	logger := workflow.GetLogger(ctx)
 	deleteScheduledBackupWF := new(deleteScheduledBackupWorkflow)
 	createdJob, err := deleteScheduledBackupWF.CreateJob(
 		ctx, backupPolicy.AccountID, volume.Name, string(datamodel.JobTypeDeleteScheduledBackup))
@@ -781,14 +790,14 @@ func DeleteScheduledBackupWorkflow(ctx workflow.Context, volume *datamodel.Volum
 		deleteScheduledBackupWF.Status = workflows.WorkflowStatusFailed
 		err2 := deleteScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			deleteScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+			logger.Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	deleteScheduledBackupWF.Status = workflows.WorkflowStatusCompleted
 	err2 := deleteScheduledBackupWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		deleteScheduledBackupWF.Logger.Errorf("Failed to update job status: %v", err2)
+		logger.Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -799,10 +808,6 @@ func (wf *deleteScheduledBackupWorkflow) Setup(ctx workflow.Context, input inter
 	job := input.(*datamodel.Job)
 	wf.ID = job.UUID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -813,9 +818,11 @@ func (wf *deleteScheduledBackupWorkflow) Setup(ctx workflow.Context, input inter
 
 // Run executes the scheduled backup deletion workflow for the given volume and backup policy.
 func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.Volume)
 	backupPolicy := args[1].(*datamodel.BackupPolicy)
-	wf.Logger.Infof("delete scheduled backup workflow triggered for the backup policy: %s, volume: %s", backupPolicy.UUID, volume.UUID)
+	logger.Info("Delete scheduled backup workflow triggered",
+		"backupPolicyUUID", backupPolicy.UUID, "volumeUUID", volume.UUID)
 
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
@@ -864,13 +871,14 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 		err = workflow.ExecuteActivity(ctx, backupActivities.CleanupOldExpertModeSnapshotActivity, volume, node).Get(ctx, nil)
 		if err != nil {
 			// Log the error but don't fail the entire backup workflow
-			wf.Logger.Errorf("Failed to cleanup older expert mode backup snapshots for volume %s: %v", volume.Name, err)
+			logger.Error("Failed to cleanup older expert mode backup snapshots for volume",
+				"volumeName", volume.Name, "error", err)
 		}
 	} else {
 		err = workflow.ExecuteActivity(ctx, backupActivities.CleanupOldBackupSnapshotsActivity, volume, node).Get(ctx, nil)
 		if err != nil {
 			// Log the error but don't fail the entire backup workflow
-			wf.Logger.Errorf("Failed to cleanup older backup snapshots for volume %s: %v", volume.Name, err)
+			logger.Error("Failed to cleanup older backup snapshots for volume", "volumeName", volume.Name, "error", err)
 		}
 	}
 
@@ -880,8 +888,8 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	wf.Logger.Infof("Delete scheduled backup workflow: found %d backups to delete for volume %s (backup policy %s)",
-		len(backupToBeDeleted), volume.UUID, backupPolicy.UUID)
+	logger.Info("Delete scheduled backup workflow found backups to delete",
+		"backupCount", len(backupToBeDeleted), "volumeUUID", volume.UUID, "backupPolicyUUID", backupPolicy.UUID)
 
 	// Exit early if there are no backups to delete
 	if len(backupToBeDeleted) == 0 {
@@ -904,11 +912,11 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 		var isSharedBackup bool
 		err = workflow.ExecuteActivity(ctx, backupActivities.IsBackupShared, backup).Get(ctx, &isSharedBackup)
 		if err != nil {
-			wf.Logger.Errorf("Failed to check if backup %s is shared: %v", backup.Name, err)
+			logger.Error("Failed to check if backup is shared", "backupName", backup.Name, "error", err)
 			return nil, workflows.ConvertToVSAError(err)
 		}
-		wf.Logger.Infof("Deleting scheduled backup: backupName=%s backupUUID=%s shared=%v volumeUUID=%s",
-			backup.Name, backup.UUID, isSharedBackup, volume.UUID)
+		logger.Info("Deleting scheduled backup", "backupName", backup.Name,
+			"backupUUID", backup.UUID, "shared", isSharedBackup, "volumeUUID", volume.UUID)
 		if !isSharedBackup {
 			rollbackManager.AddActivity(backupActivities.UpdateBackupError, backup)
 			var ontapAsyncResponse *vsa.OntapAsyncResponse
@@ -927,7 +935,7 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 
 		err = workflow.ExecuteActivity(ctx, backupActivities.DeleteBackup, backup.UUID).Get(ctx, nil)
 		if err != nil {
-			wf.Logger.Errorf("Failed to delete backup %s: %v", backup.Name, err)
+			logger.Error("Failed to delete backup", "backupName", backup.Name, "error", err)
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to delete backup %s: %w", backup.Name, err))
 		}
 
@@ -939,11 +947,13 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 				volume.Account.Name,
 				*backupVault.BackupRegionName).Get(ctx, nil)
 			if remoteBackupErr != nil {
-				wf.Logger.Errorf("Failed to delete remote backup from VCP for backup %s: %v", backup.UUID, remoteBackupErr)
+				logger.Error("Failed to delete remote backup from VCP",
+					"backupUUID", backup.UUID, "error", remoteBackupErr)
 			}
 		}
 	}
-	wf.Logger.Infof("Completed deletion of %d scheduled backups for volume %s", len(backupToBeDeleted), volume.UUID)
+	logger.Info("Completed deletion of scheduled backups",
+		"backupCount", len(backupToBeDeleted), "volumeUUID", volume.UUID)
 	// Hydrate all deleted backups to CCFE after processing all backups
 	err = workflow.ExecuteActivity(ctx, scheduledBackupActivities.HydrateDeletedBackupsToCCFE, volume, backupToBeDeleted, backupVault.Name).Get(ctx, nil)
 	if err != nil {
@@ -954,7 +964,7 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 }
 
 func (wf *baseScheduledBackupWorkflow) CreateJob(ctx workflow.Context, accountID int64, resourceName, jobType string) (*datamodel.Job, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 
 	correlationID := ""
 	if cid, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx); err == nil {
@@ -982,7 +992,7 @@ func (wf *baseScheduledBackupWorkflow) CreateJob(ctx workflow.Context, accountID
 	var createdJob *datamodel.Job
 	err := workflow.ExecuteActivity(ctx, commonActivities.CreateJob, job).Get(ctx, &createdJob)
 	if err != nil {
-		logger.Errorf("Failed to create job: %v", err)
+		logger.Error("Failed to create job", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	return createdJob, nil

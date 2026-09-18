@@ -11,8 +11,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -39,6 +37,7 @@ var (
 )
 
 func CreateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) error {
+	logger := workflow.GetLogger(ctx)
 	bvWF := new(backupVaultCreateWorkflow)
 	err := bvWF.Setup(ctx, params)
 	if err != nil {
@@ -58,14 +57,14 @@ func CreateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultP
 		bvWF.Status = WorkflowStatusFailed
 		err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+			logger.Error("Error when updating the job status", "error", err2)
 		}
 		return customErr
 	}
 	bvWF.Status = WorkflowStatusCompleted
 	err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+		logger.Error("Error when updating the job status", "error", err2)
 	}
 	return nil
 }
@@ -77,9 +76,6 @@ func (wf *backupVaultCreateWorkflow) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = BackupVaultParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	// Set the query handler in a non-blocking way
 	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
@@ -95,6 +91,7 @@ func (wf *backupVaultCreateWorkflow) Setup(ctx workflow.Context, input interface
 }
 
 func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	backupVault := args[0].(*datamodel.BackupVault)
 	bvCommonParams := args[1].(*common.BackupVaultParams)
 	backupVaultActivity := &activities.BackupVaultActivity{}
@@ -119,7 +116,7 @@ func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface
 	remoteBv := &datamodel.BackupVault{}
 	err = workflow.ExecuteActivity(ctx, backupVaultActivity.CreateRemoteBackupVault, bvCommonParams.OwnerID, backupVault).Get(ctx, &remoteBv)
 	if err != nil {
-		wf.Logger.Errorf("Failed to create remote backup vault for %s in VCP. Error: %v", backupVault.UUID, err.Error())
+		logger.Error("Failed to create remote backup vault in VCP", "backupVaultUUID", backupVault.UUID, "error", err)
 		return nil, ConvertToVSAError(fmt.Errorf("CreateRemoteBackupVault failed: %w", err))
 	}
 
@@ -130,7 +127,7 @@ func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface
 		}
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.UpdateBackupVaultFields, backupVault.UUID, updates).Get(ctx, nil)
 		if err != nil {
-			wf.Logger.Errorf("Failed to store cross-region vault UUID on source vault: %v", err)
+			logger.Error("Failed to store cross-region vault UUID on source vault", "error", err)
 			return nil, ConvertToVSAError(fmt.Errorf("UpdateBackupVaultFields failed: %w", err))
 		}
 	}
@@ -139,6 +136,7 @@ func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface
 }
 
 func UpdateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) (gcpgenserver.V1betaUpdateBackupVaultRes, error) {
+	logger := workflow.GetLogger(ctx)
 	bvWF := new(backupVaultUpdateWorkflow)
 	err := bvWF.Setup(ctx, params)
 	if err != nil {
@@ -158,14 +156,14 @@ func UpdateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultP
 		bvWF.Status = WorkflowStatusFailed
 		err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+			logger.Error("Error when updating the job status", "error", err2)
 		}
 		return nil, customErr
 	}
 	bvWF.Status = WorkflowStatusCompleted
 	err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+		logger.Error("Error when updating the job status", "error", err2)
 	}
 	return nil, nil
 }
@@ -177,9 +175,6 @@ func (wf *backupVaultUpdateWorkflow) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = BackupVaultParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	// Set the query handler in a non-blocking way
 	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
@@ -195,6 +190,7 @@ func (wf *backupVaultUpdateWorkflow) Setup(ctx workflow.Context, input interface
 }
 
 func (wf *backupVaultUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	backupVault := args[0].(*datamodel.BackupVault)
 	bvCommonParams := args[1].(*common.BackupVaultParams)
 	useVCPRegion := !utils.IsCVPHostConfigured()
@@ -239,10 +235,7 @@ func (wf *backupVaultUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 		sdeBackupVault = &datamodel.BackupVault{}
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.UpdateBackupVaultInSDE, bvCommonParams).Get(ctx, &sdeBackupVault)
 		if err != nil {
-			wf.Logger.Error("Failed to update backup vault in SDE", log.Fields{
-				"error":  err,
-				"params": backupVault,
-			})
+			logger.Error("Failed to update backup vault in SDE", "error", err, "params", backupVault)
 			return nil, ConvertToVSAError(fmt.Errorf("UpdateBackupVaultInSDE failed: %w", err))
 		}
 	}
@@ -260,10 +253,7 @@ func (wf *backupVaultUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 		dbRemoteBackupVault := &datamodel.BackupVault{}
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.UpdateRemoteBackupVaultInVCP, &remoteParams, dbBackupVault).Get(ctx, &dbRemoteBackupVault)
 		if err != nil {
-			wf.Logger.Error("Failed to update remote backup vault in VCP", log.Fields{
-				"error":  err,
-				"params": dbBackupVault,
-			})
+			logger.Error("Failed to update remote backup vault in VCP", "error", err, "params", dbBackupVault)
 			return nil, ConvertToVSAError(fmt.Errorf("UpdateRemoteBackupVaultInVCP failed: %w", err))
 		}
 	}
@@ -272,6 +262,7 @@ func (wf *backupVaultUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 }
 
 func DeleteBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) (gcpgenserver.V1betaDeleteBackupVaultRes, error) {
+	logger := workflow.GetLogger(ctx)
 	bvWF := new(backupVaultDeleteWorkflow)
 	err := bvWF.Setup(ctx, params)
 	if err != nil {
@@ -291,14 +282,14 @@ func DeleteBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultP
 		bvWF.Status = WorkflowStatusFailed
 		err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+			logger.Error("Error when updating the job status", "error", err2)
 		}
 		return nil, customErr
 	}
 	bvWF.Status = WorkflowStatusCompleted
 	err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+		logger.Error("Error when updating the job status", "error", err2)
 	}
 	return nil, nil
 }
@@ -310,9 +301,6 @@ func (wf *backupVaultDeleteWorkflow) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = BackupVaultParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	// Set the query handler in a non-blocking way
 	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
@@ -328,6 +316,7 @@ func (wf *backupVaultDeleteWorkflow) Setup(ctx workflow.Context, input interface
 }
 
 func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	logger := workflow.GetLogger(ctx)
 	backupVault := args[0].(*datamodel.BackupVault)
 	bvCommonParams := args[1].(*common.BackupVaultParams)
 	useVCPRegion := !utils.IsCVPHostConfigured()
@@ -359,10 +348,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 	var dbBackupVault *datamodel.BackupVault
 	err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInVCP, bvCommonParams.BackupVaultID).Get(ctx, &dbBackupVault)
 	if err != nil {
-		wf.Logger.Error("Failed to delete backup vault in VCP", log.Fields{
-			"error":  err,
-			"params": backupVault,
-		})
+		logger.Error("Failed to delete backup vault in VCP", "error", err, "params", backupVault)
 		return nil, ConvertToVSAError(fmt.Errorf("DeleteBackupVaultInVCP failed: %w", err))
 	}
 
@@ -378,7 +364,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.GetBackupVaultFromSDE, bvCommonParams).Get(ctx, &sdeBackupVault)
 		if err != nil {
-			wf.Logger.Errorf("Failed to describe backup vault %s in SDE. Error: %v", backupVault.UUID, err.Error())
+			logger.Error("Failed to describe backup vault in SDE", "backupVaultUUID", backupVault.UUID, "error", err)
 			return nil, ConvertToVSAError(fmt.Errorf("GetBackupVaultFromSDE failed: %w", err))
 		}
 
@@ -394,7 +380,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInSDE, bvCommonParams).Get(ctx, nil)
 		if err != nil {
-			wf.Logger.Errorf("Failed to delete backup vault %s in SDE. Error: %v", backupVault.UUID, err.Error())
+			logger.Error("Failed to delete backup vault in SDE", "backupVaultUUID", backupVault.UUID, "error", err)
 			return nil, ConvertToVSAError(fmt.Errorf("DeleteBackupVaultInSDE failed: %w", err))
 		}
 	}
@@ -417,10 +403,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 		dbRemoteBackupVault := &datamodel.BackupVault{}
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteRemoteBackupVaultInVCP, &remoteParams).Get(ctx, &dbRemoteBackupVault)
 		if err != nil {
-			wf.Logger.Error("Failed to delete remote backup vault in VCP", log.Fields{
-				"error":  err,
-				"params": backupVault,
-			})
+			logger.Error("Failed to delete remote backup vault in VCP", "error", err, "params", backupVault)
 			return nil, ConvertToVSAError(fmt.Errorf("DeleteRemoteBackupVaultInVCP failed: %w", err))
 		}
 	}
@@ -428,10 +411,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 	// Step 4: Delete associated buckets (non-fatal — retries already exhausted by Temporal retry policy)
 	bucketErr := workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultBuckets, backupVault).Get(ctx, nil)
 	if bucketErr != nil {
-		wf.Logger.Error("Failed to delete backup vault buckets", log.Fields{
-			"error":  bucketErr,
-			"params": backupVault,
-		})
+		logger.Error("Failed to delete backup vault buckets", "error", bucketErr, "params", backupVault)
 	}
 
 	return dbBackupVault, nil

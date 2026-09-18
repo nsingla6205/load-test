@@ -18,7 +18,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -45,11 +44,11 @@ var _ WorkflowInterface = &restoreBackupWorkflow{}
 
 // RestoreBackupWorkflow Restore Workflow process backup restore related requests from a customer.
 func RestoreBackupWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volume *datamodel.Volume, backupVault *datamodel.BackupVault, backup *datamodel.Backup, hostParams []*common.HostParams, volCreateResponse *vsa.VolumeResponse, backupVaultAccountName string) (gcpgenserver.V1betaDescribeVolumeRes, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	restoreWf := new(restoreBackupWorkflow)
 	err := restoreWf.Setup(ctx, params)
 	if err != nil {
-		log.Errorf("Failed to setup RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to setup RestoreBackupWorkflow", "error", err)
 		return nil, err
 	}
 	if err := restoreWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -58,7 +57,7 @@ func RestoreBackupWorkflow(ctx workflow.Context, params *common.CreateVolumePara
 	restoreWf.Status = WorkflowStatusRunning
 	err = restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for RestoreBackupWorkflow", "error", err)
 		return nil, err
 	}
 	var customErr *vsaerrors.CustomError
@@ -68,11 +67,11 @@ func RestoreBackupWorkflow(ctx workflow.Context, params *common.CreateVolumePara
 		if workflow.IsContinueAsNewError(customErr.OriginalErr) {
 			return nil, customErr
 		}
-		log.Errorf("RestoreBackupWorkflow completed with error: %v", customErr.OriginalErr.Error())
+		log.Error("RestoreBackupWorkflow completed with error", "error", customErr.OriginalErr)
 		restoreWf.Status = WorkflowStatusFailed
 		err2 := restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with error for RestoreBackupWorkflow: %v", err2)
+			log.Error("Failed to update job status to Done with error for RestoreBackupWorkflow", "error", err2)
 			return nil, err2
 		}
 		return nil, customErr
@@ -80,17 +79,17 @@ func RestoreBackupWorkflow(ctx workflow.Context, params *common.CreateVolumePara
 	restoreWf.Status = WorkflowStatusCompleted
 	err = restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for RestoreBackupWorkflow", "error", err)
 	}
 	return nil, err
 }
 
 func RestoreBackupWorkflowWithContext(ctx workflow.Context, backupActivitiesContext *activities.BackupActivitiesContext, params *common.CreateVolumeParams, hostParams []*common.HostParams, volCreateResponse *vsa.VolumeResponse) (gcpgenserver.V1betaDescribeVolumeRes, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	restoreWf := new(restoreBackupWorkflow)
 	err := restoreWf.Setup(ctx, params)
 	if err != nil {
-		log.Errorf("Failed to setup RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to setup RestoreBackupWorkflow", "error", err)
 		return nil, err
 	}
 	if err := restoreWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -99,7 +98,7 @@ func RestoreBackupWorkflowWithContext(ctx workflow.Context, backupActivitiesCont
 	restoreWf.Status = WorkflowStatusRunning
 	err = restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for RestoreBackupWorkflow", "error", err)
 		return nil, err
 	}
 	var customErr *vsaerrors.CustomError
@@ -109,11 +108,11 @@ func RestoreBackupWorkflowWithContext(ctx workflow.Context, backupActivitiesCont
 		if workflow.IsContinueAsNewError(customErr.OriginalErr) {
 			return nil, customErr
 		}
-		log.Errorf("RestoreBackupWorkflow completed with error: %v", customErr.OriginalErr.Error())
+		log.Error("RestoreBackupWorkflow completed with error", "error", customErr.OriginalErr)
 		restoreWf.Status = WorkflowStatusFailed
 		err2 := restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with error for RestoreBackupWorkflow: %v", err2)
+			log.Error("Failed to update job status to Done with error for RestoreBackupWorkflow", "error", err2)
 			return nil, err2
 		}
 		return nil, customErr
@@ -121,7 +120,7 @@ func RestoreBackupWorkflowWithContext(ctx workflow.Context, backupActivitiesCont
 	restoreWf.Status = WorkflowStatusCompleted
 	err = restoreWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for RestoreBackupWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for RestoreBackupWorkflow", "error", err)
 	}
 	return nil, err
 }
@@ -132,10 +131,6 @@ func (wf *restoreBackupWorkflow) Setup(ctx workflow.Context, input interface{}) 
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createVolParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -172,7 +167,7 @@ func (wf *restoreBackupWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 }
 
 func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActivitiesContext *activities.BackupActivitiesContext, createVolumeParams *common.CreateVolumeParams, hostParams []*common.HostParams, volCreateResponse *vsa.VolumeResponse) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	isRestoreFromBackup := createVolumeParams.BackupPath != ""
 	volumeActivity := &activities.VolumeCreateActivity{}
 	volumeUpdateActivity := &activities.VolumeUpdateActivity{}
@@ -206,7 +201,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 				backupActivitiesContext.BackupWorkflowInit.Backup.UUID,
 				backupActivitiesContext.BackupWorkflowInit.BackupVaultAccountName, activities.BackupRestoreCountDecrement).Get(ctx, nil)
 			if decrementErr != nil {
-				log.Errorf("Failed to revert backup restore count: %v", decrementErr)
+				log.Error("Failed to revert backup restore count", "error", decrementErr)
 			}
 		}
 
@@ -225,7 +220,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 
 	var smSourcePath, smDestinationPath string
 	if isContinuation {
-		wf.Logger.Info("Resuming backup workflow from continuation",
+		log.Info("Resuming backup workflow from continuation",
 			"workflowID", wf.ID,
 			"continuedFromRunID", info.OriginalRunID,
 			"snapshotName", backupActivitiesContext.SnapshotName,
@@ -243,7 +238,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			backupActivitiesContext.BackupWorkflowInit.Backup.UUID,
 			backupActivitiesContext.BackupWorkflowInit.BackupVaultAccountName, activities.BackupRestoreCountIncrement).Get(ctx, nil)
 		if incrementErr != nil {
-			log.Errorf("Failed to update backup restore count: %v", incrementErr)
+			log.Error("Failed to update backup restore count", "error", incrementErr)
 			return nil, ConvertToVSAError(incrementErr)
 		}
 
@@ -279,8 +274,8 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			return nil, ConvertToVSAError(err)
 		}
 		smSourcePath = fmt.Sprintf("%s:/objstore/%s", objStoreName, backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotName)
-		log.Debugf("smDestinationPath: %v", smDestinationPath)
-		log.Debugf("smSourcePath: %v", smSourcePath)
+		log.Debug("Snapmirror destination path", "smDestinationPath", smDestinationPath)
+		log.Debug("Snapmirror source path", "smSourcePath", smSourcePath)
 
 		snapmirrorRelationship := &common.SnapmirrorRelationship{}
 		SnapmirrorRelationshipParams := &common.SnapmirrorRelationshipParams{
@@ -354,7 +349,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 	if err != nil {
 		customErr := ConvertToVSAError(err)
 		if customErr != nil && customErr.TrackingID == vsaerrors.ErrResourceNotFound {
-			wf.Logger.Infof("Restore snapmirror relationship not found after transfer completion")
+			log.Info("Restore snapmirror relationship not found after transfer completion")
 		} else {
 			return nil, customErr
 		}
@@ -362,7 +357,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 
 	if smRelationship != nil && smRelationship.Healthy != nil && !*smRelationship.Healthy {
 		if smRelationship.UnhealthyReason != nil && len(*smRelationship.UnhealthyReason) > 0 {
-			wf.Logger.Infof("Snapmirror relationship is unhealthy. Reasons: %v", *smRelationship.UnhealthyReason)
+			log.Info("Snapmirror relationship is unhealthy", "reasons", *smRelationship.UnhealthyReason)
 		}
 		err = vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, vsaerrors.New("snapmirror relationship is unhealthy"))
 		return nil, ConvertToVSAError(err)
@@ -374,8 +369,8 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 	for !volumeTypeUpdateDone {
 		// Check if the timeout has been reached
 		if workflow.Now(ctx).Sub(startTime) > restoredVolumeDPToRWTimeout {
-			log.Errorf("Volume %s failed to transition from DP/LS to RW state within timeout period of %v",
-				backupActivitiesContext.BackupWorkflowInit.Volume.UUID, restoredVolumeDPToRWTimeout)
+			log.Error("Volume failed to transition from DP/LS to RW state within timeout period",
+				"volumeUUID", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, "timeout", restoredVolumeDPToRWTimeout)
 			err = vsaerrors.NewVCPError(vsaerrors.ErrTimeLimitExceeded,
 				fmt.Errorf("volume %s failed to transition from DP/LS to RW state within timeout period of %v",
 					backupActivitiesContext.BackupWorkflowInit.Volume.UUID, restoredVolumeDPToRWTimeout))
@@ -388,20 +383,20 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 		}
 		err = workflow.ExecuteActivity(ctx, volumeUpdateActivity.GetVolumeFromONTAP, backupActivitiesContext.BackupWorkflowInit.Volume, backupActivitiesContext.Node, true).Get(ctx, &volResponse)
 		if err != nil {
-			log.Debugf("Get Volume from Ontap error : %s", err.Error())
+			log.Debug("Get volume from ONTAP failed", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		if volResponse.Type == VolumeStateRW {
-			log.Debugf("Volume %s is available as RW in ONTAP", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
+			log.Debug("Volume is available as RW in ONTAP", "volumeUUID", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
 			volumeTypeUpdateDone = true
 		} else if volResponse.Type == VolumeStateDP || volResponse.Type == VolumeStateLS {
-			log.Debugf("Volume %s is still DP/LS and not available as RW in ONTAP", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
+			log.Debug("Volume is still DP/LS and not available as RW in ONTAP", "volumeUUID", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
 			err = workflow.Sleep(ctx, WaitForRestore) // Wait before polling again
 			if err != nil {
 				return nil, ConvertToVSAError(fmt.Errorf("failed to sleep during volume availability polling: %w", err))
 			}
 		} else {
-			log.Debugf("Type of volume %s is not correct. Current state in ONTAP is: %s", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, volResponse.Type)
+			log.Debug("Volume type is not correct", "volumeUUID", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, "ontapState", volResponse.Type)
 			err = fmt.Errorf("failed to move the volume type of volume %s to RW", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
 			return nil, ConvertToVSAError(err)
 		}
@@ -480,7 +475,7 @@ func provisionTemporaryRestoreHmacIfNeeded(
 			"backup tenant project and bucket name required for cross-pool HW restore"))
 	}
 
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	adcActivity := &activities.ADCActivity{}
 	backupActivity := &activities.BackupActivity{}
 	tenantProject := bucketDetails.TenantProjectNumber
@@ -501,7 +496,7 @@ func provisionTemporaryRestoreHmacIfNeeded(
 		var serviceAccount *hyperscalermodels.ServiceAccount
 		if err = workflow.ExecuteActivity(saCtx, adcActivity.CreateServiceAccount, tenantProject, serviceAccountID,
 			activities.TemporaryRestoreServiceAccountDisplay).Get(saCtx, &serviceAccount); err != nil {
-			log.Errorf("Failed to create temporary restore service account: %v", err)
+			log.Error("Failed to create temporary restore service account", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		cleanupManager.AddActivity(adcActivity.DeleteSA, tenantProject, serviceAccountID)
@@ -518,7 +513,7 @@ func provisionTemporaryRestoreHmacIfNeeded(
 
 		if err = workflow.ExecuteActivity(saCtx, adcActivity.AttachRolesToServiceAccount, tenantProject, serviceAccountEmail,
 			activities.TemporaryRestoreServiceAccountRoles).Get(saCtx, nil); err != nil {
-			log.Errorf("Failed to attach roles to temporary restore service account: %v", err)
+			log.Error("Failed to attach roles to temporary restore service account", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		cleanupManager.AddActivity(adcActivity.RemoveRolesFromServiceAccount, tenantProject, serviceAccountID,
@@ -543,7 +538,7 @@ func provisionTemporaryRestoreHmacIfNeeded(
 		ServiceAccount: serviceAccountEmail,
 		ProjectNumber:  tenantProject,
 	}).Get(saCtx, &encodedHmacKeys); err != nil {
-		log.Errorf("Failed to create temporary restore HMAC keys: %v", err)
+		log.Error("Failed to create temporary restore HMAC keys", "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 
