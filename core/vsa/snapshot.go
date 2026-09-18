@@ -22,6 +22,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -401,18 +402,14 @@ func (rc *OntapRestProvider) GetSnapshotsViaCLIAPI(ctx context.Context, volumeNa
 		if err != nil {
 			return nil, fmt.Errorf("failed to load certificates for CLI API: %w", err)
 		}
-		tlsConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: rc.ClientParams.InsecureSkipVerify,
-			RootCAs:            rootCA,
-			Certificates:       []tls.Certificate{clientCert},
-		}
+		tlsConfig = vcptls.NewFIPSClientConfig()
+		tlsConfig.InsecureSkipVerify = rc.ClientParams.InsecureSkipVerify
+		tlsConfig.RootCAs = rootCA
+		tlsConfig.Certificates = []tls.Certificate{clientCert}
 	} else {
 		// For basic auth, just set up TLS without client certificates
-		tlsConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: rc.ClientParams.InsecureSkipVerify,
-		}
+		tlsConfig = vcptls.NewFIPSClientConfig()
+		tlsConfig.InsecureSkipVerify = rc.ClientParams.InsecureSkipVerify
 		// Set basic auth header
 		req.SetBasicAuth(env.Admin, string(rc.ClientParams.Password))
 	}

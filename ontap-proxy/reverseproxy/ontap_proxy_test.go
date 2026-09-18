@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -22,6 +23,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/ruleengine/dsl"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 )
 
 // generateTestCertificates generates self-signed certificates for testing
@@ -1451,7 +1453,22 @@ func TestBuildCertificateTransport_WithValidCerts(t *testing.T) {
 	assert.NotNil(t, transport)
 	assert.NotNil(t, transport.TLSClientConfig)
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+	assert.Equal(t, vcptls.FIPSTLS12CipherSuites(), transport.TLSClientConfig.CipherSuites)
 	assert.NotEmpty(t, transport.TLSClientConfig.Certificates)
+}
+
+func TestBuildBasicAuthTransport_UsesFIPSPolicyWithDocumentedVerificationException(t *testing.T) {
+	pool := newTestConnectionPool()
+	defer pool.Close()
+
+	transport, err := pool.buildBasicAuthTransport()
+
+	require.NoError(t, err)
+	require.NotNil(t, transport.TLSClientConfig)
+	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+	assert.Equal(t, vcptls.FIPSTLS12CipherSuites(), transport.TLSClientConfig.CipherSuites)
+	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 }
 
 func TestConnectionPool_Cleanup_OldConnections(t *testing.T) {

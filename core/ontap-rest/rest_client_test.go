@@ -18,6 +18,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest/transport"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 )
 
 type mockTransport struct {
@@ -56,6 +57,9 @@ func TestNewClient(t *testing.T) {
 			assert.Equal(t, IdleConnTimeout, c.httpRoundTripperTransport.IdleConnTimeout)
 			assert.Equal(t, TLSHandshakeTimeout, c.httpRoundTripperTransport.TLSHandshakeTimeout)
 			assert.Equal(t, time.Second*1, c.httpRoundTripperTransport.ExpectContinueTimeout)
+			assert.Equal(t, uint16(tls.VersionTLS12), c.httpRoundTripperTransport.TLSClientConfig.MinVersion)
+			assert.Equal(t, vcptls.FIPSTLS12CipherSuites(), c.httpRoundTripperTransport.TLSClientConfig.CipherSuites)
+			assert.True(t, c.httpRoundTripperTransport.TLSClientConfig.InsecureSkipVerify)
 			assert.Equal(t, params, c.params)
 
 			assert.NotNil(t, c.cluster.api)

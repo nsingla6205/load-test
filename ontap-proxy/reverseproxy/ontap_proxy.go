@@ -21,6 +21,7 @@ import (
 	ontapProxyutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -477,20 +478,20 @@ func (p *ConnectionPool) buildCertificateTransport(authData *models.AuthData) (*
 		return nil, fmt.Errorf("failed to prepare certificate: %w", err)
 	}
 
-	return p.createBaseTransport(&tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: false,
-		RootCAs:            rootCA,
-		Certificates:       []tls.Certificate{clientCert},
-	}), nil
+	tlsConfig := vcptls.NewFIPSClientConfig()
+	tlsConfig.RootCAs = rootCA
+	tlsConfig.Certificates = []tls.Certificate{clientCert}
+	return p.createBaseTransport(tlsConfig), nil
 }
 
 // buildBasicAuthTransport creates transport with basic authentication
 func (p *ConnectionPool) buildBasicAuthTransport() (*http.Transport, error) {
-	return p.createBaseTransport(&tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: true,
-	}), nil
+	tlsConfig := vcptls.NewFIPSClientConfig()
+	// Legacy basic-auth ONTAP endpoints use self-signed certificates addressed
+	// by management IP. Server-identity verification remains a documented
+	// VSCP-6643 exception until those endpoints receive trusted DNS identities.
+	tlsConfig.InsecureSkipVerify = true
+	return p.createBaseTransport(tlsConfig), nil
 }
 
 // _testOntapEndpointReachability tests if an ONTAP endpoint is reachable via HTTP

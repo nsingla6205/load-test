@@ -19,6 +19,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 )
 
 // RESTClient describes an ONTAP REST client
@@ -133,12 +134,10 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 			if err != nil {
 				return nil, err
 			}
-			tlsCfg := &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: params.InsecureSkipVerify,
-				RootCAs:            rootCA,
-				Certificates:       []tls.Certificate{clientCert},
-			}
+			tlsCfg := vcptls.NewFIPSClientConfig()
+			tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
+			tlsCfg.RootCAs = rootCA
+			tlsCfg.Certificates = []tls.Certificate{clientCert}
 			if params.ServerName != "" {
 				tlsCfg.ServerName = params.ServerName
 			}
@@ -151,10 +150,8 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 				TLSClientConfig:       tlsCfg,
 			}
 		} else {
-			tlsCfg := &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: params.InsecureSkipVerify,
-			}
+			tlsCfg := vcptls.NewFIPSClientConfig()
+			tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
 			if params.ServerName != "" {
 				tlsCfg.ServerName = params.ServerName
 			}

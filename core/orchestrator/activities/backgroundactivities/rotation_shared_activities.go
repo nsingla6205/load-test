@@ -3,7 +3,6 @@ package backgroundactivities
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -28,6 +27,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	vcptls "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/tlsconfig"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
 )
@@ -2360,14 +2360,16 @@ func (a *RotateVcpToVsaCertificateActivity) executeAPIRequestWithResponse(ctx co
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Executing %s request to %s", method, url)
 
-	// Create HTTP client with timeout and skip TLS certificate verification
-	// This is necessary for ONTAP nodes with self-signed certificates
+	// This legacy password-rotation path addresses ONTAP by management IP and
+	// uses a self-signed server certificate. Keep the verification exception
+	// until a trusted DNS identity is available, but enforce the common
+	// CP-to-DP protocol, cipher-suite, and curve policy.
+	tlsConfig := vcptls.NewFIPSClientConfig()
+	tlsConfig.InsecureSkipVerify = true
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // Skip certificate verification for ONTAP nodes
-			},
+			TLSClientConfig: tlsConfig,
 		},
 	}
 
