@@ -4366,17 +4366,30 @@ func TestOCIUpdatePoolWorkflow_DBPersistFailureCompensates(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+// storedVLMConfigWithHostNamedHAPairs mirrors the stored VLM config of a shared
+// HA cluster: n HA pairs, each active-active with one named aggregate per node
+// ordered VM1 then VM2 (aggr1/aggr2 for pair 0, aggr3/aggr4 for pair 1, ...).
 func storedVLMConfigWithHostNamedHAPairs(n int) *vlm.VLMConfig {
 	haPairs := make([]vlm.HAPair, n)
+	pairConfigs := make([]vlm.SPHAPairConfig, n)
 	for i := range haPairs {
 		haPairs[i] = vlm.HAPair{
 			VM1: vlm.VMConfig{Name: fmt.Sprintf("vm1-ha%d", i), HostName: fmt.Sprintf("host-vm1-ha%d", i)},
 			VM2: vlm.VMConfig{Name: fmt.Sprintf("vm2-ha%d", i), HostName: fmt.Sprintf("host-vm2-ha%d", i)},
 		}
+		pairConfigs[i] = vlm.SPHAPairConfig{
+			AggrConfigs: []vlm.AggrConfig{
+				{Size: "1000Gi", IOps: 3133, Throughput: 208, AggrName: fmt.Sprintf("aggr%d", 2*i+1)},
+				{Size: "1000Gi", IOps: 3133, Throughput: 208, AggrName: fmt.Sprintf("aggr%d", 2*i+2)},
+			},
+		}
 	}
 	return &vlm.VLMConfig{
-		Deployment: vlm.DeploymentConfig{NumHAPair: n},
-		Cloud:      vlm.CloudConfig{HAPairs: haPairs},
+		Deployment: vlm.DeploymentConfig{
+			NumHAPair: n,
+			SPConfig:  vlm.SPConfig{HAPairConfigs: pairConfigs},
+		},
+		Cloud: vlm.CloudConfig{HAPairs: haPairs},
 	}
 }
 
@@ -4384,10 +4397,9 @@ func storedVLMConfigWithHostNamedHAPairs(n int) *vlm.VLMConfig {
 // when the request carries nodeCapacities with all-equal sizes, the workflow emits a
 // plain homogeneous SPConfig: just Size/IOps/Throughput, with HAPairConfigs left nil
 // (the `omitempty` JSON tag drops it from the wire). The factory-derived
-// params.SizeInBytes follows the per-pair-sum convention (each HA pair owns one
-// mirrored aggregate; summing per-node would double-count the mirror) — same
-// semantics as create — and that drives SPConfig.Size on the wire. The batch plan
-// covers all HA pairs in the cluster.
+// params.SizeInBytes sums every node because shared HA is active-active (each
+// node backs its own aggregate) — same semantics as create — and that drives
+// SPConfig.Size on the wire. The batch plan covers all HA pairs in the cluster.
 func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing.T) {
 	setTestOCIImageEnv(t)
 
@@ -4399,17 +4411,16 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
-	// SizeInBytes is what the factory would have set after deriving the per-pair plan:
-	// 1 HA pair × 4096 GiB per-pair aggregate = 4096 GiB pool-total (4 TiB). Summing
-	// per-node (8192) would double-count the mirror. The workflow no longer reads
-	// NodeCapacities directly — they're listed here only to mirror the request the
-	// factory would have validated.
+	// SizeInBytes is what the factory would have set: 1 active-active HA pair ×
+	// two 4096 GiB node aggregates = 8192 GiB pool-total. The workflow no longer
+	// reads NodeCapacities directly — they're listed here only to mirror the
+	// request the factory would have validated.
 	params := &common.UpdatePoolParams{
 		AccountName:              "test-account",
 		CustomPerformanceEnabled: true,
 
 		TotalThroughputMibps: 256,
-		SizeInBytes:          uint64(4096) * 1024 * 1024 * 1024,
+		SizeInBytes:          uint64(8192) * 1024 * 1024 * 1024,
 		NodeCapacities: []common.NodeCapacity{
 			{NodeUUID: "uuid-vm1-ha0", SizeInGiB: 4096},
 			{NodeUUID: "uuid-vm2-ha0", SizeInGiB: 4096},
@@ -4451,12 +4462,93 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 	require.NotNil(t, captured, "VLM UpdateVSAClusterDeployment must have been called")
 
 	sp := captured.SPConfig
-	assert.Equal(t, "4096Gi", sp.Size, "homogeneous Size must come from params.SizeInBytes (pool-total = sum of per-pair aggregates; matches the VLM/CREATE convention)")
+	assert.Equal(t, "8192Gi", sp.Size, "homogeneous Size must come from params.SizeInBytes (pool-total = sum of every node aggregate; matches the VLM/CREATE convention)")
 	assert.Equal(t, int64(256), sp.Throughput,
 		"VMRS off: throughput must carry the raw requested value (256 MiB/s) unchanged")
 	assert.Equal(t, int64(0), sp.IOps,
 		"VMRS off: IOPS must be the raw request value (TotalIops nil -> 0), no tier resolution")
 	assert.Equal(t, []int{1}, captured.HAPairIndices, "single-HA-pair cluster must target pair 1 (VLM contract is 1-based)")
+	env.AssertExpectations(t)
+}
+
+func TestOCIUpdatePoolWorkflow_HeterogeneousNodeCapacities_PerPairSPConfig(t *testing.T) {
+	setTestOCIImageEnv(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:              "test-account",
+		CustomPerformanceEnabled: true,
+		TotalThroughputMibps:     256,
+		SizeInBytes:              uint64(24576) * 1024 * 1024 * 1024,
+		NodeCapacities: []common.NodeCapacity{
+			{Name: "host-vm1-ha0", NodeUUID: "uuid-vm1-ha0", SizeInGiB: 4096},
+			{Name: "host-vm2-ha0", NodeUUID: "uuid-vm2-ha0", SizeInGiB: 4096},
+			{Name: "host-vm1-ha1", NodeUUID: "uuid-vm1-ha1", SizeInGiB: 8192},
+			{Name: "host-vm2-ha1", NodeUUID: "uuid-vm2-ha1", SizeInGiB: 8192},
+		},
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-hetero-nc"},
+		Name:                   "p-hetero-nc",
+		DeploymentName:         "dep-hetero-nc",
+		PoolExternalIdentifier: "ocid1.pool.oc1..hetero-nc",
+		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+	}
+	stored := storedVLMConfigWithHostNamedHAPairs(2)
+	stored.Deployment.VSAInstanceType = "VM.DenseIO.E5.Flex"
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(stored, nil)
+
+	var captured []*vlm.UpdateVSAClusterDeploymentRequest
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			req := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest)
+			cp := *req
+			captured = append(captured, &cp)
+		}).
+		Return(&vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: *stored}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	registerOCIUpdatePoolNodePersistMocks(env, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	require.NotEmpty(t, captured)
+	for _, req := range captured {
+		assert.True(t, req.SPConfig.IsHeterogeneous)
+		assert.Equal(t, "24576Gi", req.SPConfig.Size)
+		assert.Equal(t, int64(256), req.SPConfig.Throughput)
+		require.Len(t, req.SPConfig.HAPairConfigs, 2)
+		// One aggregate per node (active-active), ordered VM1 then VM2. Only
+		// size changes; aggr_name, iops and throughput carry through from the
+		// stored config so VLM owns the per-aggregate performance split.
+		assert.Equal(t, []vlm.AggrConfig{
+			{Size: "4096Gi", IOps: 3133, Throughput: 208, AggrName: "aggr1"},
+			{Size: "4096Gi", IOps: 3133, Throughput: 208, AggrName: "aggr2"},
+		}, req.SPConfig.HAPairConfigs[0].AggrConfigs)
+		assert.Equal(t, []vlm.AggrConfig{
+			{Size: "8192Gi", IOps: 3133, Throughput: 208, AggrName: "aggr3"},
+			{Size: "8192Gi", IOps: 3133, Throughput: 208, AggrName: "aggr4"},
+		}, req.SPConfig.HAPairConfigs[1].AggrConfigs)
+		assert.Equal(t, stored.Deployment.SPConfig.HAPairConfigs, req.VLMConfig.Deployment.SPConfig.HAPairConfigs,
+			"req.VLMConfig must carry the current cluster layout so VLM's per-pair aggregate count check matches")
+	}
 	env.AssertExpectations(t)
 }
 
@@ -6456,14 +6548,16 @@ func TestBuildOCIUpdateSPConfig(t *testing.T) {
 	}
 
 	t.Run("metadata-only returns empty", func(tt *testing.T) {
-		got := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{KmsKeyId: "k"}, pool)
+		got, err := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{KmsKeyId: "k"}, pool, vlm.VLMConfig{})
+		require.NoError(tt, err)
 		assert.Equal(tt, vlm.SPConfig{}, got)
 	})
 
 	t.Run("vmrs decision drives throughput and resolved iops", func(tt *testing.T) {
 		decision := &vmrs_oci.Decision{Throughput: 800, ResolvedIOPS: 12500}
 		sizeBytes := uint64(3) * 1024 * 1024 * 1024 * 1024 // 3 TiB
-		got := buildOCIUpdateSPConfig(decision, &common.UpdatePoolParams{SizeInBytes: sizeBytes}, pool)
+		got, err := buildOCIUpdateSPConfig(decision, &common.UpdatePoolParams{SizeInBytes: sizeBytes}, pool, vlm.VLMConfig{})
+		require.NoError(tt, err)
 		assert.Equal(tt, "3072Gi", got.Size)
 		assert.Equal(tt, int64(800), got.Throughput)
 		assert.Equal(tt, int64(12500), got.IOps)
@@ -6475,13 +6569,153 @@ func TestBuildOCIUpdateSPConfig(t *testing.T) {
 			SizeInBytes:    2 * 1024 * 1024 * 1024 * 1024, // 2 TiB
 			PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800},
 		}
-		got := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{
+		got, err := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{
 			TotalIops: &iops,
-		}, poolGiB)
+		}, poolGiB, vlm.VLMConfig{})
+		require.NoError(tt, err)
 		assert.Equal(tt, "2048Gi", got.Size)
 		assert.Equal(tt, int64(800), got.Throughput)
 		assert.Equal(tt, int64(20000), got.IOps)
 	})
+
+	// Shared HA is active-active, so each node in a pair gets its own aggregate
+	// target. The request order is deliberately shuffled to prove the builder
+	// orders aggregates by the stored topology (VM1 then VM2 of each pair), not
+	// by the order nodeCapacities arrived in.
+	t.Run("heterogeneous shared HA builds one aggregate target per node", func(tt *testing.T) {
+		iops := int64(25000)
+		params := &common.UpdatePoolParams{
+			SizeInBytes:              uint64(24576) * 1024 * 1024 * 1024,
+			TotalThroughputMibps:     2000,
+			TotalIops:                &iops,
+			CustomPerformanceEnabled: true,
+			NodeCapacities: []common.NodeCapacity{
+				{Name: "host-vm1-ha1", NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{Name: "host-vm2-ha0", NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{Name: "host-vm2-ha1", NodeUUID: "uuid-4", SizeInGiB: 8192},
+				{Name: "host-vm1-ha0", NodeUUID: "uuid-1", SizeInGiB: 4096},
+			},
+		}
+		current := *storedVLMConfigWithHostNamedHAPairs(2)
+		current.Deployment.VSAInstanceType = "VM.Standard.E5.Flex"
+		current.Deployment.SPConfig.HAPairConfigs[0].InstanceType = "VM.DenseIO.E5.Flex"
+
+		got, err := buildOCIUpdateSPConfig(nil, params, pool, current)
+
+		require.NoError(tt, err)
+		assert.Equal(tt, "24576Gi", got.Size)
+		assert.Equal(tt, int64(2000), got.Throughput)
+		assert.Equal(tt, int64(25000), got.IOps)
+		assert.True(tt, got.IsHeterogeneous)
+		require.Len(tt, got.HAPairConfigs, 2)
+		assert.Equal(tt, "VM.DenseIO.E5.Flex", got.HAPairConfigs[0].InstanceType)
+		assert.Equal(tt, "VM.Standard.E5.Flex", got.HAPairConfigs[1].InstanceType,
+			"pair without a stored instance type falls back to the deployment-wide shape")
+		// Only size changes; aggr_name, iops and throughput ride through from
+		// the stored config so VLM owns the per-aggregate performance split.
+		assert.Equal(tt, []vlm.AggrConfig{
+			{Size: "4096Gi", IOps: 3133, Throughput: 208, AggrName: "aggr1"},
+			{Size: "4096Gi", IOps: 3133, Throughput: 208, AggrName: "aggr2"},
+		}, got.HAPairConfigs[0].AggrConfigs)
+		assert.Equal(tt, []vlm.AggrConfig{
+			{Size: "8192Gi", IOps: 3133, Throughput: 208, AggrName: "aggr3"},
+			{Size: "8192Gi", IOps: 3133, Throughput: 208, AggrName: "aggr4"},
+		}, got.HAPairConfigs[1].AggrConfigs)
+	})
+
+	t.Run("rejects heterogeneous update when the stored pair aggregate count differs", func(tt *testing.T) {
+		params := &common.UpdatePoolParams{
+			SizeInBytes:              uint64(24576) * 1024 * 1024 * 1024,
+			CustomPerformanceEnabled: true,
+			NodeCapacities: []common.NodeCapacity{
+				{Name: "host-vm1-ha0", NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{Name: "host-vm2-ha0", NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{Name: "host-vm1-ha1", NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{Name: "host-vm2-ha1", NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+		current := *storedVLMConfigWithHostNamedHAPairs(2)
+		current.Deployment.SPConfig.HAPairConfigs[0].AggrConfigs =
+			current.Deployment.SPConfig.HAPairConfigs[0].AggrConfigs[:1]
+
+		_, err := buildOCIUpdateSPConfig(nil, params, pool, current)
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "per-node capacity requires 2")
+	})
+
+	t.Run("rejects different sizes within one shared HA pair", func(tt *testing.T) {
+		params := &common.UpdatePoolParams{
+			NodeCapacities: []common.NodeCapacity{
+				{Name: "host-vm1-ha0", NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{Name: "host-vm2-ha0", NodeUUID: "uuid-2", SizeInGiB: 8192},
+			},
+		}
+
+		_, err := buildOCIUpdateSPConfig(nil, params, pool, *storedVLMConfigWithHostNamedHAPairs(1))
+
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "must have the same sizeInGiB")
+		assert.Contains(tt, err.Error(), `node "host-vm1-ha0" requested 4096 GiB`)
+		assert.Contains(tt, err.Error(), `node "host-vm2-ha0" requested 8192 GiB`)
+	})
+
+	t.Run("heterogeneous non-shared HA is rejected", func(tt *testing.T) {
+		regionalPool := &datamodel.Pool{
+			PoolExternalIdentifier: "ocid1.pool.oc1..regional",
+			PoolAttributes:         &datamodel.PoolAttributes{IsRegionalHA: true},
+		}
+		params := &common.UpdatePoolParams{
+			NodeCapacities: []common.NodeCapacity{
+				{Name: "host-vm1-ha0", SizeInGiB: 4096},
+				{Name: "host-vm2-ha0", SizeInGiB: 4096},
+				{Name: "host-vm1-ha1", SizeInGiB: 8192},
+				{Name: "host-vm2-ha1", SizeInGiB: 8192},
+			},
+		}
+
+		_, err := buildOCIUpdateSPConfig(nil, params, regionalPool, *storedVLMConfigWithHostNamedHAPairs(2))
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "not supported for non-shared HA")
+	})
+}
+
+// TestBuildOCIUpdateSPConfig_HeterogeneousWireShape pins the JSON VCP actually
+// puts on the wire for an active-active (shared HA) heterogeneous update: one
+// aggregate entry per node within each pair, each naming the aggregate it
+// resizes. VLM rejects the update when a pair's requested aggregate count does
+// not match the cluster's current layout, so the exact array shape matters.
+func TestBuildOCIUpdateSPConfig_HeterogeneousWireShape(t *testing.T) {
+	iops := int64(25000)
+	params := &common.UpdatePoolParams{
+		SizeInBytes:              uint64(24576) * 1024 * 1024 * 1024,
+		TotalThroughputMibps:     2000,
+		TotalIops:                &iops,
+		CustomPerformanceEnabled: true,
+		NodeCapacities: []common.NodeCapacity{
+			{Name: "host-vm1-ha0", NodeUUID: "uuid-1", SizeInGiB: 4096},
+			{Name: "host-vm2-ha0", NodeUUID: "uuid-2", SizeInGiB: 4096},
+			{Name: "host-vm1-ha1", NodeUUID: "uuid-3", SizeInGiB: 8192},
+			{Name: "host-vm2-ha1", NodeUUID: "uuid-4", SizeInGiB: 8192},
+		},
+	}
+	pool := &datamodel.Pool{PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800}}
+
+	sp, err := buildOCIUpdateSPConfig(nil, params, pool, *storedVLMConfigWithHostNamedHAPairs(2))
+	require.NoError(t, err)
+	out, err := json.Marshal(sp)
+	require.NoError(t, err)
+
+	got := string(out)
+	assert.Contains(t, got, `"is_heterogeneous":true`)
+	assert.Contains(t, got, `"size":"24576Gi"`)
+	// Every aggregate must carry a non-zero iops: VLM rejects the update with
+	// "HA pair N AggrConfig M: IOps is required" otherwise.
+	assert.NotContains(t, got, `"iops":0`)
+	assert.Contains(t, got, `"aggr_configs":[{"size":"4096Gi","iops":3133,"throughput":208,"aggr_name":"aggr1"},{"size":"4096Gi","iops":3133,"throughput":208,"aggr_name":"aggr2"}]`)
+	assert.Contains(t, got, `"aggr_configs":[{"size":"8192Gi","iops":3133,"throughput":208,"aggr_name":"aggr3"},{"size":"8192Gi","iops":3133,"throughput":208,"aggr_name":"aggr4"}]`)
 }
 
 func TestOCIUpdatePoolWorkflow_VMRSEnabled_RunsVMRSAndPersistsResolvedIOPS(t *testing.T) {

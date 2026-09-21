@@ -67,6 +67,12 @@ var (
 	ocidRegex                      = regexp.MustCompile(`^ocid1\.[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]*(\.[a-z0-9_-]*)?\.[a-z0-9_-]+$`)
 )
 
+// ociSharedHAAggrsPerPair is the number of aggregates an OCI shared-HA pair
+// owns. Shared HA runs active-active, so each of the two nodes backs its own
+// aggregate. Regional (non-shared) HA is active-passive and mirrors a single
+// aggregate across the pair instead.
+const ociSharedHAAggrsPerPair = 2
+
 // catalogActivityOptions are used for VMRS catalogue operations. Tight
 // timeout, no retry (deterministic catalogue read / selector run).
 var catalogActivityOptions = workflow.ActivityOptions{
@@ -1289,7 +1295,11 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	// Build the target SPConfig for VLM (empty when no perf/capacity field
 	// changes). VMRS on → decision carries headroom + resolved IOPS; VMRS off
 	// → raw API values are sent unchanged.
-	targetSPConfig := buildOCIUpdateSPConfig(ociDecision, params, pool)
+	targetSPConfig, err := buildOCIUpdateSPConfig(ociDecision, params, pool, currentVlmConfig)
+	if err != nil {
+		logger.Error("Failed to build target SPConfig for OCI pool update", "error", err, "pool", pool.Name)
+		return nil, workflows.ConvertToVSAError(err)
+	}
 	if targetSPConfig.IOps > 0 {
 		resolvedIOPS := targetSPConfig.IOps
 		params.TotalIops = &resolvedIOPS
@@ -1603,9 +1613,10 @@ func buildOCIUpdateSPConfig(
 	decision *vmrs_oci.Decision,
 	params *common.UpdatePoolParams,
 	pool *datamodel.Pool,
-) vlm.SPConfig {
+	currentVlmConfig vlm.VLMConfig,
+) (vlm.SPConfig, error) {
 	if !ociUpdateNeedsSPConfig(params) {
-		return vlm.SPConfig{}
+		return vlm.SPConfig{}, nil
 	}
 
 	sizeInGB := utils.BytesToGigabytes(params.SizeInBytes)
@@ -1614,27 +1625,145 @@ func buildOCIUpdateSPConfig(
 	}
 	sizeStr := fmt.Sprintf("%dGi", sizeInGB)
 
+	var target vlm.SPConfig
 	if decision != nil {
-		return vlm.SPConfig{
+		target = vlm.SPConfig{
 			Size:       sizeStr,
 			Throughput: int64(decision.Throughput),
 			IOps:       decision.ResolvedIOPS,
 		}
+	} else {
+		throughput := params.TotalThroughputMibps
+		if throughput == 0 && pool.PoolAttributes != nil {
+			throughput = pool.PoolAttributes.ThroughputMibps
+		}
+		var iops int64
+		if params.TotalIops != nil {
+			iops = *params.TotalIops
+		}
+		target = vlm.SPConfig{
+			Size:       sizeStr,
+			Throughput: throughput,
+			IOps:       iops,
+		}
 	}
 
-	throughput := params.TotalThroughputMibps
-	if throughput == 0 && pool.PoolAttributes != nil {
-		throughput = pool.PoolAttributes.ThroughputMibps
+	haPairConfigs, heterogeneous, err := buildOCIUpdateHAPairConfigs(params, pool, currentVlmConfig)
+	if err != nil {
+		return vlm.SPConfig{}, err
 	}
-	var iops int64
-	if params.TotalIops != nil {
-		iops = *params.TotalIops
+	if heterogeneous {
+		target.IsHeterogeneous = true
+		target.HAPairConfigs = haPairConfigs
 	}
-	return vlm.SPConfig{
-		Size:       sizeStr,
-		Throughput: throughput,
-		IOps:       iops,
+	return target, nil
+}
+
+// buildOCIUpdateHAPairConfigs maps the requested per-node capacities onto the
+// stored VLM HA-pair topology and returns the per-pair aggregate targets.
+//
+// OCI shared HA runs active-active, so each node in an HA pair owns its own
+// aggregate and a pair carries one AggrConfig per node, ordered VM1 then VM2.
+// Both nodes in a pair must request the same capacity; heterogeneity is
+// supported between HA pairs only.
+// VLM rejects the update outright when the requested aggregate count for a pair
+// does not match the cluster's current layout, so the count is checked here.
+// IOPS and throughput stay pool-level: VLM distributes them across aggregates.
+func buildOCIUpdateHAPairConfigs(
+	params *common.UpdatePoolParams,
+	pool *datamodel.Pool,
+	currentVlmConfig vlm.VLMConfig,
+) ([]vlm.SPHAPairConfig, bool, error) {
+	if len(params.NodeCapacities) == 0 {
+		return nil, false, nil
 	}
+
+	var firstSize int64
+	heterogeneous := false
+	for i, nodeCapacity := range params.NodeCapacities {
+		if i == 0 {
+			firstSize = nodeCapacity.SizeInGiB
+		} else if nodeCapacity.SizeInGiB != firstSize {
+			heterogeneous = true
+		}
+	}
+	if !heterogeneous {
+		return nil, false, nil
+	}
+	if pool.PoolAttributes != nil && pool.PoolAttributes.IsRegionalHA {
+		return nil, false, utilserrors.NewUserInputValidationErr(
+			fmt.Sprintf("heterogeneous nodeCapacities are not supported for non-shared HA pool %q", pool.PoolExternalIdentifier))
+	}
+	if len(currentVlmConfig.Cloud.HAPairs) == 0 {
+		return nil, false, utilserrors.NewUserInputValidationErr(
+			fmt.Sprintf("stored VLM config for pool %q has no HA-pair topology", pool.PoolExternalIdentifier))
+	}
+
+	sizeByNodeName := make(map[string]int64, len(params.NodeCapacities))
+	for i, nodeCapacity := range params.NodeCapacities {
+		nodeName := strings.TrimSpace(nodeCapacity.Name)
+		if nodeName == "" {
+			return nil, false, utilserrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities[%d].name is required to build heterogeneous HA-pair capacity", i))
+		}
+		sizeByNodeName[nodeName] = nodeCapacity.SizeInGiB
+	}
+
+	haPairConfigs := make([]vlm.SPHAPairConfig, 0, len(currentVlmConfig.Cloud.HAPairs))
+	for pairIndex, haPair := range currentVlmConfig.Cloud.HAPairs {
+		// HA pairs are reported to callers as ha_pair-<1-based index>, so label
+		// them the same way here.
+		haPairLabel := fmt.Sprintf("ha_pair-%d", pairIndex+1)
+		vm1Name := strings.TrimSpace(haPair.VM1.HostName)
+		vm2Name := strings.TrimSpace(haPair.VM2.HostName)
+		vm1Size, vm1OK := sizeByNodeName[vm1Name]
+		vm2Size, vm2OK := sizeByNodeName[vm2Name]
+		if !vm1OK || !vm2OK {
+			return nil, false, utilserrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities do not match stored VLM config %s node names %q and %q",
+					haPairLabel, vm1Name, vm2Name))
+		}
+		if vm1Size != vm2Size {
+			return nil, false, utilserrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities: both nodes in %s of pool %q must have the same sizeInGiB: node %q requested %d GiB, node %q requested %d GiB",
+					haPairLabel, pool.PoolExternalIdentifier, vm1Name, vm1Size, vm2Name, vm2Size))
+		}
+		instanceType := currentVlmConfig.Deployment.VSAInstanceType
+		var currentAggrConfigs []vlm.AggrConfig
+		if pairIndex < len(currentVlmConfig.Deployment.SPConfig.HAPairConfigs) {
+			currentPairConfig := currentVlmConfig.Deployment.SPConfig.HAPairConfigs[pairIndex]
+			currentAggrConfigs = currentPairConfig.AggrConfigs
+			if currentPairConfig.InstanceType != "" {
+				instanceType = currentPairConfig.InstanceType
+			}
+		}
+		if len(currentAggrConfigs) != ociSharedHAAggrsPerPair {
+			return nil, false, utilserrors.NewUserInputValidationErr(
+				fmt.Sprintf("pool %q %s has %d aggregate(s) in its stored VLM config; per-node capacity requires %d",
+					pool.PoolExternalIdentifier, haPairLabel, len(currentAggrConfigs), ociSharedHAAggrsPerPair))
+		}
+
+		haPairConfigs = append(haPairConfigs, vlm.SPHAPairConfig{
+			InstanceType: instanceType,
+			AggrConfigs: []vlm.AggrConfig{
+				ociUpdateAggrConfig(currentAggrConfigs[0], vm1Size),
+				ociUpdateAggrConfig(currentAggrConfigs[1], vm2Size),
+			},
+		})
+	}
+	return haPairConfigs, true, nil
+}
+
+// ociUpdateAggrConfig builds the target aggregate for one node by carrying the
+// stored aggregate forward and overriding only its size. Keeping the existing
+// aggr_name lets VLM resize the aggregate it already owns rather than matching
+// on slice position, and keeping the existing iops/throughput leaves the
+// per-aggregate performance split to VLM — VCP only sets the pool-level totals.
+// VLM rejects an AggrConfig with no IOPS, so these fields cannot be omitted.
+func ociUpdateAggrConfig(current vlm.AggrConfig, sizeInGiB int64) vlm.AggrConfig {
+	target := current
+	target.Size = fmt.Sprintf("%dGi", sizeInGiB)
+	return target
 }
 
 func validateStoredVLMConfigForUpdate(pool *datamodel.Pool, currentVlmConfig vlm.VLMConfig) error {

@@ -2,6 +2,7 @@ package oci
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -794,11 +796,11 @@ func TestUpdatePool_UpdatingPoolDbFails(t *testing.T) {
 	mockStorage.EXPECT().UpdatingPool(mock.Anything, mock.Anything).Return(nil, errors.New("state transition failed"))
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "state transition failed")
@@ -828,11 +830,11 @@ func TestUpdatePool_WorkflowFails(t *testing.T) {
 		Return(nil, errors.New("temporal start failed"))
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal start failed")
@@ -863,11 +865,11 @@ func TestUpdatePool_WorkflowFailsAndRollbackFails(t *testing.T) {
 		Return(nil, errors.New("temporal unavailable"))
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal unavailable")
@@ -986,11 +988,11 @@ func TestUpdatePool_ClusterUpgradePending_Returns409(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "PENDING upgrade must surface as 409")
@@ -1036,11 +1038,11 @@ func TestUpdatePool_ClusterUpgradeInProgress_Returns409(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "IN_PROGRESS upgrade must surface as 409")
@@ -1089,11 +1091,11 @@ func TestUpdatePool_ClusterUpgradeTerminalStatesDoNotBlock(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
+		TotalThroughputMibps: 256,
 	})
 	assert.NoError(t, err, "only PENDING/IN_PROGRESS may block UpdatePool; terminal-status history must not")
 	assert.NotNil(t, result)
@@ -1123,11 +1125,11 @@ func TestUpdatePool_ClusterUpgradeLookupDbError_PropagatesError(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.Error(t, err)
 	var vcpErr *vsaerrors.CustomError
@@ -1166,12 +1168,12 @@ func TestUpdatePool_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
-		WorkflowID:             testSuppliedWorkflowID,
+		TotalThroughputMibps: 128,
+		WorkflowID:           testSuppliedWorkflowID,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
@@ -1283,12 +1285,12 @@ func TestUpdatePool_CrashResumeSucceedsWhenNoActiveUpgrade(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	result, wfID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
-		WorkflowID:             testSuppliedWorkflowID,
+		TotalThroughputMibps: 256,
+		WorkflowID:           testSuppliedWorkflowID,
 	})
 	assert.NoError(t, err, "crash-resume UpdatePool must succeed when no active upgrade")
 	assert.NotNil(t, result)
@@ -1326,12 +1328,12 @@ func TestUpdatePool_AllowedFromErrorStateRetry(t *testing.T) {
 		Return(nil, nil)
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
+		TotalThroughputMibps: 256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1369,12 +1371,12 @@ func TestUpdatePool_HappyPathReturnsPoolAndWorkflowID(t *testing.T) {
 		Return(nil, nil)
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
+		TotalThroughputMibps: 256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1438,13 +1440,11 @@ func TestValidateUpdatePoolThroughput(t *testing.T) {
 	})
 }
 
-// poolNodes builds the slice that GetNodesByPoolID returns for tests. The
-// trimmed validator only reads Node.UUID for membership/coverage; we don't
-// bother stamping Name or State.
+// poolNodes builds the slice that GetNodesByPoolID returns for tests.
 func poolNodes(uuids ...string) []*datamodel.Node {
 	out := make([]*datamodel.Node, 0, len(uuids))
 	for _, u := range uuids {
-		out = append(out, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: u}})
+		out = append(out, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: u}, Name: u})
 	}
 	return out
 }
@@ -1461,6 +1461,7 @@ func poolNodesWithSizes(pairs ...struct {
 	for _, p := range pairs {
 		out = append(out, &datamodel.Node{
 			BaseModel:      datamodel.BaseModel{UUID: p.uuid},
+			Name:           p.uuid,
 			NodeAttributes: &datamodel.NodeDetails{SizeInGiB: p.size},
 		})
 	}
@@ -1480,6 +1481,21 @@ func makeUpdatePool(id int64, ocid, poolUUID string, sizeBytes int64, isRegional
 	}
 }
 
+func setUpdatePoolHATopology(t *testing.T, pool *datamodel.Pool, nodeNames ...string) {
+	t.Helper()
+	require.Zero(t, len(nodeNames)%2)
+	haPairs := make([]vlm.HAPair, 0, len(nodeNames)/2)
+	for i := 0; i < len(nodeNames); i += 2 {
+		haPairs = append(haPairs, vlm.HAPair{
+			VM1: vlm.VMConfig{HostName: nodeNames[i]},
+			VM2: vlm.VMConfig{HostName: nodeNames[i+1]},
+		})
+	}
+	raw, err := json.Marshal(vlm.VLMConfig{Cloud: vlm.CloudConfig{HAPairs: haPairs}})
+	require.NoError(t, err)
+	pool.VLMConfig = string(raw)
+}
+
 // vcpErrorDetail returns the wrapped original error message for VCP internal errors.
 // Customer-facing CustomError.Error() hides operational detail; tests assert on OriginalErr.
 func vcpErrorDetail(err error) string {
@@ -1487,22 +1503,6 @@ func vcpErrorDetail(err error) string {
 		return ce.OriginalErr.Error()
 	}
 	return err.Error()
-}
-
-func TestValidateNodeCapacityPerNodeRules_SkipsNilNodeInPair(t *testing.T) {
-	pool := &datamodel.Pool{PoolExternalIdentifier: "ocid1.pool.oc1..nilpair"}
-	nodes := []*datamodel.Node{
-		{BaseModel: datamodel.BaseModel{UUID: "uuid-1"}, NodeAttributes: &datamodel.NodeDetails{SizeInGiB: 100}},
-		nil,
-	}
-	params := &commonparams.UpdatePoolParams{
-		NodeCapacities: []commonparams.NodeCapacity{
-			{NodeUUID: "uuid-1", SizeInGiB: 200},
-		},
-	}
-
-	err := validateNodeCapacityPerNodeRules(pool, params, nodes)
-	assert.NoError(t, err)
 }
 
 // TestValidateUpdatePoolNodeCapacities covers the four behavioral rules of the
@@ -1655,8 +1655,8 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 	})
 
 	t.Run("rejects pool shrink on non-HA pool: requested aggregate < current pool size", func(tt *testing.T) {
-		// Current 1000 GiB; request 2 × 400 = 800 GiB. Non-HA counts every
-		// per-node GiB toward the pool total, so 800 < 1000 is a shrink.
+		// Shared HA is active-active, so both 400 GiB nodes count toward the
+		// pool total: 800 GiB against a current 1000 GiB is a shrink.
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2"), nil)
@@ -1755,8 +1755,10 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2")
 		err := validateUpdatePoolNodeCapacities(ctx, mockStorage,
-			makeUpdatePool(poolID, poolOCID, poolUUID, 0, false),
+			pool,
 			&commonparams.UpdatePoolParams{
 				NodeCapacities: []commonparams.NodeCapacity{
 					{NodeUUID: "uuid-1", SizeInGiB: 100},
@@ -1774,8 +1776,10 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
 		err := validateUpdatePoolNodeCapacities(ctx, mockStorage,
-			makeUpdatePool(poolID, poolOCID, poolUUID, 0, false),
+			pool,
 			&commonparams.UpdatePoolParams{
 				NodeCapacities: []commonparams.NodeCapacity{
 					{NodeUUID: " uuid-1 ", SizeInGiB: 100},
@@ -1844,6 +1848,28 @@ func TestValidateUpdatePoolNodeCapacities_PerNodeNoShrink(t *testing.T) {
 		assert.Contains(tt, err.Error(), "cannot shrink node")
 	})
 
+	t.Run("accepts keeping a node at its cached size while growing another", func(tt *testing.T) {
+		// Heterogeneous updates must list every node. Production nodes persist a
+		// cached size, so growing only some nodes must still allow the unchanged
+		// nodes to resubmit their current SizeInGiB.
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodesWithSizes(ns{"uuid-1", 400}, ns{"uuid-2", 400}, ns{"uuid-3", 400}, ns{"uuid-4", 400}), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 400},
+				{NodeUUID: "uuid-2", SizeInGiB: 400},
+				{NodeUUID: "uuid-3", SizeInGiB: 800},
+				{NodeUUID: "uuid-4", SizeInGiB: 800},
+			},
+		}
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+		assert.NoError(tt, err)
+		assert.Equal(tt, uint64(2400)*1024*1024*1024, params.SizeInBytes)
+	})
+
 	t.Run("accepts growing every node above its cached size", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
@@ -1875,10 +1901,12 @@ func TestValidateUpdatePoolNodeCapacities_PerNodeNoShrink(t *testing.T) {
 	})
 }
 
-// TestValidateUpdatePoolNodeCapacities_IntraPairHomogeneity covers the rule that
-// both nodes of an HA pair must request the same sizeInGiB. Pairs are derived
-// from the order GetNodesByPoolID returns nodes (consecutive VM1/VM2).
-func TestValidateUpdatePoolNodeCapacities_IntraPairHomogeneity(t *testing.T) {
+// TestValidateUpdatePoolNodeCapacities_Heterogeneous covers per-node sizing on
+// shared HA. Shared HA is active-active — each node backs its own aggregate —
+// but both nodes in a pair must have the same requested size. Different HA
+// pairs may be sized independently, and the pool total is the sum of every node
+// size.
+func TestValidateUpdatePoolNodeCapacities_Heterogeneous(t *testing.T) {
 	ctx := context.Background()
 	const (
 		poolID   = int64(99)
@@ -1886,42 +1914,153 @@ func TestValidateUpdatePoolNodeCapacities_IntraPairHomogeneity(t *testing.T) {
 		poolUUID = "pool-uuid-nc"
 	)
 
-	t.Run("rejects mismatched sizes within one HA pair", func(tt *testing.T) {
+	t.Run("rejects differing sizes within one HA pair", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2"), nil)
-		err := validateUpdatePoolNodeCapacities(ctx, mockStorage,
-			makeUpdatePool(poolID, poolOCID, poolUUID, 0, false),
-			&commonparams.UpdatePoolParams{
-				NodeCapacities: []commonparams.NodeCapacity{
-					{NodeUUID: "uuid-1", SizeInGiB: 600},
-					{NodeUUID: "uuid-2", SizeInGiB: 800},
-				},
-			})
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 600},
+				{NodeUUID: "uuid-2", SizeInGiB: 800},
+			},
+		}
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "must request the same sizeInGiB")
-		assert.Contains(tt, err.Error(), "uuid-1")
-		assert.Contains(tt, err.Error(), "uuid-2")
+		assert.Contains(tt, err.Error(), "must have the same sizeInGiB")
+		assert.Contains(tt, err.Error(), `node "uuid-1" requested 600 GiB`)
+		assert.Contains(tt, err.Error(), `node "uuid-2" requested 800 GiB`)
 	})
 
-	t.Run("rejects heterogeneous sizes across HA pairs", func(tt *testing.T) {
+	t.Run("accepts heterogeneous sizes across HA pairs", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
-		err := validateUpdatePoolNodeCapacities(ctx, mockStorage,
-			makeUpdatePool(poolID, poolOCID, poolUUID, 0, false),
-			&commonparams.UpdatePoolParams{
-				NodeCapacities: []commonparams.NodeCapacity{
-					{NodeUUID: "uuid-1", SizeInGiB: 4096},
-					{NodeUUID: "uuid-2", SizeInGiB: 4096},
-					{NodeUUID: "uuid-3", SizeInGiB: 8192},
-					{NodeUUID: "uuid-4", SizeInGiB: 8192},
-				},
-			})
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+		assert.NoError(tt, err)
+		assert.Equal(tt, uint64(24576)*1024*1024*1024, params.SizeInBytes)
+	})
+
+	t.Run("rejects heterogeneous sizes without stored topology", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+
+		err := validateUpdatePoolNodeCapacities(
+			ctx, mockStorage, makeUpdatePool(poolID, poolOCID, poolUUID, 0, false), params)
+
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "heterogeneous updates are supported")
+		assert.Contains(tt, err.Error(), "stored VLM config")
+	})
+
+	t.Run("rejects heterogeneous sizes when topology does not match DB nodes", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "missing-3", "missing-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "does not match DB node names")
+	})
+
+	t.Run("rejects stored topology that repeats the same HA pair", func(tt *testing.T) {
+		// Four DB nodes and two stored pairs that both name the first two VMs.
+		// Without the duplicate check, the workflow would emit two pair configs
+		// for the same nodes and leave the other two uncovered.
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-1", "uuid-2")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 600},
+				{NodeUUID: "uuid-2", SizeInGiB: 600},
+				{NodeUUID: "uuid-3", SizeInGiB: 800},
+				{NodeUUID: "uuid-4", SizeInGiB: 800},
+			},
+		}
+
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "already covered by another HA pair")
+	})
+
+	t.Run("rejects stored HA pair that maps both VMs to the same DB node", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-1")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 600},
+				{NodeUUID: "uuid-2", SizeInGiB: 800},
+			},
+		}
+
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "must map to two distinct DB nodes")
+	})
+
+	t.Run("rejects heterogeneous sizes for non-shared HA", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, true)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "not supported for non-shared HA")
 	})
 }
 
@@ -1950,11 +2089,11 @@ func TestUpdatePool_NodeCapacityCoverageMismatchRejected(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 200},
 		},
@@ -2012,12 +2151,12 @@ func TestUpdatePool_NodeCapacitiesCollapseToPoolTotal(t *testing.T) {
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 	params := &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
-		SizeInBytes:            0,
+		TotalThroughputMibps: 256,
+		SizeInBytes:          0,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 4096},
 			{Name: "vm-2", NodeUUID: "uuid-2", SizeInGiB: 4096},
@@ -2084,12 +2223,12 @@ func TestUpdatePool_NodeCapacitiesCollapseOverwritesStaleSizeInBytes(t *testing.
 	// wire). 7777 GiB is intentionally not the collapsed value (8192 GiB / 2 = 4096).
 	const staleSmuggledBytes = uint64(7777) * 1024 * 1024 * 1024
 	params := &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
-		SizeInBytes:            staleSmuggledBytes,
+		TotalThroughputMibps: 256,
+		SizeInBytes:          staleSmuggledBytes,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 4096},
 			{Name: "vm-2", NodeUUID: "uuid-2", SizeInGiB: 4096},
@@ -2140,12 +2279,12 @@ func TestUpdatePool_QueriesByPoolExternalIdentifier(t *testing.T) {
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..target",
-		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..target",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     128,
+		TotalThroughputMibps: 128,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2187,11 +2326,11 @@ func TestUpdatePool_HappyPathWithThroughput(t *testing.T) {
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
+		TotalThroughputMibps: 256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2217,12 +2356,12 @@ func TestUpdatePool_RejectsDataEndpointCountForNonSharedHA(t *testing.T) {
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 	_, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
-		HAPairs:                4,
+		TotalThroughputMibps: 256,
+		HAPairs:              4,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsBadRequestErr(err), "dataEndpointCount update on a non-shared HA pool must be a 400")
@@ -2271,12 +2410,12 @@ func TestUpdatePool_AllowsDataEndpointCountForSharedHA(t *testing.T) {
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-		AccountName:            "ocid1.tenancy..x",
-		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		AccountName:              "ocid1.tenancy..x",
+		PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 		CustomPerformanceEnabled: true,
 
-		TotalThroughputMibps:     256,
-		HAPairs:                4,
+		TotalThroughputMibps: 256,
+		HAPairs:              4,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2366,12 +2505,12 @@ func TestUpdatePool_RejectsDataEndpointCountShrink(t *testing.T) {
 
 			orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 			_, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
-				AccountName:            "ocid1.tenancy..x",
-				PoolExternalIdentifier: "ocid1.pool.oc1..y",
+				AccountName:              "ocid1.tenancy..x",
+				PoolExternalIdentifier:   "ocid1.pool.oc1..y",
 				CustomPerformanceEnabled: true,
 
-				TotalThroughputMibps:     256,
-				HAPairs:                tc.requestHAPairs,
+				TotalThroughputMibps: 256,
+				HAPairs:              tc.requestHAPairs,
 			})
 			assert.Error(t, err)
 			assert.True(t, utilserrors.IsUserInputValidationErr(err), "dataEndpointCount shrink must be a user-input validation error")

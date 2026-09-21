@@ -345,10 +345,6 @@ func (o *OCIOrchestrator) updatePool(ctx context.Context, params *commonparams.U
 		return nil, "", err
 	}
 
-	if len(params.NodeCapacities) > 0 {
-		params.SizeInBytes = computeUpdatePoolSizeInBytes(params, pool.PoolAttributes.IsRegionalHA)
-	}
-
 	pool.WorkflowID = workflowID
 
 	if !resume {
@@ -477,17 +473,6 @@ func validateUpdatePoolDataEndpointCount(
 	return nil
 }
 
-func computeUpdatePoolSizeInBytes(params *commonparams.UpdatePoolParams, isRegionalHA bool) uint64 {
-	var totalNodeGiB int64
-	for _, nc := range params.NodeCapacities {
-		totalNodeGiB += nc.SizeInGiB
-	}
-	if isRegionalHA {
-		totalNodeGiB = totalNodeGiB / 2
-	}
-	return uint64(totalNodeGiB) * 1024 * 1024 * 1024
-}
-
 func validateUpdatePoolNodeCapacities(
 	ctx context.Context,
 	se database.Storage,
@@ -502,14 +487,12 @@ func validateUpdatePoolNodeCapacities(
 	}
 
 	maxGiB := int64(ociNodeCapacityMaxTiB * 1024)
-	totalInputGiB := int64(0)
 	for _, nc := range params.NodeCapacities {
 		if nc.SizeInGiB > maxGiB {
 			return customerrors.NewUserInputValidationErr(
 				fmt.Sprintf("nodeCapacities.sizeInGiB %d for node_uuid %q exceeds the configured per-node maximum of %d GiB (%g TiB)",
 					nc.SizeInGiB, nc.NodeUUID, maxGiB, ociNodeCapacityMaxTiB))
 		}
-		totalInputGiB += nc.SizeInGiB
 	}
 
 	nodes, err := se.GetNodesByPoolID(ctx, pool.ID)
@@ -517,10 +500,10 @@ func validateUpdatePoolNodeCapacities(
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError,
 			fmt.Errorf("validateUpdatePoolNodeCapacities: list nodes for pool %q (id=%d): %w", pool.UUID, pool.ID, err))
 	}
-	nodeByUUID := make(map[string]struct{}, len(nodes))
+	nodeByUUID := make(map[string]*datamodel.Node, len(nodes))
 	for _, n := range nodes {
 		if n != nil && n.UUID != "" {
-			nodeByUUID[n.UUID] = struct{}{}
+			nodeByUUID[n.UUID] = n
 		}
 	}
 	var unknown []string
@@ -534,22 +517,30 @@ func validateUpdatePoolNodeCapacities(
 			fmt.Sprintf("nodeCapacities references node_uuid(s) that are not part of pool %q: %s",
 				pool.PoolExternalIdentifier, strings.Join(unknown, ", ")))
 	}
+	for i := range params.NodeCapacities {
+		uuid := strings.TrimSpace(params.NodeCapacities[i].NodeUUID)
+		node := nodeByUUID[uuid]
+		params.NodeCapacities[i].NodeUUID = uuid
+		params.NodeCapacities[i].Name = strings.TrimSpace(node.Name)
+	}
 
 	if len(params.NodeCapacities) != len(nodeByUUID) {
 		return customerrors.NewUserInputValidationErr(
 			fmt.Sprintf("nodeCapacities must cover every node in pool %q: pool has %d nodes, request has %d entries",
 				pool.PoolExternalIdentifier, len(nodeByUUID), len(params.NodeCapacities)))
 	}
-
-	if err := validateNodeCapacityPerNodeRules(pool, params, nodes); err != nil {
-		return err
+	uniqueRequestedUUIDs := make(map[string]struct{}, len(params.NodeCapacities))
+	for _, nodeCapacity := range params.NodeCapacities {
+		uniqueRequestedUUIDs[nodeCapacity.NodeUUID] = struct{}{}
+	}
+	if len(uniqueRequestedUUIDs) != len(nodeByUUID) {
+		return customerrors.NewUserInputValidationErr(
+			fmt.Sprintf("nodeCapacities must contain each node_uuid in pool %q exactly once", pool.PoolExternalIdentifier))
 	}
 
-	var requestedPoolGiB int64
-	if pool.PoolAttributes != nil && pool.PoolAttributes.IsRegionalHA {
-		requestedPoolGiB = totalInputGiB / 2
-	} else {
-		requestedPoolGiB = totalInputGiB
+	requestedPoolGiB, err := validateNodeCapacityPerNodeRules(pool, params, nodeByUUID)
+	if err != nil {
+		return err
 	}
 	currentPoolGiB := int64(pool.SizeInBytes / (1024 * 1024 * 1024))
 	if requestedPoolGiB > 0 && currentPoolGiB > requestedPoolGiB {
@@ -557,6 +548,7 @@ func validateUpdatePoolNodeCapacities(
 			fmt.Sprintf("nodeCapacities cannot shrink pool %q: current size=%d GiB, requested size=%d GiB",
 				pool.PoolExternalIdentifier, currentPoolGiB, requestedPoolGiB))
 	}
+	params.SizeInBytes = uint64(requestedPoolGiB) * 1024 * 1024 * 1024
 	return nil
 }
 
@@ -702,47 +694,148 @@ func currentFabricPoolConfig(pool *datamodel.Pool) (*vlm.FabricPoolConfig, error
 	return &fpc, nil
 }
 
+// validateNodeCapacityPerNodeRules enforces the per-node capacity rules and
+// returns the pool-wide capacity in GiB that the request implies.
+//
+// Capacity accounting follows the deployment topology. OCI shared HA runs
+// active-active (deployment_type=shared_ha, enable_aa_config=true): every node
+// owns its own aggregate, but both nodes in an HA pair must request the same
+// size. Different HA pairs may be sized independently, and the pool total is
+// the sum of all node sizes. Regional (non-shared) HA runs
+// active-passive: the HA pair shares one mirrored aggregate, so both nodes must
+// request the same size and only half the per-node sum reaches the pool.
 func validateNodeCapacityPerNodeRules(
 	pool *datamodel.Pool,
 	params *commonparams.UpdatePoolParams,
-	nodes []*datamodel.Node,
-) error {
-	sizeByUUID := make(map[string]int64, len(nodes))
-	for _, n := range nodes {
-		if n != nil && n.UUID != "" && n.NodeAttributes != nil {
-			sizeByUUID[n.UUID] = n.NodeAttributes.SizeInGiB
+	nodeByUUID map[string]*datamodel.Node,
+) (int64, error) {
+	requestedSizeByUUID := make(map[string]int64, len(params.NodeCapacities))
+	var totalGiB, firstSize int64
+	heterogeneous := false
+	for i, nodeCapacity := range params.NodeCapacities {
+		uuid := strings.TrimSpace(nodeCapacity.NodeUUID)
+		node := nodeByUUID[uuid]
+		if node != nil && node.NodeAttributes != nil && node.NodeAttributes.SizeInGiB > 0 &&
+			nodeCapacity.SizeInGiB < node.NodeAttributes.SizeInGiB {
+			return 0, customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities cannot shrink node %q in pool %q: current size=%d GiB, requested size=%d GiB",
+					nodeCapacity.NodeUUID, pool.PoolExternalIdentifier, node.NodeAttributes.SizeInGiB, nodeCapacity.SizeInGiB))
+		}
+		requestedSizeByUUID[uuid] = nodeCapacity.SizeInGiB
+		totalGiB += nodeCapacity.SizeInGiB
+		if i == 0 {
+			firstSize = nodeCapacity.SizeInGiB
+		} else if nodeCapacity.SizeInGiB != firstSize {
+			heterogeneous = true
 		}
 	}
 
-	// TODO: heterogeneous (per-HA-pair) updates will require validating that the
-	// two nodes of each HA pair request the same sizeInGiB. We cannot pair by DB
-	// node ordering: there is no HA-pair identifier on the node and adjacency is
-	// not guaranteed. When that flow lands, derive the pairs from the stored VLM
-	// config (pool.VLMConfig -> vlm.VLMConfig.Cloud.HAPairs[i].VM1/VM2), which is
-	// the consistent source of HA-pair grouping, mapping VMConfig.HostName to
-	// Node.Name. Until then the pool is homogeneous-only, so we enforce a single
-	// global rule: every node must request the same sizeInGiB.
-	var firstUUID string
-	var firstSize int64
-	var firstSet bool
-	for _, nc := range params.NodeCapacities {
-		uuid := strings.TrimSpace(nc.NodeUUID)
-		if cur := sizeByUUID[uuid]; cur > 0 && nc.SizeInGiB <= cur {
+	if pool.PoolAttributes != nil && pool.PoolAttributes.IsRegionalHA {
+		if heterogeneous {
+			return 0, customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("heterogeneous nodeCapacities are not supported for non-shared HA pool %q",
+					pool.PoolExternalIdentifier))
+		}
+		if len(nodeByUUID)%2 != 0 {
+			return 0, customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("pool %q has an odd node count %d; cannot derive HA-pair capacity",
+					pool.PoolExternalIdentifier, len(nodeByUUID)))
+		}
+		return totalGiB / 2, nil
+	}
+
+	if heterogeneous {
+		if err := validateHeterogeneousTopologyCoverage(pool, requestedSizeByUUID, nodeByUUID); err != nil {
+			return 0, err
+		}
+	}
+	return totalGiB, nil
+}
+
+// validateHeterogeneousTopologyCoverage rejects heterogeneous requests whose
+// nodes cannot be matched against the stored VLM HA-pair topology. The update
+// workflow builds per-node aggregate targets from that topology, so catching a
+// mismatch here surfaces a 400 instead of a mid-workflow VLM rejection. Each
+// stored pair must map to two distinct DB nodes, and each node may appear in
+// only one pair; set-size equality alone would accept a topology that repeats
+// the same pair.
+func validateHeterogeneousTopologyCoverage(
+	pool *datamodel.Pool,
+	requestedSizeByUUID map[string]int64,
+	nodeByUUID map[string]*datamodel.Node,
+) error {
+	if strings.TrimSpace(pool.VLMConfig) == "" {
+		return customerrors.NewUserInputValidationErr(
+			fmt.Sprintf("stored VLM config for pool %q is required to validate HA-pair capacity", pool.PoolExternalIdentifier))
+	}
+	var topology struct {
+		Cloud struct {
+			HAPairs []vlm.HAPair `json:"ha_pair"`
+		} `json:"cloud"`
+	}
+	if err := json.Unmarshal([]byte(pool.VLMConfig), &topology); err != nil {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrVLMConfigParseError,
+			fmt.Errorf("failed to parse stored VLM config for pool %q: %w", pool.UUID, err),
+		)
+	}
+	if len(topology.Cloud.HAPairs) == 0 {
+		return customerrors.NewUserInputValidationErr(
+			fmt.Sprintf("stored VLM config for pool %q has no HA-pair topology", pool.PoolExternalIdentifier))
+	}
+
+	uuidByNodeName := make(map[string]string, len(nodeByUUID))
+	for uuid, node := range nodeByUUID {
+		if node != nil && strings.TrimSpace(node.Name) != "" {
+			uuidByNodeName[strings.TrimSpace(node.Name)] = uuid
+		}
+	}
+
+	coveredNodes := make(map[string]struct{}, len(nodeByUUID))
+	for pairIndex, haPair := range topology.Cloud.HAPairs {
+		// HA pairs are reported to callers as ha_pair-<1-based index>, so label
+		// them the same way here.
+		haPairLabel := fmt.Sprintf("ha_pair-%d", pairIndex+1)
+		vm1UUID := uuidByNodeName[strings.TrimSpace(haPair.VM1.HostName)]
+		vm2UUID := uuidByNodeName[strings.TrimSpace(haPair.VM2.HostName)]
+		if vm1UUID == "" || vm2UUID == "" {
 			return customerrors.NewUserInputValidationErr(
-				fmt.Sprintf("nodeCapacities cannot shrink node %q in pool %q: current size=%d GiB, requested size=%d GiB",
-					nc.NodeUUID, pool.PoolExternalIdentifier, cur, nc.SizeInGiB))
+				fmt.Sprintf("stored VLM config %s for pool %q does not match DB node names %q and %q",
+					haPairLabel, pool.PoolExternalIdentifier, haPair.VM1.HostName, haPair.VM2.HostName))
 		}
-		if !firstSet {
-			firstUUID = uuid
-			firstSize = nc.SizeInGiB
-			firstSet = true
-			continue
-		}
-		if nc.SizeInGiB != firstSize {
+		if vm1UUID == vm2UUID {
 			return customerrors.NewUserInputValidationErr(
-				fmt.Sprintf("nodeCapacities must request the same sizeInGiB for every node in pool %q until heterogeneous updates are supported: node %q=%d GiB, node %q=%d GiB",
-					pool.PoolExternalIdentifier, firstUUID, firstSize, uuid, nc.SizeInGiB))
+				fmt.Sprintf("stored VLM config %s for pool %q must map to two distinct DB nodes",
+					haPairLabel, pool.PoolExternalIdentifier))
 		}
+		vm1Size, vm1OK := requestedSizeByUUID[vm1UUID]
+		vm2Size, vm2OK := requestedSizeByUUID[vm2UUID]
+		if !vm1OK || !vm2OK {
+			return customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities must include both nodes in %s for pool %q", haPairLabel, pool.PoolExternalIdentifier))
+		}
+		if vm1Size != vm2Size {
+			return customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("nodeCapacities: both nodes in %s of pool %q must have the same sizeInGiB: node %q requested %d GiB, node %q requested %d GiB",
+					haPairLabel, pool.PoolExternalIdentifier, vm1UUID, vm1Size, vm2UUID, vm2Size))
+		}
+		if _, alreadyCovered := coveredNodes[vm1UUID]; alreadyCovered {
+			return customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("stored VLM config %s for pool %q reuses node %q already covered by another HA pair",
+					haPairLabel, pool.PoolExternalIdentifier, vm1UUID))
+		}
+		if _, alreadyCovered := coveredNodes[vm2UUID]; alreadyCovered {
+			return customerrors.NewUserInputValidationErr(
+				fmt.Sprintf("stored VLM config %s for pool %q reuses node %q already covered by another HA pair",
+					haPairLabel, pool.PoolExternalIdentifier, vm2UUID))
+		}
+		coveredNodes[vm1UUID] = struct{}{}
+		coveredNodes[vm2UUID] = struct{}{}
+	}
+	if len(coveredNodes) != len(nodeByUUID) {
+		return customerrors.NewUserInputValidationErr(
+			fmt.Sprintf("stored VLM config for pool %q covers %d of %d DB nodes",
+				pool.PoolExternalIdentifier, len(coveredNodes), len(nodeByUUID)))
 	}
 	return nil
 }
