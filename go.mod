@@ -39,7 +39,7 @@ require (
 	go.temporal.io/sdk v1.42.0
 	go.temporal.io/sdk/contrib/opentelemetry v0.7.0
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0
