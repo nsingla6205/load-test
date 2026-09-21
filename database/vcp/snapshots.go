@@ -92,6 +92,7 @@ func (d *DataStoreRepository) UpdateSnapshot(ctx context.Context, snapshot *data
 		},
 		Name:               snapshot.Name,
 		Description:        snapshot.Description,
+		ExternalUUID:       snapshot.ExternalUUID,
 		SnapshotAttributes: snapshot.SnapshotAttributes,
 		State:              snapshot.State,
 		StateDetails:       snapshot.StateDetails,
@@ -122,6 +123,7 @@ func (d *DataStoreRepository) UpdateSnapshotForHandleResource(ctx context.Contex
 	err = tx.Model(&dbSnapshot).Updates(datamodel.Snapshot{
 		Name:               snapshot.Name,
 		Description:        snapshot.Description,
+		ExternalUUID:       snapshot.ExternalUUID,
 		SnapshotAttributes: snapshot.SnapshotAttributes,
 		State:              snapshot.State,
 		StateDetails:       snapshot.StateDetails,
@@ -191,8 +193,12 @@ func (d *DataStoreRepository) GetSnapshotsWithCondition(ctx context.Context, fil
 func (d *DataStoreRepository) GetWronglyDeletedSnapshot(ctx context.Context, snapshotExternalUUID string) (*datamodel.Snapshot, error) {
 	db := d.db.Unscoped().GORM().WithContext(ctx)
 	var snapshot *datamodel.Snapshot
-	err := db.Preload("Volume").Find(&snapshot, "snapshot_attributes @> ?", map[string]interface{}{"external_uuid": snapshotExternalUUID}).Error
+	err := db.Preload("Volume").Where("snapshot_attributes ->> 'external_uuid' = ?", snapshotExternalUUID).First(&snapshot).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				customerrors.NewNotFoundErr("snapshot", &snapshotExternalUUID))
+		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 	return snapshot, nil
@@ -431,17 +437,7 @@ func (d *DataStoreRepository) BatchGetWronglyDeletedSnapshots(ctx context.Contex
 		return snapshots, nil
 	}
 
-	// Build the query to match any of the external UUIDs using OR conditions
-	query := db.Preload("Account").Preload("Volume").Preload("Volume.Pool")
-	for i, externalUUID := range snapshotExternalUUIDs {
-		if i == 0 {
-			query = query.Where("snapshot_attributes ->> 'external_uuid' = ?", externalUUID)
-		} else {
-			query = query.Or("snapshot_attributes ->> 'external_uuid' = ?", externalUUID)
-		}
-	}
-
-	err := query.Find(&snapshots).Error
+	err := db.Where("snapshot_attributes ->> 'external_uuid' IN (?)", snapshotExternalUUIDs).Find(&snapshots).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}

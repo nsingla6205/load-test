@@ -2043,14 +2043,13 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 		assert.NoError(t, err)
 
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: utils.RandomUUID()},
-			Name:      "test-snapshot",
-			VolumeID:  volume.ID,
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-snapshot-uuid",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: utils.RandomUUID()},
+			Name:               "test-snapshot",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-snapshot-uuid",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-snapshot-uuid"},
 		}
 		err = store.DB().Create(snapshot).Error
 		assert.NoError(t, err)
@@ -2062,7 +2061,7 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 			BackupVaultID: backupVault.ID,
 			State:         datamodel.LifeCycleStateAvailable,
 			Attributes: &datamodel.BackupAttributes{
-				SnapshotID: snapshot.SnapshotAttributes.ExternalUUID,
+				SnapshotID: snapshot.ExternalUUID,
 			},
 		}
 		err = store.DB().Create(existingBackup).Error
@@ -2121,14 +2120,13 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 		assert.NoError(t, err)
 
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: utils.RandomUUID()},
-			Name:      "test-snapshot",
-			VolumeID:  volume.ID,
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-snapshot-uuid",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: utils.RandomUUID()},
+			Name:               "test-snapshot",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-snapshot-uuid",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-snapshot-uuid"},
 		}
 		err = store.DB().Create(snapshot).Error
 		assert.NoError(t, err)
@@ -2188,14 +2186,13 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 		assert.NoError(t, err)
 
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: utils.RandomUUID()},
-			Name:      "test-snapshot",
-			VolumeID:  volume.ID,
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-snapshot-uuid",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: utils.RandomUUID()},
+			Name:               "test-snapshot",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-snapshot-uuid",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-snapshot-uuid"},
 		}
 		err = store.DB().Create(snapshot).Error
 		assert.NoError(t, err)
@@ -2207,7 +2204,7 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 			BackupVaultID: backupVault.ID,
 			State:         datamodel.LifeCycleStateAvailable,
 			Attributes: &datamodel.BackupAttributes{
-				SnapshotID: snapshot.SnapshotAttributes.ExternalUUID,
+				SnapshotID: snapshot.ExternalUUID,
 			},
 		}
 		err = store.DB().Create(firstBackup).Error
@@ -2266,14 +2263,13 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 		assert.NoError(t, err)
 
 		snapshot1 := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: utils.RandomUUID()},
-			Name:      "test-snapshot-1",
-			VolumeID:  volume.ID,
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-snapshot-uuid-1",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: utils.RandomUUID()},
+			Name:               "test-snapshot-1",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-snapshot-uuid-1",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 		err = store.DB().Create(snapshot1).Error
 		assert.NoError(t, err)
@@ -2285,21 +2281,20 @@ func TestValidateSnapshotForBackup_SnapshotAlreadyUsed_Integration(t *testing.T)
 			BackupVaultID: backupVault.ID,
 			State:         datamodel.LifeCycleStateAvailable,
 			Attributes: &datamodel.BackupAttributes{
-				SnapshotID: snapshot1.SnapshotAttributes.ExternalUUID,
+				SnapshotID: snapshot1.ExternalUUID,
 			},
 		}
 		err = store.DB().Create(backup1).Error
 		assert.NoError(t, err)
 
 		snapshot2 := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: utils.RandomUUID()},
-			Name:      "test-snapshot-2",
-			VolumeID:  volume.ID,
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-snapshot-uuid-2",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: utils.RandomUUID()},
+			Name:               "test-snapshot-2",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-snapshot-uuid-2",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 		err = store.DB().Create(snapshot2).Error
 		assert.NoError(t, err)
@@ -2875,14 +2870,13 @@ func TestBackupCreationIntegration(t *testing.T) {
 			account, volume, backupVault := createCommonTestObjects()
 
 			existingSnapshot := &datamodel.Snapshot{
-				BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid"},
-				Name:      "existing-snapshot",
-				State:     datamodel.LifeCycleStateREADY,
-				VolumeID:  volume.ID,
-				AccountID: account.ID,
-				SnapshotAttributes: &datamodel.SnapshotAttributes{
-					ExternalUUID: "external-snapshot-uuid",
-				},
+				BaseModel:          datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid"},
+				Name:               "existing-snapshot",
+				State:              datamodel.LifeCycleStateREADY,
+				VolumeID:           volume.ID,
+				AccountID:          account.ID,
+				ExternalUUID:       "external-snapshot-uuid",
+				SnapshotAttributes: &datamodel.SnapshotAttributes{},
 			}
 
 			params := &common.CreateBackupParams{
@@ -2915,7 +2909,7 @@ func TestBackupCreationIntegration(t *testing.T) {
 					Protocols:           volume.VolumeAttributes.Protocols,
 					UseExistingSnapshot: true,
 					SnapshotName:        existingSnapshot.Name,
-					SnapshotID:          existingSnapshot.SnapshotAttributes.ExternalUUID,
+					SnapshotID:          existingSnapshot.ExternalUUID,
 				},
 				Description: params.Description,
 				Type:        params.BackupType,
@@ -2966,14 +2960,13 @@ func TestBackupCreationIntegration(t *testing.T) {
 			account, volume, backupVault := createCommonTestObjects()
 
 			notAvailableSnapshot := &datamodel.Snapshot{
-				BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid"},
-				Name:      "creating-snapshot",
-				State:     datamodel.LifeCycleStateCreating, // Not in READY state
-				VolumeID:  volume.ID,
-				AccountID: account.ID,
-				SnapshotAttributes: &datamodel.SnapshotAttributes{
-					ExternalUUID: "external-snapshot-uuid",
-				},
+				BaseModel:          datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid"},
+				Name:               "creating-snapshot",
+				State:              datamodel.LifeCycleStateCreating, // Not in READY state
+				VolumeID:           volume.ID,
+				AccountID:          account.ID,
+				ExternalUUID:       "external-snapshot-uuid",
+				SnapshotAttributes: &datamodel.SnapshotAttributes{},
 			}
 
 			params := &common.CreateBackupParams{

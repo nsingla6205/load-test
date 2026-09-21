@@ -594,11 +594,10 @@ func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_WithExternalUUID()
 
 	// Create snapshot with external UUID to trigger DeleteSnapshotInONTAP
 	snapshot := &datamodel.Snapshot{
-		BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-		Name:      "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-uuid-123",
-		},
+		BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		Volume: &datamodel.Volume{
 			PoolID: 1,
 			Pool: &datamodel.Pool{
@@ -663,11 +662,10 @@ func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_OntapDeletedDBDele
 
 	// Snapshot with ExternalUUID: DeleteSnapshotInONTAP will be called.
 	snapshot := &datamodel.Snapshot{
-		BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-		Name:      "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-uuid-123",
-		},
+		BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		Volume: &datamodel.Volume{
 			PoolID: 1,
 			Pool: &datamodel.Pool{
@@ -726,11 +724,10 @@ func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_OntapDeleteFailsWi
 	mockStorage.On("GetJob", mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
 
 	snapshot := &datamodel.Snapshot{
-		BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-		Name:      "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-uuid-123",
-		},
+		BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		Volume: &datamodel.Volume{
 			PoolID: 1,
 			Pool: &datamodel.Pool{

@@ -165,7 +165,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	var restoreFromSnapshotParam vsa.RestoreFromSnapshotParams
 	if snapshot != nil {
 		restoreFromSnapshotParam.ParentVolumeExternalUUID = snapshot.Volume.VolumeAttributes.ExternalUUID
-		restoreFromSnapshotParam.SnapshotUUID = snapshot.SnapshotAttributes.ExternalUUID
+		restoreFromSnapshotParam.SnapshotUUID = snapshot.GetExternalUUID()
 		restoreFromSnapshotParam.ParentVolumeName = snapshot.Volume.Name
 		restoreFromSnapshotParam.ParentVolumeSvmName = snapshot.Volume.Svm.Name
 		restoreFromSnapshotParam.SnapshotName = snapshot.Name

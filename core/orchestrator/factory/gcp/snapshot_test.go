@@ -5111,6 +5111,7 @@ func TestCreateSnapshotSync_AdditionalPaths(t *testing.T) {
 		// Verify snapshot state was set (lines 363-367)
 		assert.Equal(tt, datamodel.LifeCycleStateREADY, dbSnapshot.State)
 		assert.Equal(tt, int64(0), dbSnapshot.SnapshotAttributes.SizeInBytes)
+		assert.Equal(tt, "snapshot-uuid", dbSnapshot.ExternalUUID)
 		assert.Equal(tt, "snapshot-uuid", dbSnapshot.SnapshotAttributes.ExternalUUID)
 		mockStorage.AssertExpectations(tt)
 		mockRESTClient.AssertExpectations(tt)

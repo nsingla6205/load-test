@@ -16,6 +16,7 @@ type Snapshot struct {
 	VolumeID           int64               `gorm:"column:volume_id"`
 	Type               string              `gorm:"column:type"`
 	IsAppConsistent    bool                `gorm:"column:is_app_consistent"`
+	ExternalUUID       string              `gorm:"column:external_uuid"`
 	SnapshotAttributes *SnapshotAttributes `gorm:"column:snapshot_attributes;type:jsonb"`
 	Account            *Account            `gorm:"ForeignKey:AccountID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
 	Volume             *Volume             `gorm:"ForeignKey:VolumeID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
@@ -25,6 +26,23 @@ type SnapshotAttributes struct {
 	SizeInBytes            int64  `json:"size_in_bytes"`
 	ExternalUUID           string `json:"external_uuid"`
 	LogicalSizeUsedInBytes int64  `json:"logical_size_used_in_bytes"`
+}
+
+// SetExternalUUID writes the external UUID to both the external_uuid column and the snapshot attributes JSON.
+func (s *Snapshot) SetExternalUUID(externalUUID string) {
+	s.ExternalUUID = externalUUID
+	if s.SnapshotAttributes == nil {
+		s.SnapshotAttributes = &SnapshotAttributes{}
+	}
+	s.SnapshotAttributes.ExternalUUID = externalUUID
+}
+
+// GetExternalUUID returns the external UUID from the snapshot attributes JSON.
+func (s *Snapshot) GetExternalUUID() string {
+	if s == nil || s.SnapshotAttributes == nil {
+		return ""
+	}
+	return s.SnapshotAttributes.ExternalUUID
 }
 
 func (v *SnapshotAttributes) Scan(value interface{}) error {

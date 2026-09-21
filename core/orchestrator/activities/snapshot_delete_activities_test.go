@@ -69,6 +69,7 @@ func TestDeleteSnapshotInONTAP_Success(t *testing.T) {
 
 	activity := activities.SnapshotDeleteActivity{}
 	snapshot := &datamodel.Snapshot{
+		ExternalUUID:       "uuid-123",
 		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
@@ -84,7 +85,7 @@ func TestDeleteSnapshotInONTAP_Success(t *testing.T) {
 	node := &models.Node{}
 
 	// Mock the DeleteSnapshot method
-	mockProvider.On("DeleteSnapshot", snapshot.SnapshotAttributes.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(nil)
+	mockProvider.On("DeleteSnapshot", snapshot.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(nil)
 
 	// Create Temporal test environment for activity context
 	testSuite := &testsuite.WorkflowTestSuite{}
@@ -109,6 +110,7 @@ func TestDeleteSnapshotInONTAP_Failure(t *testing.T) {
 
 	activity := activities.SnapshotDeleteActivity{}
 	snapshot := &datamodel.Snapshot{
+		ExternalUUID:       "uuid-123",
 		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
@@ -125,7 +127,7 @@ func TestDeleteSnapshotInONTAP_Failure(t *testing.T) {
 	expectedError := errors.New("failed to delete snapshot in ONTAP")
 
 	// Mock the DeleteSnapshot method
-	mockProvider.On("DeleteSnapshot", snapshot.SnapshotAttributes.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(expectedError)
+	mockProvider.On("DeleteSnapshot", snapshot.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(expectedError)
 
 	// Create Temporal test environment for activity context
 	testSuite := &testsuite.WorkflowTestSuite{}
@@ -150,6 +152,7 @@ func TestDeleteSnapshotInONTAP_GetproviderByNodeFailure(t *testing.T) {
 
 	activity := activities.SnapshotDeleteActivity{}
 	snapshot := &datamodel.Snapshot{
+		ExternalUUID:       "uuid-123",
 		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
@@ -187,6 +190,7 @@ func TestDeleteSnapshotInONTAP_SnapshotInUse(t *testing.T) {
 
 	activity := activities.SnapshotDeleteActivity{}
 	snapshot := &datamodel.Snapshot{
+		ExternalUUID:       "uuid-123",
 		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
@@ -203,7 +207,7 @@ func TestDeleteSnapshotInONTAP_SnapshotInUse(t *testing.T) {
 	expectedError := errors.New("snapshot is in use by a volume clone")
 
 	// Mock the DeleteSnapshot method to return "snapshot is in use" error
-	mockProvider.On("DeleteSnapshot", snapshot.SnapshotAttributes.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(expectedError)
+	mockProvider.On("DeleteSnapshot", snapshot.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID).Return(expectedError)
 
 	// Create Temporal test environment for activity context
 	testSuite := &testsuite.WorkflowTestSuite{}

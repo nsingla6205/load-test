@@ -3280,14 +3280,14 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot with LogicalSizeUsedInBytes
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
 				LogicalSizeUsedInBytes: 30 * 1024 * 1024 * 1024, // 30GB shared bytes
 			},
 		}
@@ -3374,15 +3374,15 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot with small LogicalSizeUsedInBytes
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
-				LogicalSizeUsedInBytes: 5 * 1024 * 1024 * 1024, // Only 5GB shared bytes
+				LogicalSizeUsedInBytes: 5 * 1024 * 1024 * 1024,  // Only 5GB shared bytes
 			},
 		}
 		err = store.DB().Create(snapshot).Error
@@ -3464,15 +3464,15 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot with zero LogicalSizeUsedInBytes
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
-				LogicalSizeUsedInBytes: 0, // Zero shared bytes
+				LogicalSizeUsedInBytes: 0,                       // Zero shared bytes
 			},
 		}
 		err = store.DB().Create(snapshot).Error
@@ -3613,14 +3613,14 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
 				LogicalSizeUsedInBytes: 10 * 1024 * 1024 * 1024, // 10GB shared
 			},
 		}
@@ -3709,14 +3709,14 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
 				LogicalSizeUsedInBytes: 10 * 1024 * 1024 * 1024, // 10GB shared
 			},
 		}
@@ -3806,14 +3806,14 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
 				LogicalSizeUsedInBytes: 10 * 1024 * 1024 * 1024, // 10GB shared
 			},
 		}
@@ -3902,14 +3902,14 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 
 		// Create a snapshot
 		snapshot := &datamodel.Snapshot{
-			BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:      "test_snapshot",
-			AccountID: account.ID,
-			VolumeID:  parentVolume.ID,
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:         "test_snapshot",
+			AccountID:    account.ID,
+			VolumeID:     parentVolume.ID,
+			State:        datamodel.LifeCycleStateREADY,
+			ExternalUUID: "external-snapshot-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            20 * 1024 * 1024 * 1024, // 20GB
-				ExternalUUID:           "external-snapshot-uuid",
 				LogicalSizeUsedInBytes: 10 * 1024 * 1024 * 1024, // 10GB shared
 			},
 		}

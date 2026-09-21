@@ -56,10 +56,9 @@ func TestVolumeRevertActivity_RevertVolume_Success(t *testing.T) {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "external-snapshot-uuid"},
 	}
 
 	node := &models.Node{
@@ -128,10 +127,9 @@ func TestVolumeRevertActivity_RevertVolume_GetProviderByNodeFailure(t *testing.T
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "external-snapshot-uuid"},
 	}
 
 	node := &models.Node{
@@ -191,10 +189,9 @@ func TestVolumeRevertActivity_RevertVolume_RevertVolumeFailure(t *testing.T) {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "external-snapshot-uuid"},
 	}
 
 	node := &models.Node{
@@ -266,10 +263,9 @@ func TestVolumeRevertActivity_RevertVolume_RevertedVolumeFailure(t *testing.T) {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "external-snapshot-uuid"},
 	}
 
 	node := &models.Node{
@@ -353,10 +349,9 @@ func TestVolumeRevertActivity_RevertVolume_HydrationFailure(t *testing.T) {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "external-snapshot-uuid"},
 	}
 
 	node := &models.Node{

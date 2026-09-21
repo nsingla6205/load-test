@@ -28,7 +28,7 @@ func (a VolumeRevertActivity) RevertVolume(ctx context.Context, volume *datamode
 	}
 	revertVolumeParams := vsa.RevertVolumeParams{
 		VolumeID:        volume.VolumeAttributes.ExternalUUID,
-		SnapshotID:      snapshot.SnapshotAttributes.ExternalUUID,
+		SnapshotID:      snapshot.GetExternalUUID(),
 		SnapshotName:    snapshot.Name,
 		SvmName:         volume.Svm.Name,
 		PreRevertVolume: volume,

@@ -1159,6 +1159,7 @@ func TestUpdateBackupSnapshotInDB(t *testing.T) {
 			Name:         "test-snapshot",
 			State:        datamodel.LifeCycleStateREADY,
 			StateDetails: datamodel.LifeCycleStateAvailableDetails,
+			ExternalUUID: "ontap-external-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            1024000,
 				ExternalUUID:           "ontap-external-uuid",
@@ -1176,6 +1177,7 @@ func TestUpdateBackupSnapshotInDB(t *testing.T) {
 		assert.Equal(t, datamodel.LifeCycleStateREADY, dbSnapshot.State)
 		assert.Equal(t, datamodel.LifeCycleStateAvailableDetails, dbSnapshot.StateDetails)
 		assert.Equal(t, ontapSnapshot.SizeInBytes, dbSnapshot.SnapshotAttributes.SizeInBytes)
+		assert.Equal(t, ontapSnapshot.ExternalUUID, dbSnapshot.ExternalUUID)
 		assert.Equal(t, ontapSnapshot.ExternalUUID, dbSnapshot.SnapshotAttributes.ExternalUUID)
 		assert.Equal(t, ontapSnapshot.LogicalSizeInBytes, dbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes)
 

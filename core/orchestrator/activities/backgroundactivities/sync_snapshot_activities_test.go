@@ -717,7 +717,8 @@ func TestProcessSnapshotSync(t *testing.T) {
 	dbSnapshots := []*datamodel.Snapshot{
 		// Does not add entry into deletedIDs
 		{
-			BaseModel: datamodel.BaseModel{ID: 1},
+			BaseModel:    datamodel.BaseModel{ID: 1},
+			ExternalUUID: "test-snapshot-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				ExternalUUID:           "test-snapshot-uuid-1",
 				SizeInBytes:            122,
@@ -732,11 +733,10 @@ func TestProcessSnapshotSync(t *testing.T) {
 		},
 		// Adds an entry into deletedIDs
 		{
-			BaseModel: datamodel.BaseModel{ID: 3},
-			Type:      SnapshotTypeBackup,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "test-snapshot-uuid-3",
-			},
+			BaseModel:          datamodel.BaseModel{ID: 3},
+			Type:               SnapshotTypeBackup,
+			ExternalUUID:       "test-snapshot-uuid-3",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-3"},
 			Volume: &datamodel.Volume{
 				BaseModel: datamodel.BaseModel{ID: 1},
 				VolumeAttributes: &datamodel.VolumeAttributes{
@@ -746,11 +746,10 @@ func TestProcessSnapshotSync(t *testing.T) {
 		},
 		// Does not add entry into deletedIDs (volume doesn't exist on ONTAP)
 		{
-			BaseModel: datamodel.BaseModel{ID: 6, UUID: "test-snapshot-uuid-6"},
-			Type:      SnapshotTypeBackup,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "test-snapshot-uuid-6",
-			},
+			BaseModel:          datamodel.BaseModel{ID: 6, UUID: "test-snapshot-uuid-6"},
+			Type:               SnapshotTypeBackup,
+			ExternalUUID:       "test-snapshot-uuid-6",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-6"},
 			Volume: &datamodel.Volume{
 				BaseModel: datamodel.BaseModel{ID: 6},
 				VolumeAttributes: &datamodel.VolumeAttributes{
@@ -845,8 +844,13 @@ func TestSyncSnapshotActivity_SyncNewSnapshotsToDatabase(t *testing.T) {
 	dbVolumeMap := map[string]*datamodel.Volume{"vol-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "vol-uuid"}, VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-uuid"}}}
 	pool := &datamodel.Pool{AccountID: 1}
 	newSSMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid", ExternalVolumeUUID: "vol-uuid", Type: SnapshotTypeAdHoc, Snapshot: ontaprestmodel.Snapshot{Name: nillable.GetStringPtr("snap")}}}
-	mockStorage.On("BatchCreateSnapshots", ctx, mock.Anything, true).Return([]string{"snap-uuid"}, nil)
-	mockStorage.On("BatchGetSnapshotsByUUIDs", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid"}}}, nil)
+	mockStorage.On("BatchCreateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
+		return len(snapshots) == 1 &&
+			snapshots[0].ExternalUUID == "snap-uuid" &&
+			snapshots[0].SnapshotAttributes != nil &&
+			snapshots[0].SnapshotAttributes.ExternalUUID == "snap-uuid"
+	}), true).Return([]string{"snap-uuid"}, nil)
+	mockStorage.On("BatchGetSnapshotsByUUIDs", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
 	result, err := activity.SyncNewSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, newSSMap, dbVolumeMap, pool)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
@@ -857,9 +861,14 @@ func TestSyncSnapshotActivity_SyncUpdatedSnapshotsToDatabase(t *testing.T) {
 	ctx := context.TODO()
 	mockStorage := database.NewMockStorage(t)
 	activity := SyncSnapshotActivity{SE: mockStorage}
-	dbSnapshotsMap := map[string]*datamodel.Snapshot{"snap-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "snap-uuid"}, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid"}, State: datamodel.LifeCycleStateREADY, StateDetails: datamodel.LifeCycleStateReadyDetails}}
+	dbSnapshotsMap := map[string]*datamodel.Snapshot{"snap-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "snap-uuid"}, ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}, State: datamodel.LifeCycleStateREADY, StateDetails: datamodel.LifeCycleStateReadyDetails}}
 	updatedSSMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid", SizeInBytes: 1, LogicalSizeUsedInBytes: 1, Snapshot: ontaprestmodel.Snapshot{Name: nillable.GetStringPtr("snap")}}}
-	mockStorage.On("BatchUpdateSnapshots", ctx, mock.Anything).Return(nil)
+	mockStorage.On("BatchUpdateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
+		return len(snapshots) == 1 &&
+			snapshots[0].ExternalUUID == "snap-uuid" &&
+			snapshots[0].SnapshotAttributes != nil &&
+			snapshots[0].SnapshotAttributes.ExternalUUID == "snap-uuid"
+	})).Return(nil)
 	result, err := activity.SyncUpdatedSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, updatedSSMap, dbSnapshotsMap)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
@@ -871,7 +880,7 @@ func TestSyncSnapshotActivity_SyncWronglyDeletedSnapshotsToDatabase(t *testing.T
 	mockStorage := database.NewMockStorage(t)
 	activity := SyncSnapshotActivity{SE: mockStorage}
 	wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid"}}
-	mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid"}}}, nil)
+	mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
 	mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.Anything).Return(nil)
 	result, err := activity.SyncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, wronglyDeletedSnapshotsMap)
 	assert.NoError(t, err)
@@ -892,8 +901,8 @@ func TestSyncSnapshotActivity_HydrateSnapshotsToCCFE(t *testing.T) {
 		return nil
 	}
 	defer func() { hydrateBatchSnapshotsToCCFE = original }()
-	created := []*datamodel.Snapshot{{SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid"}}}
-	deleted := []*datamodel.Snapshot{{SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "del-uuid"}}}
+	created := []*datamodel.Snapshot{{ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}
+	deleted := []*datamodel.Snapshot{{ExternalUUID: "del-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}
 	err := activity.HydrateSnapshotsToCCFE(ctx, created, deleted)
 	assert.NoError(t, err)
 	assert.True(t, called)

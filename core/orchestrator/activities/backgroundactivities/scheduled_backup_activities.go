@@ -321,9 +321,9 @@ func (j *ScheduledBackupActivity) UpdateBackupSnapshotInDB(ctx context.Context, 
 	dbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
 	dbSnapshot.SnapshotAttributes = &datamodel.SnapshotAttributes{
 		SizeInBytes:            ontapSnapshot.SizeInBytes,
-		ExternalUUID:           ontapSnapshot.ExternalUUID,
 		LogicalSizeUsedInBytes: ontapSnapshot.LogicalSizeInBytes,
 	}
+	dbSnapshot.SetExternalUUID(ontapSnapshot.ExternalUUID)
 
 	_, err := se.UpdateSnapshot(ctx, dbSnapshot)
 	if err != nil {

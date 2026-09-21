@@ -1077,6 +1077,42 @@ func TestUnDeleteSnapshot(t *testing.T) {
 }
 
 func TestGetWronglyDeletedSnapshot(t *testing.T) {
+	t.Run("ReturnsSoftDeletedSnapshotByExternalUUID", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+		}
+		err = store.db.Create(volume).Error()
+		assert.NoError(tt, err, "Failed to create volume")
+
+		snapshot := &datamodel.Snapshot{
+			BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid", DeletedAt: &gorm.DeletedAt{Time: time.Now(), Valid: true}},
+			Name:               "wrongly_deleted_snapshot",
+			VolumeID:           volume.ID,
+			ExternalUUID:       "ext-uuid-1",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-1"},
+			State:              datamodel.LifeCycleStateDeleted,
+			StateDetails:       datamodel.LifeCycleStateDeletedDetails,
+		}
+		err = store.db.Create(snapshot).Error()
+		assert.NoError(tt, err, "Failed to create snapshot")
+
+		result, err := store.GetWronglyDeletedSnapshot(context.Background(), "ext-uuid-1")
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "test-snapshot-uuid", result.UUID)
+		assert.Equal(tt, "ext-uuid-1", result.ExternalUUID)
+		assert.NotNil(tt, result.Volume)
+		assert.Equal(tt, "test_volume", result.Volume.Name)
+	})
+
 	t.Run("ReturnsErrorWhenNoMatch", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		assert.NoError(tt, err, "Failed to set up test database")
@@ -1260,8 +1296,8 @@ func TestBatchGetWronglyDeletedSnapshots(t *testing.T) {
 	}
 
 	snapshots := []*datamodel.Snapshot{
-		{BaseModel: datamodel.BaseModel{}, Name: "batch_wrongly_deleted_1", VolumeID: 1, AccountID: account.ID, Account: account, State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-1"}},
-		{BaseModel: datamodel.BaseModel{}, Name: "batch_wrongly_deleted_2", VolumeID: 1, AccountID: account.ID, Account: account, State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-2"}},
+		{BaseModel: datamodel.BaseModel{}, Name: "batch_wrongly_deleted_1", VolumeID: 1, AccountID: account.ID, Account: account, State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails, ExternalUUID: "ext-uuid-1", SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-1"}},
+		{BaseModel: datamodel.BaseModel{}, Name: "batch_wrongly_deleted_2", VolumeID: 1, AccountID: account.ID, Account: account, State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails, ExternalUUID: "ext-uuid-2", SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-2"}},
 	}
 	uuids, err := store.BatchCreateSnapshots(context.Background(), snapshots, true)
 	if err != nil {
@@ -1279,6 +1315,68 @@ func TestBatchGetWronglyDeletedSnapshots(t *testing.T) {
 		t.Fatalf("Expected 2 wrongly deleted snapshots, got %d", len(fetched))
 	}
 }
+
+// TestUpdateSnapshot_PersistsExternalUUIDToColumnAndAttributes guards write in both
+// the external_uuid column and in the snapshot_attributes.
+func TestUpdateSnapshot_PersistsExternalUUIDToColumnAndAttributes(t *testing.T) {
+	logger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, logger)
+
+	db, err := SetupTestDB()
+	assert.NoError(t, err, "Failed to set up test database")
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	err = ClearInMemoryDB(store.db.GORM())
+	assert.NoError(t, err, "Failed to clean up test database")
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "dual-write-account-uuid"}, Name: "dual_write_account"}
+	assert.NoError(t, store.db.Create(account).Error())
+
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{ID: 1, UUID: "dual-write-pool-uuid"},
+		Name:           "dual_write_pool",
+		AccountID:      account.ID,
+		PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-east-1a"},
+	}
+	assert.NoError(t, store.db.Create(pool).Error())
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "dual-write-volume-uuid"},
+		Name:      "dual_write_volume",
+		AccountID: account.ID,
+		PoolID:    pool.ID,
+	}
+	assert.NoError(t, store.db.Create(volume).Error())
+
+	created, err := store.CreatingSnapshot(ctx, &datamodel.Snapshot{
+		Name:               "dual_write_snapshot",
+		VolumeID:           volume.ID,
+		AccountID:          account.ID,
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
+	})
+	assert.NoError(t, err)
+
+	created.SetExternalUUID("ontap-external-uuid")
+	created.State = datamodel.LifeCycleStateREADY
+	created.StateDetails = datamodel.LifeCycleStateAvailableDetails
+	_, err = store.UpdateSnapshot(ctx, created)
+	assert.NoError(t, err)
+
+	var persisted datamodel.Snapshot
+	assert.NoError(t, store.db.GORM().First(&persisted, "uuid = ?", created.UUID).Error)
+	assert.Equal(t, "ontap-external-uuid", persisted.ExternalUUID)
+	assert.NotNil(t, persisted.SnapshotAttributes)
+	assert.Equal(t, "ontap-external-uuid", persisted.SnapshotAttributes.ExternalUUID)
+
+	// Assert on the stored JSON directly so the mirror can't be satisfied by struct defaults alone.
+	var rawAttributes string
+	assert.NoError(t, store.db.GORM().Model(&datamodel.Snapshot{}).
+		Where("uuid = ?", created.UUID).
+		Select("snapshot_attributes").
+		Scan(&rawAttributes).Error)
+	assert.Contains(t, rawAttributes, `"external_uuid":"ontap-external-uuid"`)
+}
+
 func TestGetSnapshotsByTypeAndVolumeID(t *testing.T) {
 	logger := log.NewLogger()
 	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, logger)
@@ -1607,14 +1705,13 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create snapshot")
 
 		updateSnapshot := &datamodel.Snapshot{
-			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:         "updated_snapshot",
-			Description:  "Updated description",
-			State:        datamodel.LifeCycleStateAvailable,
-			StateDetails: datamodel.LifeCycleStateAvailableDetails,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "external-uuid-123",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:               "updated_snapshot",
+			Description:        "Updated description",
+			State:              datamodel.LifeCycleStateAvailable,
+			StateDetails:       datamodel.LifeCycleStateAvailableDetails,
+			ExternalUUID:       "external-uuid-123",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 
 		result, err := store.UpdateSnapshotForHandleResource(ctx, updateSnapshot)
@@ -1624,7 +1721,7 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.Equal(tt, "Updated description", result.Description)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailable, result.State)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailableDetails, result.StateDetails)
-		assert.Equal(tt, "external-uuid-123", result.SnapshotAttributes.ExternalUUID)
+		assert.Equal(tt, "external-uuid-123", result.ExternalUUID)
 	})
 
 	t.Run("StartTransactionFails", func(tt *testing.T) {
@@ -1669,14 +1766,13 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create snapshot")
 
 		updateSnapshot := &datamodel.Snapshot{
-			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:         "updated_snapshot",
-			Description:  "Updated description",
-			State:        datamodel.LifeCycleStateAvailable,
-			StateDetails: datamodel.LifeCycleStateAvailableDetails,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "external-uuid-123",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:               "updated_snapshot",
+			Description:        "Updated description",
+			State:              datamodel.LifeCycleStateAvailable,
+			StateDetails:       datamodel.LifeCycleStateAvailableDetails,
+			ExternalUUID:       "external-uuid-123",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 
 		_, err = store.UpdateSnapshotForHandleResource(ctx, updateSnapshot)
@@ -2027,16 +2123,15 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create volume")
 
 		originalSnapshot := &datamodel.Snapshot{
-			BaseModel:    datamodel.BaseModel{UUID: "test-snapshot-uuid"},
-			Name:         "original_snapshot",
-			Description:  "Original description",
-			VolumeID:     volume.ID,
-			AccountID:    account.ID,
-			State:        datamodel.LifeCycleStateREADY,
-			StateDetails: datamodel.LifeCycleStateReadyDetails,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "original-external-uuid",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+			Name:               "original_snapshot",
+			Description:        "Original description",
+			VolumeID:           volume.ID,
+			AccountID:          account.ID,
+			State:              datamodel.LifeCycleStateREADY,
+			StateDetails:       datamodel.LifeCycleStateReadyDetails,
+			ExternalUUID:       "original-external-uuid",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 		err = store.db.Create(originalSnapshot).Error()
 		assert.NoError(tt, err, "Failed to create snapshot")
@@ -2047,8 +2142,8 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 			Description:  "Completely updated description",
 			State:        datamodel.LifeCycleStateAvailable,
 			StateDetails: datamodel.LifeCycleStateAvailableDetails,
+			ExternalUUID: "updated-external-uuid",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID:           "updated-external-uuid",
 				SizeInBytes:            1024000,
 				LogicalSizeUsedInBytes: 512000,
 			},
@@ -2062,7 +2157,7 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.Equal(tt, "Completely updated description", result.Description)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailable, result.State)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailableDetails, result.StateDetails)
-		assert.Equal(tt, "updated-external-uuid", result.SnapshotAttributes.ExternalUUID)
+		assert.Equal(tt, "updated-external-uuid", result.ExternalUUID)
 		assert.Equal(tt, int64(1024000), result.SnapshotAttributes.SizeInBytes)
 		assert.Equal(tt, int64(512000), result.SnapshotAttributes.LogicalSizeUsedInBytes)
 
@@ -2072,7 +2167,7 @@ func TestUpdateSnapshotForHandleResource(t *testing.T) {
 		assert.Equal(tt, "Completely updated description", fetchedSnapshot.Description)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailable, fetchedSnapshot.State)
 		assert.Equal(tt, datamodel.LifeCycleStateAvailableDetails, fetchedSnapshot.StateDetails)
-		assert.Equal(tt, "updated-external-uuid", fetchedSnapshot.SnapshotAttributes.ExternalUUID)
+		assert.Equal(tt, "updated-external-uuid", fetchedSnapshot.ExternalUUID)
 		assert.Equal(tt, int64(1024000), fetchedSnapshot.SnapshotAttributes.SizeInBytes)
 		assert.Equal(tt, int64(512000), fetchedSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes)
 	})

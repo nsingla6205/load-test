@@ -89,10 +89,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_Success() {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -170,10 +169,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_GetNodeError() {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -243,10 +241,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_RevertVolumeError(
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -324,10 +321,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_UpdateJobStatusPro
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -391,10 +387,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_UpdateJobStatusDon
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -473,10 +468,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_UpdateJobStatusErr
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -554,10 +548,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_SetupError() {
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -611,10 +604,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_WithCertificateAut
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -691,10 +683,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_WithSecretManagerA
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -772,10 +763,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_UpdateVolumeStateI
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -853,10 +843,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_FailsOnJobInErrorS
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities
@@ -924,10 +913,9 @@ func (s *VolumeRevertUnitTestSuite) Test_RevertVolumeWorkflow_SucceedsWhenJobNot
 			ID:   1,
 			UUID: "snapshot-uuid",
 		},
-		Name: "test-snapshot",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "external-snapshot-uuid",
-		},
+		Name:               "test-snapshot",
+		ExternalUUID:       "external-snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 
 	// Register activities

@@ -2633,24 +2633,22 @@ func TestBatchGetWronglyDeletedSnapshots_Persistence_Store(t *testing.T) {
 	// Create snapshots with external UUIDs
 	snapshots := []*datamodel.Snapshot{
 		{
-			Name:      "wrongly_deleted_1",
-			AccountID: createdAcc.ID,
-			VolumeID:  createdVol.ID,
-			Volume:    createdVol,
-			Account:   createdAcc,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-uuid-1",
-			},
+			Name:               "wrongly_deleted_1",
+			AccountID:          createdAcc.ID,
+			VolumeID:           createdVol.ID,
+			Volume:             createdVol,
+			Account:            createdAcc,
+			ExternalUUID:       "ext-uuid-1",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-1"},
 		},
 		{
-			Name:      "wrongly_deleted_2",
-			AccountID: createdAcc.ID,
-			VolumeID:  createdVol.ID,
-			Volume:    createdVol,
-			Account:   createdAcc,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "ext-uuid-2",
-			},
+			Name:               "wrongly_deleted_2",
+			AccountID:          createdAcc.ID,
+			VolumeID:           createdVol.ID,
+			Volume:             createdVol,
+			Account:            createdAcc,
+			ExternalUUID:       "ext-uuid-2",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-2"},
 		},
 	}
 	uuids, err := store.BatchCreateSnapshots(ctx, snapshots, true)
@@ -2672,9 +2670,7 @@ func TestBatchGetWronglyDeletedSnapshots_Persistence_Store(t *testing.T) {
 	// Verify external UUIDs match
 	foundExternalUUIDs := make(map[string]bool)
 	for _, snapshot := range wronglyDeletedSnapshots {
-		if snapshot.SnapshotAttributes != nil {
-			foundExternalUUIDs[snapshot.SnapshotAttributes.ExternalUUID] = true
-		}
+		foundExternalUUIDs[snapshot.ExternalUUID] = true
 	}
 	assert.True(t, foundExternalUUIDs["ext-uuid-1"])
 	assert.True(t, foundExternalUUIDs["ext-uuid-2"])
@@ -2694,9 +2690,7 @@ func TestBatchGetWronglyDeletedSnapshots_Persistence_Store(t *testing.T) {
 	mixedSnapshots, err := store.BatchGetWronglyDeletedSnapshots(ctx, mixedExternalUUIDs)
 	assert.NoError(t, err)
 	assert.Len(t, mixedSnapshots, 1) // Only one should be found
-	if len(mixedSnapshots) > 0 && mixedSnapshots[0].SnapshotAttributes != nil {
-		assert.Equal(t, "ext-uuid-1", mixedSnapshots[0].SnapshotAttributes.ExternalUUID)
-	}
+	assert.Equal(t, "ext-uuid-1", mixedSnapshots[0].ExternalUUID)
 }
 
 func TestBatchSnapshotOperations_ErrorScenarios_Persistence_Store(t *testing.T) {
@@ -7302,11 +7296,11 @@ func TestPersistenceStore_VpgWrapperMethods(t *testing.T) {
 	require.NoError(t, store.DB().Create(pool).Error)
 
 	vpg := &datamodel.VolumePerformanceGroup{
-		BaseModel: datamodel.BaseModel{UUID: "vpg-wrapper"},
-		PoolID:    pool.ID,
-		Name:      "vpg-wrapper",
+		BaseModel:      datamodel.BaseModel{UUID: "vpg-wrapper"},
+		PoolID:         pool.ID,
+		Name:           "vpg-wrapper",
 		AllocationType: models.AllocationTypeShared,
-		IsAutoGen: true,
+		IsAutoGen:      true,
 	}
 	require.NoError(t, store.DB().Create(vpg).Error)
 
@@ -7376,9 +7370,9 @@ func TestPersistenceStore_DereferencePoolVolumesFromVPGs(t *testing.T) {
 	require.NoError(t, store.DB().Create(pool).Error)
 
 	vpg := &datamodel.VolumePerformanceGroup{
-		BaseModel: datamodel.BaseModel{UUID: "vpg-deref-pool"},
-		PoolID:    pool.ID,
-		Name:      "vpg-deref-pool",
+		BaseModel:      datamodel.BaseModel{UUID: "vpg-deref-pool"},
+		PoolID:         pool.ID,
+		Name:           "vpg-deref-pool",
 		AllocationType: models.AllocationTypeShared,
 	}
 	require.NoError(t, store.DB().Create(vpg).Error)
@@ -7499,7 +7493,7 @@ func TestCreateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg"},
 			PoolID:           pool.ID,
 			Name:             "vpg-1",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7528,7 +7522,7 @@ func TestCreateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-dup"},
 			PoolID:           pool.ID,
 			Name:             "vpg-dup",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7543,7 +7537,7 @@ func TestCreateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-dup"},
 			PoolID:           pool.ID,
 			Name:             "vpg-dup-2",
-			AllocationType: models.AllocationTypePerVolume,
+			AllocationType:   models.AllocationTypePerVolume,
 			IsAutoGen:        true,
 			ThroughputMibps:  128,
 			Iops:             2000,
@@ -7567,7 +7561,7 @@ func TestCreateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-invalid-pool"},
 			PoolID:           999999, // Non-existent pool ID
 			Name:             "vpg-invalid-pool",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7609,7 +7603,7 @@ func TestGetVolumePerformanceGroupByPoolAndName_PersistenceStore(t *testing.T) {
 		BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-byname"},
 		PoolID:           createdPool.ID,
 		Name:             "my-vpg-by-pool-and-name",
-		AllocationType: models.AllocationTypeShared,
+		AllocationType:   models.AllocationTypeShared,
 		IsAutoGen:        false,
 		ThroughputMibps:  128,
 		Iops:             2000,
@@ -7645,7 +7639,7 @@ func TestGetVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg"},
 			PoolID:           pool.ID,
 			Name:             "vpg-1",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7692,7 +7686,7 @@ func TestListVolumePerformanceGroups_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-1"},
 			PoolID:           pool.ID,
 			Name:             "vpg-1",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7705,7 +7699,7 @@ func TestListVolumePerformanceGroups_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-2"},
 			PoolID:           pool.ID,
 			Name:             "vpg-2",
-			AllocationType: models.AllocationTypePerVolume,
+			AllocationType:   models.AllocationTypePerVolume,
 			IsAutoGen:        true,
 			ThroughputMibps:  128,
 			Iops:             2000,
@@ -7744,7 +7738,7 @@ func TestUpdateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg"},
 			PoolID:           pool.ID,
 			Name:             "vpg-1",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7808,7 +7802,7 @@ func TestUpdateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-immutable"},
 			PoolID:           pool.ID,
 			Name:             "vpg-immutable",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7818,8 +7812,8 @@ func TestUpdateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 
 		// Try to update allocationType field (should be ignored)
 		updatedVPG := &datamodel.VolumePerformanceGroup{
-			BaseModel: datamodel.BaseModel{UUID: "row-uuid-vpg-immutable"},
-			Name:      "vpg-immutable-updated",
+			BaseModel:      datamodel.BaseModel{UUID: "row-uuid-vpg-immutable"},
+			Name:           "vpg-immutable-updated",
 			AllocationType: models.AllocationTypePerVolume, // Try to change SHARED to PER_VOLUME
 		}
 		err = store.UpdateVolumePerformanceGroup(context.Background(), updatedVPG)
@@ -7852,7 +7846,7 @@ func TestUpdateVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg-poolid"},
 			PoolID:           pool1.ID,
 			Name:             "vpg-poolid",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,
@@ -7925,7 +7919,7 @@ func TestDeleteVolumePerformanceGroup_PersistenceStore(t *testing.T) {
 			BaseModel:        datamodel.BaseModel{UUID: "row-uuid-vpg"},
 			PoolID:           pool.ID,
 			Name:             "vpg-1",
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			IsAutoGen:        false,
 			ThroughputMibps:  64,
 			Iops:             1000,

@@ -127,7 +127,8 @@ func TestDeleteSnapshotsInDB_Failure(t *testing.T) {
 		SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	snapshot := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},
@@ -140,7 +141,8 @@ func TestDeleteSnapshotsInDB_Failure(t *testing.T) {
 		Name: "test-snapshot",
 	}
 	snapshot1 := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},
@@ -183,7 +185,8 @@ func TestDeleteSnapshotsInDB_Success(t *testing.T) {
 		SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	snapshot := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},
@@ -228,7 +231,8 @@ func TestSnapshotsDehydration(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
 	snapshot := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},
@@ -273,7 +277,8 @@ func TestSnapshotsDehydration_Error(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	hydrationEnabled = true
 	snapshot := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},
@@ -324,7 +329,8 @@ func TestInternalSnapshotsDeleteActivity_ListSnapshotFromDB(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
 	snapshot := &datamodel.Snapshot{
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		BaseModel: datamodel.BaseModel{
 			UUID: "test-snapshot-id",
 		},

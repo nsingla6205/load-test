@@ -52,8 +52,8 @@ func (a *SnapshotCreateActivity) UpdateSnapshotDetails(ctx context.Context, dbSn
 	} else {
 		dbSnapshot.State = datamodel.LifeCycleStateREADY
 		dbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
+		dbSnapshot.SetExternalUUID(snapshotCreateResponse.ExternalUUID)
 		dbSnapshot.SnapshotAttributes.SizeInBytes = snapshotCreateResponse.SizeInBytes
-		dbSnapshot.SnapshotAttributes.ExternalUUID = snapshotCreateResponse.ExternalUUID
 		dbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes = snapshotCreateResponse.LogicalSizeInBytes
 	}
 	activity.RecordHeartbeat(ctx, "Persisting snapshot state to database")

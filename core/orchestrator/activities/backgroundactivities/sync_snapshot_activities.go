@@ -204,7 +204,7 @@ func _syncUpdatedSnapshotsToDatabase(ctx context.Context, updatedSnapshots []str
 		if dbSnapshot == nil {
 			continue
 		}
-		snapshotsToUpdate = append(snapshotsToUpdate, &datamodel.Snapshot{
+		dbSnap := &datamodel.Snapshot{
 			BaseModel: datamodel.BaseModel{
 				UUID: dbSnapshot.UUID,
 				ID:   dbSnapshot.ID,
@@ -213,11 +213,12 @@ func _syncUpdatedSnapshotsToDatabase(ctx context.Context, updatedSnapshots []str
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            snapshot.SizeInBytes,
 				LogicalSizeUsedInBytes: snapshot.LogicalSizeUsedInBytes,
-				ExternalUUID:           snapshot.ExternalUUID,
 			},
 			State:        dbSnapshot.State,
 			StateDetails: dbSnapshot.StateDetails,
-		})
+		}
+		dbSnap.SetExternalUUID(snapshot.ExternalUUID)
+		snapshotsToUpdate = append(snapshotsToUpdate, dbSnap)
 	}
 	if len(snapshotsToUpdate) == 0 {
 		return nil, nil
@@ -247,7 +248,7 @@ func _syncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, new
 		if vol == nil {
 			continue
 		}
-		snapshotsToCreate = append(snapshotsToCreate, &datamodel.Snapshot{
+		dbSnap := &datamodel.Snapshot{
 			Name:      *snapshot.Name,
 			VolumeID:  vol.ID,
 			AccountID: pool.AccountID,
@@ -256,12 +257,13 @@ func _syncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, new
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            snapshot.SizeInBytes,
 				LogicalSizeUsedInBytes: snapshot.LogicalSizeUsedInBytes,
-				ExternalUUID:           snapshot.ExternalUUID,
 			},
 			State:        datamodel.LifeCycleStateREADY,
 			StateDetails: datamodel.LifeCycleStateAvailableDetails,
 			Type:         snapshot.Type,
-		})
+		}
+		dbSnap.SetExternalUUID(snapshot.ExternalUUID)
+		snapshotsToCreate = append(snapshotsToCreate, dbSnap)
 	}
 	if len(snapshotsToCreate) == 0 {
 		return nil, nil
@@ -420,8 +422,8 @@ func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Vo
 	dbSnapshotMap := make(map[string]*datamodel.Snapshot, len(dbSnapshots))
 	dbSnapshotExternalUUIDMap := make(map[string]struct{}, len(dbSnapshots))
 	for _, dbSnapshot := range dbSnapshots {
-		dbSnapshotExternalUUIDMap[dbSnapshot.SnapshotAttributes.ExternalUUID] = struct{}{}
-		dbSnapshotMap[dbSnapshot.SnapshotAttributes.ExternalUUID+"."+dbSnapshot.Volume.VolumeAttributes.ExternalUUID] = dbSnapshot
+		dbSnapshotExternalUUIDMap[dbSnapshot.GetExternalUUID()] = struct{}{}
+		dbSnapshotMap[dbSnapshot.GetExternalUUID()+"."+dbSnapshot.Volume.VolumeAttributes.ExternalUUID] = dbSnapshot
 	}
 
 	newSSMap = make(map[string]*vsa.Snapshot, len(ontapSnapshots))
@@ -457,7 +459,7 @@ func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Vo
 	}
 
 	for _, dbSnapshot := range dbSnapshots {
-		key := dbSnapshot.SnapshotAttributes.ExternalUUID + "." + dbSnapshot.Volume.VolumeAttributes.ExternalUUID
+		key := dbSnapshot.GetExternalUUID() + "." + dbSnapshot.Volume.VolumeAttributes.ExternalUUID
 		_, isNew := newSSMap[key]
 		_, stillExists := existingSSMap[key]
 		if !stillExists && !isNew {
@@ -631,7 +633,7 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 
 	var dbSnapshotMap = make(map[string]*datamodel.Snapshot, len(dbSnapshots))
 	for _, dbSnapshot := range dbSnapshots {
-		dbSnapshotMap[dbSnapshot.SnapshotAttributes.ExternalUUID] = dbSnapshot
+		dbSnapshotMap[dbSnapshot.GetExternalUUID()] = dbSnapshot
 	}
 
 	return &GetDBVolumeAndSnapshotsForPoolReturnValue{

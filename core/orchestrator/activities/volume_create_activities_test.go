@@ -3061,7 +3061,8 @@ func TestCreateVolumeInONTAP_ClonedVolume(t *testing.T) {
 			Account:          &datamodel.Account{Name: "test-account"},
 			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "uuid-123"},
 		},
-		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "uuid-123"},
+		ExternalUUID:       "uuid-123",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
 	}
 	expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 2048}
 

@@ -26,7 +26,7 @@ func (a *SnapshotDeleteActivity) DeleteSnapshotInONTAP(ctx context.Context, snap
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	activity.RecordHeartbeat(ctx, "Deleting snapshot from ONTAP")
-	err = provider.DeleteSnapshot(snapshot.SnapshotAttributes.ExternalUUID, snapshot.Volume.VolumeAttributes.ExternalUUID)
+	err = provider.DeleteSnapshot(snapshot.GetExternalUUID(), snapshot.Volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "snapshot is in use") {
 			return vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)

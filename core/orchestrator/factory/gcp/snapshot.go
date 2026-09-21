@@ -368,8 +368,8 @@ func createSnapshotSync(ctx context.Context, se database.Storage, dbSnapshot *da
 
 	dbSnapshot.State = datamodel.LifeCycleStateREADY
 	dbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
+	dbSnapshot.SetExternalUUID(snapshotCreateResponse.ExternalUUID)
 	dbSnapshot.SnapshotAttributes.SizeInBytes = snapshotCreateResponse.SizeInBytes
-	dbSnapshot.SnapshotAttributes.ExternalUUID = snapshotCreateResponse.ExternalUUID
 	dbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes = snapshotCreateResponse.LogicalSizeInBytes
 
 	var updatedSnapshot *datamodel.Snapshot
@@ -394,6 +394,7 @@ func createSnapshotSync(ctx context.Context, se database.Storage, dbSnapshot *da
 			},
 			Name:               dbSnapshot.Name,
 			Description:        dbSnapshot.Description,
+			ExternalUUID:       dbSnapshot.ExternalUUID,
 			SnapshotAttributes: dbSnapshot.SnapshotAttributes,
 			State:              dbSnapshot.State,
 			StateDetails:       dbSnapshot.StateDetails,

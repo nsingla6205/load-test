@@ -252,7 +252,7 @@ func _createBackup(ctx context.Context, se database.Storage, temporal client.Cli
 			return nil, "", err
 		}
 		backupAttributes.SnapshotName = dbSnapshot.Name
-		backupAttributes.SnapshotID = dbSnapshot.SnapshotAttributes.ExternalUUID
+		backupAttributes.SnapshotID = dbSnapshot.GetExternalUUID()
 	} else {
 		if params.SnapshotID != "" {
 			backupAttributes.SnapshotID = params.SnapshotID
@@ -963,7 +963,7 @@ func _validateSnapshotForBackup(ctx context.Context, se database.Storage, params
 		filters := [][]interface{}{
 			{"volume_uuid = ?", vol.UUID},
 			{"state != ?", datamodel.LifeCycleStateDeleted},
-			{"attributes->>'snapshot_id' = ?", snapshot.SnapshotAttributes.ExternalUUID},
+			{"attributes->>'snapshot_id' = ?", snapshot.GetExternalUUID()},
 		}
 		backups, err := se.GetBackupsByBackupVaultOwnerIDAndFilter(ctx, vol.DataProtection.BackupVaultID, vol.Account.ID, filters)
 		if err != nil {

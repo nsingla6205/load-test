@@ -455,8 +455,8 @@ func (b *BackupActivity) UpdateSnapshotActivity(ctx context.Context, backupActiv
 		if backupActivitiesContext.SnapshotResponse != nil {
 			backupActivitiesContext.DbSnapshot.State = datamodel.LifeCycleStateREADY
 			backupActivitiesContext.DbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
+			backupActivitiesContext.DbSnapshot.SetExternalUUID(backupActivitiesContext.SnapshotResponse.ExternalUUID)
 			backupActivitiesContext.DbSnapshot.SnapshotAttributes.SizeInBytes = backupActivitiesContext.SnapshotResponse.SizeInBytes
-			backupActivitiesContext.DbSnapshot.SnapshotAttributes.ExternalUUID = backupActivitiesContext.SnapshotResponse.ExternalUUID
 			backupActivitiesContext.DbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes = backupActivitiesContext.SnapshotResponse.LogicalSizeInBytes
 		} else {
 			now := time.Now()
@@ -495,7 +495,7 @@ func (b *BackupActivity) CreateSnapshotActivity(ctx context.Context, backupActiv
 				logger.Errorf("Failed to get snapshot from database. Error: %v", err)
 				return nil, err
 			}
-			snapshotExternalUUID = dbSnapshot.SnapshotAttributes.ExternalUUID
+			snapshotExternalUUID = dbSnapshot.GetExternalUUID()
 		}
 
 		snapshotResponse, err = b.SnapshotGet(ctx, backupActivitiesContext.Node, snapshotExternalUUID, backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID)
@@ -1740,8 +1740,8 @@ func (a BackupActivity) CleanupOldBackupSnapshotsActivity(ctx context.Context, v
 		logger.Infof("Deleting older backup snapshot %s for volume %s", snapshot.Name, volume.Name)
 
 		// Try to delete the snapshot from ONTAP first
-		if snapshot.SnapshotAttributes != nil && snapshot.SnapshotAttributes.ExternalUUID != "" && volume.VolumeAttributes != nil && volume.VolumeAttributes.ExternalUUID != "" {
-			err = a.DeleteBackupSnapshot(ctx, node, snapshot.SnapshotAttributes.ExternalUUID, volume.VolumeAttributes.ExternalUUID)
+		if snapshot.GetExternalUUID() != "" && volume.VolumeAttributes != nil && volume.VolumeAttributes.ExternalUUID != "" {
+			err = a.DeleteBackupSnapshot(ctx, node, snapshot.GetExternalUUID(), volume.VolumeAttributes.ExternalUUID)
 			if err != nil {
 				logger.Errorf("Failed to delete snapshot %s from ONTAP: %v", snapshot.Name, err)
 				// Mark snapshot as error state instead of failing the entire operation

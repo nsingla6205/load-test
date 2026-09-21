@@ -2494,8 +2494,8 @@ func TestUpdateSnapshotActivity_Success(t *testing.T) {
 		Name:         "test-snapshot",
 		State:        datamodel.LifeCycleStateREADY,
 		StateDetails: datamodel.LifeCycleStateAvailableDetails,
+		ExternalUUID: "ext-uuid-123",
 		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID:           "ext-uuid-123",
 			SizeInBytes:            int64(1024),
 			LogicalSizeUsedInBytes: int64(2048),
 		},
@@ -2504,6 +2504,7 @@ func TestUpdateSnapshotActivity_Success(t *testing.T) {
 	mockStorage.On("UpdateSnapshot", ctx, mock.MatchedBy(func(s *datamodel.Snapshot) bool {
 		return s.State == datamodel.LifeCycleStateREADY &&
 			s.StateDetails == datamodel.LifeCycleStateAvailableDetails &&
+			s.ExternalUUID == "ext-uuid-123" &&
 			s.SnapshotAttributes.ExternalUUID == "ext-uuid-123" &&
 			s.SnapshotAttributes.SizeInBytes == int64(1024) &&
 			s.SnapshotAttributes.LogicalSizeUsedInBytes == int64(2048)
@@ -2516,6 +2517,8 @@ func TestUpdateSnapshotActivity_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, state, result)
+	assert.Equal(t, "ext-uuid-123", dbSnapshot.ExternalUUID)
+	assert.Equal(t, "ext-uuid-123", dbSnapshot.SnapshotAttributes.ExternalUUID)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -4054,11 +4057,10 @@ func TestCreateSnapshotActivity_UseExistingSnapshot_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
 	dbSnapshot := &datamodel.Snapshot{
-		Name:     "existing-snapshot",
-		VolumeID: 1,
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "snapshot-uuid",
-		},
+		Name:               "existing-snapshot",
+		VolumeID:           1,
+		ExternalUUID:       "snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snapshot-uuid"},
 	}
 
 	snapshotResponse := &vsa.SnapshotProviderResponse{
@@ -4216,11 +4218,10 @@ func TestCreateSnapshotActivity_UseExistingSnapshot_GetSnapshotFromOntapFailure(
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
 	dbSnapshot := &datamodel.Snapshot{
-		Name:     "existing-snapshot",
-		VolumeID: 1,
-		SnapshotAttributes: &datamodel.SnapshotAttributes{
-			ExternalUUID: "snapshot-uuid",
-		},
+		Name:               "existing-snapshot",
+		VolumeID:           1,
+		ExternalUUID:       "snapshot-uuid",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snapshot-uuid"},
 	}
 
 	backup := &datamodel.Backup{
@@ -5268,6 +5269,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Success_MultipleSnapshots(t *tes
 		{
 			BaseModel: datamodel.BaseModel{ID: 3, UUID: "snapshot-uuid-3"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-3",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-3"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5275,6 +5277,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Success_MultipleSnapshots(t *tes
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-older1", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5282,6 +5285,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Success_MultipleSnapshots(t *tes
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older2", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5353,6 +5357,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Success_SingleSnapshot(t *testin
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-only", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}
@@ -5414,11 +5419,13 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_OntapError_ContinueProcessing(t 
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 		},
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}
@@ -5481,6 +5488,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_SnapshotAttributesNil(t *testing
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5489,6 +5497,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_SnapshotAttributesNil(t *testing
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
 			SnapshotAttributes: nil, // Nil attributes
+			ExternalUUID:       "snap-uuid-1",
 			Volume:             volume,
 			Account:            volume.Account,
 		},
@@ -5497,7 +5506,18 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_SnapshotAttributesNil(t *testing
 	mockStorage.On("GetSnapshotsByTypeAndVolumeID", ctx, "backup", int64(1)).
 		Return(snapshots, nil)
 
-	// Mock database deletion (should skip ONTAP deletion due to nil attributes)
+	// Mock hyperscaler provider
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	// The external UUID is read from the snapshot attributes, so nil attributes skip the
+	// ONTAP deletion entirely. Any call to the provider fails this test as unexpected.
+
+	// Mock database deletion
 	mockStorage.On("DeleteSnapshot", ctx, "snapshot-uuid-1").
 		Return(&datamodel.Snapshot{}, nil)
 
@@ -5522,6 +5542,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_SnapshotAttributesNil(t *testing
 	// Assertions
 	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
 }
 
 func TestCleanupOldAdhocBackupSnapshotsActivity_EmptyExternalUUID(t *testing.T) {
@@ -5551,6 +5572,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_EmptyExternalUUID(t *testing.T) 
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5558,7 +5580,8 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_EmptyExternalUUID(t *testing.T) 
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: ""}, // Empty external UUID
+			ExternalUUID:       "", // Empty external UUID
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 			Volume:             volume,
 			Account:            volume.Account,
 		},
@@ -5613,11 +5636,13 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_MarkSnapshotAsErrorFails(t *test
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 		},
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}
@@ -5677,6 +5702,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Integration_FullWorkflow(t *test
 		{
 			BaseModel: datamodel.BaseModel{ID: 5, UUID: "snapshot-uuid-5"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-5",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-5"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5684,6 +5710,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Integration_FullWorkflow(t *test
 		{
 			BaseModel: datamodel.BaseModel{ID: 4, UUID: "snapshot-uuid-4"},
 			Name:      "backup-adhoc-older1", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-4",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-4"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5691,6 +5718,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Integration_FullWorkflow(t *test
 		{
 			BaseModel: datamodel.BaseModel{ID: 3, UUID: "snapshot-uuid-3"},
 			Name:      "backup-adhoc-older2", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-3",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-3"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5698,6 +5726,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_Integration_FullWorkflow(t *test
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-older3", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5783,20 +5812,18 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_DatabaseDeletionError(t *testing
 	// Create test snapshots
 	snapshots := []*datamodel.Snapshot{
 		{
-			BaseModel: datamodel.BaseModel{UUID: "snapshot-uuid-latest", CreatedAt: time.Now()},
-			Name:      "latest-snapshot",
-			VolumeID:  1,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "snap-uuid-latest",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: "snapshot-uuid-latest", CreatedAt: time.Now()},
+			Name:               "latest-snapshot",
+			VolumeID:           1,
+			ExternalUUID:       "snap-uuid-latest",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-latest"},
 		},
 		{
-			BaseModel: datamodel.BaseModel{CreatedAt: time.Now().Add(-1 * time.Hour), UUID: "snapshot-uuid-1"},
-			Name:      "old-snapshot-1",
-			VolumeID:  1,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "snap-uuid-1",
-			},
+			BaseModel:          datamodel.BaseModel{CreatedAt: time.Now().Add(-1 * time.Hour), UUID: "snapshot-uuid-1"},
+			Name:               "old-snapshot-1",
+			VolumeID:           1,
+			ExternalUUID:       "snap-uuid-1",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}
 
@@ -5853,20 +5880,18 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_DatabaseDeletionError_MarkAsErro
 	// Create test snapshots
 	snapshots := []*datamodel.Snapshot{
 		{
-			BaseModel: datamodel.BaseModel{UUID: "snapshot-uuid-latest", CreatedAt: time.Now()},
-			Name:      "latest-snapshot",
-			VolumeID:  1,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "snap-uuid-latest",
-			},
+			BaseModel:          datamodel.BaseModel{UUID: "snapshot-uuid-latest", CreatedAt: time.Now()},
+			Name:               "latest-snapshot",
+			VolumeID:           1,
+			ExternalUUID:       "snap-uuid-latest",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-latest"},
 		},
 		{
-			BaseModel: datamodel.BaseModel{CreatedAt: time.Now().Add(-1 * time.Hour), UUID: "snapshot-uuid-1"},
-			Name:      "old-snapshot-1",
-			VolumeID:  1,
-			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID: "snap-uuid-1",
-			},
+			BaseModel:          datamodel.BaseModel{CreatedAt: time.Now().Add(-1 * time.Hour), UUID: "snapshot-uuid-1"},
+			Name:               "old-snapshot-1",
+			VolumeID:           1,
+			ExternalUUID:       "snap-uuid-1",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}
 
@@ -5931,6 +5956,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_HydrationSuccess(t *testing.T) {
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -5938,6 +5964,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_HydrationSuccess(t *testing.T) {
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6022,6 +6049,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_HydrationFailure_ContinueProcess
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6029,6 +6057,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_HydrationFailure_ContinueProcess
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6104,6 +6133,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_TokenGenerationFailure_ContinueP
 		{
 			BaseModel: datamodel.BaseModel{ID: 2, UUID: "snapshot-uuid-2"},
 			Name:      "backup-adhoc-latest", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6111,6 +6141,7 @@ func TestCleanupOldAdhocBackupSnapshotsActivity_TokenGenerationFailure_ContinueP
 		{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "snapshot-uuid-1"},
 			Name:      "backup-adhoc-older", Type: "backup", VolumeID: 1, State: datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6187,6 +6218,7 @@ func TestCleanupOldBackupSnapshotsActivity_PreservesSnapshotsAtOrAfterCutoff(t *
 			Type:               "backup",
 			VolumeID:           1,
 			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-3",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-3"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6197,6 +6229,7 @@ func TestCleanupOldBackupSnapshotsActivity_PreservesSnapshotsAtOrAfterCutoff(t *
 			Type:               "backup",
 			VolumeID:           1,
 			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-2"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6207,6 +6240,7 @@ func TestCleanupOldBackupSnapshotsActivity_PreservesSnapshotsAtOrAfterCutoff(t *
 			Type:               "backup",
 			VolumeID:           1,
 			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "ext-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-1"},
 			Volume:             volume,
 			Account:            volume.Account,
@@ -6259,6 +6293,7 @@ func TestCleanupOldBackupSnapshotsActivity_GetEarliestCreatingBackupTimeError_Fa
 			VolumeID:           1,
 			Volume:             volume,
 			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-2",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-2"},
 		},
 		{
@@ -6268,6 +6303,7 @@ func TestCleanupOldBackupSnapshotsActivity_GetEarliestCreatingBackupTimeError_Fa
 			VolumeID:           1,
 			Volume:             volume,
 			State:              datamodel.LifeCycleStateREADY,
+			ExternalUUID:       "snap-uuid-1",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-uuid-1"},
 		},
 	}

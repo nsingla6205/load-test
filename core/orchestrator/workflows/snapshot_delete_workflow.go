@@ -141,7 +141,7 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 		}
 	}()
 
-	hasExternalUUID := dbSnapshot.SnapshotAttributes != nil && dbSnapshot.SnapshotAttributes.ExternalUUID != ""
+	hasExternalUUID := dbSnapshot.GetExternalUUID() != ""
 	var dbNodes []*datamodel.Node
 	if err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &dbSnapshot.Volume.PoolID).Get(ctx, &dbNodes); err != nil {
 		return nil, ConvertToVSAError(err)

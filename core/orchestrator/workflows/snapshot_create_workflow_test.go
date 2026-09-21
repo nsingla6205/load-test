@@ -91,15 +91,23 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowWorkflowExecutesSucces
 	// Mock UpdateJob method calls - these are called by the UpdateJobStatus activity
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "DONE", 0, "").Return(nil)
+	var persistedSnapshot *datamodel.Snapshot
 
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snapshot-uuid"}, SizeInBytes: 1024, LogicalSizeInBytes: 1024}, nil)
-	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			persistedSnapshot, _ = args[1].(*datamodel.Snapshot)
+		}).Return(nil)
 
 	s.env.ExecuteWorkflow(CreateSnapshotWorkflow, params, snapshot)
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	s.Require().NotNil(persistedSnapshot)
+	assert.Equal(s.T(), "snapshot-uuid", persistedSnapshot.ExternalUUID)
+	s.Require().NotNil(persistedSnapshot.SnapshotAttributes)
+	assert.Equal(s.T(), "snapshot-uuid", persistedSnapshot.SnapshotAttributes.ExternalUUID)
 }
 
 func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnActivityError() {

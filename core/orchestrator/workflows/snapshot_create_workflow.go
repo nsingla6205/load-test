@@ -171,8 +171,8 @@ func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{})
 
 	// ONTAP side effect exists — register ONTAP deletion rollback (LIFO: runs before DB error write).
 	dbSnapshot.Description = snapshotDescription
-	if snapshotCreateResponse != nil && dbSnapshot.SnapshotAttributes != nil {
-		dbSnapshot.SnapshotAttributes.ExternalUUID = snapshotCreateResponse.ExternalUUID
+	if snapshotCreateResponse != nil {
+		dbSnapshot.SetExternalUUID(snapshotCreateResponse.ExternalUUID)
 	}
 	rollbackManager.AddActivity(deleteActivity.DeleteSnapshotInONTAP, dbSnapshot, &node)
 

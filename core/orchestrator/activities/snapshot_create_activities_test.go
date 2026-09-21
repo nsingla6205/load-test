@@ -148,9 +148,13 @@ func TestUpdateSnapshotDetails(t *testing.T) {
 			SnapshotAttributes: &datamodel.SnapshotAttributes{},
 		}
 
-		// Mock UpdateSnapshot to accept any snapshot with matching state after modification
+		// Mock UpdateSnapshot to accept any snapshot with matching state after modification.
+		// The external UUID must reach both the column and the attributes JSON.
 		mockStorage.On("UpdateSnapshot", mock.Anything, mock.MatchedBy(func(s *datamodel.Snapshot) bool {
-			return s.State == datamodel.LifeCycleStateREADY && s.StateDetails == datamodel.LifeCycleStateAvailableDetails
+			return s.State == datamodel.LifeCycleStateREADY &&
+				s.StateDetails == datamodel.LifeCycleStateAvailableDetails &&
+				s.ExternalUUID == "abcdef-123456" &&
+				s.SnapshotAttributes.ExternalUUID == "abcdef-123456"
 		})).Return(nil, nil)
 
 		// Create Temporal test environment for activity context
@@ -207,10 +211,10 @@ func TestUpdateSnapshotDetails(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := activities.SnapshotCreateActivity{SE: mockStorage}
 		snapshot := &datamodel.Snapshot{
-			Name:        "test-snapshot",
-			Description: "test-description",
+			Name:         "test-snapshot",
+			Description:  "test-description",
+			ExternalUUID: "abcdef-123456",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
-				ExternalUUID:           "abcdef-123456",
 				SizeInBytes:            1024,
 				LogicalSizeUsedInBytes: 1024,
 			},

@@ -323,6 +323,49 @@ func TestSnapshotAttributes_Value(t *testing.T) {
 	assert.Equal(t, `{"size_in_bytes":1024,"external_uuid":"","logical_size_used_in_bytes":0}`, string(val.([]byte)))
 }
 
+func TestSnapshot_SetExternalUUID(t *testing.T) {
+	t.Run("mirrors into existing attributes", func(t *testing.T) {
+		snapshot := &Snapshot{SnapshotAttributes: &SnapshotAttributes{SizeInBytes: 1024}}
+		snapshot.SetExternalUUID("ontap-external-uuid")
+		assert.Equal(t, "ontap-external-uuid", snapshot.ExternalUUID)
+		assert.Equal(t, "ontap-external-uuid", snapshot.SnapshotAttributes.ExternalUUID)
+		assert.Equal(t, int64(1024), snapshot.SnapshotAttributes.SizeInBytes)
+	})
+
+	t.Run("allocates attributes when nil", func(t *testing.T) {
+		snapshot := &Snapshot{}
+		snapshot.SetExternalUUID("ontap-external-uuid")
+		assert.Equal(t, "ontap-external-uuid", snapshot.ExternalUUID)
+		assert.NotNil(t, snapshot.SnapshotAttributes)
+		assert.Equal(t, "ontap-external-uuid", snapshot.SnapshotAttributes.ExternalUUID)
+	})
+}
+
+func TestSnapshot_GetExternalUUID(t *testing.T) {
+	t.Run("reads from attributes", func(t *testing.T) {
+		snapshot := &Snapshot{SnapshotAttributes: &SnapshotAttributes{ExternalUUID: "ontap-external-uuid"}}
+		assert.Equal(t, "ontap-external-uuid", snapshot.GetExternalUUID())
+	})
+
+	t.Run("ignores the column", func(t *testing.T) {
+		snapshot := &Snapshot{
+			ExternalUUID:       "column-only-external-uuid",
+			SnapshotAttributes: &SnapshotAttributes{},
+		}
+		assert.Empty(t, snapshot.GetExternalUUID())
+	})
+
+	t.Run("returns empty when attributes are nil", func(t *testing.T) {
+		snapshot := &Snapshot{ExternalUUID: "column-only-external-uuid"}
+		assert.Empty(t, snapshot.GetExternalUUID())
+	})
+
+	t.Run("returns empty when snapshot is nil", func(t *testing.T) {
+		var snapshot *Snapshot
+		assert.Empty(t, snapshot.GetExternalUUID())
+	})
+}
+
 func TestBucketDetails_mergeNonEmptyFieldsFrom(t *testing.T) {
 	t.Run("overlays tenant project and HMAC secret", func(t *testing.T) {
 		existing := &BucketDetails{
@@ -1748,12 +1791,12 @@ func TestMergeBucketDetails(t *testing.T) {
 		}
 		b := &BackupVault{BucketDetails: BucketDetailsArray{orig}}
 		b.UpdateBucketDetails(BucketDetailsArray{{
-			BucketName:          "b1",
-			ServiceAccountName:  "sa@project.iam",
-			HmacAccessKeyID:     "ackey",
-			HmacSecretID:        "hardware-bv-hmac-sa",
-			SatisfiesPzi:        true,
-			SatisfiesPzs:        false,
+			BucketName:         "b1",
+			ServiceAccountName: "sa@project.iam",
+			HmacAccessKeyID:    "ackey",
+			HmacSecretID:       "hardware-bv-hmac-sa",
+			SatisfiesPzi:       true,
+			SatisfiesPzs:       false,
 		}})
 
 		assert.Len(t, b.BucketDetails, 1)
