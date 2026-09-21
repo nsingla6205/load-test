@@ -26,6 +26,54 @@ func setupBackupVaultClient(t *testing.T, mockClient backup_vault.ClientService)
 	return func() { BackupVaultCreateClient = orig }
 }
 
+func TestDeleteSDEBackupVaultClientSelection(tt *testing.T) {
+	const (
+		locationID    = "valid-location"
+		projectNumber = "1234567890"
+		correlationID = "correlation-id"
+		backupVaultID = "vault-id"
+	)
+
+	setup := func(t *testing.T) (usedOrchestrationClient *bool, restore func()) {
+		t.Helper()
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(
+			&backup_vault.V1betaDeleteBackupVaultAccepted{
+				Payload: &models.OperationV1beta{Name: "operation-id", Done: nillable.GetBoolPtr(true)},
+			}, nil, nil).Once()
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+
+		used := false
+		origCreate, origOrchestration := BackupVaultCreateClient, BackupVaultOrchestrationClient
+		BackupVaultCreateClient = func(log.Logger, string) cvpapi.Cvp { return *cvpClient }
+		BackupVaultOrchestrationClient = func(log.Logger, string) cvpapi.Cvp {
+			used = true
+			return *cvpClient
+		}
+		return &used, func() {
+			BackupVaultCreateClient, BackupVaultOrchestrationClient = origCreate, origOrchestration
+		}
+	}
+
+	tt.Run("WhenOrchestratedUsesOrchestrationClient", func(t *testing.T) {
+		used, restore := setup(t)
+		defer restore()
+
+		_, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), true)
+		assert.NoError(t, err)
+		assert.True(t, *used, "orchestrated deletes must be marked so SDE lifts its remote vault guard")
+	})
+
+	tt.Run("WhenNotOrchestratedUsesPlainClient", func(t *testing.T) {
+		used, restore := setup(t)
+		defer restore()
+
+		_, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
+		assert.NoError(t, err)
+		assert.False(t, *used, "a customer delete must not be marked as orchestrated")
+	})
+}
+
 func TestDeleteSDEBackupVault(tt *testing.T) {
 	const (
 		locationID    = "valid-location"
@@ -41,7 +89,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			&backup_vault.V1betaDeleteBackupVaultAccepted{Payload: mockResp}, nil, nil).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
@@ -54,7 +102,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultNotFound{}, result)
 	})
@@ -67,7 +115,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultForbidden{}, result)
 	})
@@ -80,7 +128,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultBadRequest{}, result)
 	})
@@ -93,7 +141,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultUnauthorized{}, result)
 	})
@@ -106,7 +154,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultTooManyRequests{}, result)
 	})
@@ -119,7 +167,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultConflict{}, result)
 	})
@@ -132,7 +180,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultUnprocessableEntity{}, result)
 	})
@@ -145,7 +193,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		assert.IsType(t, &gcpgenserver.V1betaDeleteBackupVaultInternalServerError{}, result)
 	})
@@ -158,7 +206,7 @@ func TestDeleteSDEBackupVault(tt *testing.T) {
 			}).Once()
 		defer setupBackupVaultClient(t, mockClient)()
 
-		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger())
+		result, err := DeleteSDEBackupVault(context.Background(), locationID, projectNumber, correlationID, backupVaultID, log.NewLogger(), false)
 		assert.NoError(t, err)
 		internalErr, ok := result.(*gcpgenserver.V1betaDeleteBackupVaultInternalServerError)
 		assert.True(t, ok)

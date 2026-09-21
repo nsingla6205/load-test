@@ -17,6 +17,10 @@ import (
 // Tests may override this variable to inject a mock client.
 var BackupVaultCreateClient func(logger log.Logger, jwtToken string) cvpapi.Cvp = cvp.CreateClient
 
+// BackupVaultOrchestrationClient builds a CVP client for requests VCP makes as the cross-region
+// backup vault orchestrator.
+var BackupVaultOrchestrationClient func(logger log.Logger, jwtToken string) cvpapi.Cvp = cvp.CreateOrchestrationClient
+
 // CreateSDEBackupVault creates a backup vault in SDE via the CVP client.
 // The JWT token and correlation ID are fetched from ctx.
 func CreateSDEBackupVault(
@@ -68,13 +72,20 @@ func ListSDEBackupVaults(
 
 // DeleteSDEBackupVault deletes a backup vault in SDE via the CVP client.
 // The JWT token is fetched from ctx.
+// vcpOrchestrated marks the request as coming from VCP as the cross-region orchestrator, which
+// lets SDE delete the destination copy of a vault and skip its own Pub/Sub propagation.
 func DeleteSDEBackupVault(
 	ctx context.Context,
 	locationID, projectNumber, correlationID, backupVaultID string,
 	logger log.Logger,
+	vcpOrchestrated bool,
 ) (gcpgenserver.V1betaDeleteBackupVaultRes, error) {
 	jwtToken := utils.GetCVPJWTFromContext(ctx)
-	cvpClient := BackupVaultCreateClient(logger, jwtToken)
+	newClient := BackupVaultCreateClient
+	if vcpOrchestrated {
+		newClient = BackupVaultOrchestrationClient
+	}
+	cvpClient := newClient(logger, jwtToken)
 
 	deleted, _, err := cvpClient.BackupVault.V1betaDeleteBackupVault(&backup_vault.V1betaDeleteBackupVaultParams{
 		LocationID:     locationID,

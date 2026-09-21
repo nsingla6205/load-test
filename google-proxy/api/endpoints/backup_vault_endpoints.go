@@ -519,7 +519,9 @@ func convertBackupRetentionPolicyToCvpModelForCreate(brPolicy gcpgenserver.OptBa
 }
 
 func _deleteBackupVaultInSDE(ctx context.Context, params gcpgenserver.V1betaDeleteBackupVaultParams, logger log.Logger) (r gcpgenserver.V1betaDeleteBackupVaultRes, _ error) {
-	return sde.DeleteSDEBackupVault(ctx, params.LocationId, params.ProjectNumber, params.XCorrelationID.Value, params.BackupVaultId, logger)
+	// This is the customer's own delete proxied straight through to SDE, so SDE must apply its
+	// normal customer rules to it.
+	return sde.DeleteSDEBackupVault(ctx, params.LocationId, params.ProjectNumber, params.XCorrelationID.Value, params.BackupVaultId, logger, false)
 }
 
 func _createBackupVaultInSDE(ctx context.Context, body *models.BackupVaultCreateV1beta, locationID, projectNumber string, logger log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {

@@ -174,7 +174,7 @@ func _getBackupVaultFromSDEByExternalUUID(ctx context.Context, externalUUID, reg
 func _deleteBackupVaultInSDE(ctx context.Context, region, accountName, sdeBackupVaultID string) error {
 	logger := util.GetLogger(ctx)
 	correlationID := utils.GetCoRelationIDFromContext(ctx)
-	res, err := sde.DeleteSDEBackupVault(ctx, region, accountName, correlationID, sdeBackupVaultID, logger)
+	res, err := sde.DeleteSDEBackupVault(ctx, region, accountName, correlationID, sdeBackupVaultID, logger, env.EnableBackupVaultVCPOrchestration)
 	if err != nil {
 		return err
 	}

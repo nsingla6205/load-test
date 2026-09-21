@@ -30,6 +30,7 @@ var (
 	utilsConvertJsonToModel       = utils.ConvertJsonToModel
 	ConvertToBackupVaultDataModel = _convertToBackupVaultDataModel
 	cvpCreateClient               = cvp.CreateClient
+	cvpCreateOrchestrationClient  = cvp.CreateOrchestrationClient
 	updateBackupVaultInSDE        = _updateBackupVaultInSDE
 	deleteBackupVaultInSDE        = _deleteBackupVaultInSDE
 	getBackupVaultFromSDE         = _getBackupVaultFromSDE
@@ -308,7 +309,13 @@ func (j *BackupVaultActivity) DeleteBackupVaultInSDE(ctx context.Context, paramz
 func _deleteBackupVaultInSDE(ctx context.Context, paramz *common.BackupVaultParams) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
 	GetSignedJwtToken := utils.GetAuthTokenFromContext(ctx)
-	cvpClient := cvpCreateClient(logger, GetSignedJwtToken)
+	// This delete runs even for vaults SDE still owns, so only mark it as orchestrated when VCP
+	// actually owns the cross-region lifecycle.
+	newClient := cvpCreateClient
+	if env.EnableBackupVaultVCPOrchestration {
+		newClient = cvpCreateOrchestrationClient
+	}
+	cvpClient := newClient(logger, GetSignedJwtToken)
 	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
 
 	vault, _, err := cvpClient.BackupVault.V1betaDeleteBackupVault(&backup_vault.V1betaDeleteBackupVaultParams{
