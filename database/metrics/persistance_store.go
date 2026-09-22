@@ -370,8 +370,8 @@ func (s *PersistenceStore) GetHydratedMetrics(ctx context.Context, filter map[st
 	return s.dataStore.dataStore.GetHydratedMetrics(ctx, filter)
 }
 
-func (s *PersistenceStore) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.HydratedMetrics, error) {
-	return s.dataStore.dataStore.GetHydratedMetricsWithPagination(ctx, conditions, pagination)
+func (s *PersistenceStore) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, keyset *dbutils.Keyset) ([]datamodel.HydratedMetrics, error) {
+	return s.dataStore.dataStore.GetHydratedMetricsWithPagination(ctx, conditions, keyset)
 }
 
 func (s *PersistenceStore) UpdateHydratedMetrics(ctx context.Context, id string, updates map[string]interface{}) error {

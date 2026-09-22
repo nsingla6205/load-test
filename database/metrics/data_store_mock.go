@@ -706,9 +706,9 @@ func (_c *MockDataStore_GetHydratedMetrics_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
-// GetHydratedMetricsWithPagination provides a mock function with given fields: ctx, conditions, pagination
-func (_m *MockDataStore) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, pagination *utils.Pagination) ([]datamodel.HydratedMetrics, error) {
-	ret := _m.Called(ctx, conditions, pagination)
+// GetHydratedMetricsWithPagination provides a mock function with given fields: ctx, conditions, keyset
+func (_m *MockDataStore) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, keyset *utils.Keyset) ([]datamodel.HydratedMetrics, error) {
+	ret := _m.Called(ctx, conditions, keyset)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetHydratedMetricsWithPagination")
@@ -716,19 +716,19 @@ func (_m *MockDataStore) GetHydratedMetricsWithPagination(ctx context.Context, c
 
 	var r0 []datamodel.HydratedMetrics
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Pagination) ([]datamodel.HydratedMetrics, error)); ok {
-		return rf(ctx, conditions, pagination)
+	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Keyset) ([]datamodel.HydratedMetrics, error)); ok {
+		return rf(ctx, conditions, keyset)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Pagination) []datamodel.HydratedMetrics); ok {
-		r0 = rf(ctx, conditions, pagination)
+	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Keyset) []datamodel.HydratedMetrics); ok {
+		r0 = rf(ctx, conditions, keyset)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]datamodel.HydratedMetrics)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, [][]interface{}, *utils.Pagination) error); ok {
-		r1 = rf(ctx, conditions, pagination)
+	if rf, ok := ret.Get(1).(func(context.Context, [][]interface{}, *utils.Keyset) error); ok {
+		r1 = rf(ctx, conditions, keyset)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -744,14 +744,14 @@ type MockDataStore_GetHydratedMetricsWithPagination_Call struct {
 // GetHydratedMetricsWithPagination is a helper method to define mock.On call
 //   - ctx context.Context
 //   - conditions [][]interface{}
-//   - pagination *utils.Pagination
-func (_e *MockDataStore_Expecter) GetHydratedMetricsWithPagination(ctx interface{}, conditions interface{}, pagination interface{}) *MockDataStore_GetHydratedMetricsWithPagination_Call {
-	return &MockDataStore_GetHydratedMetricsWithPagination_Call{Call: _e.mock.On("GetHydratedMetricsWithPagination", ctx, conditions, pagination)}
+//   - keyset *utils.Keyset
+func (_e *MockDataStore_Expecter) GetHydratedMetricsWithPagination(ctx interface{}, conditions interface{}, keyset interface{}) *MockDataStore_GetHydratedMetricsWithPagination_Call {
+	return &MockDataStore_GetHydratedMetricsWithPagination_Call{Call: _e.mock.On("GetHydratedMetricsWithPagination", ctx, conditions, keyset)}
 }
 
-func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) Run(run func(ctx context.Context, conditions [][]interface{}, pagination *utils.Pagination)) *MockDataStore_GetHydratedMetricsWithPagination_Call {
+func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) Run(run func(ctx context.Context, conditions [][]interface{}, keyset *utils.Keyset)) *MockDataStore_GetHydratedMetricsWithPagination_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].([][]interface{}), args[2].(*utils.Pagination))
+		run(args[0].(context.Context), args[1].([][]interface{}), args[2].(*utils.Keyset))
 	})
 	return _c
 }
@@ -761,7 +761,7 @@ func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) Return(_a0 []data
 	return _c
 }
 
-func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) RunAndReturn(run func(context.Context, [][]interface{}, *utils.Pagination) ([]datamodel.HydratedMetrics, error)) *MockDataStore_GetHydratedMetricsWithPagination_Call {
+func (_c *MockDataStore_GetHydratedMetricsWithPagination_Call) RunAndReturn(run func(context.Context, [][]interface{}, *utils.Keyset) ([]datamodel.HydratedMetrics, error)) *MockDataStore_GetHydratedMetricsWithPagination_Call {
 	_c.Call.Return(run)
 	return _c
 }

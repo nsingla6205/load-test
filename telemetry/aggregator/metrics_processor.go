@@ -1400,8 +1400,8 @@ func (p *BillingProvider) fetchOntapModePoolData(ctx context.Context, aggregatio
 // with resource_type='VOLUME_REPLICATION_RELATIONSHIP'.
 func (p *BillingProvider) fetchHydratedMetricsForOntapCrr(ctx context.Context, deploymentNames []string, aggregationStartTime time.Time) (map[string]datamodel2.HydratedMetrics, error) {
 	result := make(map[string]datamodel2.HydratedMetrics, len(deploymentNames))
-	offset := 0
 	limit := p.config.PoolVolumeLabelPageSize
+	keyset := &dbutils.Keyset{Limit: limit}
 
 	conditions := [][]interface{}{
 		{"deployment_name IN ?", deploymentNames},
@@ -1410,14 +1410,9 @@ func (p *BillingProvider) fetchHydratedMetricsForOntapCrr(ctx context.Context, d
 	}
 
 	for {
-		pagination := &dbutils.Pagination{
-			Offset: offset,
-			Limit:  limit,
-		}
-
-		metrics, err := p.metricsDB.GetHydratedMetricsWithPagination(ctx, conditions, pagination)
+		metrics, err := p.metricsDB.GetHydratedMetricsWithPagination(ctx, conditions, keyset)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch hydrated metrics (offset %d): %w", offset, err)
+			return nil, fmt.Errorf("failed to fetch hydrated metrics after id %d: %w", keyset.AfterID, err)
 		}
 
 		if len(metrics) == 0 {
@@ -1430,10 +1425,19 @@ func (p *BillingProvider) fetchHydratedMetricsForOntapCrr(ctx context.Context, d
 				result[key] = metrics[i]
 			}
 		}
-		offset += len(metrics)
 
 		if len(metrics) < limit {
 			break
+		}
+
+		lastMetric := metrics[len(metrics)-1]
+		if lastMetric.MetricTimestamp.Equal(keyset.AfterTimestamp) && lastMetric.ID == keyset.AfterID {
+			return nil, fmt.Errorf("stalled keyset cursor after id %d", lastMetric.ID)
+		}
+		keyset = &dbutils.Keyset{
+			Limit:          limit,
+			AfterTimestamp: lastMetric.MetricTimestamp,
+			AfterID:        lastMetric.ID,
 		}
 	}
 
@@ -2213,7 +2217,7 @@ func (p *BillingProvider) fetchAllRecordsWithPagination(ctx context.Context, con
 func (p *BillingProvider) fetchAllHydratedMetricsWithPagination(ctx context.Context, filter map[string]interface{}) ([]datamodel2.HydratedMetrics, error) {
 	var allMetrics []datamodel2.HydratedMetrics
 	pageSize := p.config.PoolVolumeLabelPageSize
-	offset := 0
+	keyset := &dbutils.Keyset{Limit: pageSize}
 
 	// Extract conditions from filter if present
 	var conditions [][]interface{}
@@ -2224,12 +2228,7 @@ func (p *BillingProvider) fetchAllHydratedMetricsWithPagination(ctx context.Cont
 	}
 
 	for {
-		pagination := &dbutils.Pagination{
-			Limit:  pageSize,
-			Offset: offset,
-		}
-
-		metrics, err := p.metricsDB.GetHydratedMetricsWithPagination(ctx, conditions, pagination)
+		metrics, err := p.metricsDB.GetHydratedMetricsWithPagination(ctx, conditions, keyset)
 		if err != nil {
 			return nil, err
 		}
@@ -2239,11 +2238,20 @@ func (p *BillingProvider) fetchAllHydratedMetricsWithPagination(ctx context.Cont
 		}
 
 		allMetrics = append(allMetrics, metrics...)
-		offset += len(metrics)
 
 		// Break if we get fewer records than page size (last page)
 		if len(metrics) < pageSize {
 			break
+		}
+
+		lastMetric := metrics[len(metrics)-1]
+		if lastMetric.MetricTimestamp.Equal(keyset.AfterTimestamp) && lastMetric.ID == keyset.AfterID {
+			return nil, fmt.Errorf("stalled keyset cursor after id %d", lastMetric.ID)
+		}
+		keyset = &dbutils.Keyset{
+			Limit:          pageSize,
+			AfterTimestamp: lastMetric.MetricTimestamp,
+			AfterID:        lastMetric.ID,
 		}
 	}
 

@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -226,6 +228,154 @@ func TestDataStoreRepository_DeleteOlderThanInBatches(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Less(t, rowsAffected, int64(oldRecordCount))
 	})
+}
+
+func TestDataStoreRepository_GetHydratedMetricsWithPagination(t *testing.T) {
+	repo := setupTestDataStoreRepository(t)
+	ctx := context.Background()
+	baseTimestamp := time.Date(2026, time.August, 24, 10, 0, 0, 0, time.UTC)
+	metrics := []datamodel.HydratedMetrics{
+		{
+			MetricTimestamp: baseTimestamp,
+			MeasuredType:    "allocated-size",
+			ResourceType:    "volume",
+			Quantity:        10,
+			ResourceName:    "volume-1",
+			ConsumerID:      "consumer-1",
+			Location:        "us-central1",
+			Metadata:        []byte(`{"pool_name":"pool-1"}`),
+			DeploymentName:  "deployment-1",
+		},
+		{
+			MetricTimestamp: baseTimestamp.Add(time.Minute),
+			MeasuredType:    "allocated-size",
+			ResourceType:    "volume",
+			Quantity:        20,
+			ResourceName:    "volume-2",
+		},
+		{
+			MetricTimestamp: baseTimestamp.Add(time.Minute),
+			MeasuredType:    "allocated-size",
+			ResourceType:    "volume",
+			Quantity:        30,
+			ResourceName:    "volume-3",
+		},
+		{
+			MetricTimestamp: baseTimestamp.Add(2 * time.Minute),
+			MeasuredType:    "allocated-size",
+			ResourceType:    "volume",
+			Quantity:        40,
+			ResourceName:    "volume-4",
+		},
+		{
+			MetricTimestamp: baseTimestamp.Add(3 * time.Minute),
+			MeasuredType:    "allocated-size",
+			ResourceType:    "volume",
+			Quantity:        50,
+			ResourceName:    "volume-5",
+		},
+		{
+			MetricTimestamp: baseTimestamp.Add(time.Minute),
+			MeasuredType:    "logical-size",
+			ResourceType:    "volume",
+			Quantity:        60,
+			ResourceName:    "excluded-volume",
+		},
+	}
+	require.NoError(t, repo.CreateHydratedMetricsBatch(ctx, metrics, len(metrics)))
+
+	conditions := [][]interface{}{
+		{"resource_type = ?", "volume"},
+		{"measured_type = ?", "allocated-size"},
+	}
+
+	firstPage, err := repo.GetHydratedMetricsWithPagination(ctx, conditions, &dbutils.Keyset{Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, firstPage, 2)
+	assert.Equal(t, []string{"volume-1", "volume-2"}, []string{firstPage[0].ResourceName, firstPage[1].ResourceName})
+	assert.Equal(t, float64(10), firstPage[0].Quantity)
+	assert.JSONEq(t, `{"pool_name":"pool-1"}`, string(firstPage[0].Metadata))
+	assert.Equal(t, "consumer-1", firstPage[0].ConsumerID)
+	assert.Equal(t, "us-central1", firstPage[0].Location)
+	assert.Equal(t, "deployment-1", firstPage[0].DeploymentName)
+
+	secondPage, err := repo.GetHydratedMetricsWithPagination(ctx, conditions, &dbutils.Keyset{
+		Limit:          2,
+		AfterTimestamp: firstPage[1].MetricTimestamp,
+		AfterID:        firstPage[1].ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, secondPage, 2)
+	assert.Equal(t, []string{"volume-3", "volume-4"}, []string{secondPage[0].ResourceName, secondPage[1].ResourceName})
+	assert.Equal(t, firstPage[1].MetricTimestamp, secondPage[0].MetricTimestamp)
+	assert.Greater(t, secondPage[0].ID, firstPage[1].ID)
+
+	lastPage, err := repo.GetHydratedMetricsWithPagination(ctx, conditions, &dbutils.Keyset{
+		Limit:          2,
+		AfterTimestamp: secondPage[1].MetricTimestamp,
+		AfterID:        secondPage[1].ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, lastPage, 1)
+	assert.Equal(t, "volume-5", lastPage[0].ResourceName)
+
+	emptyPage, err := repo.GetHydratedMetricsWithPagination(ctx, conditions, &dbutils.Keyset{
+		Limit:          2,
+		AfterTimestamp: lastPage[0].MetricTimestamp,
+		AfterID:        lastPage[0].ID,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, emptyPage)
+
+	defaultPage, err := repo.GetHydratedMetricsWithPagination(ctx, conditions, nil)
+	require.NoError(t, err)
+	assert.Len(t, defaultPage, 5)
+}
+
+func TestHydratedMetricsPageQuery_SQLShape(t *testing.T) {
+	repo := setupTestDataStoreRepository(t)
+	cursorTimestamp := time.Date(2026, time.August, 24, 10, 0, 0, 0, time.UTC)
+	keyset := &dbutils.Keyset{
+		Limit:          25,
+		AfterTimestamp: cursorTimestamp,
+		AfterID:        42,
+	}
+
+	sql := repo.db.GORM().ToSQL(func(tx *gorm.DB) *gorm.DB {
+		var result []datamodel.HydratedMetrics
+		return hydratedMetricsPageQuery(
+			tx.Where("resource_type = ?", "volume").Where("measured_type = ?", "allocated-size"),
+			keyset,
+		).Find(&result)
+	})
+	normalizedSQL := strings.ToLower(strings.Join(strings.Fields(sql), " "))
+
+	assert.Contains(t, normalizedSQL, "select "+hydratedMetricsReadColumns)
+	assert.Contains(t, normalizedSQL, "(metric_timestamp, id) > (")
+	assert.Contains(t, normalizedSQL, "order by metric_timestamp asc, id asc")
+	assert.Contains(t, normalizedSQL, "limit 25")
+	assert.NotContains(t, normalizedSQL, "select *")
+	assert.NotContains(t, normalizedSQL, " offset ")
+}
+
+func TestDataStoreRepository_GetHydratedMetricsWithPagination_RejectsPartialCursor(t *testing.T) {
+	repo := setupTestDataStoreRepository(t)
+	cursorTimestamp := time.Date(2026, time.August, 24, 10, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name   string
+		keyset *dbutils.Keyset
+	}{
+		{name: "timestamp only", keyset: &dbutils.Keyset{Limit: 10, AfterTimestamp: cursorTimestamp}},
+		{name: "ID only", keyset: &dbutils.Keyset{Limit: 10, AfterID: 42}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := repo.GetHydratedMetricsWithPagination(context.Background(), nil, tt.keyset)
+			assert.EqualError(t, err, "keyset cursor requires both after timestamp and after ID")
+		})
+	}
 }
 
 func TestDataStoreRepository_AggregatedUsageCRUD(t *testing.T) {

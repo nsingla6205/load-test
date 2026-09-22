@@ -175,6 +175,118 @@ func TestGroupMetricsByResource(t *testing.T) {
 	assert.Equal(t, 1, len(result[resourceKey3]), "Expected 1 metric in third group")
 }
 
+func TestFetchAllHydratedMetricsWithPagination_PreservesGroupedOutput(t *testing.T) {
+	mockDB := &database.MockStorage{}
+	provider := &BillingProvider{
+		metricsDB: mockDB,
+		config: &common.TelemetryConfig{
+			PoolVolumeLabelPageSize: 2,
+		},
+	}
+	timestamp := time.Date(2026, time.August, 24, 10, 0, 0, 0, time.UTC)
+	metrics := []datamodel2.HydratedMetrics{
+		{
+			ID:              1,
+			MetricTimestamp: timestamp,
+			MeasuredType:    string(metadata.AllocatedSize),
+			ResourceType:    string(metadata.Volume),
+			Quantity:        100,
+			ResourceName:    "volume-1",
+			ConsumerID:      "consumer-1",
+			Location:        "us-central1",
+			Metadata:        []byte(`{"pool_name":"pool-1"}`),
+			DeploymentName:  "deployment-1",
+		},
+		{
+			ID:              2,
+			MetricTimestamp: timestamp,
+			MeasuredType:    string(metadata.AllocatedSize),
+			ResourceType:    string(metadata.Volume),
+			Quantity:        200,
+			ResourceName:    "volume-1",
+			ConsumerID:      "consumer-1",
+			Location:        "us-central1",
+			Metadata:        []byte(`{"pool_name":"pool-1"}`),
+			DeploymentName:  "deployment-1",
+		},
+		{
+			ID:              3,
+			MetricTimestamp: timestamp.Add(time.Minute),
+			MeasuredType:    string(metadata.AllocatedSize),
+			ResourceType:    string(metadata.Volume),
+			Quantity:        300,
+			ResourceName:    "volume-2",
+			ConsumerID:      "consumer-2",
+			Location:        "us-east1",
+			DeploymentName:  "deployment-2",
+		},
+	}
+	conditions := [][]interface{}{
+		{"resource_type = ?", string(metadata.Volume)},
+		{"measured_type = ?", string(metadata.AllocatedSize)},
+	}
+	filter := map[string]interface{}{"conditions": conditions}
+
+	mockDB.On(
+		"GetHydratedMetricsWithPagination",
+		mock.Anything,
+		conditions,
+		&dbutils.Keyset{Limit: 2},
+	).Return(metrics[:2], nil).Once()
+	mockDB.On(
+		"GetHydratedMetricsWithPagination",
+		mock.Anything,
+		conditions,
+		&dbutils.Keyset{
+			Limit:          2,
+			AfterTimestamp: metrics[1].MetricTimestamp,
+			AfterID:        metrics[1].ID,
+		},
+	).Return(metrics[2:], nil).Once()
+
+	paginatedMetrics, err := provider.fetchAllHydratedMetricsWithPagination(context.Background(), filter)
+	require.NoError(t, err)
+	assert.Equal(t, provider.groupMetricsByResource(metrics), provider.groupMetricsByResource(paginatedMetrics))
+
+	aggregate := func(input []datamodel2.HydratedMetrics) []datamodel2.AggregatedUsage {
+		var records []datamodel2.AggregatedUsage
+		resourceCollection := &ResourceCollection{
+			VolumeData: make(map[ResourceKey]ResourceData),
+		}
+		groups := provider.groupMetricsByResource(input)
+		for key := range groups {
+			resourceCollection.VolumeData[key] = ResourceData{
+				UUID:      key.ResourceName,
+				AccountID: 123,
+				Labels:    Labels{"env": "test"},
+			}
+		}
+		for key, group := range groups {
+			formatter := &common.SampledMetricsFormatter{Mode: common.Point}
+			series := formatter.Format(context.Background(), nil, group, timestamp, timestamp.Add(time.Hour))
+			for _, timeSeries := range series {
+				err := provider.processMetricsWithJobDef(
+					context.Background(),
+					key,
+					timeSeries,
+					common.AggregationJobDefinition{AggregationType: common.SumAggregation},
+					timestamp,
+					timestamp.Add(time.Hour),
+					resourceCollection,
+					&records,
+					make(CounterAggregationCache),
+					util.GetLogger(context.Background()),
+				)
+				require.NoError(t, err)
+			}
+		}
+		return records
+	}
+
+	assert.ElementsMatch(t, aggregate(metrics), aggregate(paginatedMetrics))
+	mockDB.AssertExpectations(t)
+}
+
 func TestGroupMetricsByResource_SetsDeletedAtMetadata(t *testing.T) {
 	processor := &BillingProvider{}
 	now := time.Now()
@@ -8749,14 +8861,14 @@ func TestFetchHydratedMetricsForOntapCrr_Error(t *testing.T) {
 		"GetHydratedMetricsWithPagination",
 		mock.Anything,
 		expectedConditions,
-		&dbutils.Pagination{Offset: 0, Limit: 2},
+		&dbutils.Keyset{Limit: 2},
 	).Return(nil, errors.New("db failure")).Once()
 
 	result, err := provider.fetchHydratedMetricsForOntapCrr(context.Background(), []string{"dep-1", "dep-2"}, aggregationStart)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to fetch hydrated metrics (offset 0)")
+	assert.Contains(t, err.Error(), "failed to fetch hydrated metrics after id 0")
 	mockDB.AssertExpectations(t)
 }
 
@@ -8780,7 +8892,7 @@ func TestFetchHydratedMetricsForOntapCrr_EmptyFirstPage(t *testing.T) {
 		"GetHydratedMetricsWithPagination",
 		mock.Anything,
 		expectedConditions,
-		&dbutils.Pagination{Offset: 0, Limit: 2},
+		&dbutils.Keyset{Limit: 2},
 	).Return([]datamodel2.HydratedMetrics{}, nil).Once()
 
 	result, err := provider.fetchHydratedMetricsForOntapCrr(context.Background(), []string{"dep-1"}, aggregationStart)
@@ -8807,33 +8919,43 @@ func TestFetchHydratedMetricsForOntapCrr_PaginatesAndDeduplicatesByDeploymentAnd
 	}
 
 	firstSeen := datamodel2.HydratedMetrics{
-		DeploymentName: "dep-1",
-		ResourceName:   "rep-1",
-		Location:       "us-central1",
+		ID:              1,
+		MetricTimestamp: aggregationStart,
+		DeploymentName:  "dep-1",
+		ResourceName:    "rep-1",
+		Location:        "us-central1",
 	}
 	duplicateKey := datamodel2.HydratedMetrics{
-		DeploymentName: "dep-1",
-		ResourceName:   "rep-1",
-		Location:       "us-east1",
+		ID:              2,
+		MetricTimestamp: aggregationStart,
+		DeploymentName:  "dep-1",
+		ResourceName:    "rep-1",
+		Location:        "us-east1",
 	}
 	secondKey := datamodel2.HydratedMetrics{
-		DeploymentName: "dep-2",
-		ResourceName:   "rep-2",
-		Location:       "europe-west1",
+		ID:              3,
+		MetricTimestamp: aggregationStart.Add(time.Minute),
+		DeploymentName:  "dep-2",
+		ResourceName:    "rep-2",
+		Location:        "europe-west1",
 	}
 
 	mockDB.On(
 		"GetHydratedMetricsWithPagination",
 		mock.Anything,
 		expectedConditions,
-		&dbutils.Pagination{Offset: 0, Limit: 2},
+		&dbutils.Keyset{Limit: 2},
 	).Return([]datamodel2.HydratedMetrics{firstSeen, duplicateKey}, nil).Once()
 
 	mockDB.On(
 		"GetHydratedMetricsWithPagination",
 		mock.Anything,
 		expectedConditions,
-		&dbutils.Pagination{Offset: 2, Limit: 2},
+		&dbutils.Keyset{
+			Limit:          2,
+			AfterTimestamp: duplicateKey.MetricTimestamp,
+			AfterID:        duplicateKey.ID,
+		},
 	).Return([]datamodel2.HydratedMetrics{secondKey}, nil).Once()
 
 	result, err := provider.fetchHydratedMetricsForOntapCrr(context.Background(), []string{"dep-1", "dep-2"}, aggregationStart)
@@ -8975,8 +9097,8 @@ func TestFetchOntapModePoolData_FetchHydratedMetricsError(t *testing.T) {
 				conditions[1][1] == metadata.VolumeReplicationRelationship.String() &&
 				conditions[2][1] == aggregationStart
 		}),
-		mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
-			return pagination.Offset == 0 && pagination.Limit == 2
+		mock.MatchedBy(func(keyset *dbutils.Keyset) bool {
+			return keyset.IsFirstPage() && keyset.Limit == 2
 		}),
 	).Return(nil, assert.AnError).Once()
 
@@ -9059,8 +9181,8 @@ func TestFetchOntapModePoolData_Success(t *testing.T) {
 				conditions[1][1] == metadata.VolumeReplicationRelationship.String() &&
 				conditions[2][1] == aggregationStart
 		}),
-		mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
-			return pagination.Offset == 0 && pagination.Limit == 10
+		mock.MatchedBy(func(keyset *dbutils.Keyset) bool {
+			return keyset.IsFirstPage() && keyset.Limit == 10
 		}),
 	).Return([]datamodel2.HydratedMetrics{
 		{

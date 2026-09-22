@@ -59,11 +59,11 @@ func (re *retryEngine) GetHydratedMetrics(ctx context.Context, filter map[string
 	return var0, err
 }
 
-func (re *retryEngine) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.HydratedMetrics, error) {
+func (re *retryEngine) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, keyset *dbutils.Keyset) ([]datamodel.HydratedMetrics, error) {
 	var var0 []datamodel.HydratedMetrics
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		var0, err = re.dataStore.GetHydratedMetricsWithPagination(ctx, conditions, pagination)
+		var0, err = re.dataStore.GetHydratedMetricsWithPagination(ctx, conditions, keyset)
 		if err != nil {
 			re.logError("GetHydratedMetricsWithPagination", err)
 			if !dbutils.IsTransientErr(err) {

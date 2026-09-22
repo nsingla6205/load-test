@@ -18,8 +18,9 @@ type DataStoreRepository struct {
 }
 
 const (
-	metricsCleanupBatchSize  = 5000
-	metricsCleanupBatchPause = 100 * time.Millisecond
+	metricsCleanupBatchSize    = 5000
+	metricsCleanupBatchPause   = 100 * time.Millisecond
+	hydratedMetricsReadColumns = "id, metric_timestamp, measured_type, resource_type, quantity, resource_name, consumer_id, location, metadata, deployment_name"
 )
 
 func NewDataStoreRepository(db *gormWrapper.Wrapper) *DataStoreRepository {
@@ -85,20 +86,41 @@ func (r *DataStoreRepository) GetHydratedMetrics(ctx context.Context, filter map
 	return result, err
 }
 
-func (r *DataStoreRepository) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.HydratedMetrics, error) {
-	return r.getHydratedMetricsWithPagination(r.db.ApplyFilter(conditions).GORM().WithContext(ctx), pagination)
+func (r *DataStoreRepository) GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, keyset *dbutils.Keyset) ([]datamodel.HydratedMetrics, error) {
+	return r.getHydratedMetricsWithPagination(r.db.ApplyFilter(conditions).GORM().WithContext(ctx), keyset)
 }
 
-func (r *DataStoreRepository) getHydratedMetricsWithPagination(db *gorm.DB, pagination *dbutils.Pagination) ([]datamodel.HydratedMetrics, error) {
+func (r *DataStoreRepository) getHydratedMetricsWithPagination(db *gorm.DB, keyset *dbutils.Keyset) ([]datamodel.HydratedMetrics, error) {
 	var result []datamodel.HydratedMetrics
 
-	// Apply pagination using the dbutils.Paginate scope
-	err := db.Scopes(dbutils.Paginate(pagination)).Find(&result).Error
+	if err := keyset.Validate(); err != nil {
+		return nil, err
+	}
+
+	query := hydratedMetricsPageQuery(db, keyset)
+
+	err := query.Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+func hydratedMetricsPageQuery(db *gorm.DB, keyset *dbutils.Keyset) *gorm.DB {
+	query := db.
+		Select(hydratedMetricsReadColumns).
+		Order("metric_timestamp ASC, id ASC").
+		Limit(keyset.PageLimit())
+	if !keyset.IsFirstPage() {
+		query = query.Where(
+			"(metric_timestamp, id) > (?, ?)",
+			keyset.AfterTimestamp,
+			keyset.AfterID,
+		)
+	}
+
+	return query
 }
 
 func (r *DataStoreRepository) UpdateHydratedMetrics(ctx context.Context, id string, updates map[string]interface{}) error {
@@ -334,7 +356,7 @@ type (
 		CreateHydratedMetrics(ctx context.Context, m *datamodel.HydratedMetrics) error
 		CreateHydratedMetricsBatch(ctx context.Context, metrics []datamodel.HydratedMetrics, batchSize int) error
 		GetHydratedMetrics(ctx context.Context, filter map[string]interface{}) ([]datamodel.HydratedMetrics, error)
-		GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]datamodel.HydratedMetrics, error)
+		GetHydratedMetricsWithPagination(ctx context.Context, conditions [][]interface{}, keyset *dbutils.Keyset) ([]datamodel.HydratedMetrics, error)
 		UpdateHydratedMetrics(ctx context.Context, id string, updates map[string]interface{}) error
 		DeleteHydratedMetrics(ctx context.Context, id string) error
 		DeleteHydratedMetricsOlderThan(ctx context.Context, olderThan time.Time) (int64, error)
