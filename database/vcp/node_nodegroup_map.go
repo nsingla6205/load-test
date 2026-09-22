@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +30,10 @@ var (
 
 // maxHarvestPortInsertRetries limits remap attempts when the unique (node_group_id, port) index rejects an insert.
 const maxHarvestPortInsertRetries = 8
+
+// nodeGroupLockRetrySleepSQL is a short Postgres-level pause used when all candidate
+// node groups are momentarily locked by concurrent pool registrations. 
+const nodeGroupLockRetrySleepSQL = "SELECT pg_sleep(0.025)"
 
 // CreateNodeNodeGroupMap creates a new node to nodegroup mapping
 func (d *DataStoreRepository) CreateNodeNodeGroupMap(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (*datamodel.NodeNodeGroupMap, error) {
@@ -279,12 +282,15 @@ func (d *DataStoreRepository) DeleteNodeNodeGroupMap(ctx context.Context, id int
 // Assumes that node1 and node2 are pre-created and have valid IDs
 // This function is idempotent - if nodes are already assigned to groups, it returns the existing mappings
 //
-// All reads and writes run in a single database transaction. On PostgreSQL, non-full node_groups rows are locked
-// (ORDER BY id FOR UPDATE) before capacity is re-checked, preventing concurrent overfill and port races; a unique
-// index on (node_group_id, harvest port) is a safety net with bounded insert retries.
+// All reads and writes run in a single database transaction. On PostgreSQL, each node picks its group with one
+// SELECT ... ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED statement: the capacity predicate is evaluated and the
+// chosen row is locked atomically, and groups locked by a concurrent assignment are skipped rather than waited on.
+// Only the chosen group row is locked, not the whole candidate set, so cross-pool serialization is limited to
+// registrations targeting the same group. A unique index on (node_group_id, harvest port) is a safety net with
+// bounded insert retries.
 //
-// Cross-pool safety: node groups are global; concurrent pool registrations serialize on overlapping node_groups row
-// locks on PostgreSQL. SQLite unit tests use a file-backed DB plus one transaction per assign; production uses Postgres.
+// Cross-pool safety: node groups are global; concurrent registrations contend only when they target the same
+// node_groups row. SQLite unit tests use a file-backed DB plus one transaction per assign; production uses Postgres.
 //
 // Poller / rebalance: rebalance commit locks target node_groups (FOR UPDATE) before Save. Upload picks a port via
 // GetFirstAvailablePort (single locked read on Postgres). A concurrent pool assign can still commit between upload
@@ -340,20 +346,6 @@ func (d *DataStoreRepository) assignTwoNodesToTwoGroupsTx(
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err2)
 	}
 
-	lockedIDs, err := lockNonFullNodeGroupIDs(tx, params.MaxNodesPerGroup)
-	if err != nil {
-		logger.Errorf("lockNonFullNodeGroupIDs: %v", err)
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-	}
-
-	counts, err := countsActiveMapsByGroup(tx, lockedIDs)
-	if err != nil {
-		logger.Errorf("countsActiveMapsByGroup: %v", err)
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-	}
-
-	candidates := append([]int64(nil), lockedIDs...)
-
 	excludeForNode1 := int64(0)
 	if err2 == nil {
 		excludeForNode1 = existingMapping2.NodeGroupID
@@ -368,22 +360,20 @@ func (d *DataStoreRepository) assignTwoNodesToTwoGroupsTx(
 		}
 	} else {
 		logger.Debugf("Node1 (ID: %d) not assigned, picking group (maxNodesPerGroup=%d)", params.Node1.ID, params.MaxNodesPerGroup)
-		gid := pickGroupIDWithCapacity(candidates, counts, excludeForNode1, params.MaxNodesPerGroup)
-		if gid == 0 {
+		picked, pickErr := d.pickOrSleepAndRetry(ctx, tx, excludeForNode1, params.MaxNodesPerGroup, params.Node1.ID)
+		if pickErr != nil {
+			return nil, pickErr
+		}
+		group1 = picked
+		if group1.ID == 0 {
 			logger.Infof("No available group found for node1.ID=%d, creating new group", params.Node1.ID)
-			group1Ptr, err := generateRandomNodeGroup(ctx, d, datamodel.NodeGroup{})
-			if err != nil {
-				logger.Errorf("Failed to create new group for node1.ID=%d: %v", params.Node1.ID, err)
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+			group1Ptr, createErr := generateRandomNodeGroup(ctx, d, datamodel.NodeGroup{})
+			if createErr != nil {
+				logger.Errorf("Failed to create new group for node1.ID=%d: %v", params.Node1.ID, createErr)
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, createErr)
 			}
 			group1 = *group1Ptr
-			candidates = appendSortedUniqueIDs(candidates, group1.ID)
-			counts[group1.ID] = 0
-		} else {
-			if err := tx.WithContext(ctx).First(&group1, gid).Error; err != nil {
-				logger.Errorf("Failed to fetch group id=%d for node1: %v", gid, err)
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-			}
+			logger.Infof("AssignTwoNodesToTwoGroups: created nodeGroupID=%d name=%s for nodeID=%d", group1.ID, group1.Name, params.Node1.ID)
 		}
 	}
 
@@ -396,20 +386,20 @@ func (d *DataStoreRepository) assignTwoNodesToTwoGroupsTx(
 		}
 	} else {
 		logger.Debugf("Node2 (ID: %d) not assigned, picking group (maxNodesPerGroup=%d, exclude group1.ID=%d)", params.Node2.ID, params.MaxNodesPerGroup, group1.ID)
-		gid := pickGroupIDWithCapacity(candidates, counts, group1.ID, params.MaxNodesPerGroup)
-		if gid == 0 {
+		picked, pickErr := d.pickOrSleepAndRetry(ctx, tx, group1.ID, params.MaxNodesPerGroup, params.Node2.ID)
+		if pickErr != nil {
+			return nil, pickErr
+		}
+		group2 = picked
+		if group2.ID == 0 {
 			logger.Infof("No available group found for node2.ID=%d, creating new group", params.Node2.ID)
-			group2Ptr, err := generateRandomNodeGroup(ctx, d, datamodel.NodeGroup{})
-			if err != nil {
-				logger.Errorf("Failed to create new group for node2.ID=%d: %v", params.Node2.ID, err)
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+			group2Ptr, createErr := generateRandomNodeGroup(ctx, d, datamodel.NodeGroup{})
+			if createErr != nil {
+				logger.Errorf("Failed to create new group for node2.ID=%d: %v", params.Node2.ID, createErr)
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, createErr)
 			}
 			group2 = *group2Ptr
-		} else {
-			if err := tx.WithContext(ctx).First(&group2, gid).Error; err != nil {
-				logger.Errorf("Failed to fetch group id=%d for node2: %v", gid, err)
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-			}
+			logger.Infof("AssignTwoNodesToTwoGroups: created nodeGroupID=%d name=%s for nodeID=%d", group2.ID, group2.Name, params.Node2.ID)
 		}
 	}
 
@@ -440,75 +430,122 @@ func (d *DataStoreRepository) assignTwoNodesToTwoGroupsTx(
 	return mappings, nil
 }
 
-func lockNonFullNodeGroupIDs(tx *gorm.DB, maxNodesPerGroup int) ([]int64, error) {
-	var ids []int64
-	// PostgreSQL: pessimistic row locks on candidate groups in deterministic order (wiki Approach A).
-	// SQLite (unit tests): same predicate without FOR UPDATE — assignment still runs atomically in one transaction.
-	q := `
-SELECT g.id
+// availableNodeGroupSQL selects the lowest-id node group that still has capacity.
+// excludeID keeps an HA peer's group out of the result; pass 0 when nothing is excluded,
+// since node group ids are positive. active_count is returned for logging only.
+const availableNodeGroupSQL = `
+SELECT g.id,
+       (
+         SELECT COUNT(*) FROM node_node_group_maps m
+         WHERE m.node_group_id = g.id AND m.deleted_at IS NULL
+       ) AS active_count
 FROM node_groups g
 WHERE g.deleted_at IS NULL
+  AND g.id <> ?
   AND (
         SELECT COUNT(*) FROM node_node_group_maps m
         WHERE m.node_group_id = g.id AND m.deleted_at IS NULL
       ) < ?
-ORDER BY g.id ASC`
-	if tx.Dialector.Name() == "postgres" {
-		q += `
-FOR UPDATE OF g`
-	}
-	err := tx.Raw(q, maxNodesPerGroup).Scan(&ids).Error
-	return ids, err
+ORDER BY g.id ASC
+LIMIT 1`
+
+// skipLockedSuffix makes the pick atomic on PostgreSQL: the returned row is locked for the
+// rest of the transaction, and rows locked by a concurrent assignment are skipped, not waited on.
+// SQLite (unit tests) has no row locking; the assignment still runs inside one transaction.
+const skipLockedSuffix = `
+FOR UPDATE OF g SKIP LOCKED`
+
+type availableNodeGroupRow struct {
+	ID          int64 `gorm:"column:id"`
+	ActiveCount int64 `gorm:"column:active_count"`
 }
 
-type nodeGroupCountRow struct {
-	NodeGroupID int64 `gorm:"column:node_group_id"`
-	N           int64 `gorm:"column:n"`
+// pickAndLockAvailableNodeGroup selects and locks, in a single statement, the lowest-id node group
+// that still has capacity and is not excludeID. Returns a zero-value NodeGroup when no group
+// qualifies, which tells the caller to create a new group.
+func (d *DataStoreRepository) pickAndLockAvailableNodeGroup(
+	ctx context.Context,
+	tx *gorm.DB,
+	excludeID int64,
+	maxNodesPerGroup int,
+	nodeID int64,
+) (datamodel.NodeGroup, error) {
+	logger := util.GetLogger(ctx)
+
+	query := availableNodeGroupSQL
+	if isPostgresDialect(tx) {
+		query += skipLockedSuffix
+	}
+
+	var picked availableNodeGroupRow
+	if err := tx.WithContext(ctx).Raw(query, excludeID, maxNodesPerGroup).Scan(&picked).Error; err != nil {
+		logger.Errorf("pickAndLockAvailableNodeGroup nodeID=%d excludeNodeGroupID=%d: %v", nodeID, excludeID, err)
+		return datamodel.NodeGroup{}, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if picked.ID == 0 {
+		logger.Debugf("AssignTwoNodesToTwoGroups: no lockable node group with capacity for nodeID=%d (excludeNodeGroupID=%d, max=%d)", nodeID, excludeID, maxNodesPerGroup)
+		return datamodel.NodeGroup{}, nil
+	}
+
+	var group datamodel.NodeGroup
+	if err := tx.WithContext(ctx).First(&group, picked.ID).Error; err != nil {
+		logger.Errorf("Failed to fetch group id=%d for nodeID=%d: %v", picked.ID, nodeID, err)
+		return datamodel.NodeGroup{}, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	logger.Infof("AssignTwoNodesToTwoGroups: assigned nodeID=%d to nodeGroupID=%d lease=%s activeCount=%d max=%d", nodeID, group.ID, group.LeaseName, picked.ActiveCount, maxNodesPerGroup)
+	return group, nil
 }
 
-func countsActiveMapsByGroup(tx *gorm.DB, groupIDs []int64) (map[int64]int64, error) {
-	out := make(map[int64]int64)
-	if len(groupIDs) == 0 {
-		return out, nil
-	}
-	var rows []nodeGroupCountRow
-	err := tx.Raw(`
-SELECT node_group_id, COUNT(*) AS n
-FROM node_node_group_maps
-WHERE node_group_id IN ? AND deleted_at IS NULL
-GROUP BY node_group_id`, groupIDs).Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-	for i := range rows {
-		out[rows[i].NodeGroupID] = rows[i].N
-	}
-	return out, nil
-}
+// pickOrSleepAndRetry calls pickAndLockAvailableNodeGroup once. If the first attempt returns a
+// zero-value group and a non-locking candidate check confirms that eligible groups exist (meaning
+// they were all skipped by SKIP LOCKED due to concurrent registrations), a short pg_sleep fires
+// inside the same transaction and the pick is retried once. Returns a zero-value NodeGroup only
+// when no group qualifies after both attempts, which tells the caller to create a new group.
+//
+// The non-locking check is necessary because SKIP LOCKED returns zero for multiple reasons:
+// the catalog is empty, every group is at capacity, the only eligible group is the HA excludeID,
+// or groups have capacity but are transiently locked. Only the last case benefits from sleeping.
+func (d *DataStoreRepository) pickOrSleepAndRetry(
+	ctx context.Context,
+	tx *gorm.DB,
+	excludeID int64,
+	maxNodesPerGroup int,
+	nodeID int64,
+) (datamodel.NodeGroup, error) {
+	logger := util.GetLogger(ctx)
 
-func pickGroupIDWithCapacity(orderedGroupIDs []int64, counts map[int64]int64, excludeID int64, maxNodesPerGroup int) int64 {
-	maxN := int64(maxNodesPerGroup)
-	for _, id := range orderedGroupIDs {
-		if excludeID != 0 && id == excludeID {
-			continue
-		}
-		n := counts[id]
-		if n < maxN {
-			return id
-		}
+	group, err := d.pickAndLockAvailableNodeGroup(ctx, tx, excludeID, maxNodesPerGroup, nodeID)
+	if err != nil || group.ID != 0 {
+		return group, err
 	}
-	return 0
-}
+	// SQLite (for UTs) has no row locking, so an empty first attempt is final there.
+	if !isPostgresDialect(tx) {
+		return group, nil
+	}
 
-func appendSortedUniqueIDs(ids []int64, id int64) []int64 {
-	for _, x := range ids {
-		if x == id {
-			return ids
-		}
+	// Confirm that eligible groups actually exist before sleeping. A zero pick from SKIP LOCKED
+	// can mean "all locked" but also "catalog empty", "all full", or "only excluded group has
+	// capacity" — none of which benefit from a sleep. Run the same eligibility query without
+	// SKIP LOCKED to distinguish the cases.
+	var candidate availableNodeGroupRow
+	if err := tx.WithContext(ctx).Raw(availableNodeGroupSQL, excludeID, maxNodesPerGroup).Scan(&candidate).Error; err != nil {
+		logger.Warnf("pickOrSleepAndRetry: candidate check failed for nodeID=%d: %v", nodeID, err)
+		return datamodel.NodeGroup{}, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
-	ids = append(ids, id)
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	if candidate.ID == 0 {
+		// Catalog is empty, every group is full, or the only eligible group is the HA peer's.
+		// Sleeping won't change any of those — return zero so the caller creates a new group.
+		return group, nil
+	}
+
+	// At least one eligible group exists but was skipped by SKIP LOCKED, meaning it is held by
+	// a concurrent registration. Sleep briefly so it has time to commit, then retry once.
+	logger.Infof("AssignTwoNodesToTwoGroups: eligible groups locked for nodeID=%d (candidateGroupID=%d), retrying pick after sleep", nodeID, candidate.ID)
+	if err := tx.WithContext(ctx).Exec(nodeGroupLockRetrySleepSQL).Error; err != nil {
+		logger.Errorf("Failed to sleep before node group pick retry for nodeID=%d: %v", nodeID, err)
+		return datamodel.NodeGroup{}, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return d.pickAndLockAvailableNodeGroup(ctx, tx, excludeID, maxNodesPerGroup, nodeID)
 }
 
 // IsHarvestNodeGroupPortUniqueViolation reports whether err is a unique violation on

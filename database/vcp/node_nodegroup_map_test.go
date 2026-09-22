@@ -1316,19 +1316,26 @@ func TestAssignTwoNodesToTwoGroups_GroupCreateError_Node2_MonkeyPatch(t *testing
 	node2, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n2-group-create-err-node2-mp"})
 	assert.NoError(t, err)
 
-	// Pre-fill all groups so node2 must create a new group
-	for i := 0; i < 5; i++ {
-		group, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-full-node2-" + uuid.NewString()})
-		assert.NoError(t, err)
-		n, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-full-node2-" + uuid.NewString()})
-		assert.NoError(t, err)
-		_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, NodeID: n.ID, NodeGroupID: group.ID, HarvestConfig: &datamodel.HarvestConfig{}})
-		assert.NoError(t, err)
-	}
+	// Pre-fill one group so node1 lands there; node2 must create a new group (second generateRandomNodeGroup call).
+	gFull, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-full-node2-only"})
+	require.NoError(t, err)
+	nFill, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-full-node2-only"})
+	require.NoError(t, err)
+	_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:        nFill.ID,
+		NodeGroupID:   gFull.ID,
+		HarvestConfig: &datamodel.HarvestConfig{PORT: "13001"},
+	})
+	require.NoError(t, err)
 
-	// Monkey patch generateRandomNodeGroup to always return error for node2
+	var createCalls int
 	orig := generateRandomNodeGroup
 	generateRandomNodeGroup = func(ctx context.Context, d *DataStoreRepository, group1 datamodel.NodeGroup) (*datamodel.NodeGroup, error) {
+		createCalls++
+		if createCalls == 1 {
+			return _generateRandomNodeGroup(ctx, d, group1)
+		}
 		return nil, errors.New("simulated group2 creation error")
 	}
 	defer func() { generateRandomNodeGroup = orig }()
@@ -1680,94 +1687,243 @@ func TestGetFirstAvailablePortWithReserved_SkipsReservedPorts(t *testing.T) {
 	assert.Equal(t, portStart+2, port)
 }
 
-func TestAppendSortedUniqueIDs(t *testing.T) {
-	t.Run("duplicate returns unchanged", func(t *testing.T) {
-		ids := []int64{1, 3, 5}
-		got := appendSortedUniqueIDs(ids, 3)
-		assert.Equal(t, []int64{1, 3, 5}, got)
-		assert.Equal(t, ids, got, "should return same slice header when id already present")
-	})
-	t.Run("appends and sorts", func(t *testing.T) {
-		got := appendSortedUniqueIDs([]int64{5, 1}, 3)
-		assert.Equal(t, []int64{1, 3, 5}, got)
-	})
+// TestAvailableNodeGroupSQL_LocksOnlyOnPostgres guards the single-statement contract: the shared
+// SQL caps the scan at one row, and the row lock is appended for Postgres only.
+func TestAvailableNodeGroupSQL_LocksOnlyOnPostgres(t *testing.T) {
+	assert.Contains(t, availableNodeGroupSQL, "LIMIT 1")
+	assert.Contains(t, availableNodeGroupSQL, "ORDER BY g.id ASC")
+	assert.NotContains(t, availableNodeGroupSQL, "FOR UPDATE")
+	assert.Contains(t, skipLockedSuffix, "FOR UPDATE OF g SKIP LOCKED")
 }
 
-func TestPickGroupIDWithCapacity_Table(t *testing.T) {
-	counts := map[int64]int64{1: 9, 2: 3, 3: 10}
-	assert.Equal(t, int64(1), pickGroupIDWithCapacity([]int64{1, 2, 3}, counts, 0, 10))
-	assert.Equal(t, int64(1), pickGroupIDWithCapacity([]int64{1, 2, 3}, counts, 2, 10))
-	full := map[int64]int64{1: 10, 3: 10}
-	assert.Equal(t, int64(0), pickGroupIDWithCapacity([]int64{1, 3}, full, 0, 10))
-}
-
-func TestCountsActiveMapsByGroup_EmptyIDs(t *testing.T) {
-	db, err := SetupTestDB()
-	require.NoError(t, err)
-	tx := gorm.New(db).GORM()
-	out, err := countsActiveMapsByGroup(tx, nil)
-	require.NoError(t, err)
-	assert.Empty(t, out)
-}
-
-func TestCountsActiveMapsByGroup_ActiveOnly(t *testing.T) {
+func TestPickAndLockAvailableNodeGroup_SkipsFullAndExcluded(t *testing.T) {
 	repo, _ := setupNodeNodeGroupMapTestRepo(t)
 	ctx := context.Background()
-	g, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-count-" + uuid.NewString()})
+	const maxPer = 2
+
+	gFull, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-pick-full"})
 	require.NoError(t, err)
-	n1, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-count-1"})
+	gOpen1, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-pick-open"})
 	require.NoError(t, err)
-	n2, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-count-2"})
+	gOpen2, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-pick-open2"})
 	require.NoError(t, err)
-	m1, err := repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
+
+	for i := 0; i < maxPer; i++ {
+		n, createErr := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: fmt.Sprintf("fill-%d", i)})
+		require.NoError(t, createErr)
+		_, createErr = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
+			BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
+			NodeID:        n.ID,
+			NodeGroupID:   gFull.ID,
+			HarvestConfig: &datamodel.HarvestConfig{PORT: fmt.Sprintf("%d", 13001+i)},
+		})
+		require.NoError(t, createErr)
+	}
+
+	tx := repo.db.GORM().WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback() }()
+
+	// Full group is skipped by the capacity predicate, so the lowest open group wins.
+	group1, err := repo.pickAndLockAvailableNodeGroup(ctx, tx, 0, maxPer, 9001)
+	require.NoError(t, err)
+	assert.Equal(t, gOpen1.ID, group1.ID)
+
+	// Excluding the HA peer's group moves the pick to the next open group.
+	group2, err := repo.pickAndLockAvailableNodeGroup(ctx, tx, group1.ID, maxPer, 9002)
+	require.NoError(t, err)
+	assert.Equal(t, gOpen2.ID, group2.ID)
+	assert.NotEqual(t, group1.ID, group2.ID)
+}
+
+func TestPickAndLockAvailableNodeGroup_NoneAvailable(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	const maxPer = 1
+
+	gFull, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-none-full"})
+	require.NoError(t, err)
+	n, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-none-full"})
+	require.NoError(t, err)
+	_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
 		BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
-		NodeID:        n1.ID,
-		NodeGroupID:   g.ID,
+		NodeID:        n.ID,
+		NodeGroupID:   gFull.ID,
 		HarvestConfig: &datamodel.HarvestConfig{PORT: "13001"},
 	})
 	require.NoError(t, err)
-	require.NoError(t, repo.DeleteNodeNodeGroupMap(ctx, m1.ID))
-	_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
-		BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
-		NodeID:        n2.ID,
-		NodeGroupID:   g.ID,
-		HarvestConfig: &datamodel.HarvestConfig{PORT: "13002"},
-	})
+
+	gOpen, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-none-open"})
 	require.NoError(t, err)
 
-	tx := repo.db.GORM()
-	out, err := countsActiveMapsByGroup(tx, []int64{g.ID, 99999})
+	tx := repo.db.GORM().WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback() }()
+
+	// Only candidate with capacity is excluded, so the caller must create a new group.
+	group, err := repo.pickAndLockAvailableNodeGroup(ctx, tx, gOpen.ID, maxPer, 9003)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), out[g.ID])
-	_, ok := out[99999]
-	assert.False(t, ok)
+	assert.Zero(t, group.ID)
 }
 
-func TestLockNonFullNodeGroupIDs_ExcludesFullGroups(t *testing.T) {
+func TestPickAndLockAvailableNodeGroup_QueryError(t *testing.T) {
 	repo, _ := setupNodeNodeGroupMapTestRepo(t)
 	ctx := context.Background()
-	const maxPer = 3
-	full, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-full-lock"})
+
+	tx := repo.db.GORM().WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback() }()
+	require.NoError(t, tx.Exec("DROP TABLE node_groups").Error)
+
+	group, err := repo.pickAndLockAvailableNodeGroup(ctx, tx, 0, 10, 9004)
+	require.Error(t, err)
+	assert.Zero(t, group.ID)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+func TestPickAndLockAvailableNodeGroup_PostgresSkipLocked(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(42), int64(5)))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "lease_name"}).AddRow(int64(42), "g42", "lease42"))
+
+	group, err := repo.pickAndLockAvailableNodeGroup(context.Background(), gormDB, 0, 200, 9101)
 	require.NoError(t, err)
-	partial, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-partial-lock"})
+	assert.Equal(t, int64(42), group.ID)
+	assert.Equal(t, "lease42", group.LeaseName)
+}
+
+func TestPickAndLockAvailableNodeGroup_PostgresSkipLockedNoRow(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	// Every candidate is either full or locked by a peer transaction.
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+
+	group, err := repo.pickAndLockAvailableNodeGroup(context.Background(), gormDB, 7, 200, 9102)
 	require.NoError(t, err)
-	for i := 0; i < maxPer; i++ {
-		n, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: fmt.Sprintf("n-full-%d", i)})
-		require.NoError(t, err)
-		_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
-			BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
-			NodeID:        n.ID,
-			NodeGroupID:   full.ID,
-			HarvestConfig: &datamodel.HarvestConfig{PORT: fmt.Sprintf("%d", 13001+i)},
-		})
-		require.NoError(t, err)
+	assert.Zero(t, group.ID)
+}
+
+func TestPickAndLockAvailableNodeGroup_PostgresQueryError(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnError(errors.New("lock query failed"))
+
+	group, err := repo.pickAndLockAvailableNodeGroup(context.Background(), gormDB, 0, 200, 9103)
+	require.Error(t, err)
+	assert.Zero(t, group.ID)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+func TestPickAndLockAvailableNodeGroup_GroupFetchError(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(42), int64(1)))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnError(errors.New("group fetch failed"))
+
+	group, err := repo.pickAndLockAvailableNodeGroup(context.Background(), gormDB, 0, 10, 9104)
+	require.Error(t, err)
+	assert.Zero(t, group.ID)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+func newPostgresMockGormDB(t *testing.T) (*gormdb.DB, sqlmock.Sqlmock) {
+	t.Helper()
+	dbSQL, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mock.ExpectationsWereMet()) })
+	gormDB, err := gormdb.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gormdb.Config{})
+	require.NoError(t, err)
+	return gormDB, mock
+}
+
+func TestAssignTwoNodesToTwoGroupsTx_PickQueryError(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	node1, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n1-pick-query-err"})
+	require.NoError(t, err)
+	node2, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n2-pick-query-err"})
+	require.NoError(t, err)
+
+	tx := repo.db.GORM().WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback() }()
+	require.NoError(t, tx.Exec("DROP TABLE node_groups").Error)
+
+	_, err = repo.assignTwoNodesToTwoGroupsTx(ctx, tx, datamodel.NodeGroupAssignmentParams{
+		Node1:            node1,
+		Node2:            node2,
+		MaxNodesPerGroup: 5,
+		CustomerProject:  "test-pick-query-err",
+	})
+	require.Error(t, err)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+func TestAssignTwoNodesToTwoGroupsTx_Node1PickError(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+	ctx := context.Background()
+	params := datamodel.NodeGroupAssignmentParams{
+		Node1:            &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 10}, Name: "n1-pick-err"},
+		Node2:            &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 20}, Name: "n2-pick-err"},
+		MaxNodesPerGroup: 10,
+		CustomerProject:  "test-node1-pick-err",
 	}
 
-	tx := repo.db.GORM()
-	ids, err := lockNonFullNodeGroupIDs(tx, maxPer)
-	require.NoError(t, err)
-	assert.Contains(t, ids, partial.ID)
-	assert.NotContains(t, ids, full.ID)
+	// Neither node has an existing mapping, so node1's pick-and-lock runs first and fails.
+	mock.ExpectQuery(`SELECT .* FROM "node_node_group_maps"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT .* FROM "node_node_group_maps"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnError(errors.New("node1 pick lock failed"))
+
+	_, err := repo.assignTwoNodesToTwoGroupsTx(ctx, gormDB, params)
+	require.Error(t, err)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+func TestAssignTwoNodesToTwoGroupsTx_Node2PickError(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+	ctx := context.Background()
+	params := datamodel.NodeGroupAssignmentParams{
+		Node1:            &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 10}, Name: "n1-node2-pick-err"},
+		Node2:            &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 20}, Name: "n2-node2-pick-err"},
+		MaxNodesPerGroup: 10,
+		CustomerProject:  "test-node2-pick-err",
+	}
+
+	// node1 already has a mapping (plus its NodeGroup preload), so only node2 needs a pick-and-lock.
+	mock.ExpectQuery(`SELECT .* FROM "node_node_group_maps"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "node_id", "node_group_id"}).AddRow(int64(1), int64(10), int64(100)))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "lease_name"}).AddRow(int64(100), "g1", "lease1"))
+	mock.ExpectQuery(`SELECT .* FROM "node_node_group_maps"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "lease_name"}).AddRow(int64(100), "g1", "lease1"))
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnError(errors.New("node2 pick lock failed"))
+
+	_, err := repo.assignTwoNodesToTwoGroupsTx(ctx, gormDB, params)
+	require.Error(t, err)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
 }
 
 func installSQLiteGroupPortUniqueIndex(t *testing.T, db *gormdb.DB) {
@@ -2387,4 +2543,146 @@ func TestListNodeNodeGroupMapAfterID_DBError(t *testing.T) {
 	result, err := badRepo.ListNodeNodeGroupMapAfterID(ctx, false, 0, 10)
 	assert.Error(t, err)
 	assert.Nil(t, result)
+}
+
+// ---------------------------------------------------------------------------
+// pickOrSleepAndRetry unit tests
+// ---------------------------------------------------------------------------
+
+// TestPickOrSleepAndRetry_FirstAttemptSucceeds verifies that when the first
+// SKIP LOCKED pick finds an available group the function returns it immediately
+// without issuing pg_sleep. sqlmock enforces this: an unexpected Exec would
+// cause mock.ExpectationsWereMet() to fail.
+func TestPickOrSleepAndRetry_FirstAttemptSucceeds(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(42), int64(5)))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "lease_name"}).AddRow(int64(42), "g42", "lease42"))
+	// No ExpectExec for pg_sleep — mock will fail if sleep is called unexpectedly.
+
+	group, err := repo.pickOrSleepAndRetry(context.Background(), gormDB, 0, 200, 9200)
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), group.ID)
+	assert.Equal(t, "lease42", group.LeaseName)
+}
+
+// TestPickOrSleepAndRetry_SleepAndRetrySucceeds verifies the core retry path:
+// first pick returns empty (all groups locked), the non-locking candidate check
+// confirms eligible groups exist, pg_sleep fires once, and the second pick finds
+// the now-unlocked group.
+func TestPickOrSleepAndRetry_SleepAndRetrySucceeds(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	// First pick: every candidate is locked.
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+	// Non-locking candidate check: confirms an eligible group exists (just locked).
+	mock.ExpectQuery(`ORDER BY g.id ASC`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(55), int64(3)))
+	// Sleep fires once.
+	mock.ExpectExec(`pg_sleep`).WillReturnResult(sqlmock.NewResult(0, 0))
+	// Second pick: a group has committed and is now available.
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(55), int64(3)))
+	mock.ExpectQuery(`SELECT .* FROM "node_groups"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "lease_name"}).AddRow(int64(55), "g55", "lease55"))
+
+	group, err := repo.pickOrSleepAndRetry(context.Background(), gormDB, 0, 200, 9201)
+	require.NoError(t, err)
+	assert.Equal(t, int64(55), group.ID)
+	assert.Equal(t, "lease55", group.LeaseName)
+}
+
+// TestPickOrSleepAndRetry_SleepAndRetryStillEmpty verifies that when both
+// attempts return no group the function returns a zero-value NodeGroup without
+// error, signalling the caller to create a new group.
+func TestPickOrSleepAndRetry_SleepAndRetryStillEmpty(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	// First pick: locked.
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+	// Non-locking check: candidate exists, so sleep is warranted.
+	mock.ExpectQuery(`ORDER BY g.id ASC`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(7), int64(1)))
+	mock.ExpectExec(`pg_sleep`).WillReturnResult(sqlmock.NewResult(0, 0))
+	// Second pick: still nothing (group committed and became full in the meantime).
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+
+	group, err := repo.pickOrSleepAndRetry(context.Background(), gormDB, 7, 200, 9202)
+	require.NoError(t, err)
+	assert.Zero(t, group.ID, "zero-value group signals caller to create a new group")
+}
+
+// TestPickOrSleepAndRetry_NoEligibleGroups_NoSleep verifies that when the
+// non-locking candidate check also returns nothing (catalog empty, all full, or
+// only the excluded group has capacity), the function returns zero immediately
+// without sleeping. sqlmock enforces no pg_sleep was called.
+func TestPickOrSleepAndRetry_NoEligibleGroups_NoSleep(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	// First pick: empty (could be locked, full, or excluded — indistinguishable here).
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+	// Non-locking check: also empty — no candidates at all, sleeping won't help.
+	mock.ExpectQuery(`ORDER BY g.id ASC`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+	// No ExpectExec for pg_sleep — mock enforces it is never called.
+
+	group, err := repo.pickOrSleepAndRetry(context.Background(), gormDB, 0, 200, 9204)
+	require.NoError(t, err)
+	assert.Zero(t, group.ID, "no eligible groups: caller must create a new group, no sleep")
+}
+
+// TestPickOrSleepAndRetry_SleepError verifies that a pg_sleep failure is
+// surfaced as a VCP error with ErrDatabaseDataReadError tracking ID.
+func TestPickOrSleepAndRetry_SleepError(t *testing.T) {
+	gormDB, mock := newPostgresMockGormDB(t)
+	repo := &DataStoreRepository{db: gorm.New(gormDB)}
+
+	mock.ExpectQuery(`FOR UPDATE OF g SKIP LOCKED`).WillReturnRows(sqlmock.NewRows([]string{"id", "active_count"}))
+	// Non-locking check: candidate exists, so we proceed to sleep.
+	mock.ExpectQuery(`ORDER BY g.id ASC`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "active_count"}).AddRow(int64(10), int64(2)))
+	mock.ExpectExec(`pg_sleep`).WillReturnError(errors.New("pg_sleep unavailable"))
+
+	group, err := repo.pickOrSleepAndRetry(context.Background(), gormDB, 0, 200, 9203)
+	require.Error(t, err)
+	assert.Zero(t, group.ID)
+	var ce *vsaerrors.CustomError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+}
+
+// TestPickOrSleepAndRetry_SQLiteNoSleep verifies the SQLite early-return: when
+// the first pick returns empty the function returns a zero-value group immediately
+// without entering the sleep branch (pg_sleep does not exist in SQLite).
+func TestPickOrSleepAndRetry_SQLiteNoSleep(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	const maxPer = 1
+
+	// Create one group and fill it — no capacity remains.
+	g, err := repo.CreateNodeGroup(ctx, &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "g-sqlite-nosleep"})
+	require.NoError(t, err)
+	n, err := repo.CreateNode(ctx, &datamodel.Node{BaseModel: datamodel.BaseModel{UUID: uuid.NewString()}, Name: "n-sqlite-nosleep"})
+	require.NoError(t, err)
+	_, err = repo.CreateNodeNodeGroupMap(ctx, &datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:        n.ID,
+		NodeGroupID:   g.ID,
+		HarvestConfig: &datamodel.HarvestConfig{PORT: "13001"},
+	})
+	require.NoError(t, err)
+
+	tx := repo.db.GORM().WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback() }()
+
+	// All groups are at capacity — SQLite path must return zero without sleeping.
+	group, err := repo.pickOrSleepAndRetry(ctx, tx, 0, maxPer, 9300)
+	require.NoError(t, err)
+	assert.Zero(t, group.ID, "SQLite path returns zero group; no pg_sleep should run")
 }
