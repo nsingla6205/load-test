@@ -27,6 +27,8 @@ const (
 	AllocatedUsed                                        MeasuredType = "ALLOCATED_USED"
 	PoolTotalThroughputMibps                             MeasuredType = "POOL_TOTAL_THROUGHPUT_MIBPS"
 	PoolTotalIops                                        MeasuredType = "POOL_TOTAL_IOPS"
+	PoolUsedThroughputMibps                              MeasuredType = "POOL_USED_THROUGHPUT_MIBPS"
+	PoolUsedIops                                         MeasuredType = "POOL_USED_IOPS"
 	LogicalSize                                          MeasuredType = "LOGICAL_SIZE"
 	SnapshotSize                                         MeasuredType = "SNAPSHOT_SIZE"
 	AllocatedSize                                        MeasuredType = "ALLOCATED_SIZE"
@@ -50,6 +52,7 @@ const (
 	AverageOtherLatency                                  MeasuredType = "AVERAGE_OTHER_LATENCY"
 	ReadIo                                               MeasuredType = "READ_IO"
 	WriteIo                                              MeasuredType = "WRITE_IO"
+	WriteOps                                             MeasuredType = "WRITE_OPS"
 	OtherIo                                              MeasuredType = "OTHER_IO"
 	CoolTierDataReadSize                                 MeasuredType = "COOL_TIER_DATA_READ_SIZE"
 	CoolTierDataWriteSize                                MeasuredType = "COOL_TIER_DATA_WRITE_SIZE"
@@ -90,6 +93,7 @@ func init() {
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_other_latency"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: AverageOtherLatency}
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_read_data"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: ReadIo}
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_write_data"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: WriteIo}
+	CombinedKeyResourceTypeMeasuredTypeMap["volume_write_ops"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: WriteOps}
 	CombinedKeyResourceTypeMeasuredTypeMap["volume_other_data"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: OtherIo}
 	CombinedKeyResourceTypeMeasuredTypeMap["wafl_volume_client_protocol_reads"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: CoolTierDataReadSize}
 	CombinedKeyResourceTypeMeasuredTypeMap["wafl_volume_cloud_bin_operation_size"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: CoolTierDataWriteSize}
@@ -128,6 +132,8 @@ func allPersistedMeasuredTypeValues() []MeasuredType {
 		AllocatedUsed,
 		PoolTotalThroughputMibps,
 		PoolTotalIops,
+		PoolUsedThroughputMibps,
+		PoolUsedIops,
 		LogicalSize,
 		SnapshotSize,
 		AllocatedSize,
@@ -151,6 +157,7 @@ func allPersistedMeasuredTypeValues() []MeasuredType {
 		AverageOtherLatency,
 		ReadIo,
 		WriteIo,
+		WriteOps,
 		OtherIo,
 		CoolTierDataReadSize,
 		CoolTierDataWriteSize,

@@ -28,6 +28,23 @@ import (
 
 var CollectVolumeMetrics = collectVolumeMetrics
 
+const (
+	// poolMetricAlignmentPeriod is the alignment period requested from Cloud
+	// Monitoring. Harvest reports write data and write ops as totals over this
+	// window, so pool rates are derived from it.
+	poolMetricAlignmentPeriod = 5 * time.Minute
+	bytesPerMebibyte          = 1024 * 1024
+)
+
+// poolAggregationKey identifies one pool-level series within a collection pass.
+type poolAggregationKey struct {
+	AccountName    string
+	DeploymentName string
+	PoolName       string
+	Location       string
+	MeasuredType   metadata.MeasuredType
+}
+
 func (g *GoogleTenantProjectProvider) GetTenantProjects(ctx context.Context, logger log.Logger) ([]string, error) {
 	return GetTenantProject(ctx, logger, g.vcpDatastore)
 }
@@ -79,6 +96,7 @@ func (g *GoogleVolumeMetricsProvider) GetVolumeMetrics(ctx context.Context, logg
 func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context, logger log.Logger, projectID string, timestamp time.Time) ([]datamodel.HydratedMetrics, error) {
 	var projectResults []datamodel.HydratedMetrics
 	var perfMetrics []entity.HydratedMetric
+	poolMetrics := make(map[poolAggregationKey]float64)
 	projectName := fmt.Sprintf("projects/%s", projectID)
 	telemetryConfig := common.LoadConfig()
 	env := telemetryConfig.Environment
@@ -100,7 +118,7 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 		}
 
 		agg := &monitoringpb.Aggregation{
-			AlignmentPeriod: &durationpb.Duration{Seconds: 300},
+			AlignmentPeriod: durationpb.New(poolMetricAlignmentPeriod),
 			GroupByFields: []string{
 				"metric.label.metric",
 				"metric.label.volume",
@@ -149,6 +167,25 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 			resourceType := metadata.CombinedKeyResourceTypeMeasuredTypeMap[metric.Metric].ResourceType
 
 			if metric.MetricType == "performance" {
+				value := extractValue(resp.Points[0].Value)
+				if isPoolAggregationSource(measuredType) {
+					if resp.Metric.Labels["pool_name"] == "" || resp.Metric.Labels["deployment_name"] == "" {
+						logger.Warnf(
+							"Skipping pool aggregation for metric %s with missing pool_name or deployment_name in project %s",
+							metric.Metric,
+							projectID,
+						)
+					} else {
+						accumulatePoolMetric(poolMetrics, resp, measuredType, value)
+					}
+				}
+
+				// volume_write_ops is an aggregate-only source. Harvest already
+				// exports the first-party per-volume operation-count series.
+				if isAggregateOnlyPerformanceMetric(measuredType) {
+					continue
+				}
+
 				met := metadata.ResourceMetadata{}
 				met.SetAccountName(resp.Metric.Labels["project"])
 				met.SetResourceType(resourceType)
@@ -167,7 +204,7 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 				if metric.Metric == "pool_cloud_bin_operation_size" && resp.Metric.Labels["metric"] != "put" {
 					continue
 				}
-				perfMetrics = append(perfMetrics, setupHydratedMetric(timestamp, met, measuredType, extractValue(resp.Points[0].Value)))
+				perfMetrics = append(perfMetrics, setupHydratedMetric(timestamp, met, measuredType, value))
 				continue
 			}
 
@@ -186,10 +223,93 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 			}
 		}
 	}
+	perfMetrics = append(perfMetrics, buildPoolAggregatedMetrics(timestamp, poolMetrics)...)
 	if g.googleSink != nil {
 		g.googleSink.DeliverMetrics(ctx, perfMetrics)
 	}
 	return projectResults, nil
+}
+
+func isPoolAggregationSource(measuredType metadata.MeasuredType) bool {
+	return measuredType == metadata.WriteIo || measuredType == metadata.WriteOps
+}
+
+func isAggregateOnlyPerformanceMetric(measuredType metadata.MeasuredType) bool {
+	return measuredType == metadata.WriteOps
+}
+
+func poolUsedMeasuredType(source metadata.MeasuredType) (metadata.MeasuredType, bool) {
+	switch source {
+	case metadata.WriteIo:
+		return metadata.PoolUsedThroughputMibps, true
+	case metadata.WriteOps:
+		return metadata.PoolUsedIops, true
+	default:
+		return "", false
+	}
+}
+
+// normalizePoolMetricValue converts Harvest's per-window totals into the rate
+// units declared by the storage pool metrics: MiB/s for throughput_limit and
+// operations per second for iops_limit.
+func normalizePoolMetricValue(source metadata.MeasuredType, value float64) (float64, bool) {
+	alignmentSeconds := poolMetricAlignmentPeriod.Seconds()
+	switch source {
+	case metadata.WriteIo:
+		return value / alignmentSeconds / bytesPerMebibyte, true
+	case metadata.WriteOps:
+		return value / alignmentSeconds, true
+	default:
+		return 0, false
+	}
+}
+
+// accumulatePoolMetric adds one volume series value into its pool bucket.
+// Series missing pool_name or deployment_name are ignored.
+func accumulatePoolMetric(acc map[poolAggregationKey]float64, series *monitoringpb.TimeSeries, measuredType metadata.MeasuredType, value float64) {
+	if series == nil || series.Metric == nil {
+		return
+	}
+
+	labels := series.Metric.Labels
+	if labels["pool_name"] == "" || labels["deployment_name"] == "" {
+		return
+	}
+
+	poolMeasuredType, ok := poolUsedMeasuredType(measuredType)
+	if !ok {
+		return
+	}
+	normalizedValue, ok := normalizePoolMetricValue(measuredType, value)
+	if !ok {
+		return
+	}
+
+	key := poolAggregationKey{
+		AccountName:    labels["project"],
+		DeploymentName: labels["deployment_name"],
+		PoolName:       labels["pool_name"],
+		Location:       labels["datacenter"],
+		MeasuredType:   poolMeasuredType,
+	}
+	acc[key] += normalizedValue
+}
+
+// buildPoolAggregatedMetrics converts accumulated sums into pool-level hydrated metrics.
+func buildPoolAggregatedMetrics(timestamp time.Time, acc map[poolAggregationKey]float64) []entity.HydratedMetric {
+	metrics := make([]entity.HydratedMetric, 0, len(acc))
+	for key, value := range acc {
+		resourceMetadata := metadata.ResourceMetadata{}
+		resourceMetadata.SetAccountName(key.AccountName)
+		resourceMetadata.SetDeploymentName(key.DeploymentName)
+		resourceMetadata.SetResourceName(key.PoolName)
+		resourceMetadata.SetResourceDisplayName(key.PoolName)
+		resourceMetadata.SetResourceType(metadata.VolumePool)
+		resourceMetadata.SetRegionName(key.Location)
+
+		metrics = append(metrics, setupHydratedMetric(timestamp, resourceMetadata, key.MeasuredType, value))
+	}
+	return metrics
 }
 
 func GetTenantProject(ctx context.Context, logger log.Logger, vcpDatastore database.Storage) ([]string, error) {

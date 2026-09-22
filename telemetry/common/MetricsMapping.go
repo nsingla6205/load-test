@@ -17,10 +17,16 @@ func CreateMetricsMappingMap() map[metadata.CombinedKeyResourceTypeMeasuredType]
 			Left: "allocated", Middle: "", Right: "",
 		},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolTotalThroughputMibps}: {
-			Left: "throughput_limit", Middle: "", Right: "",
+			Left: "throughput_limit", Middle: "type", Right: "allocated",
 		},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolTotalIops}: {
-			Left: "iops_limit", Middle: "", Right: "",
+			Left: "iops_limit", Middle: "type", Right: "allocated",
+		},
+		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolUsedThroughputMibps}: {
+			Left: "throughput_limit", Middle: "type", Right: "used",
+		},
+		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolUsedIops}: {
+			Left: "iops_limit", Middle: "type", Right: "used",
 		},
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolAllocatedSize}: {
 			Left: "capacity", Middle: "", Right: "",
@@ -29,10 +35,16 @@ func CreateMetricsMappingMap() map[metadata.CombinedKeyResourceTypeMeasuredType]
 			Left: "allocated", Middle: "", Right: "",
 		},
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolTotalThroughputMibps}: {
-			Left: "throughput_limit", Middle: "", Right: "",
+			Left: "throughput_limit", Middle: "type", Right: "allocated",
 		},
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolTotalIops}: {
-			Left: "iops_limit", Middle: "", Right: "",
+			Left: "iops_limit", Middle: "type", Right: "allocated",
+		},
+		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolUsedThroughputMibps}: {
+			Left: "throughput_limit", Middle: "type", Right: "used",
+		},
+		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolUsedIops}: {
+			Left: "iops_limit", Middle: "type", Right: "used",
 		},
 		{ResourceType: metadata.Backup, MeasuredType: metadata.BackupLogicalSize}: {
 			Left: "backup_used", Middle: "", Right: "",
