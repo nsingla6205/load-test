@@ -33,6 +33,8 @@ workerConfig:
   enableAdminTempPassword: true
   enableOciTempPasswordResetCron: true
   ociTempPasswordResetAfterMinutes: 1440
+  ociExpertModeRbacFileUrl: "https://idqogasfjw45.objectstorage.us-ashburn-1.oci.customer-oci.com/n/idqogasfjw45/b/bucket-aryan-test/o/rbacOCI_released_bundle_9.19.1P3_8283421_RBAC_R9.19.1x_8283421_ociadmin_create_cli"
+  ociExpertModeRbacFileChecksum: "gmswG39yn76qnx4Mt5/QIKC9LEI+5bNAwnzZKybDAzk="
   ociVsaUserBootargs: "bootarg.oci.cloud_proxy_lb_endpoint=http://10.0.20.189;bootarg.node_add.max_parallel=24"
   enableOciVsaCertificateRotation: "true"
   ociCertificateRotationCronExpression: "0 0 * * *"
