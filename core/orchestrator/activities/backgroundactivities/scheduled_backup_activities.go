@@ -354,7 +354,8 @@ func (j *ScheduledBackupActivity) UpdateBackupState(ctx context.Context, backup 
 	return updated, nil
 }
 
-// UpdateBackupSize persists backup size via FinishBackup and updates volume backup_chain_bytes (regular volumes only).
+// UpdateBackupSize persists backup size via FinishBackup and updates backup_chain_bytes (regular
+// and expert mode volumes).
 func (j *ScheduledBackupActivity) UpdateBackupSize(ctx context.Context, backup *datamodel.Backup, volume *datamodel.Volume, isExpertMode bool) error {
 	logger := util.GetLogger(ctx)
 	se := j.SE
@@ -388,22 +389,9 @@ func (j *ScheduledBackupActivity) UpdateBackupSize(ctx context.Context, backup *
 		}
 	}
 
-	if isExpertMode {
-		chainBytes := backup.LatestLogicalBackupSize
-		volume.DataProtection.BackupChainBytes = &chainBytes
-		updates := map[string]interface{}{
-			"data_protection": volume.DataProtection,
-		}
-		err = se.UpdateExpertModeVolumeFields(ctx, volUUID, updates)
-		if err != nil {
-			logger.Errorf("Failed to update expert mode volume %s with latest logical backup size: %v", volUUID, err)
-			return vsaerrors.WrapAsTemporalApplicationError(err)
-		}
-	} else {
-		backupActivity := activities.BackupActivity{SE: se}
-		if err = backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volUUID); err != nil {
-			return err
-		}
+	backupActivity := activities.BackupActivity{SE: se}
+	if err = backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volUUID); err != nil {
+		return err
 	}
 
 	logger.Debugf("Successfully updated backup size fields for backup %s and volume %s", backup.UUID, volUUID)

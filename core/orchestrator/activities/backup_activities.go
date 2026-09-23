@@ -617,26 +617,14 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 		}
 	}
 
-	if backupActivitiesContext.IsExpertMode {
-		updates := make(map[string]interface{})
-		backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection.BackupChainBytes = &backupActivitiesContext.BackupWorkflowInit.Backup.LatestLogicalBackupSize
-		updates["data_protection"] = backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection
-		recordHeartbeat(ctx, fmt.Sprintf("Updating expert mode volume %s backup size", volumeUUID))
-		err = b.SE.UpdateExpertModeVolumeFields(ctx, volumeUUID, updates)
-		if err != nil {
-			logger.Errorf("Failed to update expert mode volume %s with latest logical backup size: %v", volumeUUID, err)
-			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
-		}
-	} else {
-		if err = b.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeUUID); err != nil {
-			return nil, err
-		}
-		if backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection != nil {
-			recordHeartbeat(ctx, fmt.Sprintf("Reading backup chain size for volume %s", volumeUUID))
-			sum, sumErr := b.SE.SumVolumeBackupChainBytes(ctx, volumeUUID)
-			if sumErr == nil {
-				backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection.BackupChainBytes = &sum
-			}
+	if err = b.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeUUID); err != nil {
+		return nil, err
+	}
+	if backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection != nil {
+		recordHeartbeat(ctx, fmt.Sprintf("Reading backup chain size for volume %s", volumeUUID))
+		sum, sumErr := b.SE.SumVolumeBackupChainBytes(ctx, volumeUUID)
+		if sumErr == nil {
+			backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection.BackupChainBytes = &sum
 		}
 	}
 
@@ -644,23 +632,51 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 	return backupActivitiesContext, nil
 }
 
-// RecalculateAndUpdateVolumeBackupChainBytesActivity sets volumes.data_protection.backup_chain_bytes to the
-// sum of latest_logical_backup_size across latest AVAILABLE backups per (backup_vault_id, endpoint_uuid).
-// Regular volumes only; expert mode volumes are not updated by this activity.
+// RecalculateAndUpdateVolumeBackupChainBytesActivity sets backup_chain_bytes to the sum of
+// latest_logical_backup_size across latest AVAILABLE backups per (backup_vault_id, endpoint_uuid).
+// Handles both regular volumes (volumes.data_protection.backup_chain_bytes) and ONTAP/expert mode
+// volumes (expert_mode_volumes.data_protection.backup_chain_bytes). volumeUUID is whichever
+// identifier backups.volume_uuid holds for this volume: the internal UUID for regular volumes,
+// the external UUID for expert mode volumes.
 func (a *BackupActivity) RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx context.Context, volumeUUID string) error {
 	logger := util.GetLogger(ctx)
-
-	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s for backup chain recalculation", volumeUUID))
-	vol, err := a.SE.GetVolume(ctx, volumeUUID)
-	if err != nil {
-		logger.Errorf("Failed to get volume %s for backup chain bytes recalc: %v", volumeUUID, err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
-	}
 
 	recordHeartbeat(ctx, fmt.Sprintf("Summing backup chain bytes for volume %s", volumeUUID))
 	sum, err := a.SE.SumVolumeBackupChainBytes(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to sum backup chain bytes for volume %s: %v", volumeUUID, err)
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	// Expert-first: GetVolume errors outright on an unrecognized UUID rather than falling through
+	// cleanly, so check expert mode before assuming this is a regular volume.
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching expert mode volume %s for backup chain recalculation", volumeUUID))
+	expertVol, expertErr := a.SE.GetExpertModeVolumeByExternalUUID(ctx, volumeUUID)
+	if expertErr == nil {
+		if expertVol.BackupConfig == nil {
+			expertVol.BackupConfig = &datamodel.DataProtection{}
+		}
+		expertVol.BackupConfig.BackupChainBytes = &sum
+		volumeUpdates := map[string]interface{}{
+			"data_protection": expertVol.BackupConfig,
+		}
+		recordHeartbeat(ctx, fmt.Sprintf("Updating backup chain bytes for expert mode volume %s", volumeUUID))
+		if err = a.SE.UpdateExpertModeVolumeFields(ctx, volumeUUID, volumeUpdates); err != nil {
+			logger.Errorf("Failed to update expert mode volume %s backup chain bytes: %v", volumeUUID, err)
+			return vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		logger.Infof("Recalculated backup_chain_bytes=%d for expert mode volume %s", sum, volumeUUID)
+		return nil
+	}
+	if !errors.IsNotFoundErr(expertErr) && !strings.Contains(expertErr.Error(), "record not found") {
+		logger.Errorf("Failed to check expert mode volume %s for backup chain bytes recalc: %v", volumeUUID, expertErr)
+		return vsaerrors.WrapAsTemporalApplicationError(expertErr)
+	}
+
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s for backup chain recalculation", volumeUUID))
+	vol, err := a.SE.GetVolume(ctx, volumeUUID)
+	if err != nil {
+		logger.Errorf("Failed to get volume %s for backup chain bytes recalc: %v", volumeUUID, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
@@ -703,27 +719,24 @@ func (a *BackupActivity) BackPropagateGcbdrChainSizesForDeletedBackupActivity(ct
 	return nil
 }
 
+// UpdateVolumeLatestLogicalBackupSize recalculates and persists backup_chain_bytes for volume.
+// logicalSize is unused: RecalculateAndUpdateVolumeBackupChainBytesActivity always re-derives the
+// correct value by summing latest_logical_backup_size across the volume's chains, which correctly
+// excludes the backup this caller is in the middle of deleting (already state=Deleting by this
+// point) while preserving any other chain's contribution.
 func (a *BackupActivity) UpdateVolumeLatestLogicalBackupSize(ctx context.Context, volume *datamodel.Volume, logicalSize int64) error {
-	logger := util.GetLogger(ctx)
+	// VolumeAttributes.ExternalUUID is populated for regular volumes too (the ONTAP-side external
+	// UUID, unrelated to backups.volume_uuid), so an explicit expert-mode check is required here to
+	// pick the right identifier — it cannot be inferred from whether that field is merely non-empty.
 	isExpertModeVolume, err := a.IsExpertModeVolume(ctx, volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		return err
 	}
+	volumeUUID := volume.UUID
 	if isExpertModeVolume {
-		volumeUpdates := make(map[string]interface{})
-		volume.DataProtection.BackupChainBytes = &logicalSize
-		volumeUpdates["data_protection"] = volume.DataProtection
-		recordHeartbeat(ctx, fmt.Sprintf("Updating expert mode volume %s logical backup size", volume.UUID))
-		err := a.SE.UpdateExpertModeVolumeFields(ctx, volume.VolumeAttributes.ExternalUUID, volumeUpdates)
-		if err != nil {
-			logger.Errorf("Failed to update volume %s with latest logical backup size: %v", volume.Name, err)
-			return vsaerrors.WrapAsTemporalApplicationError(err)
-		}
-		logger.Infof("Successfully updated logical size %d for volume %s", logicalSize, volume.Name)
-		return nil
-	} else {
-		return a.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volume.UUID)
+		volumeUUID = volume.VolumeAttributes.ExternalUUID
 	}
+	return a.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeUUID)
 }
 
 // SetGlobalLatestBackupLogicalSizeActivity sets the latest backup (across vaults) for the volume to the given size.

@@ -1746,6 +1746,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env.RegisterActivity(backupActivity.GetBackupVault)
 		env.RegisterActivity(backupActivity.GetLatestBackupByVolumeAndVault)
 		env.RegisterActivity(backupActivity.DeleteSnapshotForBackup)
+		env.RegisterActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1777,6 +1778,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, "ext-uuid", int64(10)).
 			Return(latestBackup, nil)
 		env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, "snap-uuid", "ext-uuid", false).
+			Return(nil)
+		env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, "ext-uuid").
 			Return(nil)
 		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
 			Return(standardBackupVault(), nil)
@@ -1959,6 +1962,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		backupActivity := activities.BackupActivity{SE: mockStorage}
 		env.RegisterActivity(backupActivity.GetBackupVault)
 		env.RegisterActivity(backupActivity.GetLatestBackupByVolumeAndVault)
+		env.RegisterActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity)
 
 		updateActivity2 := activities.VolumeUpdateActivity{SE: mockStorage}
 		env.RegisterActivity(updateActivity2.FindTenancyDetails)
@@ -1980,6 +1984,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 			Return(oldVault, nil)
 		env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, "ext-uuid", int64(10)).
 			Return(nil, nil)
+		env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, "ext-uuid").
+			Return(nil)
 		env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).
 			Return(standardBackupVault(), nil)
 		env.OnActivity(updateActivity2.FindTenancyDetails, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -2032,6 +2038,7 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env.RegisterActivity(backupActivity.GetBackupVault)
 		env.RegisterActivity(backupActivity.GetLatestBackupByVolumeAndVault)
 		env.RegisterActivity(backupActivity.DeleteSnapshotForBackup)
+		env.RegisterActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity)
 
 		mockJobFlow(mockStorage, 2)
 
@@ -2057,6 +2064,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		env.OnActivity(backupActivity.GetLatestBackupByVolumeAndVault, mock.Anything, "ext-uuid", int64(10)).
 			Return(latestBackup, nil)
 		env.OnActivity(backupActivity.DeleteSnapshotForBackup, mock.Anything, mock.Anything, "snap-uuid", "ext-uuid", false).
+			Return(nil)
+		env.OnActivity(backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity, mock.Anything, "ext-uuid").
 			Return(nil)
 		// No expectation for CheckBackupVaultExistInVCP: an explicit detach must not
 		// enter new-vault provisioning. Any call would fail the test.
@@ -3008,6 +3017,10 @@ func TestManageBackupConfigWorkflow_Versioning(t *testing.T) {
 
 		env.OnGetVersion(expertModeBackupConfigVaultParityChangeID,
 			workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion).
+			Return(workflow.DefaultVersion)
+		// A history this old necessarily predates the chain-bytes-recalc changeID too.
+		env.OnGetVersion(expertModeBackupConfigChainBytesRecalcChangeID,
+			workflow.DefaultVersion, expertModeBackupConfigChainBytesRecalcVersion).
 			Return(workflow.DefaultVersion)
 		env.OnSideEffect().Return(true).Maybe()
 

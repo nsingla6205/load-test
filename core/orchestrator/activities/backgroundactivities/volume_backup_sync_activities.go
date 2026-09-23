@@ -155,27 +155,20 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	// Update volume's latest logical backup size.
-	// LatestLogicalBackupSize (backup model) is equivalent to BackupChainBytes (volume model).
-	// Branch on which volume pointer is populated rather than on the backup attribute flag so
-	// that a missing or inconsistent pointer produces a clear error instead of a nil panic.
-	volumeUpdates := make(map[string]interface{})
+	// Update volume's latest logical backup size (sum across all the volume's chains, not just
+	// this one) via RecalculateAndUpdateVolumeBackupChainBytesActivity, which handles both regular
+	// and expert mode volumes. Branch on which volume pointer is populated rather than on the
+	// backup attribute flag so that a missing or inconsistent pointer produces a clear error
+	// instead of a nil panic.
+	backupActivity := activities.BackupActivity{SE: a.SE}
 	switch {
 	case volumeBackup.ExpertModeVolume != nil:
-		if volumeBackup.ExpertModeVolume.BackupConfig == nil {
-			volumeBackup.ExpertModeVolume.BackupConfig = &datamodel.DataProtection{}
-		}
-		volumeBackup.ExpertModeVolume.BackupConfig.BackupChainBytes = &logicalSize
-		volumeUpdates["data_protection"] = volumeBackup.ExpertModeVolume.BackupConfig
-		// UpdateExpertModeVolumeFields looks up expert mode volumes by ExternalUUID.
-		safeRecordHeartbeat(ctx, fmt.Sprintf("updating expert mode volume %s in database", volumeBackup.ExpertModeVolume.ExternalUUID))
-		err = a.SE.UpdateExpertModeVolumeFields(ctx, volumeBackup.ExpertModeVolume.ExternalUUID, volumeUpdates)
-		if err != nil {
-			logger.Errorf("Failed to update expert mode volume %s with latest logical backup size: %v", volumeBackupName(volumeBackup), err)
-			return vsaerrors.WrapAsTemporalApplicationError(err)
+		safeRecordHeartbeat(ctx, fmt.Sprintf("recalculating backup chain bytes for expert mode volume %s in database", volumeBackup.ExpertModeVolume.ExternalUUID))
+		if err = backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeBackup.ExpertModeVolume.ExternalUUID); err != nil {
+			logger.Errorf("Failed to recalculate backup chain bytes for expert mode volume %s: %v", volumeBackupName(volumeBackup), err)
+			return err
 		}
 	case volumeBackup.Volume != nil:
-		backupActivity := activities.BackupActivity{SE: a.SE}
 		safeRecordHeartbeat(ctx, fmt.Sprintf("recalculating backup chain bytes for volume %s in database", volumeBackup.Volume.UUID))
 		if err = backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeBackup.Volume.UUID); err != nil {
 			logger.Errorf("Failed to recalculate backup chain bytes for volume %s: %v", volumeBackup.Volume.Name, err)

@@ -28,6 +28,14 @@ const (
 	// detach teardown and unconditional GCBDR bucket IAM grant.
 	expertModeBackupConfigVaultParityChangeID = "expertModeBackupConfigVaultParity"
 	expertModeBackupConfigVaultParityVersion  = workflow.Version(1)
+
+	// expertModeBackupConfigChainBytesRecalcChangeID versions the addition of a post-switch/detach
+	// backup_chain_bytes recalculation, bringing ONTAP mode to parity with the regular-volume vault
+	// switch path (volume_update_workflow.go's backupVaultSwitched recalc). Kept as its own changeID
+	// rather than bumping expertModeBackupConfigVaultParityVersion so this decision stays
+	// independently identifiable/rollback-able from the unrelated detach-teardown/GCBDR-grant change.
+	expertModeBackupConfigChainBytesRecalcChangeID = "expertModeBackupConfigChainBytesRecalc"
+	expertModeBackupConfigChainBytesRecalcVersion  = workflow.Version(1)
 )
 
 type manageBackupConfigWorkflow struct {
@@ -118,6 +126,11 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 	parityVersion := workflow.GetVersion(ctx, expertModeBackupConfigVaultParityChangeID,
 		workflow.DefaultVersion, expertModeBackupConfigVaultParityVersion)
 	isVaultParityVersion := parityVersion >= expertModeBackupConfigVaultParityVersion
+
+	// Version gate for the backup_chain_bytes recalc addition (see const doc above).
+	chainBytesRecalcVersion := workflow.GetVersion(ctx, expertModeBackupConfigChainBytesRecalcChangeID,
+		workflow.DefaultVersion, expertModeBackupConfigChainBytesRecalcVersion)
+	isChainBytesRecalcVersion := chainBytesRecalcVersion >= expertModeBackupConfigChainBytesRecalcVersion
 
 	// EnableBackupVaultSwitching is a mutable process global, so version 1 pins its value
 	// into the history at workflow start. DefaultVersion keeps the historical live read.
@@ -447,6 +460,21 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		if err != nil {
 			log.Error("Failed to persist backup config for volume", "volumeUUID", volume.UUID, "error", err)
 			return nil, workflows.ConvertToVSAError(err)
+		}
+	}
+
+	// ── Step 7b: Recalculate backup_chain_bytes after leaving a vault ────────
+	// Mirrors volume_update_workflow.go's backupVaultSwitched recalc: after switching or detaching,
+	// re-sum latest_logical_backup_size across all the volume's chains (including any vault just
+	// left, which may still hold AVAILABLE backups) so backup_chain_bytes reflects every active
+	// chain rather than only the one this request touched. Only runs when actually leaving a vault,
+	// not on first-time attach, matching the regular-volume behavior exactly.
+	if isChainBytesRecalcVersion && isLeavingVault {
+		backupActivity := &activities.BackupActivity{}
+		if recalcErr := workflow.ExecuteActivity(ctx, backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity,
+			volume.ExternalUUID).Get(ctx, nil); recalcErr != nil {
+			log.Error("Failed to recalculate backup chain bytes for expert mode volume", "volumeUUID", volume.UUID, "error", recalcErr)
+			return nil, workflows.ConvertToVSAError(recalcErr)
 		}
 	}
 

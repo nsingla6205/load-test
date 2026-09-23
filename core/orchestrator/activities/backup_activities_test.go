@@ -6708,9 +6708,10 @@ func TestUpdateBackupSizeActivity_Success(t *testing.T) {
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
 	mockStorage.On("UpdateVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	// Act
@@ -6780,8 +6781,6 @@ func TestUpdateBackupSizeActivity_RecalculateVolumeBackupChainBytesFailure(t *te
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
-	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
-	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(0), errors.New("sum failed"))
 
 	result, err := activity.UpdateBackupSizeActivity(ctx, backupActivitiesContext)
@@ -6820,9 +6819,10 @@ func TestUpdateBackupSizeActivity_UpdateVolumeFieldsFailure(t *testing.T) {
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
 	mockStorage.On("UpdateVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(errors.New("update volume fields failed"))
 
 	// Act
@@ -6862,9 +6862,10 @@ func TestUpdateBackupSizeActivity_RecalculatesWhenBackupLatestLogicalBackupSizeZ
 	}
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(0), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(0), nil)
 	mockStorage.On("UpdateVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	result, err := activity.UpdateBackupSizeActivity(ctx, backupActivitiesContext)
@@ -6901,8 +6902,12 @@ func TestUpdateBackupSizeActivity_ExpertMode_Success(t *testing.T) {
 		IsExpertMode: true,
 	}
 
+	expertVol := &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: "expert-internal-uuid"}, ExternalUUID: "test-volume-uuid"}
+
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(expertVol, nil)
 	mockStorage.On("UpdateExpertModeVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	result, err := activity.UpdateBackupSizeActivity(ctx, backupActivitiesContext)
@@ -6941,8 +6946,12 @@ func TestUpdateBackupSizeActivity_ExpertMode_UpdateExpertModeVolumeFieldsFailure
 		IsExpertMode: true,
 	}
 
+	expertVol := &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: "expert-internal-uuid"}, ExternalUUID: "test-volume-uuid"}
+
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(expertVol, nil)
 	mockStorage.On("UpdateExpertModeVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(errors.New("update expert mode volume fields failed"))
 
 	// Act
@@ -6987,9 +6996,10 @@ func TestUpdateBackupSizeActivity_NonExpertMode_Success(t *testing.T) {
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
 	mockStorage.On("UpdateBackupLatestLogicalBackupSizeByVolume", ctx, "test-volume-uuid", "test-backup-uuid").Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil)
 	mockStorage.On("UpdateVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	result, err := activity.UpdateBackupSizeActivity(ctx, backupActivitiesContext)
@@ -7028,7 +7038,11 @@ func TestUpdateBackupSizeActivity_ExpertMode_WithZeroLatestLogicalBackupSize(t *
 		IsExpertMode: true,
 	}
 
+	expertVol := &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: "expert-internal-uuid"}, ExternalUUID: "test-volume-uuid"}
+
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(0), nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(expertVol, nil)
 	mockStorage.On("UpdateExpertModeVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	// Act
@@ -7074,9 +7088,10 @@ func TestUpdateBackupSizeActivity_SkipsLatestLogicalBackupSizeUpdateForCrossProj
 	}
 
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil).Twice()
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, "test-volume-uuid").Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil).Twice()
 	mockStorage.On("UpdateVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	// Act
@@ -7121,7 +7136,11 @@ func TestUpdateBackupSizeActivity_ExpertMode_SkipsLatestLogicalBackupSizeUpdateF
 		IsExpertMode: true,
 	}
 
+	expertVol := &datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{UUID: "expert-internal-uuid"}, ExternalUUID: "test-volume-uuid"}
+
 	mockStorage.On("FinishBackup", ctx, backup).Return(backup, nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, "test-volume-uuid").Return(int64(1024), nil).Twice()
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, "test-volume-uuid").Return(expertVol, nil)
 	mockStorage.On("UpdateExpertModeVolumeFields", ctx, "test-volume-uuid", mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	// Act
@@ -7791,9 +7810,10 @@ func TestSetGlobalLatestBackupLogicalSizeActivity_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	mockStorage.On("GetLatestBackupByVolumeUUID", ctx, volumeUUID).Return(latestBackup, nil)
 	mockStorage.On("UpdateBackupFields", ctx, latestBackup.UUID, map[string]interface{}{"latest_logical_backup_size": size}).Return(nil)
+	mockStorage.On("SumVolumeBackupChainBytes", ctx, volumeUUID).Return(size, nil)
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volumeUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volumeUUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volumeUUID).Return(recalcVol, nil)
-	mockStorage.On("SumVolumeBackupChainBytes", ctx, volumeUUID).Return(size, nil)
 	mockStorage.On("UpdateVolumeFields", ctx, volumeUUID, mock.Anything).Return(nil)
 
 	activity := BackupActivity{SE: mockStorage}
@@ -12226,6 +12246,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_Success(t *testing.T) {
 
 	// Mock IsExpertModeVolume check - return false for regular volume
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(logicalSize, nil)
@@ -12270,6 +12293,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_UpdateVolumeFieldsError(t *testing.
 
 	// Mock IsExpertModeVolume check - return false for regular volume
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(logicalSize, nil)
@@ -12307,6 +12333,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_ZeroSize(t *testing.T) {
 
 	// Mock IsExpertModeVolume check - return false for regular volume
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(int64(0), nil)
@@ -12347,6 +12376,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_LargeSize(t *testing.T) {
 	}
 
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(logicalSize, nil)
@@ -12386,6 +12418,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_UpdateExistingValue(t *testing.T) {
 	}
 
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(newSize, nil)
@@ -12426,6 +12461,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_TemporalErrorWrapping(t *testing.T)
 	dbError := errors.New("database timeout error")
 
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(logicalSize, nil)
@@ -12460,6 +12498,9 @@ func TestUpdateVolumeLatestLogicalBackupSize_NegativeSize(t *testing.T) {
 	}
 
 	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.VolumeAttributes.ExternalUUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
+	// RecalculateAndUpdateVolumeBackupChainBytesActivity re-checks expert mode (this time by
+	// volume.UUID, since IsExpertModeVolume above already resolved this as a regular volume).
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", ctx, volume.UUID).Return(nil, utilerrors.NewNotFoundErr("expert mode volume", nil))
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volume.UUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", ctx, volume.UUID).Return(recalcVol, nil)
 	mockStorage.On("SumVolumeBackupChainBytes", ctx, volume.UUID).Return(logicalSize, nil)

@@ -19,6 +19,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -30,9 +31,10 @@ import (
 )
 
 func expectRecalcVolumeChainBytesSync(mockStorage *database.MockStorage, volumeUUID string, sum int64, endpointUUID ...string) {
+	mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, volumeUUID).Return(sum, nil).Once()
+	mockStorage.On("GetExpertModeVolumeByExternalUUID", mock.Anything, volumeUUID).Return(nil, customerrors.NewNotFoundErr("expert mode volume", nil)).Once()
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volumeUUID}, DataProtection: &datamodel.DataProtection{}}
 	mockStorage.On("GetVolume", mock.Anything, volumeUUID).Return(recalcVol, nil).Once()
-	mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, volumeUUID).Return(sum, nil).Once()
 	mockStorage.On("UpdateVolumeFields", mock.Anything, volumeUUID, mock.MatchedBy(func(updates map[string]interface{}) bool {
 		dp, ok := updates["data_protection"].(*datamodel.DataProtection)
 		return ok && dp.BackupChainBytes != nil && *dp.BackupChainBytes == sum
@@ -859,8 +861,9 @@ func (s *BackupLogicalSizeSyncRealDatabaseTestSuite) TestRealDatabaseSync_Multip
 	// Volume 3: Backup update succeeds but recalc volume update fails
 	s.mockStorage.On("UpdateBackupFields", mock.Anything, "backup-vol-fail-uuid", mock.Anything).Return(nil).Times(3)
 	recalcVolFail := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-vol-fail-uuid"}, DataProtection: &datamodel.DataProtection{}}
-	s.mockStorage.On("GetVolume", mock.Anything, "volume-vol-fail-uuid").Return(recalcVolFail, nil).Times(3)
 	s.mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, "volume-vol-fail-uuid").Return(volFailLogicalSize, nil).Times(3)
+	s.mockStorage.On("GetExpertModeVolumeByExternalUUID", mock.Anything, "volume-vol-fail-uuid").Return(nil, customerrors.NewNotFoundErr("expert mode volume", nil)).Times(3)
+	s.mockStorage.On("GetVolume", mock.Anything, "volume-vol-fail-uuid").Return(recalcVolFail, nil).Times(3)
 	s.mockStorage.On("UpdateVolumeFields", mock.Anything, "volume-vol-fail-uuid", mock.Anything).Return(errors.New("volume update failed")).Times(3)
 
 	// Execute workflow
@@ -1003,9 +1006,10 @@ func (s *BackupLogicalSizeSyncRealDatabaseTestSuite) TestRealDatabaseSync_Backup
 	s.mockProvider.On("ObjectStoreEndpointInfoGet", "test-object-store-uuid", "test-endpoint-uuid").Return(objStoreEndpoint, nil).Once()
 
 	s.mockStorage.On("UpdateBackupFields", mock.Anything, "test-backup-uuid", mock.Anything).Return(nil).Once()
+	s.mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, "test-volume-uuid").Return(updatedLogicalSize, nil).Once()
+	s.mockStorage.On("GetExpertModeVolumeByExternalUUID", mock.Anything, "test-volume-uuid").Return(nil, customerrors.NewNotFoundErr("expert mode volume", nil)).Once()
 	recalcVol := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"}, DataProtection: &datamodel.DataProtection{}}
 	s.mockStorage.On("GetVolume", mock.Anything, "test-volume-uuid").Return(recalcVol, nil).Once()
-	s.mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, "test-volume-uuid").Return(updatedLogicalSize, nil).Once()
 	s.mockStorage.On("UpdateVolumeFields", mock.Anything, "test-volume-uuid", mock.Anything).Return(nil).Once()
 	historyErr := errors.New("backup chain history update failed")
 	s.mockStorage.On("UpdateBackupChainHistory", mock.Anything, "test-volume-uuid", "test-endpoint-uuid", updatedLogicalSize).Return(historyErr).Once()
@@ -2008,8 +2012,9 @@ func (s *BackupLogicalSizeSyncDatabaseVerificationTestSuite) TestDatabaseSyncVer
 	// Volume 3: Backup update succeeds but recalc volume update fails (may be retried)
 	s.mockStorage.On("UpdateBackupFields", mock.Anything, "backup-vol-fail-uuid", mock.Anything).Return(nil)
 	recalcVolFail := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-vol-fail-uuid"}, DataProtection: &datamodel.DataProtection{}}
-	s.mockStorage.On("GetVolume", mock.Anything, "volume-vol-fail-uuid").Return(recalcVolFail, nil)
 	s.mockStorage.On("SumVolumeBackupChainBytes", mock.Anything, "volume-vol-fail-uuid").Return(volFailLogicalSize, nil)
+	s.mockStorage.On("GetExpertModeVolumeByExternalUUID", mock.Anything, "volume-vol-fail-uuid").Return(nil, customerrors.NewNotFoundErr("expert mode volume", nil))
+	s.mockStorage.On("GetVolume", mock.Anything, "volume-vol-fail-uuid").Return(recalcVolFail, nil)
 	s.mockStorage.On("UpdateVolumeFields", mock.Anything, "volume-vol-fail-uuid", mock.Anything).Return(errors.New("volume update failed"))
 
 	// Execute workflow - NO activity mocking, let real activities run
