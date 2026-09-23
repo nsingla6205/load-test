@@ -258,6 +258,8 @@ continent VARCHAR (255) NOT NULL
  	case
  	    when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'MIGRATION' then 'Onprem Migration'
  	    when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'ONPREM_REPLICATION' then 'Onprem Replication'
+ 	    when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTRA_ZONE_REPLICATION' then 'Intra Zone Replication'
+ 	    when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTER_ZONE_REPLICATION' then 'Inter Zone Replication'
  	    when puc.resource_type in ('VOLUME_REPLICATION_RELATIONSHIP', 'SDS_VOLUME_REPLICATION_RELATIONSHIP') then 'Cross Region Replication'
  	    when puc.resource_type in ('BACKUP') and (puc.destination_region is not NULL and puc.destination_region != '') then 'Backup'
  		when puc.resource_type in ('VOLUME', 'VOLUME_REGIONAL_HA') then 'Volume'

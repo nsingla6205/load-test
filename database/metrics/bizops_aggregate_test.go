@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,6 +188,18 @@ func TestDataStoreRepository_AggregateUsageForBizOps(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to query final report")
 	})
+}
+
+func TestDataStoreRepository_AggregateUsageForBizOps_ReplicationTypeLabels(t *testing.T) {
+	intraZoneClause := "when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTRA_ZONE_REPLICATION' then 'Intra Zone Replication'"
+	interZoneClause := "when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTER_ZONE_REPLICATION' then 'Inter Zone Replication'"
+	genericReplicationClause := "when puc.resource_type in ('VOLUME_REPLICATION_RELATIONSHIP', 'SDS_VOLUME_REPLICATION_RELATIONSHIP') then 'Cross Region Replication'"
+
+	assert.Contains(t, finalReport, intraZoneClause)
+	assert.Contains(t, finalReport, interZoneClause)
+	assert.Contains(t, finalReport, genericReplicationClause)
+	assert.Less(t, strings.Index(finalReport, intraZoneClause), strings.Index(finalReport, genericReplicationClause))
+	assert.Less(t, strings.Index(finalReport, interZoneClause), strings.Index(finalReport, genericReplicationClause))
 }
 
 func TestConvertRowsToCSV(t *testing.T) {
