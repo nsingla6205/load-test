@@ -281,6 +281,10 @@ spec:
               value: {{ .Values.telemetryDeployer.telemetryShutdownBudget | default "10s" | quote }}
             - name: TELEMETRY_HTTP_SHUTDOWN_TIMEOUT
               value: {{ .Values.telemetryDeployer.telemetryHttpShutdownTimeout | default "3s" | quote }}
+            - name: JOB_WAKE_NOTIFY_ENABLED
+              value: {{ .Values.telemetryDeployer.jobWakeNotifyEnabled | quote }}
+            - name: JOB_POLL_FALLBACK_INTERVAL
+              value: {{ .Values.telemetryDeployer.jobPollFallbackInterval | default "30s" | quote }}
             - name: ENABLE_BACKUP_HISTORY_FORMATTER
               value: {{ .Values.telemetryDeployer.enableBackupHistoryFormatter | default "false" | quote }}
             - name: INJECTION_WINDOW_MINUTES

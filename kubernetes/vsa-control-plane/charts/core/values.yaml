@@ -367,6 +367,8 @@ telemetryDeployer:
   numWorkersBillingRetry: 5
   telemetryShutdownBudget: "10s"
   telemetryHttpShutdownTimeout: "3s"
+  jobWakeNotifyEnabled: true
+  jobPollFallbackInterval: "30s"
   enableBackupHistoryFormatter: false
   injectionWindowMinutes: 10
   enableCounterFormatter: false

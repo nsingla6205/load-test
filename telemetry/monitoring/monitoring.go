@@ -15,6 +15,22 @@ const (
 	SinkTypeDatabase = "database"
 )
 
+// Job queue LISTEN session lifecycle events, reported as the "event" label on
+// the listener event counter. A session that never reaches Connected delivers no
+// notifications at all, which is otherwise invisible: the queue keeps draining on
+// its fallback poll and every other metric looks healthy.
+const (
+	// ListenerEventConnected means the session attached and notifications are flowing.
+	ListenerEventConnected = "connected"
+	// ListenerEventReconnected means the session recovered after losing its connection.
+	ListenerEventReconnected = "reconnected"
+	// ListenerEventDisconnected means an attached session lost its connection.
+	ListenerEventDisconnected = "disconnected"
+	// ListenerEventConnectFailed means a connection attempt failed; the session is
+	// not attached and will be retried.
+	ListenerEventConnectFailed = "connect_failed"
+)
+
 type MetricRecorderParams struct {
 	EndPoint           string
 	Method             string
@@ -31,6 +47,9 @@ type MetricRecorderParams struct {
 	SubmittedQuantity  float64
 	FailedQuantity     float64
 	SubmittedTimeStamp time.Time
+	// ListenerEvent is one of the ListenerEvent* constants, naming a job queue
+	// LISTEN session transition.
+	ListenerEvent string
 }
 
 // MetricsRecorder defines the interface for recording metrics
@@ -46,6 +65,10 @@ type MetricsRecorder interface {
 	RecordJobProcessed(params *MetricRecorderParams)
 	RecordJobReclaimed(params *MetricRecorderParams)
 	RecordJobRetriesExhausted(params *MetricRecorderParams)
+
+	// Job queue notification operations
+	RecordJobNotifyFailed(params *MetricRecorderParams)
+	RecordJobListenerEvent(params *MetricRecorderParams)
 
 	// Sink operations
 	RecordSinkDelivered(params *MetricRecorderParams)

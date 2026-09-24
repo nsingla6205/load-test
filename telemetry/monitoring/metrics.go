@@ -13,6 +13,9 @@ const (
 	vcpTelemetryJobsProcessedTotal           = "vcp_telemetry_jobs_processed_total"
 	vcpTelemetryJobsReclaimedTotal           = "vcp_telemetry_jobs_reclaimed_total"
 	vcpTelemetryJobsRetriesExhaustedTotal    = "vcp_telemetry_jobs_retries_exhausted_total"
+	vcpTelemetryJobsNotifyFailedTotal        = "vcp_telemetry_jobs_notify_failed_total"
+	vcpTelemetryJobListenerEventsTotal       = "vcp_telemetry_job_listener_events_total"
+	vcpTelemetryJobListenerConnected         = "vcp_telemetry_job_listener_connected"
 	vcpTelemetrySinkDeliveredTotal           = "vcp_telemetry_metrics_delivered_total"
 	vcpTelemetryBillingMetricsSubmittedTotal = "vcp_telemetry_billing_metrics_submission_total"
 	vcpTelemetryReportLastSuccess            = "vcp_telemetry_report_last_success_timestamp_seconds"
@@ -92,6 +95,37 @@ var (
 		[]string{"queue", "job_type"},
 	)
 
+	// Counter for failed pg_notify attempts. The job row is already committed when
+	// the notify runs, so a failure delays pickup to the next fallback poll rather
+	// than losing work.
+	jobsNotifyFailedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: vcpTelemetryJobsNotifyFailedTotal,
+			Help: "Total number of failed pg_notify attempts when announcing enqueued jobs",
+		},
+		[]string{"queue"},
+	)
+
+	// Counter for LISTEN session lifecycle events, by ListenerEvent* name.
+	jobListenerEventsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: vcpTelemetryJobListenerEventsTotal,
+			Help: "Total number of job queue LISTEN session connection events by type",
+		},
+		[]string{"queue", "event"},
+	)
+
+	// Gauge tracking whether each queue has an attached LISTEN session. This is the
+	// alertable signal for "notifications are silently not being delivered": a
+	// queue pinned at 0 is running on its fallback poll alone.
+	jobListenerConnected = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: vcpTelemetryJobListenerConnected,
+			Help: "1 when the queue has an attached LISTEN session, 0 when notifications are not being delivered",
+		},
+		[]string{"queue"},
+	)
+
 	// Counter for metrics delivered to external sinks
 	sinkDeliveredTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -128,6 +162,9 @@ func init() {
 		jobsProcessedTotal,
 		jobsReclaimedTotal,
 		jobsRetriesExhaustedTotal,
+		jobsNotifyFailedTotal,
+		jobListenerEventsTotal,
+		jobListenerConnected,
 		sinkDeliveredTotal,
 		billingMetricsSubmissionTotal,
 		reportLastSuccess,

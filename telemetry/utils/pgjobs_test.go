@@ -766,9 +766,9 @@ func TestJobQueue_Worker(t *testing.T) {
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 10 * time.Millisecond
-	cfg.PollMaxInterval = 10 * time.Millisecond
+	cfg.FallbackPollInterval = 10 * time.Millisecond
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
+	defer queue.Shutdown()
 
 	// Create a context that will be canceled after a short time
 	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -792,10 +792,10 @@ func TestJobQueue_Worker_ProcessesJobs(t *testing.T) {
 
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, func() JobQueueConfig {
 		cfg := DefaultJobQueueConfig()
-		cfg.PollMinInterval = 10 * time.Millisecond
-		cfg.PollMaxInterval = 10 * time.Millisecond
+		cfg.FallbackPollInterval = 10 * time.Millisecond
 		return cfg
 	}())
+	defer queue.Shutdown()
 
 	// Enqueue a job before starting the worker
 	job := MockJob{ID: "worker_test", Data: "worker data"}
@@ -1106,19 +1106,38 @@ func TestJobQueue_Constants(t *testing.T) {
 	assert.Equal(t, "jobs", JobsTableName)
 }
 
-func TestJobQueue_PollInterval(t *testing.T) {
+func TestJobQueue_FallbackPollInterval(t *testing.T) {
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 5 * time.Second
-	cfg.PollMaxInterval = 30 * time.Second
-	normalized := cfg.normalized()
-	assert.Equal(t, 5*time.Second, normalized.PollMinInterval)
-	assert.Equal(t, 30*time.Second, normalized.PollMaxInterval)
 
-	cfg.PollMinInterval = time.Minute
-	cfg.PollMaxInterval = 0
-	normalized = cfg.normalized()
-	assert.Equal(t, time.Minute, normalized.PollMinInterval)
-	assert.Equal(t, time.Minute, normalized.PollMaxInterval)
+	cfg.FallbackPollInterval = 5 * time.Second
+	assert.Equal(t, 5*time.Second, cfg.normalized().FallbackPollInterval, "an explicit interval must be preserved")
+
+	cfg.FallbackPollInterval = 0
+	assert.Equal(t, DefaultFallbackPollInterval, cfg.normalized().FallbackPollInterval, "an unset interval must fall back to the default")
+
+	cfg.FallbackPollInterval = -1 * time.Second
+	assert.Equal(t, DefaultFallbackPollInterval, cfg.normalized().FallbackPollInterval, "a negative interval must fall back to the default")
+}
+
+func TestJobQueue_NotificationsEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		dsn     string
+		want    bool
+	}{
+		{name: "gate on with a DSN", enabled: true, dsn: "postgres://localhost/db", want: true},
+		{name: "gate on without a DSN", enabled: true, dsn: "", want: false},
+		{name: "gate off with a DSN", enabled: false, dsn: "postgres://localhost/db", want: false},
+		{name: "gate off without a DSN", enabled: false, dsn: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := JobQueueConfig{NotifyEnabled: tt.enabled, NotifyDSN: tt.dsn}
+			assert.Equal(t, tt.want, cfg.notificationsEnabled())
+		})
+	}
 }
 
 // Additional comprehensive tests for better coverage
@@ -1257,9 +1276,9 @@ func TestJobQueue_Worker_EmptyTypes(t *testing.T) {
 	var mockProcessor interface{}
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 5 * time.Millisecond
-	cfg.PollMaxInterval = 5 * time.Millisecond
+	cfg.FallbackPollInterval = 5 * time.Millisecond
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
+	defer queue.Shutdown()
 
 	// Create a context that will be canceled after a short time
 	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -1277,9 +1296,9 @@ func TestJobQueue_Worker_WithMultipleTypes(t *testing.T) {
 	var mockProcessor interface{}
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 5 * time.Millisecond
-	cfg.PollMaxInterval = 5 * time.Millisecond
+	cfg.FallbackPollInterval = 5 * time.Millisecond
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
+	defer queue.Shutdown()
 
 	// Create a context that will be canceled after a short time
 	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -1464,9 +1483,10 @@ func TestJobQueue_Constants_Values(t *testing.T) {
 	assert.Equal(t, "failed", JOB_STATUS_FAILED)
 	assert.Equal(t, "jobs", JobsTableName)
 
-	// Test that PollInterval has a reasonable default
-	assert.Greater(t, PollInterval, 0*time.Second)
-	assert.Less(t, PollInterval, 10*time.Second)
+	// The fallback interval is the ceiling on pickup latency when a notification
+	// never arrives, so it has to stay within a range that is tolerable on its own.
+	assert.Greater(t, DefaultFallbackPollInterval, 0*time.Second)
+	assert.LessOrEqual(t, DefaultFallbackPollInterval, time.Minute)
 }
 
 // Benchmark tests for performance verification
@@ -3326,22 +3346,24 @@ func TestJobQueue_RunSweeper_EnabledLoop(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
-// TestJobQueue_Worker_BackoffOnEmpty verifies empty dequeues back off instead of
-// polling at a fixed minimum interval.
-func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
+// TestJobQueue_Worker_FallbackPollOnEmpty verifies that an idle worker keeps
+// re-checking the queue on the fallback ticker even though no notification ever
+// arrives. This is what makes scheduled jobs, expired leases and lost
+// notifications recoverable.
+func TestJobQueue_Worker_FallbackPollOnEmpty(t *testing.T) {
 	db, sqlMock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	// Three consecutive empty claims.
+	// Three consecutive empty claims: one on start-up, then one per fallback tick.
 	for i := 0; i < 3; i++ {
 		sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
 	}
 
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 20 * time.Millisecond
-	cfg.PollMaxInterval = 80 * time.Millisecond
+	cfg.FallbackPollInterval = 20 * time.Millisecond
 	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
+	defer queue.Shutdown()
 	queue.registerType(&MockJob{})
 
 	pollCtx, cancel := context.WithCancel(context.Background())
@@ -3361,6 +3383,180 @@ func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
 	err = <-workerDone
 	require.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// startLegacyWorker runs Worker on the kill-switch path (NotifyEnabled=false) and
+// returns a func that waits for it to exit. The wait is bounded so a worker that
+// ignores cancellation fails the test instead of hanging the suite.
+func startLegacyWorker(t *testing.T, queue *JobQueue, pollCtx context.Context) func() {
+	t.Helper()
+
+	workerDone := make(chan error, 1)
+	go func() {
+		workerDone <- queue.Worker(pollCtx, context.Background(), []string{"q1"}, &MockJob{})
+	}()
+
+	return func() {
+		t.Helper()
+		select {
+		case err := <-workerDone:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("the worker did not exit within 5s of cancellation")
+		}
+	}
+}
+
+// TestJobQueue_Worker_LegacyBackoffGrowsWhenEmpty covers the kill-switch path
+// (NotifyEnabled=false): each empty claim doubles the wait rather than re-polling
+// at a fixed interval, and no waker is started. Only a lower bound on the elapsed
+// time is asserted, because a timer never fires early but a loaded machine can
+// always be late.
+func TestJobQueue_Worker_LegacyBackoffGrowsWhenEmpty(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Four empty claims: the first is immediate, the rest follow the 20ms, 40ms
+	// and 80ms sleeps, so the fourth cannot land earlier than 140ms. A backoff
+	// stuck at PollMinInterval would have got there in 60ms.
+	const (
+		polls          = 4
+		minInterval    = 20 * time.Millisecond
+		growingElapsed = 140 * time.Millisecond
+		flatElapsed    = minInterval * (polls - 1)
+	)
+	for i := 0; i < polls; i++ {
+		sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
+	}
+
+	cfg := DefaultJobQueueConfig()
+	cfg.NotifyEnabled = false
+	cfg.PollMinInterval = minInterval
+	cfg.PollMaxInterval = time.Second
+	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
+
+	pollCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	start := time.Now()
+	awaitWorker := startLegacyWorker(t, queue, pollCtx)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, sqlMock.ExpectationsWereMet())
+	}, 5*time.Second, 5*time.Millisecond, "four backoff polls did not complete within 5s")
+	elapsed := time.Since(start)
+	cancel()
+
+	awaitWorker()
+	assert.GreaterOrEqual(t, elapsed, growingElapsed,
+		"backoff did not grow between empty claims: a flat %v interval reaches poll %d in %v", minInterval, polls, flatElapsed)
+	assert.Empty(t, queue.wakers, "the legacy path must not start a waker")
+}
+
+// TestJobQueue_Worker_LegacyBackoffResetsAfterClaim verifies the kill-switch path
+// keeps draining a backlog: after a successful claim the worker re-polls at once
+// instead of sleeping. PollMinInterval is an hour, so the second claim attempt can
+// only be observed if the claim skipped the backoff sleep entirely.
+func TestJobQueue_Worker_LegacyBackoffResetsAfterClaim(t *testing.T) {
+	recorder := &monitoring.MockMetricsRecorder{}
+	recorder.On("RecordJobDequeued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	recorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	payload, err := json.Marshal(MockJob{ID: "1"})
+	require.NoError(t, err)
+
+	expectClaim(sqlMock, 1, "utils.MockJob", string(payload), "q1")
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+		WithArgs(JOB_STATUS_FINISHED, "", int64(1), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectCommit()
+	// The immediate re-poll that proves no sleep happened after the claim.
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
+
+	cfg := DefaultJobQueueConfig()
+	cfg.NotifyEnabled = false
+	cfg.PollMinInterval = time.Hour
+	cfg.PollMaxInterval = time.Hour
+	queue := NewQueueWithConfig(db, nil, recorder, cfg)
+
+	pollCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	awaitWorker := startLegacyWorker(t, queue, pollCtx)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, sqlMock.ExpectationsWereMet())
+	}, 5*time.Second, 10*time.Millisecond, "the worker slept after a claim instead of re-polling immediately")
+	cancel()
+
+	awaitWorker()
+	recorder.AssertExpectations(t)
+}
+
+// TestJobQueue_Worker_LegacyBackoffPollCancelledExitsCleanly verifies the
+// kill-switch path returns nil when cancelled mid-backoff. The interval is an hour,
+// so the worker is provably parked in the backoff timer and not between polls.
+func TestJobQueue_Worker_LegacyBackoffPollCancelledExitsCleanly(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
+
+	cfg := DefaultJobQueueConfig()
+	cfg.NotifyEnabled = false
+	cfg.PollMinInterval = time.Hour
+	cfg.PollMaxInterval = time.Hour
+	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	awaitWorker := startLegacyWorker(t, queue, pollCtx)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, sqlMock.ExpectationsWereMet())
+	}, 5*time.Second, 5*time.Millisecond, "the worker never made its first claim attempt")
+	cancelPoll()
+
+	awaitWorker()
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_Worker_LegacyBackoffSurvivesDequeueError checks that a failed claim
+// on the kill-switch path is logged and retried rather than ending the worker: a
+// transient database error must not quietly take a worker out of rotation for the
+// rest of the pod's life.
+func TestJobQueue_Worker_LegacyBackoffSurvivesDequeueError(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	for i := 0; i < 2; i++ {
+		sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(errors.New("connection reset by peer"))
+	}
+
+	cfg := DefaultJobQueueConfig()
+	cfg.NotifyEnabled = false
+	cfg.PollMinInterval = 10 * time.Millisecond
+	cfg.PollMaxInterval = 10 * time.Millisecond
+	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	defer cancelPoll()
+
+	awaitWorker := startLegacyWorker(t, queue, pollCtx)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, sqlMock.ExpectationsWereMet())
+	}, 5*time.Second, 5*time.Millisecond, "the worker stopped after a failed claim instead of retrying")
+	cancelPoll()
+
+	awaitWorker()
 }
 
 func TestMaxRetriesForQueue(t *testing.T) {
@@ -3472,6 +3668,7 @@ func TestJobQueue_Dequeue_PollCancelledSkipsClaim(t *testing.T) {
 func TestJobQueue_Worker_PollStopReturnsNil(t *testing.T) {
 	queue, _, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
 	defer cleanup()
+	defer queue.Shutdown()
 
 	pollCtx, cancelPoll := context.WithCancel(context.Background())
 	cancelPoll()
@@ -3550,16 +3747,20 @@ func TestJobQueue_Dequeue_PollCancelledDuringPerformStillFinalizesFinished(t *te
 	require.ErrorIs(t, pollCtx.Err(), context.Canceled)
 }
 
-func TestJobQueue_Worker_PollCancelledDuringBackoffExitsWithoutClaim(t *testing.T) {
+// TestJobQueue_Worker_PollCancelledWhileWaitingExitsWithoutClaim verifies that a
+// worker blocked on its wake channel exits cleanly on cancellation. The fallback
+// interval is set far beyond the test's lifetime, so the single expected claim is
+// the start-up drain and nothing else can wake the worker.
+func TestJobQueue_Worker_PollCancelledWhileWaitingExitsWithoutClaim(t *testing.T) {
 	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
 	defer cleanup()
+	defer queue.Shutdown()
 	queue.registerType(&MockJob{})
 
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
 
 	cfg := DefaultJobQueueConfig()
-	cfg.PollMinInterval = 20 * time.Millisecond
-	cfg.PollMaxInterval = 20 * time.Millisecond
+	cfg.FallbackPollInterval = time.Hour
 	queue.config = cfg.normalized()
 
 	pollCtx, cancelPoll := context.WithCancel(context.Background())

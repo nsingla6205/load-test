@@ -35,7 +35,14 @@ const (
 
 var errJobPanicked = errors.New("job panicked")
 
+// PollInterval is the initial (and reset) backoff for the legacy worker path
+// (JOB_WAKE_NOTIFY_ENABLED=false). Exported as a var so tests can lower it.
 var PollInterval = 1 * time.Second
+
+// DefaultFallbackPollInterval is how often each per-queue waker re-checks the
+// database when no notification has arrived. It covers scheduled jobs reaching
+// their run time, expired leases, and any notifications that were lost.
+const DefaultFallbackPollInterval = 30 * time.Second
 
 const JobsTableName = "jobs"
 
@@ -94,11 +101,28 @@ type JobQueueConfig struct {
 	// UnlimitedMaxRuntimeQueues lists queues that skip the MaxRuntime started_at
 	// ceiling in extendLease (heartbeat can extend indefinitely).
 	UnlimitedMaxRuntimeQueues map[string]struct{}
-	// PollMinInterval is the initial backoff when the queue is empty; also the
-	// value backoff resets to after a successful claim.
+	// FallbackPollInterval is the re-check cadence for the per-queue waker when
+	// NotifyEnabled=true. One ticker per queue; cost is independent of worker count.
+	FallbackPollInterval time.Duration
+	// NotifyEnabled selects the worker strategy (JOB_WAKE_NOTIFY_ENABLED, default true).
+	//   true  — drain then block on a shared per-queue wake channel (pg_notify + fallback ticker).
+	//   false — legacy per-worker exponential backoff (PollMinInterval → PollMaxInterval).
+	NotifyEnabled bool
+	// NotifyDSN is the Postgres DSN for per-queue LISTEN sessions.
+	// Empty disables notifications regardless of NotifyEnabled.
+	NotifyDSN string
+	// PollMinInterval is the starting backoff for the legacy worker path; resets
+	// to this value after a successful claim. Only used when NotifyEnabled=false.
 	PollMinInterval time.Duration
-	// PollMaxInterval caps exponential backoff when the queue stays empty.
+	// PollMaxInterval caps the exponential backoff for the legacy worker path.
+	// Only used when NotifyEnabled=false.
 	PollMaxInterval time.Duration
+}
+
+// notificationsEnabled reports whether pg_notify should be emitted and a
+// LISTEN session opened. Requires both the feature gate and a non-empty DSN.
+func (c JobQueueConfig) notificationsEnabled() bool {
+	return c.NotifyEnabled && c.NotifyDSN != ""
 }
 
 // DefaultJobQueueConfig builds the queue configuration from the environment with
@@ -115,8 +139,10 @@ func DefaultJobQueueConfig() JobQueueConfig {
 		UnlimitedMaxRuntimeQueues: vcputils.ParseCommaSeparatedStringToMap(
 			env.GetString("JOB_UNLIMITED_MAX_RUNTIME_QUEUES", UsageQueue+","+BillingRetryQueue+","+BizOpsReportQueue),
 		),
-		PollMinInterval: env.GetDuration("JOB_POLL_MIN_INTERVAL", PollInterval),
-		PollMaxInterval: env.GetDuration("JOB_POLL_MAX_INTERVAL", 30*time.Second),
+		FallbackPollInterval: env.GetDuration("JOB_POLL_FALLBACK_INTERVAL", DefaultFallbackPollInterval),
+		NotifyEnabled:        env.GetBool("JOB_WAKE_NOTIFY_ENABLED", true),
+		PollMinInterval:      env.GetDuration("JOB_POLL_MIN_INTERVAL", PollInterval),
+		PollMaxInterval:      env.GetDuration("JOB_POLL_MAX_INTERVAL", 30*time.Second),
 	}
 }
 
@@ -136,6 +162,10 @@ func (c JobQueueConfig) normalized() JobQueueConfig {
 	if c.SweeperInterval <= 0 {
 		c.SweeperInterval = time.Minute
 	}
+	if c.FallbackPollInterval <= 0 {
+		c.FallbackPollInterval = DefaultFallbackPollInterval
+	}
+	// Legacy path (NotifyEnabled=false) backoff normalization.
 	if c.PollMinInterval <= 0 {
 		c.PollMinInterval = PollInterval
 	}
@@ -166,6 +196,21 @@ type JobQueue struct {
 	typeRegistry    map[string]reflect.Type
 	metricsRecorder monitoring.MetricsRecorder
 	config          JobQueueConfig
+
+	// wakers is a per-queue registry; all workers on the same queue share one waker.
+	// Entries are created lazily and live for the queue's lifetime (until Shutdown).
+	// Expected size: one entry per compile-time queue constant (≤5).
+	wakersMu sync.Mutex
+	wakers   map[string]*queueWaker
+
+	// queueCtx drives all waker goroutines. It is independent of any individual
+	// worker's pollCtx so that a worker cancellation never starves peer workers on
+	// the same queue. Cancelled by Shutdown().
+	queueCtx    context.Context
+	queueCancel context.CancelFunc
+
+	// newListener is the factory for per-queue LISTEN sessions. Replaced in tests.
+	newListener listenerFactory
 }
 
 // NewQueue creates a JobQueue using lease/heartbeat/sweeper defaults from the
@@ -175,13 +220,83 @@ func NewQueue(db *sql.DB, p interface{}, metricRecorder monitoring.MetricsRecord
 }
 
 // NewQueueWithConfig creates a JobQueue with an explicit configuration.
+// Call Shutdown when the queue is no longer needed to release waker goroutines.
 func NewQueueWithConfig(db *sql.DB, p interface{}, metricRecorder monitoring.MetricsRecorder, config JobQueueConfig) *JobQueue {
+	queueCtx, queueCancel := context.WithCancel(context.Background())
 	return &JobQueue{
 		db:              db,
 		processor:       p,
 		typeRegistry:    make(map[string]reflect.Type),
 		metricsRecorder: metricRecorder,
 		config:          config.normalized(),
+		wakers:          make(map[string]*queueWaker),
+		queueCtx:        queueCtx,
+		queueCancel:     queueCancel,
+		newListener:     newPQNotifyListener,
+	}
+}
+
+// Shutdown stops all per-queue waker goroutines (fallback tickers and LISTEN
+// sessions). Safe to call more than once. Individual workers exit via their own
+// pollCtx; this only stops the shared queue infrastructure.
+func (j *JobQueue) Shutdown() {
+	j.queueCancel()
+}
+
+// wakerFor returns (creating on first use) the shared waker for the single
+// queue in queues. The waker runs for the queue's lifetime (queueCtx), not for
+// any individual worker's pollCtx, so stopping one worker never starves its
+// peers. Multi-queue workers are not supported: a second queue would silently
+// miss the LISTEN session and fall back to the 30-second ticker. Pass exactly
+// one queue name; anything else panics.
+func (j *JobQueue) wakerFor(queues []string) *queueWaker {
+	if len(queues) != 1 {
+		panic(fmt.Sprintf("queue: wakerFor requires exactly one queue, got %v", queues))
+	}
+	queue := queues[0]
+
+	j.wakersMu.Lock()
+	defer j.wakersMu.Unlock()
+
+	if waker, ok := j.wakers[queue]; ok {
+		return waker
+	}
+
+	waker := newQueueWaker(queue, j.config.FallbackPollInterval, j.metricsRecorder)
+	j.wakers[queue] = waker
+
+	dsn := ""
+	if j.config.notificationsEnabled() {
+		dsn = j.config.NotifyDSN
+	}
+	go waker.run(j.queueCtx, dsn, j.newListener)
+
+	return waker
+}
+
+// notifyQueueSQL uses pg_notify (a function) rather than the NOTIFY statement so
+// the channel name can be passed as a query parameter without identifier quoting.
+const notifyQueueSQL = `SELECT pg_notify($1, '')`
+
+// enqueueWithNotifySQL folds the pg_notify into the INSERT as a single CTE so
+// Enqueue costs one round trip instead of two. $5 is the notify channel name.
+const enqueueWithNotifySQL = "WITH ins AS (\n" +
+	"INSERT INTO " + JobsTableName + " (type_name, status, queue, data) VALUES ($1, $2, $3, $4)\n" +
+	") SELECT pg_notify($5, '')"
+
+// notifyQueue sends a best-effort pg_notify to wake workers immediately. The job
+// row is already committed before this runs, so a failed or lost notification
+// only delays pickup to the next fallback tick — it cannot lose the job.
+func (j *JobQueue) notifyQueue(ctx context.Context, queue string) {
+	if !j.config.notificationsEnabled() {
+		return
+	}
+
+	if _, err := j.db.ExecContext(ctx, notifyQueueSQL, notifyChannel(queue)); err != nil {
+		util.GetLogger(ctx).Warnf("queue: failed notifying queue %v, workers will pick this up on the next fallback poll: %v", queue, err)
+		if j.metricsRecorder != nil {
+			j.metricsRecorder.RecordJobNotifyFailed(&monitoring.MetricRecorderParams{QueueName: queue})
+		}
 	}
 }
 
@@ -294,6 +409,12 @@ func (j *JobQueue) EnqueueAt(ctx context.Context, job Job, queue string, at time
 		return fmt.Errorf("queue: failed inserting job: %w", err)
 	}
 
+	// Don't notify for future-dated jobs: they aren't claimable yet and nothing
+	// fires at their run time, so the fallback ticker is what picks them up.
+	if !at.After(time.Now()) {
+		j.notifyQueue(ctx, queue)
+	}
+
 	return nil
 }
 
@@ -314,14 +435,17 @@ func (j *JobQueue) Enqueue(ctx context.Context, job Job, queue string) error {
 		return fmt.Errorf("queue: failed marshaling: %v", err)
 	}
 
-	if _, err = j.db.ExecContext(
-		ctx,
-		`INSERT INTO `+JobsTableName+` (type_name, status, queue, data) VALUES ($1, $2, $3, $4)`,
-		typeName,
-		JOB_STATUS_SCHEDULED,
-		queue,
-		data,
-	); err != nil {
+	// When notifications are enabled fold pg_notify into the INSERT as a CTE so
+	// the whole enqueue costs one round trip. The standalone notifyQueue path is
+	// still used by EnqueueAt and EnqueueBatch where the insert shape differs.
+	enqueueSQL := `INSERT INTO ` + JobsTableName + ` (type_name, status, queue, data) VALUES ($1, $2, $3, $4)`
+	enqueueArgs := []any{typeName, JOB_STATUS_SCHEDULED, queue, data}
+	if j.config.notificationsEnabled() {
+		enqueueSQL = enqueueWithNotifySQL
+		enqueueArgs = append(enqueueArgs, notifyChannel(queue))
+	}
+
+	if _, err = j.db.ExecContext(ctx, enqueueSQL, enqueueArgs...); err != nil {
 		metricParams.JobStatus = "db_insertion_failed"
 		j.metricsRecorder.RecordJobEnqueued(metricParams)
 		return fmt.Errorf("queue: failed inserting job: %w", err)
@@ -377,6 +501,13 @@ func (j *JobQueue) EnqueueBatch(ctx context.Context, jobs []Job, queue string) e
 	metricParams.JobQuantity = len(jobs)
 
 	j.metricsRecorder.RecordJobBatchEnqueued(metricParams)
+
+	// Notify after commit, not inside the transaction: a failure inside the
+	// transaction would abort it, turning a harmless notify error into a failed
+	// batch. One notification is enough — the woken worker hands the signal on
+	// after each claim to drain the rest.
+	j.notifyQueue(ctx, queue)
+
 	logger.Debugf("queue: successfully batch enqueued %d jobs to queue=%v", len(jobs), queue)
 	return nil
 }
@@ -463,8 +594,17 @@ func (j *JobQueue) enqueueBatchSQLite(ctx context.Context, tx *sql.Tx, jobs []Jo
 // finalizes its terminal state in a separate short transaction. This ensures a
 // long-running job never holds a pooled connection / open transaction / row lock
 // for its whole duration. Crash recovery is handled by the lease + sweeper.
-// Reports whether a job row was claimed (used by Worker to reset or increase idle poll backoff).
+// Reports whether a job row was claimed (used by Worker to decide whether to keep
+// draining or go back to waiting).
 func (j *JobQueue) dequeue(pollCtx, jobCtx context.Context, queues []string) (claimed bool, err error) {
+	return j.dequeueWithHook(pollCtx, jobCtx, queues, nil)
+}
+
+// dequeueWithHook is dequeue with a hand-off hook. onClaim, when non-nil, is
+// invoked as soon as a row has been claimed and before the job starts running, so
+// a peer worker can pick up the next job concurrently. Calling it after the job
+// finished would serialise a backlog behind whichever job is slowest.
+func (j *JobQueue) dequeueWithHook(pollCtx, jobCtx context.Context, queues []string, onClaim func()) (claimed bool, err error) {
 	logger := util.GetLogger(jobCtx)
 
 	if pollCtx.Err() != nil {
@@ -477,6 +617,10 @@ func (j *JobQueue) dequeue(pollCtx, jobCtx context.Context, queues []string) (cl
 	}
 	if job == nil {
 		return false, nil
+	}
+
+	if onClaim != nil {
+		onClaim()
 	}
 
 	logger.Debugf("Dequeued job: id=%v type=%v attempt=%v queue=%v", job.ID, job.TypeName, job.Attempt, queues)
@@ -829,12 +973,14 @@ func (j *JobQueue) Sweep(ctx context.Context) (int64, error) {
 	defer func() { _ = rows.Close() }()
 
 	var reclaimed int64
+	reclaimedQueues := make(map[string]struct{})
 	for rows.Next() {
 		var job datamodel.Job
 		if err := rows.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt, &job.Queue); err != nil {
 			return reclaimed, fmt.Errorf("queue: sweeper scan failed: %w", err)
 		}
 		reclaimed++
+		reclaimedQueues[job.Queue] = struct{}{}
 		j.recordJobRetriesExhausted(ctx, &job, JOB_STATUS_FAILED, sweeperErr)
 	}
 	if err := rows.Err(); err != nil {
@@ -845,6 +991,12 @@ func (j *JobQueue) Sweep(ctx context.Context) (int64, error) {
 		// The sweep is a single bulk reclaim across all queues/types, so use
 		// explicit "all" placeholders to avoid an ambiguous empty-label series.
 		j.metricsRecorder.RecordJobReclaimed(&monitoring.MetricRecorderParams{QueueName: "all", JobType: "all", JobQuantity: int(reclaimed)})
+
+		// Reclaimed jobs have no enqueue event to announce them, so notify each
+		// affected queue so workers pick them up without waiting for the fallback tick.
+		for queue := range reclaimedQueues {
+			j.notifyQueue(ctx, queue)
+		}
 	}
 
 	return reclaimed, nil
@@ -890,12 +1042,54 @@ func (j *JobQueue) RunSweeper(ctx context.Context) error {
 	}
 }
 
+// Worker processes jobs for the given queues until pollCtx is done.
+//
+// Strategy (controlled by JOB_WAKE_NOTIFY_ENABLED):
+//   - true — drain then block on a shared per-queue wake channel fed by pg_notify and a fallback ticker. One wake goes to one worker, which hands the signal on after each claim so the backlog drains.
+//   - false — legacy per-worker exponential backoff (PollMinInterval to PollMaxInterval).
 func (j *JobQueue) Worker(pollCtx, jobCtx context.Context, queues []string, types ...interface{}) error {
 	for _, t := range types {
 		j.registerType(t)
 	}
 
+	if j.config.NotifyEnabled {
+		return j.workerNotify(pollCtx, jobCtx, queues)
+	}
+	return j.workerBackoff(pollCtx, jobCtx, queues)
+}
+
+// workerNotify is the NotifyEnabled=true path. Drains then blocks on the waker.
+func (j *JobQueue) workerNotify(pollCtx, jobCtx context.Context, queues []string) error {
+	waker := j.wakerFor(queues)
+
+	for {
+		if pollCtx.Err() != nil {
+			return nil
+		}
+
+		// Drain until nothing is left for this worker.
+		for {
+			claimed, err := j.dequeueWithHook(pollCtx, jobCtx, queues, waker.wake)
+			if err != nil {
+				util.GetLogger(jobCtx).Errorf("queue: dequeue failed: %v", err)
+			}
+			if !claimed {
+				break
+			}
+		}
+
+		select {
+		case <-pollCtx.Done():
+			return nil
+		case <-waker.waitCh():
+		}
+	}
+}
+
+// workerBackoff is the NotifyEnabled=false path: exponential backoff between claims.
+func (j *JobQueue) workerBackoff(pollCtx, jobCtx context.Context, queues []string) error {
 	backoff := j.config.PollMinInterval
+
 	for {
 		if pollCtx.Err() != nil {
 			return nil
@@ -903,7 +1097,7 @@ func (j *JobQueue) Worker(pollCtx, jobCtx context.Context, queues []string, type
 
 		claimed, err := j.dequeue(pollCtx, jobCtx, queues)
 		if err != nil {
-			log.Println("queue: dequeue failed", err)
+			util.GetLogger(jobCtx).Errorf("queue: dequeue failed: %v", err)
 		}
 		if claimed {
 			backoff = j.config.PollMinInterval

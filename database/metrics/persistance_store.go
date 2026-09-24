@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -195,30 +193,7 @@ func (s *PersistenceStore) createConnection(isAdmin bool) (*gorm.DB, error) {
 
 // getPostgresDSN constructs the database connection string
 func (s *PersistenceStore) getPostgresDSN(isAdmin bool) (string, error) {
-	var username, password string
-	if isAdmin {
-		username = s.config.AdminUser
-		password = s.config.AdminPassword
-	} else {
-		username = s.config.User
-		password = s.config.Password
-	}
-
-	query := url.Values{}
-	query.Add("sslmode", s.config.SSLMode)
-	query.Add("connect_timeout", strconv.Itoa(s.config.ConnectionTimeout))
-	query.Add("timezone", s.config.TimeZone)
-	// For admin connections, connect to the admin database
-	dbName := s.config.Name
-	u := &url.URL{
-		Scheme:   s.config.Type,
-		User:     url.UserPassword(username, password),
-		Host:     fmt.Sprintf("%s:%s", s.config.Host, s.config.Port),
-		Path:     dbName,
-		RawQuery: query.Encode(),
-	}
-
-	return u.String(), nil
+	return dbutils.PostgresDSN(s.config, isAdmin)
 }
 
 func (s *PersistenceStore) createDatabaseAndUser() error {

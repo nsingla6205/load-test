@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewPrometheusRecorder(t *testing.T) {
@@ -192,6 +193,86 @@ func TestPrometheusRecorder_RecordJobRetriesExhausted(t *testing.T) {
 
 	counter := jobsRetriesExhaustedTotal.WithLabelValues(params.QueueName, params.JobType)
 	assert.Equal(t, float64(1), testutil.ToFloat64(counter))
+}
+
+func TestPrometheusRecorder_RecordJobNotifyFailed(t *testing.T) {
+	jobsNotifyFailedTotal.Reset()
+
+	recorder := NewPrometheusRecorder()
+	params := &MetricRecorderParams{QueueName: "performance"}
+
+	recorder.RecordJobNotifyFailed(params)
+	recorder.RecordJobNotifyFailed(params)
+
+	counter := jobsNotifyFailedTotal.WithLabelValues(params.QueueName)
+	assert.Equal(t, float64(2), testutil.ToFloat64(counter))
+}
+
+// TestPrometheusRecorder_RecordJobListenerEvent pins the gauge transitions as well
+// as the counter, because the gauge is what makes "notifications are silently not
+// being delivered" alertable: a queue pinned at 0 looks healthy in every other
+// series.
+func TestPrometheusRecorder_RecordJobListenerEvent(t *testing.T) {
+	tests := []struct {
+		name          string
+		event         string
+		wantConnected float64
+	}{
+		{name: "connected marks the queue attached", event: ListenerEventConnected, wantConnected: 1},
+		{name: "reconnected marks the queue attached", event: ListenerEventReconnected, wantConnected: 1},
+		{name: "disconnected marks the queue detached", event: ListenerEventDisconnected, wantConnected: 0},
+		{name: "connect failure marks the queue detached", event: ListenerEventConnectFailed, wantConnected: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobListenerEventsTotal.Reset()
+			jobListenerConnected.Reset()
+
+			recorder := NewPrometheusRecorder()
+			params := &MetricRecorderParams{QueueName: "performance", ListenerEvent: tt.event}
+
+			recorder.RecordJobListenerEvent(params)
+
+			counter := jobListenerEventsTotal.WithLabelValues(params.QueueName, tt.event)
+			assert.Equal(t, float64(1), testutil.ToFloat64(counter), "the event must be counted")
+			gauge := jobListenerConnected.WithLabelValues(params.QueueName)
+			assert.Equal(t, tt.wantConnected, testutil.ToFloat64(gauge), "the connected gauge must track the event")
+		})
+	}
+}
+
+// TestPrometheusRecorder_RecordJobListenerEvent_RecoveryClearsGauge covers the
+// transition that matters most for alerting: an outage followed by a reconnect has
+// to clear the gauge, otherwise every recovered queue stays alarming.
+func TestPrometheusRecorder_RecordJobListenerEvent_RecoveryClearsGauge(t *testing.T) {
+	jobListenerEventsTotal.Reset()
+	jobListenerConnected.Reset()
+
+	recorder := NewPrometheusRecorder()
+	gauge := jobListenerConnected.WithLabelValues("performance")
+
+	recorder.RecordJobListenerEvent(&MetricRecorderParams{QueueName: "performance", ListenerEvent: ListenerEventConnectFailed})
+	require.Equal(t, float64(0), testutil.ToFloat64(gauge))
+
+	recorder.RecordJobListenerEvent(&MetricRecorderParams{QueueName: "performance", ListenerEvent: ListenerEventReconnected})
+	assert.Equal(t, float64(1), testutil.ToFloat64(gauge))
+}
+
+// TestPrometheusRecorder_RecordJobListenerEvent_UnknownEventLeavesGauge keeps an
+// unrecognised event from silently flipping the connection state.
+func TestPrometheusRecorder_RecordJobListenerEvent_UnknownEventLeavesGauge(t *testing.T) {
+	jobListenerEventsTotal.Reset()
+	jobListenerConnected.Reset()
+
+	recorder := NewPrometheusRecorder()
+	gauge := jobListenerConnected.WithLabelValues("performance")
+
+	recorder.RecordJobListenerEvent(&MetricRecorderParams{QueueName: "performance", ListenerEvent: ListenerEventConnected})
+	require.Equal(t, float64(1), testutil.ToFloat64(gauge))
+
+	recorder.RecordJobListenerEvent(&MetricRecorderParams{QueueName: "performance", ListenerEvent: "something_new"})
+	assert.Equal(t, float64(1), testutil.ToFloat64(gauge), "an unknown event must not change the connection state")
 }
 
 func TestPrometheusRecorder_RecordSinkDelivered(t *testing.T) {

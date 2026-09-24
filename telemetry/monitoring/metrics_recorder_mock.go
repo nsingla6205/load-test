@@ -3,7 +3,7 @@
 package monitoring
 
 import (
-	"time"
+	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -219,6 +219,72 @@ func (_c *MockMetricsRecorder_RecordJobEnqueued_Call) RunAndReturn(run func(*Met
 	return _c
 }
 
+// RecordJobListenerEvent provides a mock function with given fields: params
+func (_m *MockMetricsRecorder) RecordJobListenerEvent(params *MetricRecorderParams) {
+	_m.Called(params)
+}
+
+// MockMetricsRecorder_RecordJobListenerEvent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordJobListenerEvent'
+type MockMetricsRecorder_RecordJobListenerEvent_Call struct {
+	*mock.Call
+}
+
+// RecordJobListenerEvent is a helper method to define mock.On call
+//   - params *MetricRecorderParams
+func (_e *MockMetricsRecorder_Expecter) RecordJobListenerEvent(params interface{}) *MockMetricsRecorder_RecordJobListenerEvent_Call {
+	return &MockMetricsRecorder_RecordJobListenerEvent_Call{Call: _e.mock.On("RecordJobListenerEvent", params)}
+}
+
+func (_c *MockMetricsRecorder_RecordJobListenerEvent_Call) Run(run func(params *MetricRecorderParams)) *MockMetricsRecorder_RecordJobListenerEvent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*MetricRecorderParams))
+	})
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobListenerEvent_Call) Return() *MockMetricsRecorder_RecordJobListenerEvent_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobListenerEvent_Call) RunAndReturn(run func(*MetricRecorderParams)) *MockMetricsRecorder_RecordJobListenerEvent_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RecordJobNotifyFailed provides a mock function with given fields: params
+func (_m *MockMetricsRecorder) RecordJobNotifyFailed(params *MetricRecorderParams) {
+	_m.Called(params)
+}
+
+// MockMetricsRecorder_RecordJobNotifyFailed_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordJobNotifyFailed'
+type MockMetricsRecorder_RecordJobNotifyFailed_Call struct {
+	*mock.Call
+}
+
+// RecordJobNotifyFailed is a helper method to define mock.On call
+//   - params *MetricRecorderParams
+func (_e *MockMetricsRecorder_Expecter) RecordJobNotifyFailed(params interface{}) *MockMetricsRecorder_RecordJobNotifyFailed_Call {
+	return &MockMetricsRecorder_RecordJobNotifyFailed_Call{Call: _e.mock.On("RecordJobNotifyFailed", params)}
+}
+
+func (_c *MockMetricsRecorder_RecordJobNotifyFailed_Call) Run(run func(params *MetricRecorderParams)) *MockMetricsRecorder_RecordJobNotifyFailed_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*MetricRecorderParams))
+	})
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobNotifyFailed_Call) Return() *MockMetricsRecorder_RecordJobNotifyFailed_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobNotifyFailed_Call) RunAndReturn(run func(*MetricRecorderParams)) *MockMetricsRecorder_RecordJobNotifyFailed_Call {
+	_c.Run(run)
+	return _c
+}
+
 // RecordJobProcessed provides a mock function with given fields: params
 func (_m *MockMetricsRecorder) RecordJobProcessed(params *MetricRecorderParams) {
 	_m.Called(params)
@@ -318,6 +384,41 @@ func (_c *MockMetricsRecorder_RecordJobRetriesExhausted_Call) RunAndReturn(run f
 	return _c
 }
 
+// RecordReportSuccess provides a mock function with given fields: report, sinkType, completedAt
+func (_m *MockMetricsRecorder) RecordReportSuccess(report string, sinkType string, completedAt time.Time) {
+	_m.Called(report, sinkType, completedAt)
+}
+
+// MockMetricsRecorder_RecordReportSuccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordReportSuccess'
+type MockMetricsRecorder_RecordReportSuccess_Call struct {
+	*mock.Call
+}
+
+// RecordReportSuccess is a helper method to define mock.On call
+//   - report string
+//   - sinkType string
+//   - completedAt time.Time
+func (_e *MockMetricsRecorder_Expecter) RecordReportSuccess(report interface{}, sinkType interface{}, completedAt interface{}) *MockMetricsRecorder_RecordReportSuccess_Call {
+	return &MockMetricsRecorder_RecordReportSuccess_Call{Call: _e.mock.On("RecordReportSuccess", report, sinkType, completedAt)}
+}
+
+func (_c *MockMetricsRecorder_RecordReportSuccess_Call) Run(run func(report string, sinkType string, completedAt time.Time)) *MockMetricsRecorder_RecordReportSuccess_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordReportSuccess_Call) Return() *MockMetricsRecorder_RecordReportSuccess_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordReportSuccess_Call) RunAndReturn(run func(string, string, time.Time)) *MockMetricsRecorder_RecordReportSuccess_Call {
+	_c.Run(run)
+	return _c
+}
+
 // RecordSinkDelivered provides a mock function with given fields: params
 func (_m *MockMetricsRecorder) RecordSinkDelivered(params *MetricRecorderParams) {
 	_m.Called(params)
@@ -347,41 +448,6 @@ func (_c *MockMetricsRecorder_RecordSinkDelivered_Call) Return() *MockMetricsRec
 }
 
 func (_c *MockMetricsRecorder_RecordSinkDelivered_Call) RunAndReturn(run func(*MetricRecorderParams)) *MockMetricsRecorder_RecordSinkDelivered_Call {
-	_c.Run(run)
-	return _c
-}
-
-// RecordReportSuccess provides a mock function with given fields: report, sinkType, completedAt
-func (_m *MockMetricsRecorder) RecordReportSuccess(report, sinkType string, completedAt time.Time) {
-	_m.Called(report, sinkType, completedAt)
-}
-
-// MockMetricsRecorder_RecordReportSuccess_Call is a *mock.Call that shadows Run/Return methods for method 'RecordReportSuccess'
-type MockMetricsRecorder_RecordReportSuccess_Call struct {
-	*mock.Call
-}
-
-// RecordReportSuccess is a helper method to define mock.On call
-//   - report string
-//   - sinkType string
-//   - completedAt time.Time
-func (_e *MockMetricsRecorder_Expecter) RecordReportSuccess(report, sinkType, completedAt interface{}) *MockMetricsRecorder_RecordReportSuccess_Call {
-	return &MockMetricsRecorder_RecordReportSuccess_Call{Call: _e.mock.On("RecordReportSuccess", report, sinkType, completedAt)}
-}
-
-func (_c *MockMetricsRecorder_RecordReportSuccess_Call) Run(run func(report, sinkType string, completedAt time.Time)) *MockMetricsRecorder_RecordReportSuccess_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(time.Time))
-	})
-	return _c
-}
-
-func (_c *MockMetricsRecorder_RecordReportSuccess_Call) Return() *MockMetricsRecorder_RecordReportSuccess_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockMetricsRecorder_RecordReportSuccess_Call) RunAndReturn(run func(string, string, time.Time)) *MockMetricsRecorder_RecordReportSuccess_Call {
 	_c.Run(run)
 	return _c
 }

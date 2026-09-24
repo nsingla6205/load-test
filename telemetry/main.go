@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/connection"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/aggregator"
 	api "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/api/endpoints"
 	coreapiserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/api/telemetry-servergen"
@@ -117,7 +118,7 @@ func main() {
 	bizopsProvider := bizops.NewBizOpsProvider(telemetryDbConn, VCPDbConn, bizopsSink)
 	metricsProcessor := processor.NewMetricsProcessor(VCPDbConn, telemetryDbConn, googleSink, provider, billingProvider, bizopsProvider, metricsRecorder)
 
-	queue := utils.NewQueue(tdb, &metricsProcessor, metricsRecorder)
+	queue := utils.NewQueueWithConfig(tdb, &metricsProcessor, metricsRecorder, jobQueueConfig(logger))
 	if err := queue.RestoreBizOpsReportFreshness(signalCtx); err != nil {
 		logger.Warnf("Failed to restore BizOps report freshness: %v", err)
 	}
@@ -204,11 +205,45 @@ func main() {
 	logTelemetryWorkerStartup(logger, telemetryConfig)
 
 	drainResult := <-shutdownDone
+	queue.Shutdown()
 	if err := eg.Wait(); err != nil {
 		logger.Error("Server error", "error", err.Error())
 		os.Exit(1)
 	}
 	logShutdownDrainResult(logger, drainResult)
+}
+
+// listenerConnectTimeoutSec is the connect_timeout for LISTEN sessions.
+// Without it, each failed TCP attempt blocks for ~120s (OS default), delaying
+// pq's reconnect ladder after a DB restart.
+const listenerConnectTimeoutSec = 10
+
+// jobQueueConfig builds the job queue configuration and sets NotifyDSN for
+// Postgres. The DSN is kept out of the shared GORM pool because LISTEN sessions
+// hold a connection open indefinitely. Non-Postgres deployments get no DSN and
+// rely on the fallback ticker.
+func jobQueueConfig(logger log.Logger) utils.JobQueueConfig {
+	config := utils.DefaultJobQueueConfig()
+
+	dbConfig := connection.GetMetricsDBConfig(common.LoadConfig())
+	if dbConfig.Type != dbutils.Postgres {
+		return config
+	}
+
+	// Default to a fast-fail timeout if none is set; 0 means wait for the OS
+	// TCP timeout (~120s) on every failed attempt.
+	if dbConfig.ConnectionTimeout == 0 {
+		dbConfig.ConnectionTimeout = listenerConnectTimeoutSec
+	}
+
+	dsn, err := dbutils.PostgresDSN(dbConfig, false)
+	if err != nil {
+		logger.Warnf("Failed to build telemetry DSN for job queue notifications, falling back to polling: %v", err)
+		return config
+	}
+	config.NotifyDSN = dsn
+
+	return config
 }
 
 func runWorkerOnce(pollCtx, jobCtx context.Context, logger log.Logger, name string, fn func(context.Context, context.Context) error) (panicked bool) {

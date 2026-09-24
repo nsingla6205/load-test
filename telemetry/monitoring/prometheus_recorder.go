@@ -57,6 +57,24 @@ func (p *PrometheusRecorder) RecordJobRetriesExhausted(params *MetricRecorderPar
 	jobsRetriesExhaustedTotal.WithLabelValues(params.QueueName, params.JobType).Inc()
 }
 
+func (p *PrometheusRecorder) RecordJobNotifyFailed(params *MetricRecorderParams) {
+	jobsNotifyFailedTotal.WithLabelValues(params.QueueName).Inc()
+}
+
+// RecordJobListenerEvent counts the transition and keeps the connected gauge in
+// step, so a session that never attaches is visible as a level rather than only
+// as a rate of failures.
+func (p *PrometheusRecorder) RecordJobListenerEvent(params *MetricRecorderParams) {
+	jobListenerEventsTotal.WithLabelValues(params.QueueName, params.ListenerEvent).Inc()
+
+	switch params.ListenerEvent {
+	case ListenerEventConnected, ListenerEventReconnected:
+		jobListenerConnected.WithLabelValues(params.QueueName).Set(1)
+	case ListenerEventDisconnected, ListenerEventConnectFailed:
+		jobListenerConnected.WithLabelValues(params.QueueName).Set(0)
+	}
+}
+
 func (p *PrometheusRecorder) RecordSinkDelivered(params *MetricRecorderParams) {
 	if params.FailedQuantity > 0 {
 		sinkDeliveredTotal.WithLabelValues(params.SinkType, sinkDeliveryStatusFailure).Add(params.FailedQuantity)
