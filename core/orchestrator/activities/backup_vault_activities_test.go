@@ -26,6 +26,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	retryutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/testsuite"
 )
 
 // Note: The GCP service functions are complex to mock due to their direct integration with Google Cloud Storage.
@@ -727,6 +728,57 @@ func TestWaitForSDECmekRotationCompletion_ListError(t *testing.T) {
 	appErr, ok2 := err.(*temporal.ApplicationError)
 	assert.True(t, ok2)
 	assert.Equal(t, "V1betaListBackupVaultsError", appErr.Type())
+}
+
+// TestWaitForSDECmekRotationCompletion_InProgressThenCompleted drives a non-terminal
+// poll so the heartbeat that keeps an evicted worker detectable is exercised. It runs
+// through the Temporal activity environment because activity.RecordHeartbeat panics
+// outside an activity context, and takes ~10s for the loop's sleep between polls.
+func TestWaitForSDECmekRotationCompletion_InProgressThenCompleted(t *testing.T) {
+	mockClient := backup_vault.NewMockClientService(t)
+
+	params := &common.BackupVaultParams{
+		Region:        "us-central1",
+		OwnerID:       "owner-1",
+		BackupVaultID: "vault-123",
+	}
+
+	listResult := func(state *string) *backup_vault.V1betaListBackupVaultsOK {
+		return &backup_vault.V1betaListBackupVaultsOK{
+			Payload: &backup_vault.V1betaListBackupVaultsOKBody{
+				BackupVaults: []*models.BackupVaultV1beta{
+					{BackupVaultID: params.BackupVaultID, EncryptionState: state},
+				},
+			},
+		}
+	}
+
+	inProgress := datamodel.EncryptionStateInProgress
+	completed := datamodel.EncryptionStateCompleted
+	mockClient.On("V1betaListBackupVaults", mock.Anything).Return(listResult(&inProgress), nil).Once()
+	mockClient.On("V1betaListBackupVaults", mock.Anything).Return(listResult(&completed), nil).Once()
+
+	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+	origCreateClient := cvpCreateClient
+	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		return *cvpClient
+	}
+	defer func() { cvpCreateClient = origCreateClient }()
+
+	bvActivity := &BackupVaultActivity{}
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.SetTestTimeout(60 * time.Second)
+	env.RegisterActivity(bvActivity.WaitForSDECmekRotationCompletion)
+
+	encoded, err := env.ExecuteActivity(bvActivity.WaitForSDECmekRotationCompletion, params)
+	require.NoError(t, err)
+
+	var rotationSucceeded bool
+	require.NoError(t, encoded.Get(&rotationSucceeded))
+	assert.True(t, rotationSucceeded)
+	mockClient.AssertExpectations(t)
 }
 
 func TestUpdateBackupVault(tt *testing.T) {

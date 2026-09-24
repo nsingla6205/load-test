@@ -1,7 +1,9 @@
 package workflows
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -13,6 +15,8 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -1284,12 +1288,23 @@ func (s *BackupVaultWorkflowsTestSuite) Test_RotateCmekBackupsWorkflow_InRegion_
 	s.env.OnActivity(backupVaultActivity.WaitForSDECmekRotationCompletion, mock.Anything, mock.Anything).Return(true, nil)
 	s.env.OnActivity(backupVaultActivity.UpdateBackupVaultCmekInVCPActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
+	heartbeatTimeouts := map[string]time.Duration{}
+	s.env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		heartbeatTimeouts[info.ActivityType.Name] = info.HeartbeatTimeout
+	})
+
 	s.env.ExecuteWorkflow(RotateCmekBackupsWorkflow, params, backupVault, primaryKeyVersion)
 
 	_, err := s.env.QueryWorkflowByID("default-test-workflow-id", "status")
 	assert.Nil(s.T(), err)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Nil(s.T(), s.env.GetWorkflowError())
+	retryPolicy, err := PopulateRetryPolicyParams()
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), retryPolicy.HeartBeatTimeout, heartbeatTimeouts["WaitForSDECmekRotationCompletion"],
+		"the SDE wait activity must have a heartbeat timeout so an evicted worker is detected before StartToCloseTimeout")
+	assert.Zero(s.T(), heartbeatTimeouts["RotateBucketCmekActivity"],
+		"RotateBucketCmekActivity does not heartbeat and must not be given a heartbeat timeout")
 }
 
 func (s *BackupVaultWorkflowsTestSuite) Test_RotateCmekBackupsWorkflow_InRegion_SDEFailure() {

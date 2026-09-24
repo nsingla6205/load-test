@@ -233,7 +233,12 @@ func (wf *backupVaultCmekRotationWorkflow) Run(ctx workflow.Context, args ...int
 			return nil, ConvertToVSAError(fmt.Errorf("StartSDECmekRotationForBackupVault failed: %w", err))
 		}
 
-		err = workflow.ExecuteActivity(rotateCtx, backupVaultActivity.WaitForSDECmekRotationCompletion, bvCommonParams).Get(rotateCtx, &sdeSucceeded)
+		// Scoped to this activity only: it heartbeats on every poll, whereas
+		// RotateBucketCmekActivity on rotateCtx does not and would be killed by a
+		// heartbeat timeout. Without it a worker lost mid-poll goes undetected until
+		// StartToCloseTimeout (days), leaving the job in PROCESSING.
+		waitCtx := workflow.WithHeartbeatTimeout(rotateCtx, retryPolicy.HeartBeatTimeout)
+		err = workflow.ExecuteActivity(waitCtx, backupVaultActivity.WaitForSDECmekRotationCompletion, bvCommonParams).Get(waitCtx, &sdeSucceeded)
 		if err != nil {
 			logger.Error("Failed while waiting for SDE CMEK rotation completion",
 				"backupVaultUUID", backupVault.UUID, "error", err)

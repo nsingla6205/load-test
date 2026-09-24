@@ -23,6 +23,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	retryutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
 
@@ -295,6 +296,7 @@ func (j *BackupVaultActivity) WaitForSDECmekRotationCompletion(ctx context.Conte
 		}
 
 		// No terminal state yet; wait and retry.
+		activity.RecordHeartbeat(ctx, attempt)
 		time.Sleep(sleepSec * time.Second)
 	}
 
