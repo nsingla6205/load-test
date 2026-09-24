@@ -2,6 +2,7 @@ package vcm_workflows
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -22,6 +23,7 @@ type VcmVolumeChildWorkflowParams struct {
 	Node              *models.Node
 	VolCreateResponse *vsa.VolumeResponse
 	HostGroupNames    []string
+	Deadline          time.Time
 }
 
 // selectVcmVolumeChildWorkflow selects the VCM child workflow for the given protocol and phase.
@@ -60,6 +62,9 @@ func selectVcmVolumeChildWorkflow(protocols []string, phase string) (interface{}
 // VcmPreBlockVolumeWorkflow validates referenced host groups and prepares block volume creation.
 func VcmPreBlockVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWorkflowParams) (*datamodel.Volume, error) {
 	activityCtx := ctx.WithActivityOptions(vcmVolumeActivityOptions())
+	if err := checkDeadline(ctx, params.Deadline, "validate-host-groups"); err != nil {
+		return nil, err
+	}
 	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.ValidateHostGroupsExistInONTAP, params.HostGroupNames, params.Volume.Svm.Name, params.Node).Get(activityCtx, nil); err != nil {
 		return nil, err
 	}
@@ -71,6 +76,9 @@ func VcmPreBlockVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildW
 func VcmPreFileVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWorkflowParams) (*datamodel.Volume, error) {
 	activityCtx := ctx.WithActivityOptions(vcmVolumeActivityOptions())
 
+	if err := checkDeadline(ctx, params.Deadline, "get-ontap-cluster-health"); err != nil {
+		return nil, err
+	}
 	var isOntapClusterHealthy *bool
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeCreateActivity.GetOntapClusterHealth, params.Node).Get(activityCtx, &isOntapClusterHealthy); err != nil {
 		return nil, err
@@ -79,6 +87,9 @@ func VcmPreFileVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWo
 		return nil, fmt.Errorf("ONTAP cluster is down")
 	}
 
+	if err := checkDeadline(ctx, params.Deadline, "create-export-policy"); err != nil {
+		return nil, err
+	}
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeCreateActivity.CreateExportPolicyInOntap, params.Volume, params.Node).Get(activityCtx, nil); err != nil {
 		return nil, err
 	}
@@ -90,11 +101,17 @@ func VcmPreFileVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWo
 func VcmPostBlockVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWorkflowParams) (*datamodel.Volume, error) {
 	activityCtx := ctx.WithActivityOptions(vcmVolumeActivityOptions())
 
+	if err := checkDeadline(ctx, params.Deadline, "create-lun"); err != nil {
+		return nil, err
+	}
 	var lun vsa.LunResponse
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeCreateActivity.CreateLun, params.Volume, params.Node, params.VolCreateResponse.AvailableSpace).Get(activityCtx, &lun); err != nil {
 		return nil, err
 	}
 
+	if err := checkDeadline(ctx, params.Deadline, "create-lun-map"); err != nil {
+		return nil, err
+	}
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeCreateActivity.CreateLunMap, params.Volume, &common.CreateLunMapParams{
 		LunName:   lun.Name,
 		SvmName:   params.Volume.Svm.Name,
@@ -120,11 +137,17 @@ func VcmPostBlockVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChild
 // VcmPostFileVolumeWorkflow handles post-provisioning for VCM NFS file volumes.
 // TODO(VCM): implement NFS post steps (AD/LDAP-dependent flows) when VCM pool support lands.
 func VcmPostFileVolumeWorkflow(ctx *orchestrator.Context, params VcmVolumeChildWorkflowParams) (*datamodel.Volume, error) {
+	if err := checkDeadline(ctx, params.Deadline, "post-file-volume"); err != nil {
+		return nil, err
+	}
 	return params.Volume, nil
 }
 
 // VcmPostFileVolumeWorkflowForSMB handles post-provisioning for VCM SMB file volumes.
 // TODO(VCM): implement SMB share creation when VCM SMB flows are enabled.
 func VcmPostFileVolumeWorkflowForSMB(ctx *orchestrator.Context, params VcmVolumeChildWorkflowParams) (*datamodel.Volume, error) {
+	if err := checkDeadline(ctx, params.Deadline, "post-file-volume-smb"); err != nil {
+		return nil, err
+	}
 	return params.Volume, nil
 }

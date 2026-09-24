@@ -46,6 +46,7 @@ type Provider interface {
 	DeleteVolume(volumeUUID, volumeName string) error
 	DeleteFlexCacheVolume(volumeUUID, name string) (*OntapAsyncResponse, error)
 	GetVolume(params GetVolumeParams) (*VolumeResponse, error)
+	ListVolumesForSVM(svmName string) ([]*VolumeResponse, error)
 	GetVolumeForExpertMode(params GetVolumeParams) (*VolumeResponse, error)
 	GetCloneVolumeForExpertMode(params GetVolumeParams) (*VolumeResponse, error)
 	GetVolumeNASDetails(volumeUUID string) (*VolumeNASDetails, error)
@@ -64,6 +65,7 @@ type Provider interface {
 	IgroupDelete(uuid string) error
 	IgroupGet(name, svm *string) (*ontapRest.Igroup, error)
 	IgroupList(svm *string) ([]*ontapRest.Igroup, error)
+	IgroupNamesForLunUUID(svmName, lunUUID string) ([]string, error)
 	IgroupExists(name string, svm *string) (bool, *ontapRest.Igroup, error)
 	LunCreate(params LunCreateParams) (*LunResponse, error)
 	LunGet(params LunGetParams) (*LunResponse, error)
@@ -128,6 +130,7 @@ type Provider interface {
 	SnapmirrorObjectStoreSnapshotGet(objectStoreUUID, EndpointUUID, snapshotUUID string) (*SmObjectStoreEndpointSnapshot, error)
 	ObjectStoreEndpointInfoGet(objectStoreUUID, EndpointUUID string) (*SmObjectStoreEndpointt, error)
 	CreateSnapshotPolicy(sp *SnapshotPolicy) error
+	GetSnapshotPolicy(snapshotPolicyName string) (*SnapshotPolicy, error)
 	DeleteSnapshotPolicy(snapshotPolicyName string) error
 	CreateKmsConfig(params CreateKmsConfigParams) (*CreateKmsConfigResponse, error)
 	DeleteEkmConfig(params DeleteKmsConfigParams) error
@@ -147,6 +150,7 @@ type Provider interface {
 	UpdateQoSGroupPolicy(params UpdateQoSGroupPolicyParams) error
 	DeleteQoSGroupPolicy(params DeleteQoSGroupPolicyParams) error
 	CreateExportPolicy(params *ExportPolicy) error
+	GetExportPolicy(exportPolicyName, svmName string) (*ExportPolicy, error)
 	UpdateExportPolicyRules(params UpdateExportPolicyRulesParams) error
 	GetExportPolicyProtocols(policyName, svmName string) ([]string, error)
 	DeleteExportPolicy(params *ExportPolicy) error

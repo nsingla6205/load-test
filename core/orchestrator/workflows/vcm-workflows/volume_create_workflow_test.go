@@ -84,10 +84,16 @@ func registerBlockVolumeCreateActivities(
 	reg.RegisterActivity(volume.CreateLun)
 	reg.RegisterActivity(volume.CreateLunMap)
 	reg.RegisterActivity((&stubVolumeUpdateActivity{}).GetVolumeFromONTAP)
+	registerVcmBuildVolumeOperationEnrichment(reg)
 }
 
 func registerVcmGetVolumeFromONTAP(reg orchestrator.WorkflowRegistrar) {
 	reg.RegisterActivity((&stubVolumeUpdateActivity{}).GetVolumeFromONTAP)
+	registerVcmBuildVolumeOperationEnrichment(reg)
+}
+
+func registerVcmBuildVolumeOperationEnrichment(reg orchestrator.WorkflowRegistrar) {
+	reg.RegisterActivity((&updateWorkflowVCMVolumeActivity{}).BuildVolumeOperationResponseEnrichment)
 }
 
 func (s *stubVolumeCreateBlockActivity) CreateLun(context.Context, *datamodel.Volume, *models.Node, int64) (*vsa.LunResponse, error) {
@@ -201,9 +207,21 @@ func runVcmCreateVolumeWorkflow(
 	if instanceID == "" {
 		instanceID = uuid.NewString()
 	}
+	expectedSvmName := ""
+	if volume != nil && volume.Svm != nil {
+		expectedSvmName = volume.Svm.Name
+	}
+	deadline := time.Now().UTC().Add(time.Hour)
+	if params != nil && !params.Deadline.IsZero() {
+		deadline = params.Deadline.UTC()
+	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
-	}, gowfbackend.FuncName(VcmCreateVolumeWorkflow), volume, node, params)
+	}, gowfbackend.FuncName(VcmCreateVolumeWorkflow), volume, common.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        deadline,
+	}, params)
 	require.NoError(t, err)
 
 	_, err = cclient.GetWorkflowResult[json.RawMessage](ctx, runner.Client(), wfi, volumeWorkflowTestTimeout)
@@ -353,7 +371,7 @@ func TestVcmCreateVolumeWorkflow_Success(t *testing.T) {
 	require.Len(t, calls, 2)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
-	assert.JSONEq(t, `{"volume":{"uuid":"vol-uuid-1","name":"vol-1","sizeInBytes":107374182400,"usedBytes":1409024,"snapReserve":20,"snapshotDirectory":false}}`, calls[1].responsePayload)
+	assert.JSONEq(t, `{"uuid":"vol-uuid-1","name":"vol-1","sizeInBytes":107374182400,"usedBytes":1409024,"snapReserve":20,"snapshotDirectory":false,"securityStyle":"UNIX","shareName":"nfs-vol","unixPermissions":"0755"}`, calls[1].responsePayload)
 }
 
 func TestVcmCreateVolumeWorkflow_MissingHostGroupFailsBeforeVolumeCreate(t *testing.T) {

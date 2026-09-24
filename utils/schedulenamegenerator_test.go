@@ -28,6 +28,25 @@ func TestConvertDaysOfWeekToIntArray_RejectsDuplicateDays(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestConvertDaysOfWeekFromIntArray(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []int
+		want string
+	}{
+		{name: "valid weekdays", in: []int{1, 2, 3}, want: "Monday,Tuesday,Wednesday"},
+		{name: "empty defaults to Sunday", in: []int{}, want: "Sunday"},
+		{name: "nil defaults to Sunday", in: nil, want: "Sunday"},
+		{name: "ignores invalid ints", in: []int{-1, 0, 6, 7}, want: "Sunday,Saturday"},
+		{name: "all weekdays", in: []int{0, 1, 2, 3, 4, 5, 6}, want: "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ConvertDaysOfWeekFromIntArray(tt.in))
+		})
+	}
+}
+
 func TestGenerateWeekdayPartOfScheduleName(t *testing.T) {
 	assert.Equal(t, "sunday", GenerateWeekdayPartOfScheduleName([]int{0}))
 	assert.Equal(t, "monday+tuesday", GenerateWeekdayPartOfScheduleName([]int{1, 2}))

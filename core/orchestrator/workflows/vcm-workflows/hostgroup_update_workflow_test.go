@@ -6,12 +6,14 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	cclient "github.com/cschleiden/go-workflows/client"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
@@ -86,7 +88,11 @@ func runVcmUpdateHostGroupWorkflow(
 	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
-	}, gowfbackend.FuncName(VcmUpdateHostGroupWorkflow), node, igroupName, hosts, expectedSvmName)
+	}, gowfbackend.FuncName(VcmUpdateHostGroupWorkflow), common.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        time.Now().UTC().Add(time.Hour),
+	}, igroupName, hosts)
 	require.NoError(t, err)
 
 	_, err = cclient.GetWorkflowResult[json.RawMessage](ctx, runner.Client(), wfi, hostGroupWorkflowTestTimeout)
@@ -114,7 +120,7 @@ func TestVcmUpdateHostGroupWorkflow_Success(t *testing.T) {
 	assert.Equal(t, operationID, calls[0].jobID)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
-	assert.JSONEq(t, `{"igroups":{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1","iqn.1998-01.com.vmware:db2"],"osType":"LINUX"}}`, calls[1].responsePayload)
+	assert.JSONEq(t, `{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1","iqn.1998-01.com.vmware:db2"],"osType":"LINUX"}`, calls[1].responsePayload)
 
 	updateCalls, igroups, hostsArgs, svms := updater.snapshot()
 	assert.Equal(t, 1, updateCalls)

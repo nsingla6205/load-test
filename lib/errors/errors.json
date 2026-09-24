@@ -133,7 +133,7 @@
   },
   "1023": {
     "description": "Operation deadline exceeded",
-    "message": "The operation timed out before completing.",
+    "message": "The operation timed out. Please try again.",
     "retriable": false,
     "http_code": 504
   },

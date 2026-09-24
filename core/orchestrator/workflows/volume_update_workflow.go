@@ -11,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/flexcache_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -268,7 +269,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 
 	// Update the snapshot policy if it is provided in the params
 	if params.SnapshotPolicy != nil && params.SnapshotPolicy.Name != "" && !volume.VolumeAttributes.IsDataProtection {
-		updatingPolicy := populateSnapshotPolicyFromParams(params.SnapshotPolicy)
+		updatingPolicy := factorycommon.PopulateSnapshotPolicyFromParams(params.SnapshotPolicy)
 
 		// If the volume does not have an existing snapshot policy, we need to create a new one using the provided snapshot policy
 		if volume.SnapshotPolicy == nil || volume.SnapshotPolicy.Name == "" {
@@ -321,7 +322,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			volume.UUID, params.QuotaInBytes, volResponse.UsedBytes)
 	}
 
-	if isUpdateRequired(volResponse, params, volume) {
+	if factorycommon.IsVolumeUpdateRequired(volResponse, params, volume) {
 		rollbackManager.AddActivity(updateActivity.UpdateVolumeInONTAP, volume, getUpdateParamsForRollback(volResponse, volume), node)
 		if err = orchestrator.RunActivity(orchCtx, updateActivity.UpdateVolumeInONTAP, nil, volume, params, node); err != nil {
 			return nil, ConvertToVSAError(err)
@@ -495,7 +496,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			volume.VolumeAttributes.FileProperties.JunctionPath = params.FileProperties.JunctionPath
 		}
 		// Update export policy rules only if it is provided in the params
-		if params.FileProperties != nil && isExportPolicyRulesUpdateRequired(volume.VolumeAttributes.FileProperties.ExportPolicy, params.FileProperties.ExportPolicy) {
+		if params.FileProperties != nil && factorycommon.IsExportPolicyRulesUpdateRequired(volume.VolumeAttributes.FileProperties.ExportPolicy, params.FileProperties.ExportPolicy) {
 			if params.FileProperties.ExportPolicy == nil {
 				params.FileProperties.ExportPolicy = &models.ExportPolicy{}
 			}
@@ -944,154 +945,6 @@ func updateOrAddBlockDevice(
 	}
 	// BlockDevice not found, append new one
 	params.BlockDevices = append(params.BlockDevices, blockDevice)
-}
-
-func isExportPolicyRulesUpdateRequired(currentPolicy *datamodel.ExportPolicy, updatePolicy *models.ExportPolicy) bool {
-	if currentPolicy == nil && updatePolicy != nil {
-		return true
-	}
-	if currentPolicy != nil && len(currentPolicy.ExportRules) == 0 && updatePolicy == nil {
-		return false
-	}
-	if currentPolicy != nil && len(currentPolicy.ExportRules) > 0 && updatePolicy == nil {
-		return true
-	}
-	if currentPolicy == nil && updatePolicy == nil {
-		return false
-	}
-	if updatePolicy.ExportPolicyName != "" && currentPolicy.ExportPolicyName != updatePolicy.ExportPolicyName {
-		return false
-	}
-	if len(currentPolicy.ExportRules) != len(updatePolicy.ExportRules) {
-		return true
-	}
-	// For each rule in updatePolicy, find a matching rule in currentPolicy
-	for _, updateRule := range updatePolicy.ExportRules {
-		found := false
-		for _, currentRule := range currentPolicy.ExportRules {
-			if rulesEqual(currentRule, updateRule) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return true
-		}
-	}
-
-	// Also check the reverse: for each rule in currentPolicy, find a matching rule in updatePolicy
-	for _, currentRule := range currentPolicy.ExportRules {
-		found := false
-		for _, updateRule := range updatePolicy.ExportRules {
-			if rulesEqual(currentRule, updateRule) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Helper function to compare two export rules
-func rulesEqual(currentRule *datamodel.ExportRule, updateRule *models.ExportRule) bool {
-	// Compare the fields that matter for equality
-	// Adjust these field names to match your actual struct fields
-	return currentRule.AllowedClients == updateRule.AllowedClients &&
-		currentRule.AnonymousUser == updateRule.AnonymousUser &&
-		currentRule.AccessType == updateRule.AccessType &&
-		currentRule.CIFS == updateRule.CIFS &&
-		currentRule.NFSv3 == updateRule.NFSv3 &&
-		currentRule.NFSv4 == updateRule.NFSv4 &&
-		currentRule.S3 == updateRule.S3 &&
-		currentRule.UnixReadOnly == updateRule.UnixReadOnly &&
-		currentRule.UnixReadWrite == updateRule.UnixReadWrite &&
-		currentRule.Kerberos5ReadOnly == updateRule.Kerberos5ReadOnly &&
-		currentRule.Kerberos5ReadWrite == updateRule.Kerberos5ReadWrite &&
-		currentRule.Kerberos5iReadOnly == updateRule.Kerberos5iReadOnly &&
-		currentRule.Kerberos5iReadWrite == updateRule.Kerberos5iReadWrite &&
-		currentRule.Kerberos5pReadOnly == updateRule.Kerberos5pReadOnly &&
-		currentRule.Kerberos5pReadWrite == updateRule.Kerberos5pReadWrite &&
-		currentRule.Superuser == updateRule.Superuser &&
-		ptrBoolEqual(currentRule.AllSquash, updateRule.AllSquash) &&
-		ptrInt64Equal(currentRule.AnonUid, updateRule.AnonUid)
-}
-
-// ptrBoolEqual returns true if both pointers are nil or both point to the same bool value.
-func ptrBoolEqual(currentRule, update *bool) bool {
-	if currentRule == nil && update == nil {
-		return true
-	}
-	if currentRule == nil || update == nil {
-		return false
-	}
-	return *currentRule == *update
-}
-
-// ptrInt64Equal returns true if both pointers are nil or both point to the same int64 value.
-func ptrInt64Equal(currentValue, updateValue *int64) bool {
-	if currentValue == nil && updateValue == nil {
-		return true
-	}
-	if currentValue == nil || updateValue == nil {
-		return false
-	}
-	return *currentValue == *updateValue
-}
-
-func populateSnapshotPolicyFromParams(params *models.SnapshotPolicy) *datamodel.SnapshotPolicy {
-	snapshotPolicy := &datamodel.SnapshotPolicy{
-		Name:      params.Name,
-		IsEnabled: params.IsEnabled,
-		Schedules: []*datamodel.SnapshotPolicySchedule{},
-	}
-
-	for _, schedule := range params.Schedules {
-		snapshotPolicy.Schedules = append(snapshotPolicy.Schedules, &datamodel.SnapshotPolicySchedule{
-			DaysOfMonth:     schedule.Schedule.DaysOfMonth,
-			DaysOfWeek:      schedule.Schedule.DaysOfWeek,
-			Hours:           schedule.Schedule.Hours,
-			Minutes:         schedule.Schedule.Minutes,
-			Count:           schedule.Count,
-			SnapmirrorLabel: schedule.SnapmirrorLabel,
-		})
-	}
-
-	return snapshotPolicy
-}
-
-func isUpdateRequired(response *vsa.VolumeResponse, params *common.UpdateVolumeParams, existingVolume *datamodel.Volume) bool {
-	if params.QuotaInBytes > 0 && response.Size != params.QuotaInBytes {
-		return true
-	}
-	if params.SnapshotPolicy != nil && params.SnapshotPolicy.Name != response.SnapshotPolicyName {
-		return true
-	}
-	if params.SnapReserve != nil && response.SnapReserve != *params.SnapReserve {
-		return true
-	}
-	if params.SnapshotDirectoryAccess != nil && response.SnapshotDirectoryAccessEnabled != *params.SnapshotDirectoryAccess {
-		return true
-	}
-
-	if params.AutoTieringPolicy != nil {
-		if params.AutoTieringPolicy.AutoTieringEnabled != existingVolume.AutoTieringEnabled ||
-			(params.AutoTieringPolicy.AutoTieringEnabled && existingVolume.AutoTieringPolicy != nil && (params.AutoTieringPolicy.CoolingThresholdDays != existingVolume.AutoTieringPolicy.CoolingThresholdDays ||
-				params.AutoTieringPolicy.TieringPolicy != existingVolume.AutoTieringPolicy.TieringPolicy)) {
-			return true
-		}
-	}
-
-	if params.FileProperties != nil && params.FileProperties.UnixPermissions != "" && existingVolume.VolumeAttributes != nil &&
-		existingVolume.VolumeAttributes.FileProperties != nil {
-		return true
-	}
-
-	// Add checks for other fields as and when required
-	return false
 }
 
 func _isUpdateFlexCacheRequired(existingVolume *datamodel.Volume, params *common.UpdateVolumeParams) bool {

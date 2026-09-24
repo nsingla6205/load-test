@@ -20,17 +20,24 @@ import (
 
 var (
 	prepareCreateVolumeParams = _prepareCreateVolumeParams
+	prepareUpdateVolumeParams = _prepareUpdateVolumeParams
 
 	exportRulesLimit = env.GetInt("EXPORT_POLICY_RULES_LIMIT", 20)
 )
 
 // V1CreateVolume validates the request and starts VCM volume creation.
-func (h Handler) V1CreateVolume(ctx context.Context, req *vcmserver.VolumeV1, _ vcmserver.V1CreateVolumeParams) (vcmserver.V1CreateVolumeRes, error) {
+func (h Handler) V1CreateVolume(ctx context.Context, req *vcmserver.VolumeV1, queryParams vcmserver.V1CreateVolumeParams) (vcmserver.V1CreateVolumeRes, error) {
 	logger := util.GetLogger(ctx)
 
-	operationID := getOperationID()
-	deadline := getVolumeOperationDeadline()
-	params, err := prepareCreateVolumeParams(req, operationID, deadline)
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return &vcmserver.V1CreateVolumeBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	createParams, err := prepareCreateVolumeParams(req, requestID, deadline)
 	if err != nil {
 		if errors.IsUserInputValidationErr(err) {
 			return &vcmserver.V1CreateVolumeBadRequest{
@@ -45,9 +52,9 @@ func (h Handler) V1CreateVolume(ctx context.Context, req *vcmserver.VolumeV1, _ 
 		}, nil
 	}
 
-	_, _, err = h.Orchestrator.CreateVolume(ctx, params)
+	_, _, err = h.Orchestrator.CreateVolume(ctx, createParams)
 	if err != nil {
-		logger.ErrorContext(ctx, "Volume create failed", "requestId", operationID, "volumeName", req.Name, "error", err)
+		logger.ErrorContext(ctx, "Volume create failed", "requestId", requestID, "volumeName", req.Name, "error", err)
 		return &vcmserver.V1CreateVolumeInternalServerError{
 			Code:    500,
 			Message: "Internal server error",
@@ -55,7 +62,7 @@ func (h Handler) V1CreateVolume(ctx context.Context, req *vcmserver.VolumeV1, _ 
 	}
 
 	return &vcmserver.OperationV1{
-		Name: "/v1/operations/" + operationID,
+		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
 }
@@ -209,8 +216,9 @@ func _prepareCreateVolumeParams(req *vcmserver.VolumeV1, operationID string, dea
 
 	if len(req.BlockDevices) > 0 {
 		blockDevice := req.BlockDevices[0]
-		if blockDevice.OsType == vcmserver.BlockDeviceV1OsTypeOSTYPEUNSPECIFIED || blockDevice.OsType == "" {
-			return nil, errors.NewUserInputValidationErr("BlockDevice OS type is required")
+		osType, err := requiredBlockDeviceOSType(blockDevice)
+		if err != nil {
+			return nil, err
 		}
 		igroupNames, err := validateBlockDeviceIgroups(blockDevice.GetIgroups())
 		if err != nil {
@@ -220,7 +228,7 @@ func _prepareCreateVolumeParams(req *vcmserver.VolumeV1, operationID string, dea
 		param.BlockDevices = &[]commonparams.BlockDevice{
 			{
 				Name:           blockDeviceName,
-				OSType:         string(blockDevice.OsType),
+				OSType:         osType,
 				HostGroupNames: igroupNames,
 			},
 		}
@@ -344,16 +352,12 @@ func validateBlockDeviceIgroups(igroups []string) ([]string, error) {
 	return utils.DeduplicateSlice(validated), nil
 }
 
-func protocolEnumsToStringsV1(protocols []vcmserver.ProtocolsV1) []string {
-	out := make([]string, 0, len(protocols))
-	for _, protocol := range protocols {
-		protocolStr, err := protocol.MarshalText()
-		if err != nil {
-			continue
-		}
-		out = append(out, string(protocolStr))
+func requiredBlockDeviceOSType(blockDevice vcmserver.BlockDeviceV1) (string, error) {
+	osType := blockDevice.OsType
+	if osType == "" || osType == vcmserver.BlockDeviceV1OsTypeOSTYPEUNSPECIFIED {
+		return "", errors.NewUserInputValidationErr("BlockDevice OS type is required")
 	}
-	return out
+	return string(osType), nil
 }
 
 // V1DescribeVolume returns the ONTAP-backed representation of a VCM volume.
@@ -381,33 +385,240 @@ func (h Handler) V1DescribeVolume(ctx context.Context, params vcmserver.V1Descri
 			Message: "Internal server error",
 		}, nil
 	}
-	return convertModelToVolumeReadV1(volume), nil
+	return convertModelToVolumeV1(volume), nil
 }
 
-func convertModelToVolumeReadV1(volume *models.Volume) *vcmserver.VolumeReadV1 {
-	response := &vcmserver.VolumeReadV1{
-		UUID:              vcmserver.NewOptString(volume.UUID),
-		Name:              volume.DisplayName,
-		SizeInBytes:       vcmserver.NewOptFloat64(float64(volume.QuotaInBytes)),
-		SnapReserve:       vcmserver.NewOptFloat64(float64(volume.SnapReserve)),
-		SnapshotDirectory: vcmserver.NewOptBool(volume.SnapshotDirectory),
+// V1ListVolumes lists volumes from ONTAP.
+func (h Handler) V1ListVolumes(ctx context.Context, _ vcmserver.V1ListVolumesParams) (vcmserver.V1ListVolumesRes, error) {
+	logger := util.GetLogger(ctx)
+
+	// accountName is unused in VCM; list all volumes on the deployment SVM from ONTAP.
+	volumes, err := h.Orchestrator.ListVolumes(ctx, "")
+	if err != nil {
+		logger.ErrorContext(ctx, "Volume list failed", "error", err)
+		return &vcmserver.V1ListVolumesInternalServerError{
+			Code:    500,
+			Message: "Internal server error",
+		}, nil
+	}
+
+	return &vcmserver.V1ListVolumesOK{
+		Volumes: convertModelsToVolumeReadV1(volumes),
+	}, nil
+}
+
+func convertModelsToVolumeReadV1(volumes []*models.Volume) []vcmserver.VolumeReadV1 {
+	out := make([]vcmserver.VolumeReadV1, 0, len(volumes))
+	for _, volume := range volumes {
+		if converted := convertModelToVolumeReadV1(volume); converted != nil {
+			out = append(out, *converted)
+		}
+	}
+	return out
+}
+
+func isNASVolume(volume *models.Volume) bool {
+	return volume != nil &&
+		volume.FileProperties != nil &&
+		strings.TrimSpace(volume.FileProperties.JunctionPath) != ""
+}
+
+func convertModelToVolumeV1(volume *models.Volume) *vcmserver.VolumeV1 {
+	if volume == nil {
+		return nil
+	}
+
+	response := &vcmserver.VolumeV1{
+		UUID:        vcmserver.NewOptString(volume.UUID),
+		Name:        volume.DisplayName,
+		SizeInBytes: vcmserver.NewOptFloat64(float64(volume.QuotaInBytes)),
+	}
+	if volume.SnapReserve != 0 {
+		response.SnapReserve = vcmserver.NewOptFloat64(float64(volume.SnapReserve))
 	}
 	if volume.UsedBytes != 0 {
 		response.UsedBytes = vcmserver.NewOptNilFloat64(float64(volume.UsedBytes))
 	}
-	if volume.FileProperties != nil {
+	if !volume.CreatedAt.IsZero() {
+		response.Created = vcmserver.NewOptDateTime(volume.CreatedAt.UTC())
+	}
+	if isNASVolume(volume) {
+		response.SnapshotDirectory = vcmserver.NewOptBool(volume.SnapshotDirectory)
 		switch strings.ToLower(volume.FileProperties.SecurityStyle) {
-		case "unix":
-			response.SecurityStyle = vcmserver.NewOptVolumeReadV1SecurityStyle(vcmserver.VolumeReadV1SecurityStyleUNIX)
-		case "ntfs":
-			response.SecurityStyle = vcmserver.NewOptVolumeReadV1SecurityStyle(vcmserver.VolumeReadV1SecurityStyleNTFS)
+		case utils.UnixSecurityStyle:
+			response.SecurityStyle = vcmserver.NewOptVolumeV1SecurityStyle(vcmserver.VolumeV1SecurityStyleUNIX)
+		case utils.NtfsSecurityStyle:
+			response.SecurityStyle = vcmserver.NewOptVolumeV1SecurityStyle(vcmserver.VolumeV1SecurityStyleNTFS)
 		}
 		if volume.FileProperties.UnixPermissions != "" {
 			response.UnixPermissions = vcmserver.NewOptNilString(volume.FileProperties.UnixPermissions)
 		}
-		if volume.FileProperties.JunctionPath != "" {
-			response.ShareName = vcmserver.NewOptString(volume.FileProperties.JunctionPath)
+		if shareName := commonparams.ShareNameFromJunctionPath(volume.FileProperties.JunctionPath); shareName != "" {
+			response.ShareName = vcmserver.NewOptString(shareName)
 		}
+		if exportPolicy := convertModelToExportPolicyV1(volume.FileProperties.ExportPolicy); exportPolicy != nil {
+			response.ExportPolicy = vcmserver.NewOptExportPolicyV1(*exportPolicy)
+		}
+	}
+	if snapshotPolicy := convertModelToSnapshotPolicyV1(volume.SnapshotPolicy); snapshotPolicy != nil {
+		response.SnapshotPolicy = vcmserver.NewOptSnapshotPolicyV1(*snapshotPolicy)
+	}
+	if volume.BlockDevices != nil {
+		response.BlockDevices = convertModelToBlockDevicesV1(*volume.BlockDevices)
+	}
+	return response
+}
+
+func convertModelToSnapshotPolicyV1(pol *models.SnapshotPolicy) *vcmserver.SnapshotPolicyV1 {
+	if pol == nil {
+		return nil
+	}
+	result := vcmserver.SnapshotPolicyV1{
+		Enabled: vcmserver.NewOptNilBool(pol.IsEnabled),
+	}
+	for _, schedule := range pol.Schedules {
+		if schedule == nil || schedule.Schedule == nil {
+			continue
+		}
+		count := schedule.Count
+		minute := float64(0)
+		if len(schedule.Schedule.Minutes) > 0 {
+			minute = float64(schedule.Schedule.Minutes[0])
+		}
+		switch schedule.SnapmirrorLabel {
+		case utils.SnapshotScheduleLabelMonthly:
+			hour := float64(0)
+			if len(schedule.Schedule.Hours) > 0 {
+				hour = float64(schedule.Schedule.Hours[0])
+			}
+			days := make([]string, 0, len(schedule.Schedule.DaysOfMonth))
+			for _, day := range schedule.Schedule.DaysOfMonth {
+				days = append(days, strconv.Itoa(day))
+			}
+			result.MonthlySchedule = vcmserver.NewOptMonthlyScheduleV1(vcmserver.MonthlyScheduleV1{
+				SnapshotsToKeep: vcmserver.NewOptFloat64(float64(count)),
+				DaysOfMonth:     vcmserver.NewOptString(strings.Join(days, ",")),
+				Hour:            vcmserver.NewOptFloat64(hour),
+				Minute:          vcmserver.NewOptFloat64(minute),
+			})
+		case utils.SnapshotScheduleLabelWeekly:
+			hour := float64(0)
+			if len(schedule.Schedule.Hours) > 0 {
+				hour = float64(schedule.Schedule.Hours[0])
+			}
+			result.WeeklySchedule = vcmserver.NewOptWeeklyScheduleV1(vcmserver.WeeklyScheduleV1{
+				SnapshotsToKeep: vcmserver.NewOptFloat64(float64(count)),
+				Day:             vcmserver.NewOptString(utils.ConvertDaysOfWeekFromIntArray(schedule.Schedule.DaysOfWeek)),
+				Hour:            vcmserver.NewOptFloat64(hour),
+				Minute:          vcmserver.NewOptFloat64(minute),
+			})
+		case utils.SnapshotScheduleLabelDaily:
+			hour := float64(0)
+			if len(schedule.Schedule.Hours) > 0 {
+				hour = float64(schedule.Schedule.Hours[0])
+			}
+			result.DailySchedule = vcmserver.NewOptDailyScheduleV1(vcmserver.DailyScheduleV1{
+				SnapshotsToKeep: vcmserver.NewOptFloat64(float64(count)),
+				Hour:            vcmserver.NewOptFloat64(hour),
+				Minute:          vcmserver.NewOptFloat64(minute),
+			})
+		case utils.SnapshotScheduleLabelHourly:
+			result.HourlySchedule = vcmserver.NewOptHourlyScheduleV1(vcmserver.HourlyScheduleV1{
+				SnapshotsToKeep: vcmserver.NewOptFloat64(float64(count)),
+				Minute:          vcmserver.NewOptFloat64(minute),
+			})
+		}
+	}
+	return &result
+}
+
+func convertModelToExportPolicyV1(exportPolicy *models.ExportPolicy) *vcmserver.ExportPolicyV1 {
+	if exportPolicy == nil || len(exportPolicy.ExportRules) == 0 {
+		return nil
+	}
+	rules := make([]vcmserver.SimpleExportPolicyRuleV1, 0, len(exportPolicy.ExportRules))
+	for _, rule := range exportPolicy.ExportRules {
+		if rule == nil {
+			continue
+		}
+		ruleV1 := vcmserver.SimpleExportPolicyRuleV1{
+			AllowedClients:      rule.AllowedClients,
+			AccessType:          vcmserver.SimpleExportPolicyRuleV1AccessType(rule.AccessType),
+			Nfsv3:               vcmserver.NewOptNilBool(rule.NFSv3),
+			Nfsv4:               vcmserver.NewOptNilBool(rule.NFSv4),
+			Kerberos5ReadOnly:   vcmserver.NewOptNilBool(rule.Kerberos5ReadOnly),
+			Kerberos5ReadWrite:  vcmserver.NewOptNilBool(rule.Kerberos5ReadWrite),
+			Kerberos5iReadOnly:  vcmserver.NewOptNilBool(rule.Kerberos5iReadOnly),
+			Kerberos5iReadWrite: vcmserver.NewOptNilBool(rule.Kerberos5iReadWrite),
+			Kerberos5pReadOnly:  vcmserver.NewOptNilBool(rule.Kerberos5pReadOnly),
+			Kerberos5pReadWrite: vcmserver.NewOptNilBool(rule.Kerberos5pReadWrite),
+		}
+		if rule.Superuser {
+			ruleV1.HasRootAccess = vcmserver.NewOptNilSimpleExportPolicyRuleV1HasRootAccess(vcmserver.SimpleExportPolicyRuleV1HasRootAccessTrue)
+		} else {
+			ruleV1.HasRootAccess = vcmserver.NewOptNilSimpleExportPolicyRuleV1HasRootAccess(vcmserver.SimpleExportPolicyRuleV1HasRootAccessFalse)
+		}
+		if rule.AllSquash != nil {
+			ruleV1.AllSquash = vcmserver.NewOptNilBool(*rule.AllSquash)
+		}
+		if rule.AnonUid != nil {
+			ruleV1.AnonUid = vcmserver.NewOptNilInt64(*rule.AnonUid)
+		}
+		rules = append(rules, ruleV1)
+	}
+	if len(rules) == 0 {
+		return nil
+	}
+	return &vcmserver.ExportPolicyV1{Rules: rules}
+}
+
+func convertModelToBlockDevicesV1(blockDevices []models.BlockDevice) []vcmserver.BlockDeviceV1 {
+	out := make([]vcmserver.BlockDeviceV1, 0, len(blockDevices))
+	for _, blockDevice := range blockDevices {
+		device := vcmserver.BlockDeviceV1{}
+		if blockDevice.OSType != "" {
+			device.OsType = vcmserver.BlockDeviceV1OsType(utils.MapONTAPOSTypeToAPIEnum(blockDevice.OSType))
+		}
+		igroups := make([]string, 0, len(blockDevice.HostGroupDetail))
+		for _, hostGroup := range blockDevice.HostGroupDetail {
+			if hostGroup.HostGroupID != "" {
+				igroups = append(igroups, hostGroup.HostGroupID)
+			}
+		}
+		if len(igroups) > 0 {
+			device.Igroups = igroups
+		}
+		out = append(out, device)
+	}
+	return out
+}
+
+func convertModelToVolumeReadV1(volume *models.Volume) *vcmserver.VolumeReadV1 {
+	full := convertModelToVolumeV1(volume)
+	if full == nil {
+		return nil
+	}
+	response := &vcmserver.VolumeReadV1{
+		UUID:        full.UUID,
+		Name:        full.Name,
+		SizeInBytes: full.SizeInBytes,
+		UsedBytes:   full.UsedBytes,
+		Created:     full.Created,
+	}
+	if full.SnapReserve.IsSet() {
+		response.SnapReserve = full.SnapReserve
+	}
+	if full.SnapshotDirectory.IsSet() {
+		response.SnapshotDirectory = full.SnapshotDirectory
+	}
+	if full.SecurityStyle.IsSet() {
+		response.SecurityStyle = vcmserver.NewOptVolumeReadV1SecurityStyle(vcmserver.VolumeReadV1SecurityStyle(full.SecurityStyle.Value))
+	}
+	if full.UnixPermissions.IsSet() {
+		response.UnixPermissions = full.UnixPermissions
+	}
+	if full.ShareName.IsSet() {
+		response.ShareName = full.ShareName
 	}
 	return response
 }
@@ -423,15 +634,21 @@ func (h Handler) V1DeleteVolume(ctx context.Context, params vcmserver.V1DeleteVo
 		}, nil
 	}
 
-	operationID := getOperationID()
-	deadline := getVolumeOperationDeadline()
-	_, _, err := h.Orchestrator.DeleteVolume(ctx, &commonparams.DeleteVolumeParams{
+	requestID, deadline, err := parseRequestIDAndTimeout(params.RequestId, params.Timeout)
+	if err != nil {
+		return &vcmserver.V1DeleteVolumeBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	_, _, err = h.Orchestrator.DeleteVolume(ctx, &commonparams.DeleteVolumeParams{
 		VolumeUUID:  volumeUUID,
-		OperationID: operationID,
+		OperationID: requestID,
 		Deadline:    deadline,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "Volume delete failed", "volumeUUID", volumeUUID, "requestId", operationID, "error", err)
+		logger.ErrorContext(ctx, "Volume delete failed", "volumeUUID", volumeUUID, "requestId", requestID, "error", err)
 		return &vcmserver.V1DeleteVolumeInternalServerError{
 			Code:    500,
 			Message: "Internal server error",
@@ -439,9 +656,266 @@ func (h Handler) V1DeleteVolume(ctx context.Context, params vcmserver.V1DeleteVo
 	}
 
 	return &vcmserver.OperationV1{
-		Name: "/v1/operations/" + operationID,
+		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
+}
+
+// V1UpdateVolume validates the request and starts VCM volume update.
+func (h Handler) V1UpdateVolume(ctx context.Context, req *vcmserver.VolumeUpdateV1, queryParams vcmserver.V1UpdateVolumeParams) (vcmserver.V1UpdateVolumeRes, error) {
+	logger := util.GetLogger(ctx)
+
+	if req == nil {
+		return &vcmserver.V1UpdateVolumeBadRequest{
+			Code:    400,
+			Message: "request body is required",
+		}, nil
+	}
+
+	volumeUUID := strings.TrimSpace(req.UUID)
+	if volumeUUID == "" {
+		return &vcmserver.V1UpdateVolumeBadRequest{
+			Code:    400,
+			Message: "uuid is required",
+		}, nil
+	}
+
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return &vcmserver.V1UpdateVolumeBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	maskedReq, err := applyVolumeUpdateMask(req, queryParams.UpdateMask)
+	if err != nil {
+		return &vcmserver.V1UpdateVolumeBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	if !hasVolumeUpdateRequestFields(maskedReq) {
+		return &vcmserver.V1UpdateVolumeOK{
+			Name: "/v1/operations/" + requestID,
+			Done: true,
+		}, nil
+	}
+
+	updateParams, err := prepareUpdateVolumeParams(maskedReq, volumeUUID, requestID, deadline)
+	if err != nil {
+		if errors.IsUserInputValidationErr(err) {
+			return &vcmserver.V1UpdateVolumeBadRequest{
+				Code:    400,
+				Message: err.Error(),
+			}, nil
+		}
+		logger.ErrorContext(ctx, "Failed to prepare volume update params", "error", err)
+		return &vcmserver.V1UpdateVolumeInternalServerError{
+			Code:    500,
+			Message: err.Error(),
+		}, nil
+	}
+
+	_, _, err = h.Orchestrator.UpdateVolumeV2(ctx, updateParams)
+	if err != nil {
+		logger.ErrorContext(ctx, "Volume update failed", "volumeUUID", volumeUUID, "requestId", requestID, "error", err)
+		return &vcmserver.V1UpdateVolumeInternalServerError{
+			Code:    500,
+			Message: "Internal server error",
+		}, nil
+	}
+
+	return &vcmserver.V1UpdateVolumeAccepted{
+		Name: "/v1/operations/" + requestID,
+		Done: false,
+	}, nil
+}
+
+func _prepareUpdateVolumeParams(req *vcmserver.VolumeUpdateV1, volumeUUID, operationID string, deadline time.Time) (*commonparams.UpdateVolumeParams, error) {
+	if operationID == "" {
+		return nil, errors.NewUserInputValidationErr("operation id is required")
+	}
+	if deadline.IsZero() {
+		return nil, errors.NewUserInputValidationErr("deadline is required")
+	}
+
+	param := &commonparams.UpdateVolumeParams{
+		VolumeId:    volumeUUID,
+		OperationID: operationID,
+		Deadline:    deadline.UTC(),
+	}
+
+	if req.SizeInBytes.IsSet() {
+		sizeInBytes, ok := req.SizeInBytes.Get()
+		if !ok || sizeInBytes <= 0 {
+			return nil, errors.NewUserInputValidationErr("sizeInBytes must be a positive number")
+		}
+		param.QuotaInBytes = int64(sizeInBytes)
+	}
+
+	if len(req.BlockDevices) > 1 {
+		return nil, errors.NewUserInputValidationErr("Only one BlockDevice can be specified for update")
+	}
+	if len(req.BlockDevices) > 0 {
+		blockDevice := req.BlockDevices[0]
+		igroupNames, err := validateBlockDeviceIgroups(blockDevice.GetIgroups())
+		if err != nil {
+			return nil, err
+		}
+		param.BlockDevices = []*commonparams.BlockDevice{
+			{
+				HostGroupNames: igroupNames,
+			},
+		}
+	}
+
+	if req.SnapshotPolicy.IsSet() {
+		snapShotPolicy, err := convertFromSnapshotPolicyV1(&req.SnapshotPolicy.Value)
+		if err != nil {
+			return nil, err
+		}
+		param.SnapshotPolicy = snapShotPolicy
+		param.SnapshotPolicyEnabledSet = req.SnapshotPolicy.Value.Enabled.IsSet()
+	}
+
+	if req.SnapReserve.IsSet() {
+		snapReserve, ok := req.SnapReserve.Get()
+		if !ok {
+			return nil, errors.NewUserInputValidationErr("snapReserve must be a valid number")
+		}
+		if snapReserve < 0 {
+			return nil, errors.NewUserInputValidationErr("snapReserve cannot be negative")
+		}
+		if snapReserve >= 100 {
+			return nil, errors.NewUserInputValidationErr("snapReserve should be less than 100")
+		}
+		param.SnapReserve = nillable.ToPointer(int64(snapReserve))
+	} else {
+		param.SnapReserve = nil
+	}
+
+	if req.ShareName.IsSet() {
+		shareName := strings.TrimSpace(req.ShareName.Value)
+		if shareName == "" {
+			return nil, errors.NewUserInputValidationErr("shareName must not be empty")
+		}
+		if param.FileProperties == nil {
+			param.FileProperties = &models.FileProperties{}
+		}
+		param.FileProperties.JunctionPath = commonparams.CreateJunctionPath(shareName)
+	}
+
+	if req.ExportPolicy.IsSet() {
+		if param.FileProperties == nil {
+			param.FileProperties = &models.FileProperties{}
+		}
+		if param.FileProperties.ExportPolicy == nil {
+			param.FileProperties.ExportPolicy = &models.ExportPolicy{}
+		}
+
+		err := validateAllSquashV1(req.ExportPolicy.Value.Rules)
+		if err != nil {
+			return nil, err
+		}
+
+		param.FileProperties.ExportPolicy.ExportRules = make([]*models.ExportRule, 0, len(req.ExportPolicy.Value.Rules))
+		for index, rule := range req.ExportPolicy.Value.Rules {
+			exportRule := &models.ExportRule{
+				AllowedClients: rule.AllowedClients,
+				AccessType:     string(rule.AccessType),
+				Index:          index + 1, // ONTAP rejects index 0; matches create conversion.
+			}
+
+			if rule.Nfsv3.IsSet() {
+				exportRule.NFSv3 = rule.Nfsv3.Value
+			}
+			if rule.Nfsv4.IsSet() {
+				exportRule.NFSv4 = rule.Nfsv4.Value
+			}
+			if rule.Kerberos5ReadOnly.IsSet() {
+				exportRule.Kerberos5ReadOnly = rule.Kerberos5ReadOnly.Value
+			}
+			if rule.Kerberos5ReadWrite.IsSet() {
+				exportRule.Kerberos5ReadWrite = rule.Kerberos5ReadWrite.Value
+			}
+			if rule.Kerberos5iReadOnly.IsSet() {
+				exportRule.Kerberos5iReadOnly = rule.Kerberos5iReadOnly.Value
+			}
+			if rule.Kerberos5iReadWrite.IsSet() {
+				exportRule.Kerberos5iReadWrite = rule.Kerberos5iReadWrite.Value
+			}
+			if rule.Kerberos5pReadOnly.IsSet() {
+				exportRule.Kerberos5pReadOnly = rule.Kerberos5pReadOnly.Value
+			}
+			if rule.Kerberos5pReadWrite.IsSet() {
+				exportRule.Kerberos5pReadWrite = rule.Kerberos5pReadWrite.Value
+			}
+			if rule.HasRootAccess.IsSet() {
+				if val, ok := rule.HasRootAccess.Get(); ok {
+					exportRule.Superuser = val == vcmserver.SimpleExportPolicyRuleV1HasRootAccessTrue ||
+						val == vcmserver.SimpleExportPolicyRuleV1HasRootAccessOn
+				}
+			}
+			if rule.AllSquash.IsSet() {
+				exportRule.AllSquash = nillable.ToPointer(rule.AllSquash.Value)
+			}
+			if rule.AnonUid.IsSet() {
+				exportRule.AnonUid = nillable.ToPointer(rule.AnonUid.Value)
+			}
+			if rule.AllSquash.IsSet() && rule.AllSquash.Value {
+				exportRule.UnixReadWrite = true
+				exportRule.Superuser = false
+			} else {
+				switch rule.AccessType {
+				case vcmserver.SimpleExportPolicyRuleV1AccessTypeREADONLY:
+					exportRule.UnixReadOnly = true
+				case vcmserver.SimpleExportPolicyRuleV1AccessTypeREADWRITE,
+					vcmserver.SimpleExportPolicyRuleV1AccessTypeACCESSTYPEUNSPECIFIED:
+					exportRule.UnixReadWrite = true
+				case vcmserver.SimpleExportPolicyRuleV1AccessTypeREADNONE:
+					// No Unix access flags set; convertStorageExportPolicyRuleToONTAP emits never/never.
+				}
+			}
+			param.FileProperties.ExportPolicy.ExportRules = append(param.FileProperties.ExportPolicy.ExportRules, exportRule)
+		}
+		if len(param.FileProperties.ExportPolicy.ExportRules) > exportRulesLimit {
+			return nil, errors.NewUserInputValidationErr(fmt.Sprintf("Number of export rules cannot exceed %d", exportRulesLimit))
+		}
+	}
+
+	if req.SnapshotDirectory.IsSet() {
+		snapshotDirectory, ok := req.SnapshotDirectory.Get()
+		if !ok {
+			return nil, errors.NewUserInputValidationErr("snapshotDirectory must be a valid boolean")
+		}
+		param.SnapshotDirectoryAccess = &snapshotDirectory
+	}
+
+	if req.UnixPermissions.IsSet() {
+		unixPermissions := strings.TrimSpace(req.UnixPermissions.Value)
+		if unixPermissions == "" {
+			return nil, errors.NewUserInputValidationErr("unixPermissions must not be empty")
+		}
+		if param.FileProperties == nil {
+			param.FileProperties = &models.FileProperties{}
+		}
+		param.FileProperties.UnixPermissions = unixPermissions
+	}
+
+	return param, nil
+}
+
+func hasVolumeUpdateRequestFields(req *vcmserver.VolumeUpdateV1) bool {
+	return req.SizeInBytes.IsSet() ||
+		req.SnapReserve.IsSet() ||
+		req.SnapshotDirectory.IsSet() ||
+		req.SnapshotPolicy.IsSet() ||
+		req.ExportPolicy.IsSet() ||
+		len(req.BlockDevices) > 0 ||
+		req.ShareName.IsSet() ||
+		req.UnixPermissions.IsSet()
 }
 
 func convertFromSnapshotPolicyV1(snapshotPolicy *vcmserver.SnapshotPolicyV1) (*models.SnapshotPolicy, error) {

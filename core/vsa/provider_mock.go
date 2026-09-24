@@ -2522,6 +2522,63 @@ func (_c *MockProvider_DeleteSnapshotPolicy_Call) RunAndReturn(run func(string) 
 	return _c
 }
 
+// GetSnapshotPolicy provides a mock function with given fields: policyName
+func (_m *MockProvider) GetSnapshotPolicy(policyName string) (*SnapshotPolicy, error) {
+	ret := _m.Called(policyName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSnapshotPolicy")
+	}
+
+	var r0 *SnapshotPolicy
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (*SnapshotPolicy, error)); ok {
+		return rf(policyName)
+	}
+	if rf, ok := ret.Get(0).(func(string) *SnapshotPolicy); ok {
+		r0 = rf(policyName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*SnapshotPolicy)
+		}
+	}
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(policyName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_GetSnapshotPolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSnapshotPolicy'
+type MockProvider_GetSnapshotPolicy_Call struct {
+	*mock.Call
+}
+
+// GetSnapshotPolicy is a helper method to define mock.On call
+//   - policyName string
+func (_e *MockProvider_Expecter) GetSnapshotPolicy(policyName interface{}) *MockProvider_GetSnapshotPolicy_Call {
+	return &MockProvider_GetSnapshotPolicy_Call{Call: _e.mock.On("GetSnapshotPolicy", policyName)}
+}
+
+func (_c *MockProvider_GetSnapshotPolicy_Call) Run(run func(policyName string)) *MockProvider_GetSnapshotPolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_GetSnapshotPolicy_Call) Return(_a0 *SnapshotPolicy, _a1 error) *MockProvider_GetSnapshotPolicy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_GetSnapshotPolicy_Call) RunAndReturn(run func(string) (*SnapshotPolicy, error)) *MockProvider_GetSnapshotPolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteVolume provides a mock function with given fields: volumeUUID, volumeName
 func (_m *MockProvider) DeleteVolume(volumeUUID string, volumeName string) error {
 	ret := _m.Called(volumeUUID, volumeName)
@@ -3293,6 +3350,65 @@ func (_c *MockProvider_GetEMSEventForwarding_Call) Return(_a0 *EMSEventDestinati
 }
 
 func (_c *MockProvider_GetEMSEventForwarding_Call) RunAndReturn(run func(string) (*EMSEventDestination, error)) *MockProvider_GetEMSEventForwarding_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetExportPolicy provides a mock function with given fields: exportPolicyName, svmName
+func (_m *MockProvider) GetExportPolicy(exportPolicyName string, svmName string) (*ExportPolicy, error) {
+	ret := _m.Called(exportPolicyName, svmName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetExportPolicy")
+	}
+
+	var r0 *ExportPolicy
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string) (*ExportPolicy, error)); ok {
+		return rf(exportPolicyName, svmName)
+	}
+	if rf, ok := ret.Get(0).(func(string, string) *ExportPolicy); ok {
+		r0 = rf(exportPolicyName, svmName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ExportPolicy)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(exportPolicyName, svmName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_GetExportPolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetExportPolicy'
+type MockProvider_GetExportPolicy_Call struct {
+	*mock.Call
+}
+
+// GetExportPolicy is a helper method to define mock.On call
+//   - exportPolicyName string
+//   - svmName string
+func (_e *MockProvider_Expecter) GetExportPolicy(exportPolicyName interface{}, svmName interface{}) *MockProvider_GetExportPolicy_Call {
+	return &MockProvider_GetExportPolicy_Call{Call: _e.mock.On("GetExportPolicy", exportPolicyName, svmName)}
+}
+
+func (_c *MockProvider_GetExportPolicy_Call) Run(run func(exportPolicyName string, svmName string)) *MockProvider_GetExportPolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_GetExportPolicy_Call) Return(_a0 *ExportPolicy, _a1 error) *MockProvider_GetExportPolicy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_GetExportPolicy_Call) RunAndReturn(run func(string, string) (*ExportPolicy, error)) *MockProvider_GetExportPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -5475,6 +5591,65 @@ func (_c *MockProvider_IgroupList_Call) RunAndReturn(run func(*string) ([]*ontap
 	return _c
 }
 
+// IgroupNamesForLunUUID provides a mock function with given fields: svmName, lunUUID
+func (_m *MockProvider) IgroupNamesForLunUUID(svmName string, lunUUID string) ([]string, error) {
+	ret := _m.Called(svmName, lunUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IgroupNamesForLunUUID")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string) ([]string, error)); ok {
+		return rf(svmName, lunUUID)
+	}
+	if rf, ok := ret.Get(0).(func(string, string) []string); ok {
+		r0 = rf(svmName, lunUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(svmName, lunUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_IgroupNamesForLunUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IgroupNamesForLunUUID'
+type MockProvider_IgroupNamesForLunUUID_Call struct {
+	*mock.Call
+}
+
+// IgroupNamesForLunUUID is a helper method to define mock.On call
+//   - svmName string
+//   - lunUUID string
+func (_e *MockProvider_Expecter) IgroupNamesForLunUUID(svmName interface{}, lunUUID interface{}) *MockProvider_IgroupNamesForLunUUID_Call {
+	return &MockProvider_IgroupNamesForLunUUID_Call{Call: _e.mock.On("IgroupNamesForLunUUID", svmName, lunUUID)}
+}
+
+func (_c *MockProvider_IgroupNamesForLunUUID_Call) Run(run func(svmName string, lunUUID string)) *MockProvider_IgroupNamesForLunUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_IgroupNamesForLunUUID_Call) Return(_a0 []string, _a1 error) *MockProvider_IgroupNamesForLunUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_IgroupNamesForLunUUID_Call) RunAndReturn(run func(string, string) ([]string, error)) *MockProvider_IgroupNamesForLunUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InitiateSplitVolume provides a mock function with given fields: volumeUUID
 func (_m *MockProvider) InitiateSplitVolume(volumeUUID string) (string, error) {
 	ret := _m.Called(volumeUUID)
@@ -6253,6 +6428,64 @@ func (_c *MockProvider_ListSnapmirrorSnapshots_Call) Return(_a0 []*SnapshotListR
 }
 
 func (_c *MockProvider_ListSnapmirrorSnapshots_Call) RunAndReturn(run func(string) ([]*SnapshotListResponse, error)) *MockProvider_ListSnapmirrorSnapshots_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListVolumesForSVM provides a mock function with given fields: svmName
+func (_m *MockProvider) ListVolumesForSVM(svmName string) ([]*VolumeResponse, error) {
+	ret := _m.Called(svmName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListVolumesForSVM")
+	}
+
+	var r0 []*VolumeResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) ([]*VolumeResponse, error)); ok {
+		return rf(svmName)
+	}
+	if rf, ok := ret.Get(0).(func(string) []*VolumeResponse); ok {
+		r0 = rf(svmName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*VolumeResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(svmName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_ListVolumesForSVM_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListVolumesForSVM'
+type MockProvider_ListVolumesForSVM_Call struct {
+	*mock.Call
+}
+
+// ListVolumesForSVM is a helper method to define mock.On call
+//   - svmName string
+func (_e *MockProvider_Expecter) ListVolumesForSVM(svmName interface{}) *MockProvider_ListVolumesForSVM_Call {
+	return &MockProvider_ListVolumesForSVM_Call{Call: _e.mock.On("ListVolumesForSVM", svmName)}
+}
+
+func (_c *MockProvider_ListVolumesForSVM_Call) Run(run func(svmName string)) *MockProvider_ListVolumesForSVM_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_ListVolumesForSVM_Call) Return(_a0 []*VolumeResponse, _a1 error) *MockProvider_ListVolumesForSVM_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_ListVolumesForSVM_Call) RunAndReturn(run func(string) ([]*VolumeResponse, error)) *MockProvider_ListVolumesForSVM_Call {
 	_c.Call.Return(run)
 	return _c
 }

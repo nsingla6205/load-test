@@ -119,6 +119,8 @@ type VolumeResponse struct {
 	UnixPermissions string
 	// Clone is set when ONTAP returns volume.clone (e.g. GetCloneVolumeForExpertMode).
 	Clone *VolumeResponseClone
+	// Created is the ONTAP volume create_time.
+	Created time.Time
 }
 
 type CreateLifParams struct {
@@ -982,6 +984,7 @@ type LunResponse struct {
 	SerialNumber string
 	OSType       string
 	Size         int64
+	IgroupNames  []string
 }
 
 type CloudTargetCreateParams struct {

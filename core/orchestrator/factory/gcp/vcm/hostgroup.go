@@ -117,7 +117,11 @@ func (o *VCMOrchestrator) CreateHostGroup(ctx context.Context, params *commonpar
 		HostIQNs: params.Hosts,
 		OsType:   params.OSType,
 	}
-	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmCreateHostGroupWorkflow, node, hostParams, expectedSvmName)
+	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmCreateHostGroupWorkflow, commonparams.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        params.Deadline.UTC(),
+	}, hostParams)
 	if errors.Is(err, cbackend.ErrInstanceAlreadyExists) {
 		return &models.HostGroup{
 			BaseModel: models.BaseModel{UUID: operationID},
@@ -169,7 +173,11 @@ func (o *VCMOrchestrator) DeleteHostGroup(ctx context.Context, params *commonpar
 		}, nil
 	}
 
-	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmDeleteHostGroupWorkflow, node, params.Name, expectedSvmName)
+	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmDeleteHostGroupWorkflow, commonparams.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        params.Deadline.UTC(),
+	}, params.Name)
 	if errors.Is(err, cbackend.ErrInstanceAlreadyExists) {
 		return &models.HostGroup{
 			BaseModel: models.BaseModel{UUID: operationID},
@@ -221,7 +229,11 @@ func (o *VCMOrchestrator) UpdateHostGroup(ctx context.Context, params *commonpar
 		}, operationID, nil
 	}
 
-	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmUpdateHostGroupWorkflow, node, params.Name, *params.Hosts, expectedSvmName)
+	_, err = o.wfStarter.Start(ctx, operationID, vcm_workflows.VcmUpdateHostGroupWorkflow, commonparams.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        params.Deadline.UTC(),
+	}, params.Name, *params.Hosts)
 	if errors.Is(err, cbackend.ErrInstanceAlreadyExists) {
 		return &models.HostGroup{
 			BaseModel: models.BaseModel{UUID: operationID},

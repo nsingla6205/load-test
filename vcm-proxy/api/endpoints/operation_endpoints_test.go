@@ -66,6 +66,13 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			wantResponseDeploymentID: "gcnv-test",
 		},
 		{
+			name:            "done with flat volume response payload",
+			state:           vcmdb.JobStateDone,
+			done:            true,
+			wantResponse:    true,
+			responsePayload: `{"uuid":"9760acf5-4638-11e7-9bdb-020073ca0001","name":"vol-1","sizeInBytes":107374182400}`,
+		},
+		{
 			name:            "done with invalid response payload omits response",
 			state:           vcmdb.JobStateDone,
 			done:            true,
@@ -120,12 +127,12 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			wantMessage: vsaerrors.GetErrorMessageByTrackingID(vsaerrors.ErrHostGroupAlreadyExists).Message,
 		},
 		{
-			name:        "legacy error defaults to catalog message",
+			name:        "unmapped error uses catalog message",
 			state:       vcmdb.JobStateError,
 			done:        true,
 			wantError:   true,
 			wantCode:    http.StatusInternalServerError,
-			wantMessage: "undefined error",
+			wantMessage: vsaerrors.GetErrorMessageByTrackingID(0).Message,
 		},
 		{
 			name:        "non allow-listed error uses catalog message",
@@ -168,9 +175,16 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			if tt.wantResponse {
 				opResponse, ok := response.Response.Get()
 				require.True(t, ok)
-				poolRaw, ok := opResponse["pool"]
-				require.True(t, ok)
-				assert.Contains(t, string(poolRaw), tt.wantResponseDeploymentID)
+				if tt.wantResponseDeploymentID != "" {
+					poolRaw, ok := opResponse["pool"]
+					require.True(t, ok)
+					assert.Contains(t, string(poolRaw), tt.wantResponseDeploymentID)
+				}
+				if tt.name == "done with flat volume response payload" {
+					assert.Contains(t, string(opResponse["uuid"]), "9760acf5-4638-11e7-9bdb-020073ca0001")
+					assert.Contains(t, string(opResponse["name"]), "vol-1")
+					assert.NotContains(t, opResponse, "volume")
+				}
 			}
 			if tt.wantError {
 				operationError, ok := response.Error.Get()

@@ -223,7 +223,7 @@ func TestJobProgressParams_Error(t *testing.T) {
 }
 
 func TestJobProgressParams_ResponsePayload(t *testing.T) {
-	payload := `{"igroups":{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}}`
+	payload := `{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}`
 	params := JobProgressParams("job-1", vcmdb.JobStateDone, nil, &payload)
 
 	assert.Equal(t, vcmdb.JobStateDone, params.State)

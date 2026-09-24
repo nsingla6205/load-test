@@ -45,6 +45,10 @@ type V1ListIgroupsRes interface {
 	v1ListIgroupsRes()
 }
 
+type V1ListVolumesRes interface {
+	v1ListVolumesRes()
+}
+
 type V1UpdateIgroupRes interface {
 	v1UpdateIgroupRes()
 }

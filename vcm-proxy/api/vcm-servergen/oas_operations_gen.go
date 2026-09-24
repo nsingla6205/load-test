@@ -18,6 +18,7 @@ const (
 	V1DescribeIgroupOperation OperationName = "V1DescribeIgroup"
 	V1DescribeVolumeOperation OperationName = "V1DescribeVolume"
 	V1ListIgroupsOperation    OperationName = "V1ListIgroups"
+	V1ListVolumesOperation    OperationName = "V1ListVolumes"
 	V1UpdateIgroupOperation   OperationName = "V1UpdateIgroup"
 	V1UpdateVolumeOperation   OperationName = "V1UpdateVolume"
 )

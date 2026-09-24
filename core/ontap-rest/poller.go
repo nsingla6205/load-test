@@ -49,15 +49,17 @@ func _fetchTemporalClient(ctx context.Context) client.Client {
 	return activity.GetClient(ctx)
 }
 
-// Poll polls an ontap job given UUID
-// Since this poller is being used from within many nested functions,
-// it is not possible to extract it out at the workflow level. Hence, it is
-// being passed an activity context internally that will be used to fetch
-// the temporal client and execute a non-blocking polling workflow from within.
+// Poll polls an ontap job given UUID.
+// When called from a Temporal activity (Google proxy / VCP worker), it starts the
+// PollOntapJob child workflow so the parent activity can heartbeat while waiting.
+// Otherwise (e.g. VCM go-workflows), it polls ONTAP inline via PollOntapJobDirectly.
 func (p *poller) Poll(UUID string) error {
 	ctx := p.clientParams.Ctx
-	if !activity.IsActivity(p.clientParams.Ctx) {
-		return errors.New("Context is not an activity context, cannot poll job in non-blocking way")
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !activity.IsActivity(ctx) {
+		return pollOntapJobDirectly(ctx, p.clientParams, UUID, p.logger)
 	}
 
 	tempClient := fetchTemporalClient(ctx)
@@ -127,6 +129,21 @@ func (p *poller) Poll(UUID string) error {
 		return errors.New("failed to poll ontap-rest job")
 	}
 
+	return nil
+}
+
+func pollOntapJobDirectly(ctx context.Context, clientParams RESTClientParams, jobUUID string, logger log.Logger) error {
+	clientParams.Trace = logger
+	clientParams.Ctx = ctx
+	client, err := NewOntapRestClient(clientParams)
+	if err != nil {
+		logger.Errorf("Failed to create Ontap REST client for direct job poll, error: %v", err)
+		return errors.New("failed to create ontap-rest client for direct job poll")
+	}
+	if err := PollOntapJobDirectly(ctx, client, jobUUID, timeout, wait, logger); err != nil {
+		logger.Errorf("Failed to poll job with UUID %s directly, error: %v", jobUUID, err)
+		return err
+	}
 	return nil
 }
 

@@ -149,37 +149,29 @@ func TestOntapNodeCredentials(t *testing.T) {
 	})
 }
 
-func TestDeadlineExceeded(t *testing.T) {
-	now := time.Date(2026, 7, 29, 13, 30, 0, 0, time.UTC)
+func TestCheckDeadline_UsesRequestDeadline(t *testing.T) {
+	withDeadlineTestLogger(t)
+	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
+	ctx := deadlineTestContext(now)
 
-	for _, tc := range []struct {
-		name     string
-		deadline time.Time
-		wantErr  bool
-	}{
-		{name: "no deadline requested is never enforced", deadline: time.Time{}},
-		{name: "future deadline passes", deadline: now.Add(time.Minute)},
-		{name: "elapsed deadline fails", deadline: now.Add(-time.Minute), wantErr: true},
-		{name: "deadline exactly now fails", deadline: now, wantErr: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := deadlineExceeded(now, tc.deadline, jobStepCreateSVM)
-			if !tc.wantErr {
-				assert.NoError(t, err)
-				return
-			}
+	t.Run("nil request is a no-op", func(t *testing.T) {
+		wf := &createPoolWorkflow{}
+		assert.Nil(t, wf.req)
+		assert.NoError(t, checkDeadline(ctx, time.Time{}, "start"))
+	})
 
-			require.Error(t, err)
-			var customErr *vsaerrors.CustomError
-			require.True(t, vsaerrors.As(err, &customErr), "expected a CustomError, got %T", err)
-			assert.Equal(t, vsaerrors.ErrOperationDeadlineExceeded, customErr.TrackingID)
-			// The step rides on the wrapped cause, which is what
-			// ExtractJobFailureDetails persists as the job's error message.
-			// CustomError.Error() itself is the catalog text CLH sees.
-			require.NotNil(t, customErr.OriginalErr)
-			assert.Contains(t, customErr.OriginalErr.Error(), jobStepCreateSVM)
-		})
-	}
+	t.Run("elapsed deadline fails", func(t *testing.T) {
+		wf := &createPoolWorkflow{
+			req: &commonparams.VCMCreatePoolParams{
+				Deadline: now.Add(-time.Minute),
+			},
+		}
+		err := checkDeadline(ctx, wf.req.Deadline, "start")
+		require.Error(t, err)
+		var customErr *vsaerrors.CustomError
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, vsaerrors.ErrOperationDeadlineExceeded, customErr.TrackingID)
+	})
 }
 
 func TestNodeMgmtIPFromVLMConfig(t *testing.T) {

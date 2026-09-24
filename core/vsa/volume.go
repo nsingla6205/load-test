@@ -3,6 +3,7 @@ package vsa
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
@@ -318,10 +319,16 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 	if err != nil {
 		return nil, err
 	}
+	// Match ListVolumesForSVM: do not treat missing logical_space as not-found. ONTAP
+	// VolumeGet may omit space.logical_space even when the volume exists.
+	return volumeResponseFromONTAPVol(vol, false)
+}
+
+func volumeResponseFromONTAPVol(vol *ontapRest.Volume, requireLogicalSpace bool) (*VolumeResponse, error) {
 	if vol == nil || vol.Name == nil || vol.UUID == nil || vol.Space == nil || vol.State == nil {
 		return nil, errors.NewNotFoundErr("volume", nil)
 	}
-	if !params.IsRestore && vol.Space.LogicalSpace == nil {
+	if requireLogicalSpace && vol.Space.LogicalSpace == nil {
 		return nil, errors.NewNotFoundErr("volume", nil)
 	}
 	usedBytes := int64(0)
@@ -337,11 +344,15 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 			Name:         *vol.Name,
 			ExternalUUID: *vol.UUID,
 		},
-		AvailableSpace: *vol.Space.Available,
-		Size:           *vol.Space.Size,
-		State:          *vol.State,
-		UsedBytes:      usedBytes,
-		Type:           volType,
+		State:     *vol.State,
+		UsedBytes: usedBytes,
+		Type:      volType,
+	}
+	if vol.Space.Available != nil {
+		res.AvailableSpace = *vol.Space.Available
+	}
+	if vol.Space.Size != nil {
+		res.Size = *vol.Space.Size
 	}
 	if vol.SnapshotPolicy != nil && vol.SnapshotPolicy.Name != nil {
 		res.SnapshotPolicyName = *vol.SnapshotPolicy.Name
@@ -389,7 +400,61 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 			res.ExportPolicyName = *vol.Nas.ExportPolicy.Name
 		}
 	}
+	if vol.CreateTime != nil {
+		res.Created = time.Time(*vol.CreateTime)
+	}
 	return res, nil
+}
+
+// ListVolumesForSVM returns volume details for all volumes on the specified SVM.
+func (rc *OntapRestProvider) ListVolumesForSVM(svmName string) ([]*VolumeResponse, error) {
+	var result []*VolumeResponse
+
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+
+	collectVolumes := func(volumes []*ontapRest.Volume) error {
+		for _, vol := range volumes {
+			if vol == nil || (vol.IsSvmRoot != nil && *vol.IsSvmRoot) {
+				continue
+			}
+			mapped, err := volumeResponseFromONTAPVol(vol, false)
+			if err != nil {
+				if rc.Logger != nil {
+					rc.Logger.Warn("skipping ONTAP volume that could not be mapped", "volume", ontapVolumeIdentifier(vol), "svm", svmName, "error", err)
+				}
+				continue
+			}
+			result = append(result, mapped)
+		}
+		return nil
+	}
+
+	err = client.Storage().VolumeCollectionGet(&ontapRest.VolumeCollectionGetParams{
+		BaseParams: ontapRest.BaseParams{
+			Fields: ontapRest.DefaultVolumeDetailFields,
+		},
+		SvmName: &svmName,
+	}, collectVolumes)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func ontapVolumeIdentifier(vol *ontapRest.Volume) string {
+	if vol == nil {
+		return ""
+	}
+	if vol.UUID != nil && *vol.UUID != "" {
+		return *vol.UUID
+	}
+	if vol.Name != nil {
+		return *vol.Name
+	}
+	return ""
 }
 
 func formatUnixPermissionsOctal(permissions int64) string {

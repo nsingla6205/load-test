@@ -190,7 +190,7 @@ func (rc *OntapRestProvider) LunGet(params LunGetParams) (*LunResponse, error) {
 	}
 	lun, err := client.SAN().LunGet(&ontapRest.LunGetParams{
 		BaseParams: ontapRest.BaseParams{
-			Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type"},
+			Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type", "lun_maps"},
 		},
 		SvmName:    &params.SvmName,
 		VolumeName: &params.VolumeName,
@@ -200,33 +200,11 @@ func (rc *OntapRestProvider) LunGet(params LunGetParams) (*LunResponse, error) {
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
-	if lun == nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, fmt.Errorf("lun not found: svm=%s, volume=%s, lun=%s", params.SvmName, params.VolumeName, params.LunName))
+	if len(lun) == 0 {
+		identifier := fmt.Sprintf("svm=%s, volume=%s, lun=%s", params.SvmName, params.VolumeName, params.LunName)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, errors.NewNotFoundErr("lun", &identifier))
 	}
-	return &LunResponse{
-		ProviderResponse: ProviderResponse{
-			Name:         *lun[0].Name,
-			ExternalUUID: *lun[0].UUID,
-		},
-		SerialNumber: func() string {
-			if lun[0].SerialNumberHex != nil {
-				return *lun[0].SerialNumberHex
-			}
-			return ""
-		}(),
-		Size: func() int64 {
-			if lun[0].Space != nil && lun[0].Space.Size != nil {
-				return *lun[0].Space.Size
-			}
-			return 0
-		}(),
-		OSType: func() string {
-			if lun[0].OsType != nil {
-				return *lun[0].OsType
-			}
-			return ""
-		}(),
-	}, nil
+	return lunResponseFromONTAP(lun[0]), nil
 }
 
 // LunList retrieves all LUNs by calling the ONTAP REST Client
@@ -241,7 +219,7 @@ func (rc *OntapRestProvider) LunList(params LunGetParams) ([]*LunResponse, error
 	}
 	luns, err := client.SAN().LunGet(&ontapRest.LunGetParams{
 		BaseParams: ontapRest.BaseParams{
-			Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type"},
+			Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type", "lun_maps"},
 		},
 		SvmName:    &params.SvmName,
 		VolumeName: &params.VolumeName,
@@ -251,38 +229,54 @@ func (rc *OntapRestProvider) LunList(params LunGetParams) ([]*LunResponse, error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
-	if luns == nil || len(luns) == 0 {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, fmt.Errorf("lun not found: svm=%s, volume=%s, lun=%s", params.SvmName, params.VolumeName, params.LunName))
+	if len(luns) == 0 {
+		identifier := fmt.Sprintf("svm=%s, volume=%s, lun=%s", params.SvmName, params.VolumeName, params.LunName)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, errors.NewNotFoundErr("lun", &identifier))
 	}
 
 	result := make([]*LunResponse, len(luns))
 	for i, lun := range luns {
-		result[i] = &LunResponse{
-			ProviderResponse: ProviderResponse{
-				Name:         *lun.Name,
-				ExternalUUID: *lun.UUID,
-			},
-			SerialNumber: func() string {
-				if lun.SerialNumberHex != nil {
-					return *lun.SerialNumberHex
-				}
-				return ""
-			}(),
-			Size: func() int64 {
-				if lun.Space != nil && lun.Space.Size != nil {
-					return *lun.Space.Size
-				}
-				return 0
-			}(),
-			OSType: func() string {
-				if lun.OsType != nil {
-					return *lun.OsType
-				}
-				return ""
-			}(),
-		}
+		result[i] = lunResponseFromONTAP(lun)
 	}
 	return result, nil
+}
+
+func lunResponseFromONTAP(lun *ontapRest.Lun) *LunResponse {
+	if lun == nil {
+		return nil
+	}
+	response := &LunResponse{
+		ProviderResponse: ProviderResponse{
+			Name: nillable.GetString(lun.Name, ""),
+		},
+		SerialNumber: func() string {
+			if lun.SerialNumberHex != nil {
+				return *lun.SerialNumberHex
+			}
+			return ""
+		}(),
+		Size: func() int64 {
+			if lun.Space != nil && lun.Space.Size != nil {
+				return *lun.Space.Size
+			}
+			return 0
+		}(),
+		OSType: func() string {
+			if lun.OsType != nil {
+				return *lun.OsType
+			}
+			return ""
+		}(),
+	}
+	if lun.UUID != nil {
+		response.ExternalUUID = *lun.UUID
+	}
+	for _, lunMap := range lun.LunInlineLunMaps {
+		if lunMap != nil && lunMap.Igroup != nil && lunMap.Igroup.Name != nil {
+			response.IgroupNames = append(response.IgroupNames, *lunMap.Igroup.Name)
+		}
+	}
+	return response
 }
 
 // NamespaceList retrieves all NVMe namespaces for the given SVM and volume.

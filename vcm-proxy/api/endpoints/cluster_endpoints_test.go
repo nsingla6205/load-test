@@ -93,9 +93,7 @@ func configuredClusterHandler(t *testing.T) (*Handler, *vcmconfig.Store, *factor
 	return &Handler{ConfigStore: store, Orchestrator: mockOrch}, store, mockOrch
 }
 
-// clusterBody is the create-cluster request body, which carries only the
-// CLH-computed shape; requestId and timeout arrive as query parameters.
-func clusterBody() *vcmserver.ClusterV1 {
+func clusterRequest() *vcmserver.ClusterV1 {
 	return &vcmserver.ClusterV1{
 		ClusterShape: vcmserver.ClusterShapeV1{
 			ProvisionedThroughputMibps: vcmserver.NewOptInt64(1024),
@@ -111,17 +109,14 @@ func clusterBody() *vcmserver.ClusterV1 {
 	}
 }
 
-func clusterParams(requestID string, timeout time.Duration) vcmserver.ClusterCreateV1Params {
-	return vcmserver.ClusterCreateV1Params{RequestId: requestID, Timeout: timeout}
-}
-
-func fullClusterParams() vcmserver.ClusterCreateV1Params {
-	return clusterParams("3fa85f64-5717-4562-b3fc-2c963f66afa6", time.Hour)
+func fullClusterCreateParams() vcmserver.ClusterCreateV1Params {
+	return testOperationClusterCreateParams(testOperationRequestID, testOperationTimeout)
 }
 
 func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 	handler, _, mockOrch := configuredClusterHandler(t)
-	params := fullClusterParams()
+	req := clusterRequest()
+	params := fullClusterCreateParams()
 
 	var dispatched *common.CreatePoolParams
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).
@@ -130,16 +125,15 @@ func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 		}).
 		Return(nil, params.RequestId, nil)
 
-	_, err := handler.ClusterCreateV1(context.Background(), clusterBody(), params)
+	_, err := handler.ClusterCreateV1(context.Background(), req, params)
 	require.NoError(t, err)
 	require.NotNil(t, dispatched)
 	require.NotNil(t, dispatched.VCM)
 	vcm := dispatched.VCM
 
-	// Request-level controls, which arrive as query parameters. The relative
-	// timeout is resolved to an absolute UTC deadline at the API edge.
+	// Request-level controls.
 	assert.Equal(t, params.RequestId, vcm.RequestID)
-	assert.WithinDuration(t, time.Now().UTC().Add(params.Timeout), vcm.Deadline, time.Minute)
+	assert.WithinDuration(t, time.Now().UTC().Add(3600*time.Second), vcm.Deadline, 2*time.Second)
 
 	// Sourced from the request's cluster shape.
 	assert.Equal(t, "ONTAP", vcm.Mode)
@@ -192,7 +186,8 @@ func TestClusterCreateV1ForwardsToOrchestrator(t *testing.T) {
 	})).Return(nil, requestID, nil)
 
 	result, err := handler.ClusterCreateV1(context.Background(),
-		clusterBody(), clusterParams(requestID, 2*time.Hour))
+		clusterRequest(),
+		testOperationClusterCreateParams(requestID, "7200s"))
 
 	require.NoError(t, err)
 	opRes, ok := result.(*vcmserver.OperationV1)
@@ -207,10 +202,10 @@ func TestClusterCreateV1_EmptyOperationID_FallsBackToRequestID(t *testing.T) {
 	// in-flight run), the endpoint must fall back to the caller-supplied
 	// requestId so the returned operation name is still pollable.
 	handler, _, mockOrch := configuredClusterHandler(t)
-	params := fullClusterParams()
+	params := fullClusterCreateParams()
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).Return(nil, "", nil)
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), params)
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), params)
 
 	require.NoError(t, err)
 	opRes, ok := res.(*vcmserver.OperationV1)
@@ -225,16 +220,16 @@ func TestClusterCreateV1RequiresRequestFields(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		body   *vcmserver.ClusterV1
+		req    *vcmserver.ClusterV1
 		params vcmserver.ClusterCreateV1Params
 	}{
-		{name: "nil body", body: nil, params: fullClusterParams()},
-		{name: "empty requestId", body: clusterBody(), params: clusterParams("", time.Hour)},
-		{name: "zero timeout", body: clusterBody(), params: clusterParams(uuid.NewString(), 0)},
-		{name: "negative timeout", body: clusterBody(), params: clusterParams(uuid.NewString(), -time.Minute)},
+		{name: "nil request", req: nil, params: fullClusterCreateParams()},
+		{name: "empty requestId", req: clusterRequest(), params: testOperationClusterCreateParams("", testOperationTimeout)},
+		{name: "empty timeout", req: clusterRequest(), params: testOperationClusterCreateParams(uuid.NewString(), "")},
+		{name: "invalid timeout unit", req: clusterRequest(), params: testOperationClusterCreateParams(uuid.NewString(), "10m")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := handler.ClusterCreateV1(context.Background(), tc.body, tc.params)
+			result, err := handler.ClusterCreateV1(context.Background(), tc.req, tc.params)
 			require.NoError(t, err)
 
 			badRequest, ok := result.(*vcmserver.ClusterCreateV1BadRequest)
@@ -258,7 +253,7 @@ func TestClusterCreateV1_UnseededConfig_ReturnsRetriableBadRequest(t *testing.T)
 	mockOrch := factory.NewMockOrchestratorFactory(t)
 	handler := &Handler{ConfigStore: store, Orchestrator: mockOrch}
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), fullClusterParams())
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
 
 	require.NoError(t, err)
 	badRequest, ok := res.(*vcmserver.ClusterCreateV1BadRequest)
@@ -272,7 +267,7 @@ func TestClusterCreateV1_UnseededConfig_ReturnsRetriableBadRequest(t *testing.T)
 func TestClusterCreateV1_NilConfigStore_Returns500(t *testing.T) {
 	handler := Handler{}
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), fullClusterParams())
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
 
 	require.NoError(t, err)
 	errRes, ok := res.(*vcmserver.ClusterCreateV1InternalServerError)
@@ -284,7 +279,7 @@ func TestClusterCreateV1_Success_ReturnsOperation(t *testing.T) {
 	handler, _, mockOrch := configuredClusterHandler(t)
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).Return(nil, "op-123", nil)
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), fullClusterParams())
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
 
 	require.NoError(t, err)
 	opRes, ok := res.(*vcmserver.OperationV1)
@@ -298,7 +293,7 @@ func TestClusterCreateV1_OrchestratorError_Returns500(t *testing.T) {
 	handler, _, mockOrch := configuredClusterHandler(t)
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).Return(nil, "", errors.New("dispatch failed"))
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), fullClusterParams())
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
 
 	require.NoError(t, err, "handler surfaces the failure through the typed response, not a Go error")
 	errRes, ok := res.(*vcmserver.ClusterCreateV1InternalServerError)
@@ -320,7 +315,7 @@ func TestClusterCreateV1_DuplicateRequest_ReturnsNonRetriableClientError(t *test
 		errors.New(`create-pool request "3fa85f64-5717-4562-b3fc-2c963f66afa6" already exists in state PROCESSING`))
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).Return(nil, "", conflict)
 
-	res, err := handler.ClusterCreateV1(context.Background(), clusterBody(), fullClusterParams())
+	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
 
 	require.NoError(t, err, "handler surfaces the conflict through the typed response, not a Go error")
 	errRes, ok := res.(*vcmserver.ClusterCreateV1Conflict)

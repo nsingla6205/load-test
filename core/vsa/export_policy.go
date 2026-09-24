@@ -245,6 +245,172 @@ func (rc *OntapRestProvider) UpdateExportPolicyRules(params UpdateExportPolicyRu
 	return nil
 }
 
+// GetExportPolicy fetches an export policy and its rules from ONTAP.
+func (rc *OntapRestProvider) GetExportPolicy(policyName, svmName string) (*ExportPolicy, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ONTAP client: %w", err)
+	}
+
+	exportPolicy, err := client.NAS().ExportPolicyGet(&ontapRest.ExportPolicyGetParams{
+		Name:    &policyName,
+		SvmName: &svmName,
+		BaseParams: ontapRest.BaseParams{
+			Fields: []string{"name", "rules"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if exportPolicy == nil {
+		return nil, errors.NewNotFoundErr("Export policy", &policyName)
+	}
+
+	rules := make([]*ExportRule, 0, len(exportPolicy.ExportPolicyInlineRules))
+	for _, ontapRule := range exportPolicy.ExportPolicyInlineRules {
+		if ontapRule == nil {
+			continue
+		}
+		rules = append(rules, convertONTAPExportRuleToVSA(ontapRule))
+	}
+
+	return &ExportPolicy{
+		ExportPolicyName: policyName,
+		SvmName:          svmName,
+		ExportRules:      rules,
+	}, nil
+}
+
+func convertONTAPExportRuleToVSA(rule *ontaprestmodels.ExportRules) *ExportRule {
+	vsaRule := &ExportRule{}
+
+	if rule.ChownMode != nil {
+		vsaRule.ChownMode = *rule.ChownMode
+	}
+	if rule.Index != nil {
+		vsaRule.Index = int(*rule.Index)
+	}
+
+	vsaRule.AllowedClients = clientMatchesFromONTAP(rule.ExportRulesInlineClients)
+
+	roFlavors := authFlavorsFromONTAP(rule.ExportRulesInlineRoRule)
+	rwFlavors := authFlavorsFromONTAP(rule.ExportRulesInlineRwRule)
+	superFlavors := authFlavorsFromONTAP(rule.ExportRulesInlineSuperuser)
+
+	for _, protocol := range rule.Protocols {
+		if protocol == nil {
+			continue
+		}
+		switch strings.ToLower(*protocol) {
+		case utils.GetOntapValue(utils.ProtocolNFSv3), "nfs":
+			vsaRule.NFSv3 = true
+		case utils.GetOntapValue(utils.ProtocolNFSv4):
+			vsaRule.NFSv4 = true
+		case utils.GetOntapValue(utils.ProtocolSMB):
+			vsaRule.CIFS = true
+		}
+	}
+
+	if utils.IsAllSquashEnabled && allAuthFlavorsAreNone(roFlavors, rwFlavors, superFlavors) {
+		allSquash := true
+		vsaRule.AllSquash = &allSquash
+		// ONTAP allSquash rules use auth flavor "none"; API still requires accessType (READ_WRITE).
+		vsaRule.AccessType = models.ReadWrite
+		if rule.AnonymousUser != nil && *rule.AnonymousUser != "" {
+			if anonUID, err := strconv.ParseInt(*rule.AnonymousUser, 10, 64); err == nil {
+				vsaRule.AnonUid = &anonUID
+			} else {
+				vsaRule.AnonymousUser = *rule.AnonymousUser
+			}
+		}
+		return vsaRule
+	}
+
+	if rule.AnonymousUser != nil {
+		vsaRule.AnonymousUser = *rule.AnonymousUser
+	}
+
+	vsaRule.Superuser = containsAuthFlavor(superFlavors, models.ExportAuthenticationFlavorAny)
+	populateAccessFlagsFromONTAP(vsaRule, roFlavors, rwFlavors)
+	return vsaRule
+}
+
+func clientMatchesFromONTAP(clients []*ontaprestmodels.ExportClients) string {
+	if len(clients) == 0 {
+		return ""
+	}
+	matches := make([]string, 0, len(clients))
+	for _, client := range clients {
+		if client != nil && client.Match != nil {
+			matches = append(matches, *client.Match)
+		}
+	}
+	return strings.Join(matches, ",")
+}
+
+func authFlavorsFromONTAP(flavors []*ontaprestmodels.ExportAuthenticationFlavor) []string {
+	out := make([]string, 0, len(flavors))
+	for _, flavor := range flavors {
+		if flavor != nil {
+			out = append(out, string(*flavor))
+		}
+	}
+	return out
+}
+
+func allAuthFlavorsAreNone(roFlavors, rwFlavors, superFlavors []string) bool {
+	return onlyAuthFlavor(roFlavors, models.ExportAuthenticationFlavorNone) &&
+		onlyAuthFlavor(rwFlavors, models.ExportAuthenticationFlavorNone) &&
+		onlyAuthFlavor(superFlavors, models.ExportAuthenticationFlavorNone)
+}
+
+func onlyAuthFlavor(flavors []string, want string) bool {
+	if len(flavors) == 0 {
+		return false
+	}
+	for _, flavor := range flavors {
+		if !strings.EqualFold(flavor, want) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAuthFlavor(flavors []string, want string) bool {
+	for _, flavor := range flavors {
+		if strings.EqualFold(flavor, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func onlyNeverAuthFlavors(flavors []string) bool {
+	return onlyAuthFlavor(flavors, models.ExportAuthenticationFlavorNever)
+}
+
+func populateAccessFlagsFromONTAP(rule *ExportRule, roFlavors, rwFlavors []string) {
+	if onlyNeverAuthFlavors(roFlavors) && onlyNeverAuthFlavors(rwFlavors) {
+		rule.AccessType = models.ReadNone
+		return
+	}
+
+	rule.UnixReadOnly = containsAuthFlavor(roFlavors, models.ExportAuthenticationFlavorSys) && onlyNeverAuthFlavors(rwFlavors)
+	rule.UnixReadWrite = containsAuthFlavor(rwFlavors, models.ExportAuthenticationFlavorSys)
+	rule.Kerberos5ReadOnly = containsAuthFlavor(roFlavors, models.ExportAuthenticationFlavorKrb5)
+	rule.Kerberos5ReadWrite = containsAuthFlavor(rwFlavors, models.ExportAuthenticationFlavorKrb5)
+	rule.Kerberos5iReadOnly = containsAuthFlavor(roFlavors, models.ExportAuthenticationFlavorKrb5i)
+	rule.Kerberos5iReadWrite = containsAuthFlavor(rwFlavors, models.ExportAuthenticationFlavorKrb5i)
+	rule.Kerberos5pReadOnly = containsAuthFlavor(roFlavors, models.ExportAuthenticationFlavorKrb5p)
+	rule.Kerberos5pReadWrite = containsAuthFlavor(rwFlavors, models.ExportAuthenticationFlavorKrb5p)
+
+	if rule.UnixReadWrite || rule.Kerberos5ReadWrite || rule.Kerberos5iReadWrite || rule.Kerberos5pReadWrite {
+		rule.AccessType = models.ReadWrite
+	} else if rule.UnixReadOnly || rule.Kerberos5ReadOnly || rule.Kerberos5iReadOnly || rule.Kerberos5pReadOnly {
+		rule.AccessType = models.ReadOnly
+	}
+}
+
 // GetExportPolicyProtocols fetches the export policy by name and SVM, returning
 // the raw ONTAP protocol strings from all rules (e.g. "nfs3", "nfs4", "cifs", "any").
 func (rc *OntapRestProvider) GetExportPolicyProtocols(policyName, svmName string) ([]string, error) {

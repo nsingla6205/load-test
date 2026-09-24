@@ -24,6 +24,22 @@ func (s *AutoTieringConfigV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *BlockDeviceUpdateV1) SetFake() {
+	{
+		{
+			s.Igroups = nil
+			for i := 0; i < 1; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.Igroups = append(s.Igroups, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *BlockDeviceV1) SetFake() {
 	{
 		{
@@ -522,35 +538,6 @@ func (s *MonthlyScheduleV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *MountPointV1) SetFake() {
-	{
-		{
-			s.Export.SetFake()
-		}
-	}
-	{
-		{
-			s.ExportFull.SetFake()
-		}
-	}
-	{
-		{
-			s.IpAddress.SetFake()
-		}
-	}
-	{
-		{
-			s.Protocol.SetFake()
-		}
-	}
-	{
-		{
-			s.Instructions.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
 func (s *NetConfigV1) SetFake() {
 	{
 		{
@@ -963,15 +950,6 @@ func (s *OptOperationV1Response) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptProtocolsV1) SetFake() {
-	var elem ProtocolsV1
-	{
-		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
 func (s *OptSeedConfigV1) SetFake() {
 	var elem SeedConfigV1
 	{
@@ -1063,7 +1041,7 @@ func (s *OptWeeklyScheduleV1) SetFake() {
 
 // SetFake set fake values.
 func (s *ProtocolsV1) SetFake() {
-	*s = ProtocolsV1PROTOCOLUNSPECIFIED
+	*s = ProtocolsV1PROTOCOLSUNSPECIFIED
 }
 
 // SetFake set fake values.
@@ -1634,6 +1612,58 @@ func (s *V1ListIgroupsUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1ListVolumesBadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListVolumesBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListVolumesForbidden) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListVolumesForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListVolumesInternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListVolumesInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListVolumesOK) SetFake() {
+	{
+		{
+			s.Volumes = nil
+			for i := 0; i < 0; i++ {
+				var elem VolumeReadV1
+				{
+					elem.SetFake()
+				}
+				s.Volumes = append(s.Volumes, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *V1ListVolumesUnauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListVolumesUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1UpdateIgroupBadRequest) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
@@ -1688,6 +1718,15 @@ func (s *V1UpdateIgroupUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1UpdateVolumeAccepted) SetFake() {
+	var unwrapped OperationV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeAccepted(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1UpdateVolumeBadRequest) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
@@ -1721,6 +1760,15 @@ func (s *V1UpdateVolumeNotFound) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateVolumeNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeOK) SetFake() {
+	var unwrapped OperationV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeOK(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1779,11 +1827,72 @@ func (s *VolumeReadV1) SetFake() {
 			s.UnixPermissions.SetFake()
 		}
 	}
+	{
+		{
+			s.Created.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
 func (s *VolumeReadV1SecurityStyle) SetFake() {
 	*s = VolumeReadV1SecurityStyleSECURITYSTYLEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *VolumeUpdateV1) SetFake() {
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapReserve.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapshotDirectory.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapshotPolicy.SetFake()
+		}
+	}
+	{
+		{
+			s.ExportPolicy.SetFake()
+		}
+	}
+	{
+		{
+			s.BlockDevices = nil
+			for i := 0; i < 0; i++ {
+				var elem BlockDeviceUpdateV1
+				{
+					elem.SetFake()
+				}
+				s.BlockDevices = append(s.BlockDevices, elem)
+			}
+		}
+	}
+	{
+		{
+			s.ShareName.SetFake()
+		}
+	}
+	{
+		{
+			s.UnixPermissions.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -1864,19 +1973,12 @@ func (s *VolumeV1) SetFake() {
 	}
 	{
 		{
-			s.MountPoints = nil
-			for i := 0; i < 0; i++ {
-				var elem MountPointV1
-				{
-					elem.SetFake()
-				}
-				s.MountPoints = append(s.MountPoints, elem)
-			}
+			s.UnixPermissions.SetFake()
 		}
 	}
 	{
 		{
-			s.UnixPermissions.SetFake()
+			s.Created.SetFake()
 		}
 	}
 }

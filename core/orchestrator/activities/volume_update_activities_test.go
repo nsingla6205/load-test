@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/backup_policy"
 	cvpModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
@@ -6831,4 +6832,90 @@ func TestFindQoSGroupPolicyForVolume_EmptySvmName(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedPolicy.UUID, result.UUID)
 	mockProvider.AssertExpectations(t)
+}
+
+func TestGetSnapshotPolicyInONTAP_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := VolumeUpdateActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.GetSnapshotPolicyInONTAP)
+
+	mockProvider.On("GetSnapshotPolicy", "policy-1").Return(&vsa.SnapshotPolicy{
+		Name:      "policy-1",
+		IsEnabled: true,
+		Schedules: []*vsa.SnapshotPolicySchedule{{
+			Count:           5,
+			SnapmirrorLabel: "daily",
+			Schedule:        &vsa.Schedule{Hours: []int{2}, Minutes: []int{30}},
+		}},
+	}, nil)
+
+	val, err := env.ExecuteActivity(activity.GetSnapshotPolicyInONTAP, &models.Node{}, "policy-1")
+	require.NoError(t, err)
+
+	var policy datamodel.SnapshotPolicy
+	require.NoError(t, val.Get(&policy))
+	assert.Equal(t, "policy-1", policy.Name)
+	assert.True(t, policy.IsEnabled)
+	require.Len(t, policy.Schedules, 1)
+	assert.Equal(t, int64(5), policy.Schedules[0].Count)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestGetExportPolicyInONTAP_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := VolumeUpdateActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.GetExportPolicyInONTAP)
+
+	mockProvider.On("GetExportPolicy", "export-1", "test-svm").Return(&vsa.ExportPolicy{
+		ExportPolicyName: "export-1",
+		ExportRules: []*vsa.ExportRule{{
+			AllowedClients: "0.0.0.0/0",
+			AccessType:     models.ReadWrite,
+			NFSv3:          true,
+			Index:          1,
+		}},
+	}, nil)
+
+	val, err := env.ExecuteActivity(activity.GetExportPolicyInONTAP, &models.Node{}, "export-1", "test-svm")
+	require.NoError(t, err)
+
+	var policy datamodel.ExportPolicy
+	require.NoError(t, val.Get(&policy))
+	assert.Equal(t, "export-1", policy.ExportPolicyName)
+	require.Len(t, policy.ExportRules, 1)
+	assert.Equal(t, "0.0.0.0/0", policy.ExportRules[0].AllowedClients)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestConvertVSASnapshotPolicyToDatamodel_Nil(t *testing.T) {
+	assert.Nil(t, convertVSASnapshotPolicyToDatamodel(nil))
+}
+
+func TestConvertVSAExportPolicyToDatamodel_NilAndSkipsNilRules(t *testing.T) {
+	assert.Nil(t, convertVSAExportPolicyToDatamodel(nil))
+	policy := convertVSAExportPolicyToDatamodel(&vsa.ExportPolicy{
+		ExportPolicyName: "export-1",
+		ExportRules:      []*vsa.ExportRule{nil, {AllowedClients: "10.0.0.0/8", NFSv3: true}},
+	})
+	require.NotNil(t, policy)
+	require.Len(t, policy.ExportRules, 1)
+	assert.Equal(t, "10.0.0.0/8", policy.ExportRules[0].AllowedClients)
 }

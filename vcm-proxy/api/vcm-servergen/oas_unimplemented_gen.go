@@ -146,6 +146,15 @@ func (UnimplementedHandler) V1ListIgroups(ctx context.Context, params V1ListIgro
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListVolumes implements v1_listVolumes operation.
+//
+// Returns details of all volumes owned by the caller.
+//
+// GET /v1/volumes
+func (UnimplementedHandler) V1ListVolumes(ctx context.Context, params V1ListVolumesParams) (r V1ListVolumesRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1UpdateIgroup implements v1_updateIgroup operation.
 //
 // Update the specified igroup.
@@ -157,10 +166,11 @@ func (UnimplementedHandler) V1UpdateIgroup(ctx context.Context, req *IgroupUpdat
 
 // V1UpdateVolume implements v1_updateVolume operation.
 //
-// Updates specific fields of an existing volume using an update mask.
+// Updates specific fields of an existing volume using an update mask. The target volume is
+// identified by uuid in the request body.
 //
-// PATCH /v1/volumes/{uuid}
-func (UnimplementedHandler) V1UpdateVolume(ctx context.Context, req *VolumeV1, params V1UpdateVolumeParams) (r V1UpdateVolumeRes, _ error) {
+// PATCH /v1/volumes
+func (UnimplementedHandler) V1UpdateVolume(ctx context.Context, req *VolumeUpdateV1, params V1UpdateVolumeParams) (r V1UpdateVolumeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

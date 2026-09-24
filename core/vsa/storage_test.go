@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -13,6 +14,31 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
+
+func TestLunResponseFromONTAP(t *testing.T) {
+	assert.Nil(t, lunResponseFromONTAP(nil))
+
+	response := lunResponseFromONTAP(&ontaprest.Lun{
+		Lun: models.Lun{
+			Name:            nillable.ToPointer("/vol/lun1"),
+			UUID:            nillable.ToPointer("lun-uuid"),
+			SerialNumberHex: nillable.ToPointer("serial"),
+			OsType:          nillable.ToPointer("linux"),
+			Space: &models.LunInlineSpace{
+				Size: nillable.ToPointer(int64(1024)),
+			},
+			LunInlineLunMaps: []*models.LunInlineLunMapsInlineArrayItem{
+				{Igroup: &models.LunInlineLunMapsInlineArrayItemInlineIgroup{Name: nillable.ToPointer("hg1")}},
+			},
+		},
+	})
+	require.NotNil(t, response)
+	assert.Equal(t, "lun-uuid", response.ExternalUUID)
+	assert.Equal(t, "serial", response.SerialNumber)
+	assert.Equal(t, int64(1024), response.Size)
+	assert.Equal(t, "linux", response.OSType)
+	assert.Equal(t, []string{"hg1"}, response.IgroupNames)
+}
 
 func TestLunCreate_Success(t *testing.T) {
 	mockSAN := new(ontaprest.MockSANClient)
@@ -823,7 +849,7 @@ func TestLunGet(t *testing.T) {
 
 		param := &ontaprest.LunGetParams{
 			BaseParams: ontaprest.BaseParams{
-				Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type"},
+				Fields: []string{"status.*", "serial_number_hex", "class", "space.size", "location.*", "os_type", "lun_maps"},
 			},
 			SvmName:    nillable.GetStringPtr("testSVM"),
 			VolumeName: nillable.GetStringPtr("testVol"),
@@ -875,7 +901,8 @@ func TestLunGet(t *testing.T) {
 		assert.EqualError(tt, err, "An internal error occurred.")
 		var customErr *vsaerrors.CustomError
 		if vsaerrors.As(err, &customErr) {
-			assert.Equal(tt, customErr.OriginalErr.Error(), "lun not found: svm=testSVM, volume=testVol, lun=testLun")
+			assert.Equal(tt, customErr.OriginalErr.Error(), "lun 'svm=testSVM, volume=testVol, lun=testLun' not found")
+			assert.True(tt, errors.IsNotFoundErrForObjectTypeInChain(err, "lun"))
 			assert.Equal(tt, customErr.HttpCode, nillable.ToPointer(500))
 			assert.Equal(tt, customErr.TrackingID, 5006)
 			assert.Equal(tt, customErr.Message, "An internal error occurred.")
@@ -1121,7 +1148,8 @@ func TestLunsGet(t *testing.T) {
 		assert.EqualError(tt, err, "An internal error occurred.")
 		var customErr *vsaerrors.CustomError
 		if vsaerrors.As(err, &customErr) {
-			assert.Equal(tt, customErr.OriginalErr.Error(), "lun not found: svm=testSVM, volume=testVol, lun=testLun")
+			assert.Equal(tt, customErr.OriginalErr.Error(), "lun 'svm=testSVM, volume=testVol, lun=testLun' not found")
+			assert.True(tt, errors.IsNotFoundErrForObjectTypeInChain(err, "lun"))
 			assert.Equal(tt, customErr.HttpCode, nillable.ToPointer(500))
 			assert.Equal(tt, customErr.TrackingID, 5006)
 			assert.Equal(tt, customErr.Message, "An internal error occurred.")
@@ -1158,7 +1186,8 @@ func TestLunsGet(t *testing.T) {
 		assert.EqualError(tt, err, "An internal error occurred.")
 		var customErr *vsaerrors.CustomError
 		if vsaerrors.As(err, &customErr) {
-			assert.Equal(tt, customErr.OriginalErr.Error(), "lun not found: svm=testSVM, volume=testVol, lun=testLun")
+			assert.Equal(tt, customErr.OriginalErr.Error(), "lun 'svm=testSVM, volume=testVol, lun=testLun' not found")
+			assert.True(tt, errors.IsNotFoundErrForObjectTypeInChain(err, "lun"))
 			assert.Equal(tt, customErr.HttpCode, nillable.ToPointer(500))
 			assert.Equal(tt, customErr.TrackingID, 5006)
 			assert.Equal(tt, customErr.Message, "An internal error occurred.")

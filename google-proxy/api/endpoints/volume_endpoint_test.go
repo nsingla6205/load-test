@@ -6378,28 +6378,6 @@ func TestConvertDaysOfWeekToIntArray(t *testing.T) {
 	})
 }
 
-func TestConvertDaysOfWeekFromIntArray(t *testing.T) {
-	t.Run("ReturnsCorrectStringForValidInts", func(tt *testing.T) {
-		result := convertDaysOfWeekFromIntArray([]int{1, 2, 3})
-		assert.Equal(tt, "Monday,Tuesday,Wednesday", result)
-	})
-
-	t.Run("ReturnsSundayForEmptyInput", func(tt *testing.T) {
-		result := convertDaysOfWeekFromIntArray([]int{})
-		assert.Equal(tt, "Sunday", result)
-	})
-
-	t.Run("IgnoresInvalidInts", func(tt *testing.T) {
-		result := convertDaysOfWeekFromIntArray([]int{-1, 0, 6, 7})
-		assert.Equal(tt, "Sunday,Saturday", result)
-	})
-
-	t.Run("HandlesAllWeekdays", func(tt *testing.T) {
-		result := convertDaysOfWeekFromIntArray([]int{0, 1, 2, 3, 4, 5, 6})
-		assert.Equal(tt, "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday", result)
-	})
-}
-
 func TestConvertToSnapshotPolicyV2(t *testing.T) {
 	t.Run("NilInput_ReturnsNil", func(tt *testing.T) {
 		result := convertToSnapshotPolicyV2(nil)

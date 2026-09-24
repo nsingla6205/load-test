@@ -6,12 +6,14 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	cclient "github.com/cschleiden/go-workflows/client"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
@@ -75,7 +77,11 @@ func runVcmDeleteHostGroupWorkflow(
 	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
-	}, gowfbackend.FuncName(VcmDeleteHostGroupWorkflow), node, igroupName, expectedSvmName)
+	}, gowfbackend.FuncName(VcmDeleteHostGroupWorkflow), common.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        time.Now().UTC().Add(time.Hour),
+	}, igroupName)
 	require.NoError(t, err)
 
 	_, err = cclient.GetWorkflowResult[json.RawMessage](ctx, runner.Client(), wfi, hostGroupWorkflowTestTimeout)

@@ -410,7 +410,7 @@ func (s *Server) decodeV1UpdateIgroupRequest(r *http.Request) (
 }
 
 func (s *Server) decodeV1UpdateVolumeRequest(r *http.Request) (
-	req *VolumeV1,
+	req *VolumeUpdateV1,
 	rawBody []byte,
 	close func() error,
 	rerr error,
@@ -457,7 +457,7 @@ func (s *Server) decodeV1UpdateVolumeRequest(r *http.Request) (
 		rawBody = append(rawBody, buf...)
 		d := jx.DecodeBytes(buf)
 
-		var request VolumeV1
+		var request VolumeUpdateV1
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err

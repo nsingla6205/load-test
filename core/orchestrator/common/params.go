@@ -575,6 +575,14 @@ type UpdateVolumeParams struct {
 	//   non-nil pointer to empty slice — clear restrictions
 	//   non-nil pointer to non-empty slice — replace restrictions
 	RestrictedActions *[]string
+
+	// VCM workflow fields. Unused by Google Proxy.
+	OperationID string
+	Deadline    time.Time
+	// SnapshotPolicyEnabledSet is true when the update request explicitly set
+	// snapshotPolicy.enabled. When false, snapshot policy updates preserve the
+	// current ONTAP enabled state.
+	SnapshotPolicyEnabledSet bool
 }
 
 type CreateLunMapParams struct {
@@ -1333,6 +1341,13 @@ type CreateHostGroupParams struct {
 	TrialMode     *TrialModeParams
 	OperationID   string
 	Deadline      time.Time
+}
+
+// WorkflowInputs carries shared ONTAP targeting and deadline inputs for VCM workflows.
+type WorkflowInputs struct {
+	Node            *models.Node
+	ExpectedSvmName string
+	Deadline        time.Time
 }
 
 type SnapshotsInternalDeleteParams struct {

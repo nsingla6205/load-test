@@ -228,6 +228,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg.RegisterWorkflow(vcm_workflows.VcmPostFileVolumeWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmPostFileVolumeWorkflowForSMB)
 	reg.RegisterWorkflow(vcm_workflows.VcmDeleteVolumeWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.VcmUpdateVolumeWorkflow)
 
 	var poolActivity activities.PoolActivity
 	var credentialActivity activities.VCMCredentialActivity
@@ -236,6 +237,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	var volumeDeleteActivity activities.VolumeDeleteActivity
 	var volumeUpdateActivity activities.VolumeUpdateActivity
 	var vcmHostGroupActivity activities.HostGroupActivity
+	var vcmVolumeActivity activities.VolumeActivity
 	jobActivity := &activities.JobActivity{Store: store}
 
 	reg.RegisterActivity(poolActivity.IdentifyVMs)
@@ -254,6 +256,17 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg.RegisterActivity(volumeCreateActivity.CreateExportPolicyInOntap)
 	reg.RegisterActivity(volumeCreateActivity.CreateSnapshotPolicyInONTAP)
 	reg.RegisterActivity(volumeUpdateActivity.GetVolumeFromONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.GetSnapshotPolicyInONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.GetExportPolicyInONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.UpdateVolumeInONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.UpdateLun)
+	reg.RegisterActivity(volumeUpdateActivity.UpdateSnapshotPolicyInOntap)
+	reg.RegisterActivity(volumeUpdateActivity.UpdateJunctionPathInONTAP)
+	reg.RegisterActivity(volumeUpdateActivity.UpdateExportPolicyRulesInONTAP)
+	reg.RegisterActivity(vcmVolumeActivity.UpdateBlockDeviceHostGroups)
+	reg.RegisterActivity(vcmVolumeActivity.GetLunInONTAP)
+	reg.RegisterActivity(vcmVolumeActivity.PopulateVolumeFromONTAPResponse)
+	reg.RegisterActivity(vcmVolumeActivity.BuildVolumeOperationResponseEnrichment)
 	reg.RegisterActivity(volumeDeleteActivity.DeleteVolumeInONTAP)
 	reg.RegisterActivity(volumeDeleteActivity.DeleteExportPolicy)
 	reg.RegisterActivity(volumeDeleteActivity.DeleteSnapshotPolicyInONTAP)

@@ -157,6 +157,8 @@ paths:
       description: Create a new igroup.
       operationId: v1_createIgroup
       parameters:
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         description: The required parameters to create a new igroup.
@@ -245,6 +247,8 @@ paths:
       operationId: v1_updateIgroup
       parameters:
         - $ref: "#/components/parameters/igroupNamePathParameter"
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         description: The parameters that can be updated for the igroup.
@@ -293,6 +297,8 @@ paths:
       operationId: v1_deleteIgroup
       parameters:
         - $ref: "#/components/parameters/igroupNamePathParameter"
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       responses:
         "202":
@@ -324,6 +330,52 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
   /v1/volumes:
+    get:
+      tags:
+        - volumes
+      operationId: v1_listVolumes
+      description: Returns details of all volumes owned by the caller.
+      parameters:
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      volumes:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VolumeRead_v1"
+              example:
+                volumes:
+                  - uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
+                    name: my-volume
+                    sizeInBytes: 107374182400
+                    usedBytes: 1409024
+                    shareName: my-volume
+                    securityStyle: UNIX
+                    snapReserve: 0
+                    snapshotDirectory: true
+                    created: "2016-11-30T20:32:50.459Z"
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "403":
+          $ref: "#/components/responses/StandardError-403"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
     post:
       tags:
         - volumes
@@ -332,6 +384,8 @@ paths:
         backup/snapshot config is in the body parameters.
       operationId: v1_createVolume
       parameters:
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         required: true
@@ -374,32 +428,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
-  /v1/volumes/{uuid}:
-    get:
+    patch:
       tags:
         - volumes
-      summary: Describe a volume
-      description: Returns the description of the specified volume by volume UUID.
-      operationId: v1_describeVolume
+      summary: Update a volume
+      description: Updates specific fields of an existing volume using an update mask.
+        The target volume is identified by uuid in the request body.
+      operationId: v1_updateVolume
       parameters:
-        - $ref: "#/components/parameters/volumeUuidPathParameter"
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
+        - $ref: "#/components/parameters/updateMaskQueryParameter"
+      requestBody:
+        required: true
+        description: The volume fields to update, including the target volume uuid.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolumeUpdate_v1"
+            example:
+              uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
+              sizeInBytes: 214748364800
       responses:
         "200":
-          description: OK
+          description: No update required (request contained no mutable fields)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VolumeRead_v1"
+                $ref: "#/components/schemas/Operation_v1"
               example:
-                uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
-                name: my-volume
-                sizeInBytes: 107374182400
-                usedBytes: 1409024
-                shareName: /my-volume
-                securityStyle: UNIX
-                snapReserve: 0
-                snapshotDirectory: true
+                done: true
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "202":
+          description: Updating volume
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
         "400":
           $ref: "#/components/responses/StandardError-400"
         "401":
@@ -417,42 +486,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
-    patch:
+  /v1/volumes/{uuid}:
+    get:
       tags:
         - volumes
-      summary: Update a volume
-      description: Updates specific fields of an existing volume using an update mask.
-      operationId: v1_updateVolume
+      summary: Describe a volume
+      description: Returns the description of the specified volume by volume UUID.
+      operationId: v1_describeVolume
       parameters:
         - $ref: "#/components/parameters/volumeUuidPathParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
-        - name: updateMask
-          in: query
-          required: false
-          description: >
-            The list of fields to update. Names are relative to the root `Volume_v1`
-            resource. Multiple field paths can be specified as a comma-separated list.
-          schema:
-            type: string
-      requestBody:
-        required: true
-        description: The volume fields to update.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Volume_v1"
-            example:
-              sizeInBytes: 214748364800
       responses:
-        "202":
-          description: Updating volume
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Operation_v1"
+                $ref: "#/components/schemas/Volume_v1"
               example:
-                done: false
-                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+                uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
+                name: my-volume
+                sizeInBytes: 107374182400
+                usedBytes: 1409024
+                shareName: my-volume
+                securityStyle: UNIX
+                snapReserve: 0
+                snapshotDirectory: true
+                unixPermissions: "0755"
+                created: "2016-11-30T20:32:50.459Z"
+                snapshotPolicy:
+                  enabled: true
+                  hourlySchedule:
+                    snapshotsToKeep: 6
+                    minute: 10
+                exportPolicy:
+                  rules:
+                    - allowedClients: "0.0.0.0/0"
+                      accessType: READ_WRITE
+                      nfsv3: true
+                      nfsv4: true
         "400":
           $ref: "#/components/responses/StandardError-400"
         "401":
@@ -480,6 +552,8 @@ paths:
       operationId: v1_deleteVolume
       parameters:
         - $ref: "#/components/parameters/volumeUuidPathParameter"
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       responses:
         "202":
@@ -582,34 +656,6 @@ paths:
 
 components:
   parameters:
-    requestIdQueryParameter:
-      name: requestId
-      in: query
-      required: true
-      description: |
-        Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
-        Generated by CLH before the first attempt and reused for every retry of
-        the same logical request. Returned as the operationId in the 202
-        response; poll GET /v1/operations/{operationId}.
-      schema:
-        type: string
-        minLength: 36
-        maxLength: 36
-        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-
-    timeoutQueryParameter:
-      name: timeout
-      in: query
-      required: true
-      description: |
-        Maximum duration the backend is allowed to execute the operation before
-        timing out. VCM rejects a request whose timeout is not positive.
-      schema:
-        type: string
-        format: duration
-      example: "3600s"
-
     igroupNamePathParameter:
       name: name
       in: path
@@ -650,6 +696,49 @@ components:
         maxLength: 36
         pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
       example: "550e8400-e29b-41d4-a716-446655440000"
+
+    requestIdQueryParameter:
+      name: requestId
+      in: query
+      required: true
+      description: |
+        Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
+        Generated by CLH before the first attempt and reused for every retry
+        of the same logical request. Returned as the operationId in the LRO
+        response; poll GET /v1/operations/{operationId}.
+      schema:
+        type: string
+        minLength: 36
+        maxLength: 36
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+    timeoutQueryParameter:
+      name: timeout
+      in: query
+      required: true
+      description: |
+        Maximum duration the backend is allowed to execute this operation
+        before timing out. Encoded as a google.protobuf.Duration JSON value
+        (seconds with an "s" suffix), for example `600s` or `1.5s`.
+      schema:
+        type: string
+        pattern: '^(?:0|[1-9]\d*)(?:\.\d+)?s$'
+      example: "600s"
+
+    updateMaskQueryParameter:
+      name: updateMask
+      in: query
+      required: true
+      description: >
+        Required comma-separated list of `VolumeUpdate_v1` fields to apply from the
+        request body. Fields present in the body but omitted from the mask are ignored.
+        Nested paths (for example `snapshotPolicy.enabled`) are accepted; only the root
+        field name is used for masking.
+      schema:
+        type: string
+        minLength: 1
+      example: sizeInBytes
 
   responses:
     StandardError-400:
@@ -822,7 +911,7 @@ components:
       description: Protocol type through which volume can be accessed
       example: NFSV3
       enum:
-        - PROTOCOL_UNSPECIFIED
+        - PROTOCOLS_UNSPECIFIED
         - NFSV3
         - NFSV4
         - SMB
@@ -965,39 +1054,6 @@ components:
       description: A simple export-policy rule that defines who can access the volume
         and how. Only 5 rules are allowed but each rule can serve many clients and
         subnets.
-
-    MountPoint_v1:
-      title: MountPoint
-      type: object
-      properties:
-        export:
-          title: export
-          type: string
-          description: The volume's export path or share name
-          readOnly: true
-          example: /hopefully-sufficient-newton
-        exportFull:
-          title: exportFull
-          type: string
-          description: "The volume's full export path or share name, including server"
-          readOnly: true
-          example: 1.2.3.4:/hopefully-sufficient-newton
-        ipAddress:
-          title: ipAddress
-          type: string
-          description: The volume's IPv4 address
-          readOnly: true
-          example: 1.2.3.4
-        protocol:
-          $ref: '#/components/schemas/Protocols_v1'
-        instructions:
-          title: instructions
-          type: string
-          description: Instructions for mounting the volume
-          readOnly: true
-          example: "sudo mount -t nfs -o rw,hard,rsize=65536,wsize=65536,vers=3,tcp\
-            \ 1.2.3.4:/hopefully-sufficient-newton ./hopefully-sufficient-newton"
-
     SnapshotPolicy_v1:
       title: SnapshotPolicy
       type: object
@@ -1181,12 +1237,109 @@ components:
           example:
             - hg-db-linux
 
+    BlockDeviceUpdate_v1:
+      title: BlockDeviceUpdate
+      type: object
+      additionalProperties: false
+      required:
+        - igroups
+      properties:
+        igroups:
+          title: igroups
+          type: array
+          description: Names of pre-created igroups to map the volume LUN to. OSType is immutable after volume creation.
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+          example:
+            - hg-db-linux
+
+    VolumeUpdate_v1:
+      title: Volume update v1 model definition
+      type: object
+      required:
+        - uuid
+      description: >
+        Patch body for volume update. The target volume uuid is required in the body.
+        `updateMask` is required, and only listed fields present in the body are
+        applied. A request that selects no mutable body fields returns HTTP 200 with
+        done true and does not start a workflow.
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          description: UUID of the volume to update.
+          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+          maxLength: 36
+          minLength: 36
+          example: 12345678-1234-1234-1234-123456789012
+        sizeInBytes:
+          title: sizeInBytes
+          type: number
+          description: Maximum storage quota allowed for a volume in bytes. This is
+            a soft quota used for alerting only. Upper limit is 100TB.
+          format: double
+          nullable: true
+          example: 4000000000000
+        snapReserve:
+          title: snapReserve
+          minimum: 0
+          type: number
+          description: Percentage of volume storage reserved for snapshot storage.
+            Default is 0 percent.
+          format: double
+          nullable: true
+          example: 20.0
+        snapshotDirectory:
+          title: snapshotDirectory
+          type: boolean
+          description: If enabled (true) the volume will contain a read-only '.snapshot'
+            directory which provides access to each of the volume's snapshots.
+          nullable: true
+        snapshotPolicy:
+          $ref: '#/components/schemas/SnapshotPolicy_v1'
+        exportPolicy:
+          $ref: '#/components/schemas/ExportPolicy_v1'
+        blockDevices:
+          title: blockDevices
+          type: array
+          description: Block device properties to update. Only igroups can be changed; osType is immutable after creation.
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/BlockDeviceUpdate_v1'
+        shareName:
+          title: shareName
+          type: string
+          maxLength: 80
+          description: A creation token is required for creation of NAS volumes. Junction path is created as /creationToken.
+          example: hopefully-sufficient-newton
+          nullable: true
+        unixPermissions:
+          title: unixPermissions
+          maxLength: 4
+          minLength: 4
+          type: string
+          description: "UNIX permissions for NFS volume accepted in octal 4 digit\
+            \ format. First digit selects the set user Id(4), set group Id (2) and\
+            \ sticky (1) attributes. Second digit selects permission for the owner\
+            \ of the file: read (4), write (2) and execute (1). Third selects permissions\
+            \ for other users in the same group. the fourth for other users not in\
+            \ the group. \"0755\" - gives read/write/execute permissions to owner\
+            \ and read/execute to group and other users."
+          nullable: true
+          example: "0755"
+
     Volume_v1:
       title: Volume v1 model definition
+      description: |
+        Unified volume schema for VCM volume APIs. Fields marked readOnly are returned
+        on describe/list responses. Fields marked writeOnly are accepted on create
+        requests only and are omitted from describe/list responses. `protocols` is
+        required on create (enforced by the handler) but is not returned on describe.
       type: object
       required:
         - name
-        - protocols
       properties:
         uuid:
           title: uuid
@@ -1226,11 +1379,9 @@ components:
         shareName:
           title: shareName
           type: string
-          description: A share name must be supplied by the caller and is used
-            by the API to ensure idempotent creation of a volume. Subsequent calls
-            to the create-volume operation using the same share name will have
-            no effect. The share name can be any user supplied string e.g. a randomly
-            generated v4 Uuid.(This is required for a NAS volume)
+          description: |
+            For NAS volumes, the ONTAP junction path on describe and the caller-supplied
+            share name used for idempotent create.
           example: hopefully-sufficient-newton
         securityStyle:
           title: securityStyle
@@ -1270,16 +1421,10 @@ components:
         protocols:
           title: protocol
           type: array
-          description: Protocol type through which volume can be accessed.
+          writeOnly: true
+          description: Protocol type through which volume can be accessed. Required on create (enforced by the handler); omitted from describe/list responses.
           items:
             $ref: '#/components/schemas/Protocols_v1'
-        mountPoints:
-          title: mountPoints
-          type: array
-          description: Mount points for the volume
-          readOnly: true
-          items:
-            $ref: '#/components/schemas/MountPoint_v1'
         unixPermissions:
           title: unixPermissions
           maxLength: 4
@@ -1294,12 +1439,19 @@ components:
             \ and read/execute to group and other users."
           nullable: true
           example: "0755"
+        created:
+          title: created
+          type: string
+          format: date-time
+          readOnly: true
+          description: ONTAP volume create_time (UTC).
+          example: "2016-11-30T20:32:50.459Z"
 
     VolumeRead_v1:
-      title: ONTAP-backed volume read model
+      title: ONTAP-backed volume list item
       description: |
-        Subset of volume fields returned by GET /v1/volumes/{name} and aligned with the
-        create-operation done payload. Values are sourced from a single ONTAP volume GET.
+        Subset of volume fields returned by GET /v1/volumes. Values are sourced from
+        ONTAP volume collection GET for the deployment SVM.
       type: object
       required:
         - name
@@ -1370,6 +1522,13 @@ components:
           description: UNIX permissions for NFS volumes in 4-digit octal format.
           nullable: true
           example: "0755"
+        created:
+          title: created
+          type: string
+          format: date-time
+          readOnly: true
+          description: ONTAP volume create_time (UTC).
+          example: "2016-11-30T20:32:50.459Z"
 
     # Long-running operation resource (AIP-151). Returned both by POST /v1/cluster
     # (202 Accepted, done=false) and by GET /v1/operations/{operationId} for polling.
@@ -1396,8 +1555,10 @@ components:
         response:
           description: |
             Success result when the operation completes with a stored terminal payload.
-            Omitted when the job is still running, failed, or completed without a valid
-            stored payload (not an empty object).
+            For volume create/update operations, this object contains `VolumeRead_v1`
+            fields directly (not wrapped under `volume`). Pool and igroup operations use
+            their respective resource wrappers. Omitted when the job is still running,
+            failed, or completed without a valid stored payload (not an empty object).
           type: object
           additionalProperties: true
 

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"time"
 
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
@@ -14,22 +13,17 @@ import (
 // the VCM orchestrator, which owns the durable job lifecycle. Returns the
 // long-running Operation (AIP-151) with done=false; clients poll
 // GET /v1/operations/{operationId} using the operation ID (== requestId).
-func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, params vcmserver.ClusterCreateV1Params) (vcmserver.ClusterCreateV1Res, error) {
+func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, queryParams vcmserver.ClusterCreateV1Params) (vcmserver.ClusterCreateV1Res, error) {
 	logger := weutil.GetLogger(ctx)
 
 	if req == nil {
-		return clusterCreateBadRequest("cluster body with clusterShape is required", false), nil
+		return clusterCreateBadRequest("request body is required", false), nil
 	}
 
-	requestID := clusterCreateRequestID(params)
-
-	if requestID == "" {
-		return clusterCreateBadRequest("requestId is required", false), nil
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return clusterCreateBadRequest(err.Error(), false), nil
 	}
-	if params.Timeout <= 0 {
-		return clusterCreateBadRequest("timeout must be a positive duration", false), nil
-	}
-	deadline := clusterCreateDeadline(params)
 
 	if h.ConfigStore == nil {
 		logger.ErrorContext(ctx, "create-cluster rejected: VCM config store is not configured",
@@ -54,8 +48,7 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, 
 	deploymentID := poolParams.VCM.DeploymentID
 
 	logger.InfoContext(ctx, "received create-cluster request",
-		"deploymentId", deploymentID, "requestId", requestID,
-		"timeout", params.Timeout, "deadline", deadline)
+		"deploymentId", deploymentID, "requestId", requestID, "timeoutDeadline", deadline)
 
 	_, operationID, err := h.Orchestrator.CreatePool(ctx, poolParams)
 	if err != nil {
@@ -90,21 +83,6 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, 
 		Name: "/v1/operations/" + operationID,
 		Done: false,
 	}, nil
-}
-
-// clusterCreateRequestID resolves the idempotency key for a create-cluster
-// request. It is centralized in a getter because the strategy for sourcing the
-// request ID (query parameter today, header/context tomorrow) may change.
-func clusterCreateRequestID(params vcmserver.ClusterCreateV1Params) string {
-	return params.RequestId
-}
-
-// clusterCreateDeadline resolves the absolute UTC deadline for a create-cluster
-// request from the caller-supplied relative timeout. Job persistence, workflow
-// deadline checks and recovery all work in absolute time, so the conversion
-// happens once here at the API edge.
-func clusterCreateDeadline(params vcmserver.ClusterCreateV1Params) time.Time {
-	return time.Now().UTC().Add(params.Timeout)
 }
 
 func clusterCreateBadRequest(message string, retriable bool) *vcmserver.ClusterCreateV1BadRequest {

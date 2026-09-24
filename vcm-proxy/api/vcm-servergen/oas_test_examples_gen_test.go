@@ -27,6 +27,18 @@ func TestAutoTieringConfigV1_EncodeDecode(t *testing.T) {
 	var typ2 AutoTieringConfigV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestBlockDeviceUpdateV1_EncodeDecode(t *testing.T) {
+	var typ BlockDeviceUpdateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 BlockDeviceUpdateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestBlockDeviceV1_EncodeDecode(t *testing.T) {
 	var typ BlockDeviceV1
 	typ.SetFake()
@@ -497,18 +509,6 @@ func TestMonthlyScheduleV1_EncodeDecode(t *testing.T) {
 	var typ2 MonthlyScheduleV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestMountPointV1_EncodeDecode(t *testing.T) {
-	var typ MountPointV1
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 MountPointV1
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestNetConfigV1_EncodeDecode(t *testing.T) {
 	var typ NetConfigV1
 	typ.SetFake()
@@ -624,6 +624,7 @@ func TestOperationV1_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"done\":false,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
+		{Input: "{\"done\":true,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -1345,6 +1346,66 @@ func TestV1ListIgroupsUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1ListIgroupsUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1ListVolumesBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListVolumesBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListVolumesBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListVolumesForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListVolumesForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListVolumesForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListVolumesInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListVolumesInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListVolumesInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListVolumesOK_EncodeDecode(t *testing.T) {
+	var typ V1ListVolumesOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListVolumesOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListVolumesUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListVolumesUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListVolumesUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1UpdateIgroupBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1UpdateIgroupBadRequest
 	typ.SetFake()
@@ -1417,6 +1478,18 @@ func TestV1UpdateIgroupUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateIgroupUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1UpdateVolumeAccepted_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeAccepted
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeAccepted
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1UpdateVolumeBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1UpdateVolumeBadRequest
 	typ.SetFake()
@@ -1465,6 +1538,18 @@ func TestV1UpdateVolumeNotFound_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateVolumeNotFound
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1UpdateVolumeOK_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1UpdateVolumeUnauthorized_EncodeDecode(t *testing.T) {
 	var typ V1UpdateVolumeUnauthorized
 	typ.SetFake()
@@ -1488,35 +1573,6 @@ func TestVolumeReadV1_EncodeDecode(t *testing.T) {
 
 	var typ2 VolumeReadV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-
-func TestVolumeReadV1_Examples(t *testing.T) {
-
-	for i, tc := range []struct {
-		Input string
-	}{
-		{Input: "{\"name\":\"my-volume\",\"securityStyle\":\"UNIX\",\"shareName\":\"/my-volume\",\"sizeInBytes\":107374182400,\"snapReserve\":0,\"snapshotDirectory\":true,\"usedBytes\":1409024,\"uuid\":\"9760acf5-4638-11e7-9bdb-020073ca0001\"}"},
-	} {
-		tc := tc
-		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
-			var typ VolumeReadV1
-
-			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
-				if validateErr, ok := errors.Into[*validate.Error](err); ok {
-					t.Skipf("Validation error: %v", validateErr)
-					return
-				}
-				require.NoErrorf(t, err, "Input: %s", tc.Input)
-			}
-
-			e := jx.Encoder{}
-			typ.Encode(&e)
-			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
-
-			var typ2 VolumeReadV1
-			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
-		})
-	}
 }
 func TestVolumeReadV1SecurityStyle_EncodeDecode(t *testing.T) {
 	var typ VolumeReadV1SecurityStyle
@@ -1559,6 +1615,47 @@ func TestVolumeReadV1SecurityStyle_Examples(t *testing.T) {
 		})
 	}
 }
+func TestVolumeUpdateV1_EncodeDecode(t *testing.T) {
+	var typ VolumeUpdateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 VolumeUpdateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestVolumeUpdateV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"sizeInBytes\":214748364800,\"uuid\":\"9760acf5-4638-11e7-9bdb-020073ca0001\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ VolumeUpdateV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 VolumeUpdateV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestVolumeV1_EncodeDecode(t *testing.T) {
 	var typ VolumeV1
 	typ.SetFake()
@@ -1578,7 +1675,7 @@ func TestVolumeV1_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"blockDevices\":[{\"igroups\":[\"hg-db-linux\"],\"osType\":\"LINUX\"}],\"name\":\"my-volume\",\"protocols\":[\"ISCSI\"],\"sizeInBytes\":107374182400}"},
-		{Input: "{\"sizeInBytes\":214748364800}"},
+		{Input: "{\"created\":\"2016-11-30T20:32:50.459Z\",\"exportPolicy\":{\"rules\":[{\"accessType\":\"READ_WRITE\",\"allowedClients\":\"0.0.0.0/0\",\"nfsv3\":true,\"nfsv4\":true}]},\"name\":\"my-volume\",\"securityStyle\":\"UNIX\",\"shareName\":\"my-volume\",\"sizeInBytes\":107374182400,\"snapReserve\":0,\"snapshotDirectory\":true,\"snapshotPolicy\":{\"enabled\":true,\"hourlySchedule\":{\"minute\":10,\"snapshotsToKeep\":6}},\"unixPermissions\":\"0755\",\"usedBytes\":1409024,\"uuid\":\"9760acf5-4638-11e7-9bdb-020073ca0001\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {

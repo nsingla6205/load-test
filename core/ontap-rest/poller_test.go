@@ -477,10 +477,61 @@ func TestPoll_PollOntapJobWorkflow_FutureNonApplicationError_FallsBack(t *testin
 	require.Contains(t, err.Error(), "failed to poll ontap-rest job")
 }
 
-func TestPoll_PollOntapJobWorkflow_NotActivityContextError(t *testing.T) {
-	err := activityTest(context.Background(), RESTClientParams{}, "job-uuid")
-	require.Error(t, err)
-	require.Equal(t, "Context is not an activity context, cannot poll job in non-blocking way", err.Error())
+// pollActivityOutcome captures PollOntapJobActivity results from a helper
+// goroutine so testify assertions run on the test goroutine.
+type pollActivityOutcome struct {
+	result   *models.Job
+	err      error
+	panicked bool
+}
+
+func runPollActivityInMockGoroutine(
+	mcs *cluster.MockClientService,
+	fn func() (*models.Job, error),
+) <-chan pollActivityOutcome {
+	out := make(chan pollActivityOutcome, 1)
+	go func() {
+		defer mcs.MockClientServiceDone()
+		var outcome pollActivityOutcome
+		defer func() {
+			if r := recover(); r != nil {
+				outcome.panicked = true
+			}
+			out <- outcome
+		}()
+		outcome.result, outcome.err = fn()
+	}()
+	return out
+}
+
+func TestPoll_NonActivityContext_UsesDirectPoll(t *testing.T) {
+	mcs := cluster.NewMockClientService(t)
+	mockOntap := &OntapRestClient{cluster: &clusterClient{api: mcs}}
+
+	origMockAPI := NewOntapRestClient
+	NewOntapRestClient = func(params RESTClientParams) (RESTClient, error) {
+		return mockOntap, nil
+	}
+	defer func() {
+		NewOntapRestClient = origMockAPI
+	}()
+
+	jobResponse := &cluster.JobGetOK{
+		Payload: &models.Job{
+			State: nillable.ToPointer(models.JobStateSuccess),
+		},
+	}
+
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return nil, activityTest(context.Background(), RESTClientParams{}, "job-uuid")
+	})
+
+	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID("job-uuid").WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
+	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.NoError(t, outcome.err)
 }
 
 func TestPollOntapJobActivity_Success(t *testing.T) {
@@ -507,19 +558,17 @@ func TestPollOntapJobActivity_Success(t *testing.T) {
 		},
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity
-		result, err := PollOntapJobActivity(ctx, clientParams, uuid)
-
-		// Verify results
-		require.NoError(t, err)
-		require.Nil(t, result) // Should return nil for success state
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.NoError(t, outcome.err)
+	require.Nil(t, outcome.result)
 }
 
 func TestPollOntapJobActivity_Failure(t *testing.T) {
@@ -546,20 +595,18 @@ func TestPollOntapJobActivity_Failure(t *testing.T) {
 		},
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity
-		result, err := PollOntapJobActivity(ctx, clientParams, uuid)
-
-		// Verify results
-		require.Error(t, err)
-		require.Nil(t, result)
-		require.Contains(t, err.Error(), "jobGetOK")
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.Error(t, outcome.err)
+	require.Nil(t, outcome.result)
+	require.Contains(t, outcome.err.Error(), "jobGetOK")
 }
 
 func TestPollOntapJobActivity_InProgress(t *testing.T) {
@@ -586,20 +633,18 @@ func TestPollOntapJobActivity_InProgress(t *testing.T) {
 		},
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity
-		result, err := PollOntapJobActivity(ctx, clientParams, uuid)
-
-		// Verify results - should return error for in-progress state
-		require.Error(t, err)
-		require.Nil(t, result)
-		require.Contains(t, err.Error(), "Job is still processing")
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.Error(t, outcome.err)
+	require.Nil(t, outcome.result)
+	require.Contains(t, outcome.err.Error(), "Job is still processing")
 }
 
 func TestPollOntapJobActivity_ClientCreationError(t *testing.T) {
@@ -642,21 +687,19 @@ func TestPollOntapJobActivity_GetJobError(t *testing.T) {
 		NewOntapRestClient = origMockAPI
 	}()
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity
-		result, err := PollOntapJobActivity(ctx, clientParams, uuid)
-
-		// Verify results
-		require.Error(t, err)
-		require.Nil(t, result)
-		require.Contains(t, err.Error(), "failed to poll job")
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	// Mock GetJob to return an error
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, nil, errors.New("job not found"))
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.Error(t, outcome.err)
+	require.Nil(t, outcome.result)
+	require.Contains(t, outcome.err.Error(), "failed to poll job")
 }
 
 func TestPollOntapJobActivity_NilJobResponse(t *testing.T) {
@@ -681,17 +724,15 @@ func TestPollOntapJobActivity_NilJobResponse(t *testing.T) {
 		Payload: nil,
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity - this should panic due to nil pointer dereference
-		require.Panics(t, func() {
-			_, _ = PollOntapJobActivity(ctx, clientParams, uuid)
-		})
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.True(t, outcome.panicked, "nil job payload should panic")
 }
 
 func TestPollOntapJobActivity_NilJobState(t *testing.T) {
@@ -718,17 +759,15 @@ func TestPollOntapJobActivity_NilJobState(t *testing.T) {
 		},
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity - this should panic due to nil pointer dereference
-		require.Panics(t, func() {
-			_, _ = PollOntapJobActivity(ctx, clientParams, uuid)
-		})
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.True(t, outcome.panicked, "nil job state should panic")
 }
 
 func TestPollOntapJobActivity_WithLogger(t *testing.T) {
@@ -742,10 +781,10 @@ func TestPollOntapJobActivity_WithLogger(t *testing.T) {
 	mcs := cluster.NewMockClientService(t)
 	mockOntap := &OntapRestClient{cluster: &clusterClient{api: mcs}}
 
+	var gotTrace atomic.Bool
 	origMockAPI := NewOntapRestClient
 	NewOntapRestClient = func(params RESTClientParams) (RESTClient, error) {
-		// Verify that the logger was assigned to Trace
-		require.NotNil(t, params.Trace)
+		gotTrace.Store(params.Trace != nil)
 		return mockOntap, nil
 	}
 	defer func() {
@@ -759,17 +798,16 @@ func TestPollOntapJobActivity_WithLogger(t *testing.T) {
 		},
 	}
 
-	// Set up the mock expectation and run in goroutine
-	go func() {
-		defer mcs.MockClientServiceDone()
-		// Call the activity
-		result, err := PollOntapJobActivity(ctx, clientParams, uuid)
-
-		// Verify results
-		require.NoError(t, err)
-		require.Nil(t, result)
-	}()
+	out := runPollActivityInMockGoroutine(mcs, func() (*models.Job, error) {
+		return PollOntapJobActivity(ctx, clientParams, uuid)
+	})
 
 	mcs.AssertJobGet(cluster.NewJobGetParams().WithUUID(uuid).WithFields([]string{"*", "node.name"}), nil, nil, jobResponse, nil)
 	mcs.AssertMockClientServiceDone()
+
+	outcome := <-out
+	require.False(t, outcome.panicked)
+	require.NoError(t, outcome.err)
+	require.Nil(t, outcome.result)
+	require.True(t, gotTrace.Load(), "logger should be assigned to Trace")
 }

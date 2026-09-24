@@ -544,9 +544,50 @@ func (rc *OntapRestProvider) CreateSnapshotPolicy(sp *SnapshotPolicy) error {
 		return vsaerrors.NewVCPError(vsaerrors.ErrSnapshotPolicyScheduleTooMany, errors.New("too many snapshot policy schedules specified"))
 	}
 
-	schedules := make([]*ontapRest.SnapshotPolicySchedule, len(sp.Schedules))
-	for i, schedule := range sp.Schedules {
-		schedules[i] = &ontapRest.SnapshotPolicySchedule{
+	schedules, err := snapshotPolicySchedulesForONTAP(sp.Schedules)
+	if err != nil {
+		return err
+	}
+
+	createParams := &ontapRest.SnapshotPolicyCreateParams{
+		Name:      &sp.Name,
+		Comment:   &sp.Comment,
+		Enabled:   &sp.IsEnabled,
+		Schedules: schedules,
+	}
+
+	err = rc.createSnapshotPolicyOnONTAP(client, createParams, schedules)
+	if err == nil {
+		return nil
+	}
+	if !strings.Contains(err.Error(), "exists") {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+
+	if existing, findErr := rc.findSnapshotPolicyOnONTAP(client, sp.Name); findErr == nil &&
+		existing != nil && len(existing.SnapshotPolicyInlineCopies) >= len(sp.Schedules) {
+		return nil
+	}
+
+	delParams := &ontapRest.SnapshotPolicyDeleteParams{Name: sp.Name}
+	if delErr := client.Storage().SnapshotPolicyDelete(delParams); delErr != nil &&
+		!errors.IsNotFoundErr(delErr) && !strings.Contains(strings.ToLower(delErr.Error()), "not found") {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, delErr)
+	}
+
+	if err = rc.createSnapshotPolicyOnONTAP(client, createParams, schedules); err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+	return nil
+}
+
+func snapshotPolicySchedulesForONTAP(schedules []*SnapshotPolicySchedule) ([]*ontapRest.SnapshotPolicySchedule, error) {
+	ontapSchedules := make([]*ontapRest.SnapshotPolicySchedule, len(schedules))
+	for i, schedule := range schedules {
+		if schedule == nil || schedule.Schedule == nil {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotPolicyScheduleRequired, errors.New("must have at least one snapshot policy schedule when creating"))
+		}
+		ontapSchedules[i] = &ontapRest.SnapshotPolicySchedule{
 			Prefix:          schedule.SnapmirrorLabel,
 			Count:           schedule.Count,
 			SnapmirrorLabel: schedule.SnapmirrorLabel,
@@ -558,55 +599,155 @@ func (rc *OntapRestProvider) CreateSnapshotPolicy(sp *SnapshotPolicy) error {
 			Minutes:         schedule.Schedule.Minutes,
 		}
 	}
-	for i := 0; i < len(schedules); i++ {
-		schedules[i].Name = generateNameForSchedule(&Schedule{
-			Months:      schedules[i].Months,
-			DaysOfMonth: schedules[i].DaysOfMonth,
-			DaysOfWeek:  schedules[i].DaysOfWeek,
-			Hours:       schedules[i].Hours,
-			Minutes:     schedules[i].Minutes,
+	for i := 0; i < len(ontapSchedules); i++ {
+		ontapSchedules[i].Name = generateNameForSchedule(&Schedule{
+			Months:      ontapSchedules[i].Months,
+			DaysOfMonth: ontapSchedules[i].DaysOfMonth,
+			DaysOfWeek:  ontapSchedules[i].DaysOfWeek,
+			Hours:       ontapSchedules[i].Hours,
+			Minutes:     ontapSchedules[i].Minutes,
+		})
+	}
+	return ontapSchedules, nil
+}
+
+func (rc *OntapRestProvider) findSnapshotPolicyOnONTAP(client ontapRest.RESTClient, name string) (*ontaprestmodel.SnapshotPolicy, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, nil
+	}
+	return client.Storage().SnapshotPolicyFind(&ontapRest.SnapshotPolicyFindParams{
+		Name:   name,
+		Fields: []string{"copies"},
+	})
+}
+
+func (rc *OntapRestProvider) createSnapshotPolicyOnONTAP(client ontapRest.RESTClient, createParams *ontapRest.SnapshotPolicyCreateParams, schedules []*ontapRest.SnapshotPolicySchedule) error {
+	err := client.Storage().SnapshotPolicyCreate(createParams)
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), "not found") && strings.HasPrefix(err.Error(), "Schedule") {
+		for _, schedule := range schedules {
+			scheduleErr := client.Cluster().ScheduleCreate(&ontapRest.ScheduleCreateParams{
+				Name:        schedule.Name,
+				Months:      schedule.Months,
+				DaysOfMonth: schedule.DaysOfMonth,
+				DaysOfWeek:  schedule.DaysOfWeek,
+				Hours:       schedule.Hours,
+				Minutes:     schedule.Minutes,
+			})
+			if scheduleErr != nil &&
+				!strings.Contains(scheduleErr.Error(), "exists") &&
+				!strings.Contains(scheduleErr.Error(), "duplicate entry") {
+				return scheduleErr
+			}
+		}
+		return client.Storage().SnapshotPolicyCreate(createParams)
+	}
+	return err
+}
+
+// GetSnapshotPolicy reads a cluster-scoped snapshot policy and its schedules from ONTAP.
+func (rc *OntapRestProvider) GetSnapshotPolicy(snapshotPolicyName string) (*SnapshotPolicy, error) {
+	if strings.TrimSpace(snapshotPolicyName) == "" {
+		return nil, nil
+	}
+
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+
+	policy, err := client.Storage().SnapshotPolicyFind(&ontapRest.SnapshotPolicyFindParams{
+		Name: snapshotPolicyName,
+		Fields: []string{
+			"name", "enabled", "copies.count", "copies.snapmirror_label", "copies.schedule.name",
+		},
+	})
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+	if policy == nil {
+		return nil, errors.NewNotFoundErr("snapshotPolicy", &snapshotPolicyName)
+	}
+
+	result := &SnapshotPolicy{
+		Name:      snapshotPolicyName,
+		IsEnabled: policy.Enabled != nil && *policy.Enabled,
+	}
+
+	for _, copy := range policy.SnapshotPolicyInlineCopies {
+		if copy == nil {
+			continue
+		}
+		schedule := &Schedule{}
+		if copy.Schedule != nil && copy.Schedule.Name != nil {
+			if err := rc.populateScheduleFromONTAP(client, *copy.Schedule.Name, schedule); err != nil {
+				return nil, err
+			}
+		}
+
+		count := int64(0)
+		if copy.Count != nil {
+			count = *copy.Count
+		}
+		label := ""
+		if copy.SnapmirrorLabel != nil {
+			label = *copy.SnapmirrorLabel
+		} else if copy.Prefix != nil {
+			label = *copy.Prefix
+		}
+
+		result.Schedules = append(result.Schedules, &SnapshotPolicySchedule{
+			Count:           count,
+			SnapmirrorLabel: label,
+			Schedule:        schedule,
 		})
 	}
 
-	err = client.Storage().SnapshotPolicyCreate(&ontapRest.SnapshotPolicyCreateParams{
-		Name:      &sp.Name,
-		Comment:   &sp.Comment,
-		Enabled:   &sp.IsEnabled,
-		Schedules: schedules,
+	return result, nil
+}
+
+func (rc *OntapRestProvider) populateScheduleFromONTAP(client ontapRest.RESTClient, scheduleName string, schedule *Schedule) error {
+	if schedule == nil || scheduleName == "" {
+		return nil
+	}
+
+	schedule.Name = scheduleName
+	err := client.Cluster().ScheduleCollectionGet(&ontapRest.ScheduleCollectionGetParams{
+		Name: scheduleName,
+		BaseParams: ontapRest.BaseParams{
+			Fields: []string{"name", "cron"},
+		},
+	}, func(schedules []*ontapRest.Schedule) error {
+		if len(schedules) == 0 || schedules[0] == nil || schedules[0].Cron == nil {
+			return nil
+		}
+		cron := schedules[0].Cron
+		schedule.DaysOfMonth = pointerInt64SliceToIntSlice(cron.Days)
+		schedule.DaysOfWeek = pointerInt64SliceToIntSlice(cron.Weekdays)
+		schedule.Hours = pointerInt64SliceToIntSlice(cron.Hours)
+		schedule.Minutes = pointerInt64SliceToIntSlice(cron.Minutes)
+		schedule.Months = pointerInt64SliceToIntSlice(cron.Months)
+		return nil
 	})
-
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") && strings.HasPrefix(err.Error(), "Schedule") {
-			for _, schedule := range schedules {
-				err := client.Cluster().ScheduleCreate(&ontapRest.ScheduleCreateParams{
-					Name:        schedule.Name,
-					Months:      schedule.Months,
-					DaysOfMonth: schedule.DaysOfMonth,
-					DaysOfWeek:  schedule.DaysOfWeek,
-					Hours:       schedule.Hours,
-					Minutes:     schedule.Minutes,
-				})
-				if err != nil {
-					if !strings.Contains(err.Error(), "exists") &&
-						!strings.Contains(err.Error(), "duplicate entry") {
-						return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
-					}
-				}
-			}
-
-			return client.Storage().SnapshotPolicyCreate(&ontapRest.SnapshotPolicyCreateParams{
-				Name:      &sp.Name,
-				Comment:   &sp.Comment,
-				Enabled:   &sp.IsEnabled,
-				Schedules: schedules,
-			})
-		}
-
-		if !strings.Contains(err.Error(), "exists") {
-			return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
-		}
+		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
 	return nil
+}
+
+func pointerInt64SliceToIntSlice(values []*int64) []int {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			out = append(out, int(*value))
+		}
+	}
+	return out
 }
 
 // DeleteSnapshotPolicy deletes a snapshot policy in ONTAP using the provided snapshot policy name.

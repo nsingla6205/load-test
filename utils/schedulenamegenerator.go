@@ -50,6 +50,22 @@ func ConvertDaysOfWeekToIntArray(days string) ([]int, error) {
 	return result, nil
 }
 
+// ConvertDaysOfWeekFromIntArray formats weekday integers as comma-separated
+// weekday names. Invalid values (outside 0-6) are skipped. Empty or all-invalid
+// input defaults to Sunday.
+func ConvertDaysOfWeekFromIntArray(days []int) string {
+	resultDays := make([]string, 0, len(days))
+	for _, day := range days {
+		if day >= 0 && day <= 6 {
+			resultDays = append(resultDays, time.Weekday(day).String())
+		}
+	}
+	if len(resultDays) == 0 {
+		resultDays = append(resultDays, time.Sunday.String())
+	}
+	return strings.Join(resultDays, ",")
+}
+
 func GenerateWeekdayPartOfScheduleName(daysOfWeek []int) (days string) {
 	for i, day := range daysOfWeek {
 		if i > 0 {

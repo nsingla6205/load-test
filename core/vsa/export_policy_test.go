@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	ontaprestmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
@@ -2214,6 +2215,81 @@ func TestDeleteExportPolicy_DeleteFailure(t *testing.T) {
 	mockNASClient.AssertExpectations(t)
 }
 
+func TestConvertONTAPExportRuleToVSA_AllSquash(t *testing.T) {
+	originalValue := utils.IsAllSquashEnabled
+	defer func() { utils.EnableAllSquashForTesting(originalValue) }()
+	utils.EnableAllSquashForTesting(true)
+
+	none := ontaprestmodels.ExportAuthenticationFlavorNone
+	ontapRule := &ontaprestmodels.ExportRules{
+		ExportRulesInlineClients: []*ontaprestmodels.ExportClients{
+			{Match: nillable.ToPointer("0.0.0.0/0")},
+		},
+		ExportRulesInlineRoRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+		ExportRulesInlineRwRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+		ExportRulesInlineSuperuser: []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+		Protocols:                  []*string{nillable.ToPointer("nfs3")},
+		AnonymousUser:              nillable.ToPointer("65534"),
+		Index:                      nillable.ToPointer(int64(1)),
+	}
+
+	got := convertONTAPExportRuleToVSA(ontapRule)
+
+	require.NotNil(t, got.AllSquash)
+	assert.True(t, *got.AllSquash)
+	assert.Equal(t, models.ReadWrite, got.AccessType)
+	require.NotNil(t, got.AnonUid)
+	assert.Equal(t, int64(65534), *got.AnonUid)
+	assert.Equal(t, "0.0.0.0/0", got.AllowedClients)
+	assert.True(t, got.NFSv3)
+}
+
+func TestGetExportPolicy_Success(t *testing.T) {
+	mockNASClient := new(MockNASClient)
+	mockRESTClient := &MockRESTClientForNAS{nasClient: mockNASClient}
+
+	origFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = origFunc }()
+	getOntapClientFunc = func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockRESTClient, nil
+	}
+
+	originalValue := utils.IsAllSquashEnabled
+	defer func() { utils.EnableAllSquashForTesting(originalValue) }()
+	utils.EnableAllSquashForTesting(true)
+
+	none := ontaprestmodels.ExportAuthenticationFlavorNone
+	mockNASClient.On("ExportPolicyGet", mock.Anything).Return(&ontapRest.ExportPolicy{
+		ExportPolicy: ontaprestmodels.ExportPolicy{
+			ExportPolicyInlineRules: []*ontaprestmodels.ExportRules{
+				{
+					ExportRulesInlineClients: []*ontaprestmodels.ExportClients{
+						{Match: nillable.ToPointer("0.0.0.0/0")},
+					},
+					ExportRulesInlineRoRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+					ExportRulesInlineRwRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+					ExportRulesInlineSuperuser: []*ontaprestmodels.ExportAuthenticationFlavor{&none},
+					Protocols:                  []*string{nillable.ToPointer("nfs3")},
+					AnonymousUser:              nillable.ToPointer("0"),
+				},
+			},
+		},
+	}, nil)
+
+	rc := &OntapRestProvider{Logger: log.NewLogger()}
+	policy, err := rc.GetExportPolicy("test-policy", "test-svm")
+
+	require.NoError(t, err)
+	require.NotNil(t, policy)
+	assert.Equal(t, "test-policy", policy.ExportPolicyName)
+	assert.Equal(t, "test-svm", policy.SvmName)
+	require.Len(t, policy.ExportRules, 1)
+	require.NotNil(t, policy.ExportRules[0].AllSquash)
+	assert.True(t, *policy.ExportRules[0].AllSquash)
+	assert.Equal(t, models.ReadWrite, policy.ExportRules[0].AccessType)
+	mockNASClient.AssertExpectations(t)
+}
+
 func TestGetExportPolicyProtocols(t *testing.T) {
 	t.Run("WhenGetOntapClientFails_ThenReturnError", func(t *testing.T) {
 		origFunc := getOntapClientFunc
@@ -3001,4 +3077,129 @@ func TestCreateExportPolicy_MultiRuleWithSingleAllSquash(t *testing.T) {
 	}, "rule[1] all_squash")
 	assert.Equal(t, "0.0.0.0/0", captured.Rules[1].ClientMatch)
 	assert.EqualValues(t, 2, captured.Rules[1].Index)
+}
+
+func TestGetExportPolicy_SkipsNilRules(t *testing.T) {
+	mockNASClient := new(MockNASClient)
+	mockRESTClient := &MockRESTClientForNAS{nasClient: mockNASClient}
+
+	origFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = origFunc }()
+	getOntapClientFunc = func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockRESTClient, nil
+	}
+
+	sys := ontaprestmodels.ExportAuthenticationFlavorSys
+	mockNASClient.On("ExportPolicyGet", mock.Anything).Return(&ontapRest.ExportPolicy{
+		ExportPolicy: ontaprestmodels.ExportPolicy{
+			ExportPolicyInlineRules: []*ontaprestmodels.ExportRules{
+				nil,
+				{
+					ExportRulesInlineClients: []*ontaprestmodels.ExportClients{
+						{Match: nillable.ToPointer("0.0.0.0/0")},
+					},
+					ExportRulesInlineRoRule: []*ontaprestmodels.ExportAuthenticationFlavor{&sys},
+					ExportRulesInlineRwRule: []*ontaprestmodels.ExportAuthenticationFlavor{&sys},
+					Protocols:               []*string{nillable.ToPointer("nfs3")},
+				},
+			},
+		},
+	}, nil)
+
+	rc := &OntapRestProvider{Logger: log.NewLogger()}
+	policy, err := rc.GetExportPolicy("test-policy", "test-svm")
+	require.NoError(t, err)
+	require.Len(t, policy.ExportRules, 1)
+}
+
+func TestGetExportPolicy_ClientError(t *testing.T) {
+	origFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = origFunc }()
+	getOntapClientFunc = func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return nil, errors.New("connection refused")
+	}
+
+	rc := &OntapRestProvider{Logger: log.NewLogger()}
+	_, err := rc.GetExportPolicy("test-policy", "test-svm")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get ONTAP client")
+}
+
+func TestGetExportPolicy_NotFound(t *testing.T) {
+	mockNASClient := new(MockNASClient)
+	mockRESTClient := &MockRESTClientForNAS{nasClient: mockNASClient}
+
+	origFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = origFunc }()
+	getOntapClientFunc = func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockRESTClient, nil
+	}
+
+	mockNASClient.On("ExportPolicyGet", mock.Anything).Return(nil, errors.New("policy missing"))
+
+	rc := &OntapRestProvider{Logger: log.NewLogger()}
+	_, err := rc.GetExportPolicy("missing-policy", "test-svm")
+	require.Error(t, err)
+}
+
+func TestGetExportPolicy_NilPolicyResponse(t *testing.T) {
+	mockNASClient := new(MockNASClient)
+	mockRESTClient := &MockRESTClientForNAS{nasClient: mockNASClient}
+
+	origFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = origFunc }()
+	getOntapClientFunc = func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockRESTClient, nil
+	}
+
+	mockNASClient.On("ExportPolicyGet", mock.Anything).Return(nil, nil)
+
+	rc := &OntapRestProvider{Logger: log.NewLogger()}
+	_, err := rc.GetExportPolicy("missing-policy", "test-svm")
+	require.Error(t, err)
+}
+
+func TestConvertONTAPExportRuleToVSA_NonAllSquashPath(t *testing.T) {
+	sys := ontaprestmodels.ExportAuthenticationFlavorSys
+	never := ontaprestmodels.ExportAuthenticationFlavorNever
+	krb5 := ontaprestmodels.ExportAuthenticationFlavorKrb5
+	any := ontaprestmodels.ExportAuthenticationFlavorAny
+
+	rule := convertONTAPExportRuleToVSA(&ontaprestmodels.ExportRules{
+		ExportRulesInlineClients: []*ontaprestmodels.ExportClients{
+			{Match: nillable.ToPointer("10.0.0.0/8")},
+		},
+		ExportRulesInlineRoRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&sys},
+		ExportRulesInlineRwRule:    []*ontaprestmodels.ExportAuthenticationFlavor{&never},
+		ExportRulesInlineSuperuser: []*ontaprestmodels.ExportAuthenticationFlavor{&any},
+		Protocols:                  []*string{nillable.ToPointer("nfs4"), nillable.ToPointer("cifs")},
+		AnonymousUser:              nillable.ToPointer("root"),
+		ChownMode:                  nillable.ToPointer("restricted"),
+		Index:                      nillable.ToPointer(int64(2)),
+	})
+
+	require.NotNil(t, rule)
+	assert.Equal(t, "10.0.0.0/8", rule.AllowedClients)
+	assert.True(t, rule.NFSv4)
+	assert.True(t, rule.CIFS)
+	assert.True(t, rule.UnixReadOnly)
+	assert.True(t, rule.Superuser)
+	assert.Equal(t, models.ReadOnly, rule.AccessType)
+	assert.Equal(t, "restricted", rule.ChownMode)
+	assert.Equal(t, 2, rule.Index)
+
+	readNone := convertONTAPExportRuleToVSA(&ontaprestmodels.ExportRules{
+		ExportRulesInlineClients: []*ontaprestmodels.ExportClients{{Match: nillable.ToPointer("0.0.0.0/0")}},
+		ExportRulesInlineRoRule:  []*ontaprestmodels.ExportAuthenticationFlavor{&never},
+		ExportRulesInlineRwRule:  []*ontaprestmodels.ExportAuthenticationFlavor{&never},
+	})
+	assert.Equal(t, models.ReadNone, readNone.AccessType)
+
+	readWrite := convertONTAPExportRuleToVSA(&ontaprestmodels.ExportRules{
+		ExportRulesInlineClients: []*ontaprestmodels.ExportClients{{Match: nillable.ToPointer("0.0.0.0/0")}},
+		ExportRulesInlineRoRule:  []*ontaprestmodels.ExportAuthenticationFlavor{&never},
+		ExportRulesInlineRwRule:  []*ontaprestmodels.ExportAuthenticationFlavor{&krb5},
+	})
+	assert.True(t, readWrite.Kerberos5ReadWrite)
+	assert.Equal(t, models.ReadWrite, readWrite.AccessType)
 }

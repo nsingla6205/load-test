@@ -40,6 +40,22 @@ func (s *AutoTieringConfigV1) SetHotTierSizeInBytes(val OptInt64) {
 	s.HotTierSizeInBytes = val
 }
 
+// Ref: #/components/schemas/BlockDeviceUpdate_v1
+type BlockDeviceUpdateV1 struct {
+	// Names of pre-created igroups to map the volume LUN to. OSType is immutable after volume creation.
+	Igroups []string `json:"igroups"`
+}
+
+// GetIgroups returns the value of Igroups.
+func (s *BlockDeviceUpdateV1) GetIgroups() []string {
+	return s.Igroups
+}
+
+// SetIgroups sets the value of Igroups.
+func (s *BlockDeviceUpdateV1) SetIgroups(val []string) {
+	s.Igroups = val
+}
+
 // Ref: #/components/schemas/BlockDevice_v1
 type BlockDeviceV1 struct {
 	OsType BlockDeviceV1OsType `json:"osType"`
@@ -1123,69 +1139,6 @@ func (s *MonthlyScheduleV1) SetMinute(val OptFloat64) {
 	s.Minute = val
 }
 
-// Ref: #/components/schemas/MountPoint_v1
-type MountPointV1 struct {
-	// The volume's export path or share name.
-	Export OptString `json:"export"`
-	// The volume's full export path or share name, including server.
-	ExportFull OptString `json:"exportFull"`
-	// The volume's IPv4 address.
-	IpAddress OptString      `json:"ipAddress"`
-	Protocol  OptProtocolsV1 `json:"protocol"`
-	// Instructions for mounting the volume.
-	Instructions OptString `json:"instructions"`
-}
-
-// GetExport returns the value of Export.
-func (s *MountPointV1) GetExport() OptString {
-	return s.Export
-}
-
-// GetExportFull returns the value of ExportFull.
-func (s *MountPointV1) GetExportFull() OptString {
-	return s.ExportFull
-}
-
-// GetIpAddress returns the value of IpAddress.
-func (s *MountPointV1) GetIpAddress() OptString {
-	return s.IpAddress
-}
-
-// GetProtocol returns the value of Protocol.
-func (s *MountPointV1) GetProtocol() OptProtocolsV1 {
-	return s.Protocol
-}
-
-// GetInstructions returns the value of Instructions.
-func (s *MountPointV1) GetInstructions() OptString {
-	return s.Instructions
-}
-
-// SetExport sets the value of Export.
-func (s *MountPointV1) SetExport(val OptString) {
-	s.Export = val
-}
-
-// SetExportFull sets the value of ExportFull.
-func (s *MountPointV1) SetExportFull(val OptString) {
-	s.ExportFull = val
-}
-
-// SetIpAddress sets the value of IpAddress.
-func (s *MountPointV1) SetIpAddress(val OptString) {
-	s.IpAddress = val
-}
-
-// SetProtocol sets the value of Protocol.
-func (s *MountPointV1) SetProtocol(val OptProtocolsV1) {
-	s.Protocol = val
-}
-
-// SetInstructions sets the value of Instructions.
-func (s *MountPointV1) SetInstructions(val OptString) {
-	s.Instructions = val
-}
-
 // VPC/subnet assignments for each ONTAP network interface.
 // Ref: #/components/schemas/NetConfig_v1
 type NetConfigV1 struct {
@@ -1398,8 +1351,10 @@ type OperationV1 struct {
 	// Failure details set when the operation completes unsuccessfully.
 	Error OptErrorResponseV1 `json:"error"`
 	// Success result when the operation completes with a stored terminal payload.
-	// Omitted when the job is still running, failed, or completed without a valid
-	// stored payload (not an empty object).
+	// For volume create/update operations, this object contains `VolumeRead_v1`
+	// fields directly (not wrapped under `volume`). Pool and igroup operations use
+	// their respective resource wrappers. Omitted when the job is still running,
+	// failed, or completed without a valid stored payload (not an empty object).
 	Response OptOperationV1Response `json:"response"`
 }
 
@@ -1460,11 +1415,12 @@ func (*OperationV1) v1CreateVolumeRes()  {}
 func (*OperationV1) v1DeleteIgroupRes()  {}
 func (*OperationV1) v1DeleteVolumeRes()  {}
 func (*OperationV1) v1UpdateIgroupRes()  {}
-func (*OperationV1) v1UpdateVolumeRes()  {}
 
 // Success result when the operation completes with a stored terminal payload.
-// Omitted when the job is still running, failed, or completed without a valid
-// stored payload (not an empty object).
+// For volume create/update operations, this object contains `VolumeRead_v1`
+// fields directly (not wrapped under `volume`). Pool and igroup operations use
+// their respective resource wrappers. Omitted when the job is still running,
+// failed, or completed without a valid stored payload (not an empty object).
 type OperationV1Response map[string]jx.Raw
 
 func (s *OperationV1Response) init() OperationV1Response {
@@ -2941,52 +2897,6 @@ func (o OptOperationV1Response) Or(d OperationV1Response) OperationV1Response {
 	return d
 }
 
-// NewOptProtocolsV1 returns new OptProtocolsV1 with value set to v.
-func NewOptProtocolsV1(v ProtocolsV1) OptProtocolsV1 {
-	return OptProtocolsV1{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptProtocolsV1 is optional ProtocolsV1.
-type OptProtocolsV1 struct {
-	Value ProtocolsV1
-	Set   bool
-}
-
-// IsSet returns true if OptProtocolsV1 was set.
-func (o OptProtocolsV1) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptProtocolsV1) Reset() {
-	var v ProtocolsV1
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptProtocolsV1) SetTo(v ProtocolsV1) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptProtocolsV1) Get() (v ProtocolsV1, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptProtocolsV1) Or(d ProtocolsV1) ProtocolsV1 {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
 // NewOptSeedConfigV1 returns new OptSeedConfigV1 with value set to v.
 func NewOptSeedConfigV1(v SeedConfigV1) OptSeedConfigV1 {
 	return OptSeedConfigV1{
@@ -3452,17 +3362,17 @@ func (o OptWeeklyScheduleV1) Or(d WeeklyScheduleV1) WeeklyScheduleV1 {
 type ProtocolsV1 string
 
 const (
-	ProtocolsV1PROTOCOLUNSPECIFIED ProtocolsV1 = "PROTOCOL_UNSPECIFIED"
-	ProtocolsV1NFSV3               ProtocolsV1 = "NFSV3"
-	ProtocolsV1NFSV4               ProtocolsV1 = "NFSV4"
-	ProtocolsV1SMB                 ProtocolsV1 = "SMB"
-	ProtocolsV1ISCSI               ProtocolsV1 = "ISCSI"
+	ProtocolsV1PROTOCOLSUNSPECIFIED ProtocolsV1 = "PROTOCOLS_UNSPECIFIED"
+	ProtocolsV1NFSV3                ProtocolsV1 = "NFSV3"
+	ProtocolsV1NFSV4                ProtocolsV1 = "NFSV4"
+	ProtocolsV1SMB                  ProtocolsV1 = "SMB"
+	ProtocolsV1ISCSI                ProtocolsV1 = "ISCSI"
 )
 
 // AllValues returns all ProtocolsV1 values.
 func (ProtocolsV1) AllValues() []ProtocolsV1 {
 	return []ProtocolsV1{
-		ProtocolsV1PROTOCOLUNSPECIFIED,
+		ProtocolsV1PROTOCOLSUNSPECIFIED,
 		ProtocolsV1NFSV3,
 		ProtocolsV1NFSV4,
 		ProtocolsV1SMB,
@@ -3473,7 +3383,7 @@ func (ProtocolsV1) AllValues() []ProtocolsV1 {
 // MarshalText implements encoding.TextMarshaler.
 func (s ProtocolsV1) MarshalText() ([]byte, error) {
 	switch s {
-	case ProtocolsV1PROTOCOLUNSPECIFIED:
+	case ProtocolsV1PROTOCOLSUNSPECIFIED:
 		return []byte(s), nil
 	case ProtocolsV1NFSV3:
 		return []byte(s), nil
@@ -3491,8 +3401,8 @@ func (s ProtocolsV1) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (s *ProtocolsV1) UnmarshalText(data []byte) error {
 	switch ProtocolsV1(data) {
-	case ProtocolsV1PROTOCOLUNSPECIFIED:
-		*s = ProtocolsV1PROTOCOLUNSPECIFIED
+	case ProtocolsV1PROTOCOLSUNSPECIFIED:
+		*s = ProtocolsV1PROTOCOLSUNSPECIFIED
 		return nil
 	case ProtocolsV1NFSV3:
 		*s = ProtocolsV1NFSV3
@@ -4430,6 +4340,38 @@ type V1ListIgroupsUnauthorized ErrorResponseV1
 
 func (*V1ListIgroupsUnauthorized) v1ListIgroupsRes() {}
 
+type V1ListVolumesBadRequest ErrorResponseV1
+
+func (*V1ListVolumesBadRequest) v1ListVolumesRes() {}
+
+type V1ListVolumesForbidden ErrorResponseV1
+
+func (*V1ListVolumesForbidden) v1ListVolumesRes() {}
+
+type V1ListVolumesInternalServerError ErrorResponseV1
+
+func (*V1ListVolumesInternalServerError) v1ListVolumesRes() {}
+
+type V1ListVolumesOK struct {
+	Volumes []VolumeReadV1 `json:"volumes"`
+}
+
+// GetVolumes returns the value of Volumes.
+func (s *V1ListVolumesOK) GetVolumes() []VolumeReadV1 {
+	return s.Volumes
+}
+
+// SetVolumes sets the value of Volumes.
+func (s *V1ListVolumesOK) SetVolumes(val []VolumeReadV1) {
+	s.Volumes = val
+}
+
+func (*V1ListVolumesOK) v1ListVolumesRes() {}
+
+type V1ListVolumesUnauthorized ErrorResponseV1
+
+func (*V1ListVolumesUnauthorized) v1ListVolumesRes() {}
+
 type V1UpdateIgroupBadRequest ErrorResponseV1
 
 func (*V1UpdateIgroupBadRequest) v1UpdateIgroupRes() {}
@@ -4454,6 +4396,10 @@ type V1UpdateIgroupUnauthorized ErrorResponseV1
 
 func (*V1UpdateIgroupUnauthorized) v1UpdateIgroupRes() {}
 
+type V1UpdateVolumeAccepted OperationV1
+
+func (*V1UpdateVolumeAccepted) v1UpdateVolumeRes() {}
+
 type V1UpdateVolumeBadRequest ErrorResponseV1
 
 func (*V1UpdateVolumeBadRequest) v1UpdateVolumeRes() {}
@@ -4470,12 +4416,16 @@ type V1UpdateVolumeNotFound ErrorResponseV1
 
 func (*V1UpdateVolumeNotFound) v1UpdateVolumeRes() {}
 
+type V1UpdateVolumeOK OperationV1
+
+func (*V1UpdateVolumeOK) v1UpdateVolumeRes() {}
+
 type V1UpdateVolumeUnauthorized ErrorResponseV1
 
 func (*V1UpdateVolumeUnauthorized) v1UpdateVolumeRes() {}
 
-// Subset of volume fields returned by GET /v1/volumes/{name} and aligned with the
-// create-operation done payload. Values are sourced from a single ONTAP volume GET.
+// Subset of volume fields returned by GET /v1/volumes. Values are sourced from
+// ONTAP volume collection GET for the deployment SVM.
 // Ref: #/components/schemas/VolumeRead_v1
 type VolumeReadV1 struct {
 	// UUID of the volume.
@@ -4496,6 +4446,8 @@ type VolumeReadV1 struct {
 	SnapshotDirectory OptBool `json:"snapshotDirectory"`
 	// UNIX permissions for NFS volumes in 4-digit octal format.
 	UnixPermissions OptNilString `json:"unixPermissions"`
+	// ONTAP volume create_time (UTC).
+	Created OptDateTime `json:"created"`
 }
 
 // GetUUID returns the value of UUID.
@@ -4543,6 +4495,11 @@ func (s *VolumeReadV1) GetUnixPermissions() OptNilString {
 	return s.UnixPermissions
 }
 
+// GetCreated returns the value of Created.
+func (s *VolumeReadV1) GetCreated() OptDateTime {
+	return s.Created
+}
+
 // SetUUID sets the value of UUID.
 func (s *VolumeReadV1) SetUUID(val OptString) {
 	s.UUID = val
@@ -4588,7 +4545,10 @@ func (s *VolumeReadV1) SetUnixPermissions(val OptNilString) {
 	s.UnixPermissions = val
 }
 
-func (*VolumeReadV1) v1DescribeVolumeRes() {}
+// SetCreated sets the value of Created.
+func (s *VolumeReadV1) SetCreated(val OptDateTime) {
+	s.Created = val
+}
 
 // The security style of the NAS volume.
 type VolumeReadV1SecurityStyle string
@@ -4639,6 +4599,130 @@ func (s *VolumeReadV1SecurityStyle) UnmarshalText(data []byte) error {
 	}
 }
 
+// Patch body for volume update. The target volume uuid is required in the body. `updateMask` is
+// required, and only listed fields present in the body are applied. A request that selects no
+// mutable body fields returns HTTP 200 with done true and does not start a workflow.
+// Ref: #/components/schemas/VolumeUpdate_v1
+type VolumeUpdateV1 struct {
+	// UUID of the volume to update.
+	UUID string `json:"uuid"`
+	// Maximum storage quota allowed for a volume in bytes. This is a soft quota used for alerting only.
+	// Upper limit is 100TB.
+	SizeInBytes OptNilFloat64 `json:"sizeInBytes"`
+	// Percentage of volume storage reserved for snapshot storage. Default is 0 percent.
+	SnapReserve OptNilFloat64 `json:"snapReserve"`
+	// If enabled (true) the volume will contain a read-only '.snapshot' directory which provides access
+	// to each of the volume's snapshots.
+	SnapshotDirectory OptNilBool          `json:"snapshotDirectory"`
+	SnapshotPolicy    OptSnapshotPolicyV1 `json:"snapshotPolicy"`
+	ExportPolicy      OptExportPolicyV1   `json:"exportPolicy"`
+	// Block device properties to update. Only igroups can be changed; osType is immutable after creation.
+	BlockDevices []BlockDeviceUpdateV1 `json:"blockDevices"`
+	// A creation token is required for creation of NAS volumes. Junction path is created as
+	// /creationToken.
+	ShareName OptNilString `json:"shareName"`
+	// UNIX permissions for NFS volume accepted in octal 4 digit format. First digit selects the set user
+	// Id(4), set group Id (2) and sticky (1) attributes. Second digit selects permission for the owner
+	// of the file: read (4), write (2) and execute (1). Third selects permissions for other users in the
+	// same group. the fourth for other users not in the group. "0755" - gives read/write/execute
+	// permissions to owner and read/execute to group and other users.
+	UnixPermissions OptNilString `json:"unixPermissions"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *VolumeUpdateV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *VolumeUpdateV1) GetSizeInBytes() OptNilFloat64 {
+	return s.SizeInBytes
+}
+
+// GetSnapReserve returns the value of SnapReserve.
+func (s *VolumeUpdateV1) GetSnapReserve() OptNilFloat64 {
+	return s.SnapReserve
+}
+
+// GetSnapshotDirectory returns the value of SnapshotDirectory.
+func (s *VolumeUpdateV1) GetSnapshotDirectory() OptNilBool {
+	return s.SnapshotDirectory
+}
+
+// GetSnapshotPolicy returns the value of SnapshotPolicy.
+func (s *VolumeUpdateV1) GetSnapshotPolicy() OptSnapshotPolicyV1 {
+	return s.SnapshotPolicy
+}
+
+// GetExportPolicy returns the value of ExportPolicy.
+func (s *VolumeUpdateV1) GetExportPolicy() OptExportPolicyV1 {
+	return s.ExportPolicy
+}
+
+// GetBlockDevices returns the value of BlockDevices.
+func (s *VolumeUpdateV1) GetBlockDevices() []BlockDeviceUpdateV1 {
+	return s.BlockDevices
+}
+
+// GetShareName returns the value of ShareName.
+func (s *VolumeUpdateV1) GetShareName() OptNilString {
+	return s.ShareName
+}
+
+// GetUnixPermissions returns the value of UnixPermissions.
+func (s *VolumeUpdateV1) GetUnixPermissions() OptNilString {
+	return s.UnixPermissions
+}
+
+// SetUUID sets the value of UUID.
+func (s *VolumeUpdateV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *VolumeUpdateV1) SetSizeInBytes(val OptNilFloat64) {
+	s.SizeInBytes = val
+}
+
+// SetSnapReserve sets the value of SnapReserve.
+func (s *VolumeUpdateV1) SetSnapReserve(val OptNilFloat64) {
+	s.SnapReserve = val
+}
+
+// SetSnapshotDirectory sets the value of SnapshotDirectory.
+func (s *VolumeUpdateV1) SetSnapshotDirectory(val OptNilBool) {
+	s.SnapshotDirectory = val
+}
+
+// SetSnapshotPolicy sets the value of SnapshotPolicy.
+func (s *VolumeUpdateV1) SetSnapshotPolicy(val OptSnapshotPolicyV1) {
+	s.SnapshotPolicy = val
+}
+
+// SetExportPolicy sets the value of ExportPolicy.
+func (s *VolumeUpdateV1) SetExportPolicy(val OptExportPolicyV1) {
+	s.ExportPolicy = val
+}
+
+// SetBlockDevices sets the value of BlockDevices.
+func (s *VolumeUpdateV1) SetBlockDevices(val []BlockDeviceUpdateV1) {
+	s.BlockDevices = val
+}
+
+// SetShareName sets the value of ShareName.
+func (s *VolumeUpdateV1) SetShareName(val OptNilString) {
+	s.ShareName = val
+}
+
+// SetUnixPermissions sets the value of UnixPermissions.
+func (s *VolumeUpdateV1) SetUnixPermissions(val OptNilString) {
+	s.UnixPermissions = val
+}
+
+// Unified volume schema for VCM volume APIs. Fields marked readOnly are returned
+// on describe/list responses. Fields marked writeOnly are accepted on create
+// requests only and are omitted from describe/list responses. `protocols` is
+// required on create (enforced by the handler) but is not returned on describe.
 // Ref: #/components/schemas/Volume_v1
 type VolumeV1 struct {
 	// UUID of the volume.
@@ -4651,10 +4735,8 @@ type VolumeV1 struct {
 	SizeInBytes OptFloat64 `json:"sizeInBytes"`
 	// Current storage usage for the volume in bytes.
 	UsedBytes OptNilFloat64 `json:"usedBytes"`
-	// A share name must be supplied by the caller and is used by the API to ensure idempotent creation
-	// of a volume. Subsequent calls to the create-volume operation using the same share name will have
-	// no effect. The share name can be any user supplied string e.g. a randomly generated v4 Uuid.(This
-	// is required for a NAS volume).
+	// For NAS volumes, the ONTAP junction path on describe and the caller-supplied
+	// share name used for idempotent create.
 	ShareName OptString `json:"shareName"`
 	// The security style of the NAS volume.
 	SecurityStyle OptVolumeV1SecurityStyle `json:"securityStyle"`
@@ -4667,16 +4749,17 @@ type VolumeV1 struct {
 	ExportPolicy      OptExportPolicyV1   `json:"exportPolicy"`
 	// Array of block devices associated with this volume.
 	BlockDevices []BlockDeviceV1 `json:"blockDevices"`
-	// Protocol type through which volume can be accessed.
+	// Protocol type through which volume can be accessed. Required on create (enforced by the handler);
+	// omitted from describe/list responses.
 	Protocols []ProtocolsV1 `json:"protocols"`
-	// Mount points for the volume.
-	MountPoints []MountPointV1 `json:"mountPoints"`
 	// UNIX permissions for NFS(NAS) volume accepted in octal 4 digit format. First digit selects the set
 	// user Id(4), set group Id (2) and sticky (1) attributes. Second digit selects permission for the
 	// owner of the file: read (4), write (2) and execute (1). Third selects permissions for other users
 	// in the same group. the fourth for other users not in the group. "0755" - gives read/write/execute
 	// permissions to owner and read/execute to group and other users.
 	UnixPermissions OptNilString `json:"unixPermissions"`
+	// ONTAP volume create_time (UTC).
+	Created OptDateTime `json:"created"`
 }
 
 // GetUUID returns the value of UUID.
@@ -4739,14 +4822,14 @@ func (s *VolumeV1) GetProtocols() []ProtocolsV1 {
 	return s.Protocols
 }
 
-// GetMountPoints returns the value of MountPoints.
-func (s *VolumeV1) GetMountPoints() []MountPointV1 {
-	return s.MountPoints
-}
-
 // GetUnixPermissions returns the value of UnixPermissions.
 func (s *VolumeV1) GetUnixPermissions() OptNilString {
 	return s.UnixPermissions
+}
+
+// GetCreated returns the value of Created.
+func (s *VolumeV1) GetCreated() OptDateTime {
+	return s.Created
 }
 
 // SetUUID sets the value of UUID.
@@ -4809,15 +4892,17 @@ func (s *VolumeV1) SetProtocols(val []ProtocolsV1) {
 	s.Protocols = val
 }
 
-// SetMountPoints sets the value of MountPoints.
-func (s *VolumeV1) SetMountPoints(val []MountPointV1) {
-	s.MountPoints = val
-}
-
 // SetUnixPermissions sets the value of UnixPermissions.
 func (s *VolumeV1) SetUnixPermissions(val OptNilString) {
 	s.UnixPermissions = val
 }
+
+// SetCreated sets the value of Created.
+func (s *VolumeV1) SetCreated(val OptDateTime) {
+	s.Created = val
+}
+
+func (*VolumeV1) v1DescribeVolumeRes() {}
 
 // The security style of the NAS volume.
 type VolumeV1SecurityStyle string

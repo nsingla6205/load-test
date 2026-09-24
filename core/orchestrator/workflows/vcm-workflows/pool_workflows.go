@@ -5,7 +5,6 @@ package vcm_workflows
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	vcmclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm/vcm-client"
@@ -161,7 +160,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	p := wf.req
 	deploymentID := p.DeploymentID
 
-	if err := wf.checkDeadline(ctx, "start"); err != nil {
+	if err := checkDeadline(ctx, wf.req.Deadline, "start"); err != nil {
 		return err
 	}
 
@@ -172,7 +171,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		return err
 	}
 
-	if err := wf.checkDeadline(ctx, "identify-vms"); err != nil {
+	if err := checkDeadline(ctx, wf.req.Deadline, "identify-vms"); err != nil {
 		return err
 	}
 
@@ -220,7 +219,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 
 	configureVCMVLMConfigForPoolCreate(&vlmCfg)
 
-	if err := wf.checkDeadline(ctx, "create-cluster-deployment"); err != nil {
+	if err := checkDeadline(ctx, wf.req.Deadline, "create-cluster-deployment"); err != nil {
 		return err
 	}
 
@@ -244,7 +243,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	logger.Info("workflow: VLM cluster deployment completed",
 		"clusterName", vlmCfg.VsaCluster.ClusterName, "nodeMgmtIp", forwardingRuleIP)
 
-	if err := wf.checkDeadline(ctx, "create-svm"); err != nil {
+	if err := checkDeadline(ctx, wf.req.Deadline, "create-svm"); err != nil {
 		return err
 	}
 
@@ -307,7 +306,7 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 			ServerName:       vsa.OntapSNIServerName(deploymentID),
 		})
 
-		if err := wf.checkDeadline(ctx, "create-qos-policy"); err != nil {
+		if err := checkDeadline(ctx, wf.req.Deadline, "create-qos-policy"); err != nil {
 			return err
 		}
 
@@ -337,36 +336,6 @@ func (wf *createPoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
 func jobErrorFields(err error) (trackingID int, message string, retriable bool) {
 	trackingID, retriable, message = vsaerrors.ExtractJobFailureDetails(err)
 	return trackingID, message, retriable
-}
-
-// checkDeadline aborts the workflow before entering step when the request's
-// deadline has already passed, so a create-pool that can no longer finish in
-// time fails fast instead of provisioning further resources. The clock comes
-// from the workflow backend to stay deterministic across replays.
-//
-// The check only runs at step boundaries: a step that overruns the deadline
-// while in flight is not interrupted, it is caught at the next boundary.
-func (wf *createPoolWorkflow) checkDeadline(ctx *orchestrator.Context, step string) error {
-	now := orchestrator.Now(ctx).UTC()
-	err := deadlineExceeded(now, wf.req.Deadline, step)
-	if err != nil {
-		wfLogger(ctx).Error("workflow: create-pool deadline exceeded",
-			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID,
-			"step", step, "deadline", wf.req.Deadline, "now", now)
-	}
-	return err
-}
-
-// deadlineExceeded reports a deadline-exceeded failure for step when deadline
-// has elapsed at now. A zero deadline means no deadline was requested and is
-// never enforced.
-func deadlineExceeded(now, deadline time.Time, step string) error {
-	if deadline.IsZero() || now.Before(deadline.UTC()) {
-		return nil
-	}
-	return vsaerrors.NewVCPError(vsaerrors.ErrOperationDeadlineExceeded,
-		fmt.Errorf("create-pool deadline exceeded before %s: deadline=%s now=%s",
-			step, deadline.UTC().Format(time.RFC3339), now.Format(time.RFC3339)))
 }
 
 // resolveOntapCredentials returns the ONTAP admin credentials for the VLM child

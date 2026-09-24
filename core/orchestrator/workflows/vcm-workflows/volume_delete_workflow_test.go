@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
@@ -130,9 +131,17 @@ func runVcmDeleteVolumeWorkflow(
 	if instanceID == "" {
 		instanceID = uuid.NewString()
 	}
+	expectedSvmName := ""
+	if volume != nil && volume.Svm != nil {
+		expectedSvmName = volume.Svm.Name
+	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
-	}, gowfbackend.FuncName(VcmDeleteVolumeWorkflow), volume, node)
+	}, gowfbackend.FuncName(VcmDeleteVolumeWorkflow), volume, common.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        time.Now().UTC().Add(time.Hour),
+	})
 	require.NoError(t, err)
 
 	_, err = cclient.GetWorkflowResult[json.RawMessage](ctx, runner.Client(), wfi, volumeDeleteWorkflowTestTimeout)

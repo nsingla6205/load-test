@@ -45,6 +45,16 @@ func TestIgroupMatchesCreateRequest(t *testing.T) {
 	assert.False(t, IgroupMatchesCreateRequest(igroup, "WINDOWS", []string{iqn1, iqn2}))
 	assert.False(t, IgroupMatchesCreateRequest(igroup, "LINUX", []string{iqn1}))
 	assert.False(t, IgroupMatchesCreateRequest(nil, "LINUX", []string{iqn1}))
+
+	esxiIgroup := &ontaprest.Igroup{
+		Igroup: models.Igroup{
+			OsType: nillable.ToPointer("vmware"),
+			IgroupInlineInitiators: []*models.IgroupInlineInitiatorsInlineArrayItem{
+				{Name: nillable.ToPointer(iqn1)},
+			},
+		},
+	}
+	assert.True(t, IgroupMatchesCreateRequest(esxiIgroup, "ESXI", []string{iqn1}))
 }
 
 func TestIGroupCreate_Success(t *testing.T) {

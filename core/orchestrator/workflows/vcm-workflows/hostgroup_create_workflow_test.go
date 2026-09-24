@@ -75,7 +75,11 @@ func runVcmCreateHostGroupWorkflow(
 	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
-	}, gowfbackend.FuncName(VcmCreateHostGroupWorkflow), node, host, expectedSvmName)
+	}, gowfbackend.FuncName(VcmCreateHostGroupWorkflow), common.WorkflowInputs{
+		Node:            node,
+		ExpectedSvmName: expectedSvmName,
+		Deadline:        time.Now().UTC().Add(time.Hour),
+	}, host)
 	require.NoError(t, err)
 
 	_, err = cclient.GetWorkflowResult[json.RawMessage](ctx, runner.Client(), wfi, hostGroupWorkflowTestTimeout)
@@ -114,7 +118,7 @@ func TestVcmCreateHostGroupWorkflow_Success(t *testing.T) {
 	assert.Equal(t, operationID, calls[0].jobID)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
-	assert.JSONEq(t, `{"igroups":{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}}`, calls[1].responsePayload)
+	assert.JSONEq(t, `{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}`, calls[1].responsePayload)
 }
 
 func TestVcmCreateHostGroupWorkflow_GetSvmByNameFails(t *testing.T) {

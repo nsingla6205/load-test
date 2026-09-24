@@ -76,12 +76,7 @@ func mapOntapOsTypeToAPIEnum(osType *string) string {
 	if osType == nil {
 		return ""
 	}
-	switch strings.ToLower(*osType) {
-	case "vmware":
-		return "ESXI"
-	default:
-		return strings.ToUpper(*osType)
-	}
+	return utils.MapONTAPOSTypeToAPIEnum(*osType)
 }
 
 // IgroupCreate creates an initiator group by calling the ONTAP REST Client
@@ -140,6 +135,41 @@ func (rc *OntapRestProvider) IgroupGet(name, svmName *string) (*ontapRest.Igroup
 		return nil, err
 	}
 	return iGroup, nil
+}
+
+// IgroupNamesForLunUUID returns igroup names mapped to the given LUN UUID on the SVM.
+func (rc *OntapRestProvider) IgroupNamesForLunUUID(svmName, lunUUID string) ([]string, error) {
+	if strings.TrimSpace(svmName) == "" || strings.TrimSpace(lunUUID) == "" {
+		return nil, errors.New("svm name and lun UUID are required")
+	}
+
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+
+	igroups, err := client.SAN().IGroupsGet(&ontapRest.IgroupGetParams{
+		BaseParams: ontapRest.BaseParams{
+			Fields: []string{"name"},
+		},
+		SvmName:        &svmName,
+		LunMapsLunUUID: &lunUUID,
+	})
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+
+	names := make([]string, 0, len(igroups))
+	for _, igroup := range igroups {
+		if igroup == nil || igroup.Name == nil {
+			continue
+		}
+		name := strings.TrimSpace(*igroup.Name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
 }
 
 // IgroupList lists initiator groups on the given SVM.

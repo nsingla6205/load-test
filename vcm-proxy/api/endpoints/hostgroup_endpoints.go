@@ -15,8 +15,16 @@ import (
 )
 
 // V1CreateIgroup validates the request and starts igroup creation.
-func (h Handler) V1CreateIgroup(ctx context.Context, req *vcmserver.IgroupV1, _ vcmserver.V1CreateIgroupParams) (vcmserver.V1CreateIgroupRes, error) {
+func (h Handler) V1CreateIgroup(ctx context.Context, req *vcmserver.IgroupV1, queryParams vcmserver.V1CreateIgroupParams) (vcmserver.V1CreateIgroupRes, error) {
 	logger := util.GetLogger(ctx)
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return &vcmserver.V1CreateIgroupBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
 	if err := validateCreateIgroupParams(req); err != nil {
 		return &vcmserver.V1CreateIgroupBadRequest{
 			Code:    400,
@@ -25,13 +33,11 @@ func (h Handler) V1CreateIgroup(ctx context.Context, req *vcmserver.IgroupV1, _ 
 	}
 
 	name := strings.TrimSpace(req.Name)
-	operationID := getOperationID()
-	deadline := getHostGroupOperationDeadline()
-	igroup, err := h.Orchestrator.CreateHostGroup(ctx, &commonparams.CreateHostGroupParams{
+	_, err = h.Orchestrator.CreateHostGroup(ctx, &commonparams.CreateHostGroupParams{
 		Name:        name,
 		Hosts:       utils.DeduplicateSlice(req.Hosts),
 		OSType:      string(req.OsType),
-		OperationID: operationID,
+		OperationID: requestID,
 		Deadline:    deadline,
 	})
 	if err != nil {
@@ -43,15 +49,23 @@ func (h Handler) V1CreateIgroup(ctx context.Context, req *vcmserver.IgroupV1, _ 
 	}
 
 	return &vcmserver.OperationV1{
-		Name: "/v1/operations/" + igroup.UUID,
+		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
 }
 
 // V1UpdateIgroup validates the request and starts igroup update.
-func (h Handler) V1UpdateIgroup(ctx context.Context, req *vcmserver.IgroupUpdateV1, params vcmserver.V1UpdateIgroupParams) (vcmserver.V1UpdateIgroupRes, error) {
+func (h Handler) V1UpdateIgroup(ctx context.Context, req *vcmserver.IgroupUpdateV1, queryParams vcmserver.V1UpdateIgroupParams) (vcmserver.V1UpdateIgroupRes, error) {
 	logger := util.GetLogger(ctx)
-	name, err := validateUpdateIgroupParams(params.Name, req)
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return &vcmserver.V1UpdateIgroupBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	name, err := validateUpdateIgroupParams(queryParams.Name, req)
 	if err != nil {
 		return &vcmserver.V1UpdateIgroupBadRequest{
 			Code:    400,
@@ -60,12 +74,10 @@ func (h Handler) V1UpdateIgroup(ctx context.Context, req *vcmserver.IgroupUpdate
 	}
 
 	hosts := utils.DeduplicateSlice(req.Hosts)
-	operationID := getOperationID()
-	deadline := getHostGroupOperationDeadline()
 	_, _, err = h.Orchestrator.UpdateHostGroup(ctx, &commonparams.UpdateHostGroupParams{
 		Name:        name,
 		Hosts:       &hosts,
-		OperationID: operationID,
+		OperationID: requestID,
 		Deadline:    deadline,
 	})
 	if err != nil {
@@ -77,15 +89,23 @@ func (h Handler) V1UpdateIgroup(ctx context.Context, req *vcmserver.IgroupUpdate
 	}
 
 	return &vcmserver.OperationV1{
-		Name: "/v1/operations/" + operationID,
+		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
 }
 
 // V1DeleteIgroup validates the request and starts igroup deletion.
-func (h Handler) V1DeleteIgroup(ctx context.Context, params vcmserver.V1DeleteIgroupParams) (vcmserver.V1DeleteIgroupRes, error) {
+func (h Handler) V1DeleteIgroup(ctx context.Context, queryParams vcmserver.V1DeleteIgroupParams) (vcmserver.V1DeleteIgroupRes, error) {
 	logger := util.GetLogger(ctx)
-	name := strings.TrimSpace(params.Name)
+	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
+	if err != nil {
+		return &vcmserver.V1DeleteIgroupBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	name := strings.TrimSpace(queryParams.Name)
 	if name == "" {
 		return &vcmserver.V1DeleteIgroupBadRequest{
 			Code:    400,
@@ -93,11 +113,9 @@ func (h Handler) V1DeleteIgroup(ctx context.Context, params vcmserver.V1DeleteIg
 		}, nil
 	}
 
-	operationID := getOperationID()
-	deadline := getHostGroupOperationDeadline()
-	igroup, err := h.Orchestrator.DeleteHostGroup(ctx, &commonparams.DeleteHostGroupParams{
+	_, err = h.Orchestrator.DeleteHostGroup(ctx, &commonparams.DeleteHostGroupParams{
 		Name:        name,
-		OperationID: operationID,
+		OperationID: requestID,
 		Deadline:    deadline,
 	})
 	if err != nil {
@@ -109,7 +127,7 @@ func (h Handler) V1DeleteIgroup(ctx context.Context, params vcmserver.V1DeleteIg
 	}
 
 	return &vcmserver.OperationV1{
-		Name: "/v1/operations/" + igroup.UUID,
+		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
 }
@@ -184,12 +202,12 @@ func convertHostGroupsToIgroupV1(igroups []*models.HostGroup) []vcmserver.Igroup
 }
 
 func mapCanonicalOSTypeToV1(osType string) vcmserver.IgroupV1OsType {
-	switch strings.ToUpper(osType) {
-	case "LINUX":
+	switch utils.MapONTAPOSTypeToAPIEnum(osType) {
+	case utils.APIOSTypeLinux:
 		return vcmserver.IgroupV1OsTypeLINUX
-	case "WINDOWS":
+	case utils.APIOSTypeWindows:
 		return vcmserver.IgroupV1OsTypeWINDOWS
-	case "VMWARE", "ESXI":
+	case utils.APIOSTypeESXI:
 		return vcmserver.IgroupV1OsTypeESXI
 	default:
 		return vcmserver.IgroupV1OsTypeOSTYPEUNSPECIFIED

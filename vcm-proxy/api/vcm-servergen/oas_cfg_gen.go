@@ -16,6 +16,7 @@ import (
 )
 
 var regexMap = map[string]ogenregex.Regexp{
+	"^(?:0|[1-9]\\d*)(?:\\.\\d+)?s$": ogenregex.MustCompile("^(?:0|[1-9]\\d*)(?:\\.\\d+)?s$"),
 	"^/v1/operations/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$": ogenregex.MustCompile("^/v1/operations/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"),
 	"^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$":                ogenregex.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"),
 	"^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$":                                                           ogenregex.MustCompile("^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$"),

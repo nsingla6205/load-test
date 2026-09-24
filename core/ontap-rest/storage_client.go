@@ -64,6 +64,7 @@ type StorageClient interface {
 var DefaultVolumeDetailFields = []string{
 	"uuid",
 	"name",
+	"is_svm_root",
 	"space.*",
 	"state",
 	"snapshot_policy.name",
@@ -79,6 +80,7 @@ var DefaultVolumeDetailFields = []string{
 	"size",
 	"style",
 	"clone.*",
+	"create_time",
 }
 
 // FetchVolumeDetails loads full volume details by UUID; overridable in tests.

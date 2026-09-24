@@ -16,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/flexcache_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	factorycommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/scheduler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -932,6 +933,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_Success_WithSnapshotPo
 		}},
 		Account:     &datamodel.Account{Name: "test_account"},
 		SizeInBytes: 100,
+		Svm:         &datamodel.Svm{Name: "test-svm"},
 		SnapshotPolicy: &datamodel.SnapshotPolicy{
 			Name:      "policy1",
 			IsEnabled: true,
@@ -1130,6 +1132,7 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_SnapshotPolicy_OnlyEna
 			}},
 		Account:     &datamodel.Account{Name: "test_account"},
 		SizeInBytes: 100,
+		Svm:         &datamodel.Svm{Name: "test-svm"},
 		SnapshotPolicy: &datamodel.SnapshotPolicy{
 			Name:      "policy1",
 			IsEnabled: true,
@@ -3893,7 +3896,7 @@ func TestIsUpdateRequired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isUpdateRequired(tt.response, tt.params, tt.existingVolume)
+			got := factorycommon.IsVolumeUpdateRequired(tt.response, tt.params, tt.existingVolume)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -4424,7 +4427,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "test-policy",
 			ExportRules:      []*models.ExportRule{},
 		}
-		result := isExportPolicyRulesUpdateRequired(nil, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(nil, updatePolicy)
 		assert.True(t, result)
 	})
 
@@ -4433,7 +4436,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "test-policy",
 			ExportRules:      nil,
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, nil)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, nil)
 		assert.False(t, result)
 	})
 
@@ -4442,12 +4445,12 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "test-policy",
 			ExportRules:      []*datamodel.ExportRule{{UnixReadOnly: true}},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, nil)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, nil)
 		assert.True(t, result)
 	})
 
 	t.Run("WhenBothPoliciesNil_ShouldReturnFalse", func(t *testing.T) {
-		result := isExportPolicyRulesUpdateRequired(nil, nil)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(nil, nil)
 		assert.False(t, result)
 	})
 
@@ -4460,7 +4463,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "different-policy",
 			ExportRules:      []*models.ExportRule{},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.False(t, result)
 	})
 
@@ -4473,7 +4476,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "",
 			ExportRules:      []*models.ExportRule{},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.False(t, result)
 	})
 
@@ -4488,7 +4491,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 			ExportPolicyName: "test-policy",
 			ExportRules:      []*models.ExportRule{},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.True(t, result)
 	})
 
@@ -4539,7 +4542,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 				},
 			},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.False(t, result)
 	})
 
@@ -4556,7 +4559,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 				{AllowedClients: "192.168.2.0/24", NFSv3: true}, // Different client
 			},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.True(t, result)
 	})
 
@@ -4574,7 +4577,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 				{AllowedClients: "192.168.1.0/24", NFSv3: true}, // Missing second rule
 			},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.True(t, result)
 	})
 
@@ -4595,7 +4598,7 @@ func TestIsExportPolicyRulesUpdateRequired(t *testing.T) {
 				{AllowedClients: "0.0.0.0/0", AccessType: "rw", NFSv3: true, Superuser: false, AllSquash: &allSquashTrue, AnonUid: &anonUid0},
 			},
 		}
-		result := isExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
+		result := factorycommon.IsExportPolicyRulesUpdateRequired(currentPolicy, updatePolicy)
 		assert.True(t, result, "update should be required when only AllSquash/AnonUid change so ONTAP update is not skipped")
 	})
 }
@@ -4638,119 +4641,119 @@ func TestRulesEqual(t *testing.T) {
 			Kerberos5pReadWrite: false,
 			Superuser:           true,
 		}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.True(t, result)
 	})
 
 	t.Run("WhenAllowedClientsDiffer_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{AllowedClients: "192.168.1.0/24"}
 		updateRule := &models.ExportRule{AllowedClients: "192.168.2.0/24"}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenAnonymousUserDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{AnonymousUser: "nobody"}
 		updateRule := &models.ExportRule{AnonymousUser: "root"}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenAccessTypeDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{AccessType: "rw"}
 		updateRule := &models.ExportRule{AccessType: "ro"}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenCIFSFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{CIFS: true}
 		updateRule := &models.ExportRule{CIFS: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenNFSv3FlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{NFSv3: true}
 		updateRule := &models.ExportRule{NFSv3: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenNFSv4FlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{NFSv4: true}
 		updateRule := &models.ExportRule{NFSv4: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenS3FlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{S3: true}
 		updateRule := &models.ExportRule{S3: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenUnixReadOnlyFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{UnixReadOnly: true}
 		updateRule := &models.ExportRule{UnixReadOnly: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenUnixReadWriteFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{UnixReadWrite: true}
 		updateRule := &models.ExportRule{UnixReadWrite: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5ReadOnlyFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5ReadOnly: true}
 		updateRule := &models.ExportRule{Kerberos5ReadOnly: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5ReadWriteFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5ReadWrite: true}
 		updateRule := &models.ExportRule{Kerberos5ReadWrite: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5iReadOnlyFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5iReadOnly: true}
 		updateRule := &models.ExportRule{Kerberos5iReadOnly: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5iReadWriteFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5iReadWrite: true}
 		updateRule := &models.ExportRule{Kerberos5iReadWrite: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5pReadOnlyFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5pReadOnly: true}
 		updateRule := &models.ExportRule{Kerberos5pReadOnly: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenKerberos5pReadWriteFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Kerberos5pReadWrite: true}
 		updateRule := &models.ExportRule{Kerberos5pReadWrite: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
 	t.Run("WhenSuperuserFlagDiffers_ShouldReturnFalse", func(t *testing.T) {
 		currentRule := &datamodel.ExportRule{Superuser: true}
 		updateRule := &models.ExportRule{Superuser: false}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
@@ -4759,7 +4762,7 @@ func TestRulesEqual(t *testing.T) {
 		allSquashFalse := false
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashTrue}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashFalse}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
@@ -4767,7 +4770,7 @@ func TestRulesEqual(t *testing.T) {
 		allSquashTrue := true
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0"}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashTrue}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
@@ -4776,7 +4779,7 @@ func TestRulesEqual(t *testing.T) {
 		anonUid65534 := int64(65534)
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0", AnonUid: &anonUid0}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0", AnonUid: &anonUid65534}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
@@ -4784,7 +4787,7 @@ func TestRulesEqual(t *testing.T) {
 		anonUid0 := int64(0)
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0"}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0", AnonUid: &anonUid0}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result)
 	})
 
@@ -4793,7 +4796,7 @@ func TestRulesEqual(t *testing.T) {
 		anonUid0 := int64(0)
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashTrue, AnonUid: &anonUid0}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashTrue, AnonUid: &anonUid0}
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.True(t, result)
 	})
 
@@ -4801,7 +4804,7 @@ func TestRulesEqual(t *testing.T) {
 		allSquashFalse := false
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0", AllSquash: &allSquashFalse}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0"} // request omitted AllSquash
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result, "nil vs set is different full state; update required")
 	})
 
@@ -4809,7 +4812,7 @@ func TestRulesEqual(t *testing.T) {
 		anonUid0 := int64(0)
 		currentRule := &datamodel.ExportRule{AllowedClients: "0.0.0.0/0", AnonUid: &anonUid0}
 		updateRule := &models.ExportRule{AllowedClients: "0.0.0.0/0"} // request omitted AnonUid
-		result := rulesEqual(currentRule, updateRule)
+		result := factorycommon.ExportRulesEqual(currentRule, updateRule)
 		assert.False(t, result, "nil vs set is different full state; update required")
 	})
 }

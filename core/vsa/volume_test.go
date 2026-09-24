@@ -1,8 +1,11 @@
 package vsa
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -11,8 +14,17 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
+
+func withCustomerSVM(volume models.Volume, svmName string) models.Volume {
+	if svmName != "" {
+		volume.Svm = &models.VolumeInlineSvm{Name: nillable.ToPointer(svmName)}
+	}
+	volume.IsSvmRoot = nillable.ToPointer(false)
+	return volume
+}
 
 func TestCreateVolume_Success(t *testing.T) {
 	t.Run("TestCreateVolumesSuccess_WithoutAutoTieringConfig", func(t *testing.T) {
@@ -1643,7 +1655,7 @@ func TestGetVolume_WhenVolumeIsFound_ThenReturnVolumeResponse(t *testing.T) {
 	volumeUUID := "testUUID"
 	svmName := "testSVM"
 	mockVolume := &ontaprest.Volume{
-		Volume: models.Volume{
+		Volume: withCustomerSVM(models.Volume{
 			UUID: nillable.ToPointer(volumeUUID),
 			Name: &volumeName,
 			Space: &models.VolumeInlineSpace{
@@ -1664,7 +1676,7 @@ func TestGetVolume_WhenVolumeIsFound_ThenReturnVolumeResponse(t *testing.T) {
 				},
 			},
 			SnapshotDirectoryAccessEnabled: nillable.GetBoolPtr(false), // Add this field
-		},
+		}, svmName),
 	}
 	mockStorage.On("VolumeGet", mock.Anything).Return(mockVolume, nil)
 
@@ -1705,7 +1717,7 @@ func TestGetVolume_WhenVolumeHasNasFields_ThenReturnVolumeResponseWithNASDetails
 			containsField(params.Fields, "nas.security_style") &&
 			containsField(params.Fields, "nas.export_policy")
 	})).Return(&ontaprest.Volume{
-		Volume: models.Volume{
+		Volume: withCustomerSVM(models.Volume{
 			UUID: nillable.ToPointer("testUUID"),
 			Name: nillable.ToPointer("nas-volume"),
 			Space: &models.VolumeInlineSpace{
@@ -1720,12 +1732,12 @@ func TestGetVolume_WhenVolumeHasNasFields_ThenReturnVolumeResponseWithNASDetails
 				Name: nillable.GetStringPtr("none"),
 			},
 			Nas: &models.VolumeInlineNas{
-				Path:          nillable.ToPointer("/vol/nas-volume"),
+				Path: nillable.ToPointer("/vol/nas-volume"),
 				ExportPolicy: &models.VolumeInlineNasInlineExportPolicy{
 					Name: nillable.ToPointer("my-share-name"),
 				},
 			},
-		},
+		}, "testSVM"),
 	}, nil)
 
 	resp, err := rc.GetVolume(GetVolumeParams{
@@ -1754,7 +1766,7 @@ func TestGetVolume_WhenVolumeHasNoNas_ThenReturnEmptyNASFields(t *testing.T) {
 	rc := &OntapRestProvider{}
 
 	mockStorage.On("VolumeGet", mock.Anything).Return(&ontaprest.Volume{
-		Volume: models.Volume{
+		Volume: withCustomerSVM(models.Volume{
 			UUID: nillable.ToPointer("testUUID"),
 			Name: nillable.ToPointer("iscsi-volume"),
 			Space: &models.VolumeInlineSpace{
@@ -1768,7 +1780,7 @@ func TestGetVolume_WhenVolumeHasNoNas_ThenReturnEmptyNASFields(t *testing.T) {
 			SnapshotPolicy: &models.VolumeInlineSnapshotPolicy{
 				Name: nillable.GetStringPtr("none"),
 			},
-		},
+		}, "testSVM"),
 	}, nil)
 
 	resp, err := rc.GetVolume(GetVolumeParams{
@@ -1809,7 +1821,7 @@ func TestGetVolume_WhenLogicalSpaceIsNil(t *testing.T) {
 	volumeUUID := "testUUID"
 	svmName := "testSVM"
 	mockVolume := &ontaprest.Volume{
-		Volume: models.Volume{
+		Volume: withCustomerSVM(models.Volume{
 			UUID: nillable.ToPointer(volumeUUID),
 			Name: &volumeName,
 			Space: &models.VolumeInlineSpace{
@@ -1821,20 +1833,21 @@ func TestGetVolume_WhenLogicalSpaceIsNil(t *testing.T) {
 				Name: nillable.GetStringPtr("none"),
 			},
 			SnapshotDirectoryAccessEnabled: nillable.GetBoolPtr(false),
-		},
+		}, svmName),
 	}
 	mockStorage.On("VolumeGet", mock.Anything).Return(mockVolume, nil)
 
-	t.Run("IsRestore false returns not found", func(t *testing.T) {
+	t.Run("IsRestore false returns volume with zero used bytes", func(t *testing.T) {
 		resp, err := rc.GetVolume(GetVolumeParams{
 			VolumeName: volumeName,
 			SvmName:    svmName,
 			IsRestore:  false,
 		})
 
-		assert.Error(t, err)
-		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "not found")
+		assert.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, int64(0), resp.UsedBytes)
+		assert.Equal(t, volumeUUID, resp.ExternalUUID)
 	})
 
 	t.Run("IsRestore true returns volume with zero used bytes", func(t *testing.T) {
@@ -2063,7 +2076,7 @@ func TestGetVolume_ConstituentCountHandling(t *testing.T) {
 			svmName := "testSVM"
 
 			mockVolume := &ontaprest.Volume{
-				Volume: models.Volume{
+				Volume: withCustomerSVM(models.Volume{
 					UUID: nillable.ToPointer(volumeUUID),
 					Name: &volumeName,
 					Space: &models.VolumeInlineSpace{
@@ -2079,7 +2092,7 @@ func TestGetVolume_ConstituentCountHandling(t *testing.T) {
 					},
 					SnapshotDirectoryAccessEnabled: nillable.GetBoolPtr(false),
 					VolumeInlineConstituents:       tt.volumeInlineConstituents,
-				},
+				}, svmName),
 			}
 			mockStorage.On("VolumeGet", mock.Anything).Return(mockVolume, nil)
 
@@ -2719,6 +2732,233 @@ func TestGetVolumesForInventory_UsesProjectSVMFilterAndInventoryFields(t *testin
 	assert.Equal(t, "volume-uuid", volumes[0].ExternalUUID)
 	mockStorage.AssertExpectations(t)
 	mockClient.AssertExpectations(t)
+}
+
+func TestListVolumesForSVM_ReturnsMappedVolumes(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	const svmName = "gcnv-test-svm-01"
+	mockStorage.On("VolumeCollectionGet", mock.MatchedBy(func(params *ontaprest.VolumeCollectionGetParams) bool {
+		return params != nil &&
+			params.SvmName != nil &&
+			*params.SvmName == svmName &&
+			assert.ElementsMatch(t, ontaprest.DefaultVolumeDetailFields, params.Fields)
+	}), mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])
+		fileUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
+		fileName := "file-volume"
+		blockUUID := "8760acf5-4638-11e7-9bdb-020073ca0002"
+		blockName := "block-volume"
+		require.NoError(t, callback([]*ontaprest.Volume{
+			{
+				Volume: withCustomerSVM(models.Volume{
+					UUID:  &fileUUID,
+					Name:  &fileName,
+					State: nillable.ToPointer(models.VolumeStateOnline),
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(25),
+						},
+						Snapshot: &models.VolumeInlineSpaceInlineSnapshot{
+							ReservePercent: nillable.GetInt64Ptr(5),
+						},
+					},
+					SnapshotDirectoryAccessEnabled: nillable.GetBoolPtr(true),
+					Nas: &models.VolumeInlineNas{
+						Path:            nillable.ToPointer("/file-volume"),
+						SecurityStyle:   nillable.ToPointer("unix"),
+						UnixPermissions: nillable.GetInt64Ptr(755),
+					},
+				}, svmName),
+			},
+			{
+				Volume: withCustomerSVM(models.Volume{
+					UUID:  &blockUUID,
+					Name:  &blockName,
+					State: nillable.ToPointer(models.VolumeStateOnline),
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(10),
+						},
+					},
+					SnapshotDirectoryAccessEnabled: nillable.GetBoolPtr(false),
+				}, svmName),
+			},
+		}))
+	}).Return(nil)
+
+	volumes, err := (&OntapRestProvider{}).ListVolumesForSVM(svmName)
+
+	require.NoError(t, err)
+	require.Len(t, volumes, 2)
+	assert.Equal(t, "file-volume", volumes[0].Name)
+	assert.Equal(t, "9760acf5-4638-11e7-9bdb-020073ca0001", volumes[0].ExternalUUID)
+	assert.Equal(t, int64(25), volumes[0].UsedBytes)
+	assert.Equal(t, "/file-volume", volumes[0].JunctionPath)
+	assert.Equal(t, "block-volume", volumes[1].Name)
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
+func TestListVolumesForSVM_SkipsSVMRootVolume(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	const svmName = "gcnv-test-svm-01"
+	customerUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
+	customerName := "customer-volume"
+	mockStorage.On("VolumeCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])
+		require.NoError(t, callback([]*ontaprest.Volume{
+			{
+				Volume: withCustomerSVM(models.Volume{
+					UUID:  &customerUUID,
+					Name:  &customerName,
+					State: nillable.ToPointer(models.VolumeStateOnline),
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(25),
+						},
+					},
+				}, svmName),
+			},
+			{
+				Volume: models.Volume{
+					UUID:      nillable.ToPointer("root-volume-uuid"),
+					Name:      nillable.ToPointer("root-volume"),
+					IsSvmRoot: nillable.ToPointer(true),
+					Svm:       &models.VolumeInlineSvm{Name: nillable.ToPointer(svmName)},
+					State:     nillable.ToPointer(models.VolumeStateOnline),
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(1),
+						},
+					},
+				},
+			},
+		}))
+	}).Return(nil)
+
+	volumes, err := (&OntapRestProvider{}).ListVolumesForSVM(svmName)
+
+	require.NoError(t, err)
+	require.Len(t, volumes, 1)
+	assert.Equal(t, customerName, volumes[0].Name)
+}
+
+func TestListVolumesForSVM_IncludesVolumeWhenIsSvmRootUnset(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	const svmName = "gcnv-test-svm-01"
+	volumeUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
+	volumeName := "customer-volume"
+	mockStorage.On("VolumeCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])
+		require.NoError(t, callback([]*ontaprest.Volume{
+			{
+				Volume: models.Volume{
+					UUID:  &volumeUUID,
+					Name:  &volumeName,
+					State: nillable.ToPointer(models.VolumeStateOnline),
+					Svm:   &models.VolumeInlineSvm{Name: nillable.ToPointer(svmName)},
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(25),
+						},
+					},
+				},
+			},
+		}))
+	}).Return(nil)
+
+	volumes, err := (&OntapRestProvider{}).ListVolumesForSVM(svmName)
+
+	require.NoError(t, err)
+	require.Len(t, volumes, 1)
+	assert.Equal(t, volumeName, volumes[0].Name)
+}
+
+func TestListVolumesForSVM_WhenMappingFails_SkipsVolumeAndContinues(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	const svmName = "gcnv-test-svm-01"
+	goodUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
+	goodName := "good-volume"
+	mockStorage.On("VolumeCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])
+		require.NoError(t, callback([]*ontaprest.Volume{
+			{Volume: withCustomerSVM(models.Volume{Name: nillable.ToPointer("incomplete")}, svmName)},
+			{
+				Volume: withCustomerSVM(models.Volume{
+					UUID:  &goodUUID,
+					Name:  &goodName,
+					State: nillable.ToPointer(models.VolumeStateOnline),
+					Space: &models.VolumeInlineSpace{
+						Available: nillable.GetInt64Ptr(100),
+						Size:      nillable.GetInt64Ptr(200),
+						LogicalSpace: &models.VolumeInlineSpaceInlineLogicalSpace{
+							Used: nillable.GetInt64Ptr(25),
+						},
+					},
+				}, svmName),
+			},
+		}))
+	}).Return(nil)
+
+	volumes, err := (&OntapRestProvider{Logger: log.NewLogger()}).ListVolumesForSVM(svmName)
+
+	require.NoError(t, err)
+	require.Len(t, volumes, 1)
+	assert.Equal(t, goodName, volumes[0].Name)
 }
 
 func TestUpdateVolume_ForSplit(t *testing.T) {
@@ -5421,4 +5661,83 @@ func TestGetVolumeSANDetails(t *testing.T) {
 		mockSAN.AssertExpectations(t)
 		mockNVMe.AssertExpectations(t)
 	})
+}
+
+func TestVolumeResponseFromONTAPVol_SetsCreatedTime(t *testing.T) {
+	created := strfmt.DateTime(time.Date(2024, 3, 15, 10, 0, 0, 0, time.UTC))
+	vol := &ontaprest.Volume{
+		Volume: withCustomerSVM(models.Volume{
+			UUID:       nillable.ToPointer("vol-uuid"),
+			Name:       nillable.ToPointer("vol-1"),
+			CreateTime: &created,
+			State:      nillable.ToPointer(models.VolumeStateOnline),
+			Space: &models.VolumeInlineSpace{
+				Size:      nillable.GetInt64Ptr(100),
+				Available: nillable.GetInt64Ptr(50),
+			},
+		}, "svm-1"),
+	}
+
+	resp, err := volumeResponseFromONTAPVol(vol, false)
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2024, 3, 15, 10, 0, 0, 0, time.UTC), resp.Created)
+}
+
+func TestVolumeResponseFromONTAPVol_NilAvailableAndSize(t *testing.T) {
+	vol := &ontaprest.Volume{
+		Volume: withCustomerSVM(models.Volume{
+			UUID:  nillable.ToPointer("vol-uuid"),
+			Name:  nillable.ToPointer("vol-offline"),
+			State: nillable.ToPointer(models.VolumeStateOffline),
+			Space: &models.VolumeInlineSpace{
+				// Available and Size omitted (common for offline volumes).
+			},
+		}, "svm-1"),
+	}
+
+	resp, err := volumeResponseFromONTAPVol(vol, false)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "vol-offline", resp.Name)
+	assert.Equal(t, int64(0), resp.AvailableSpace)
+	assert.Equal(t, int64(0), resp.Size)
+	assert.Equal(t, int64(0), resp.UsedBytes)
+}
+
+func TestListVolumesForSVM_ClientError(t *testing.T) {
+	originalGetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalGetOntapClientFunc }()
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return nil, fmt.Errorf("client unavailable")
+	}
+
+	_, err := (&OntapRestProvider{}).ListVolumesForSVM("svm-1")
+	require.Error(t, err)
+}
+
+func TestListVolumesForSVM_CollectionError(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalGetOntapClientFunc }()
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	mockStorage.On("VolumeCollectionGet", mock.Anything, mock.Anything).Return(fmt.Errorf("collection failed"))
+
+	_, err := (&OntapRestProvider{}).ListVolumesForSVM("svm-1")
+	require.Error(t, err)
+}
+
+func TestOntapVolumeIdentifier(t *testing.T) {
+	assert.Equal(t, "", ontapVolumeIdentifier(nil))
+	assert.Equal(t, "uuid-1", ontapVolumeIdentifier(&ontaprest.Volume{
+		Volume: models.Volume{UUID: nillable.ToPointer("uuid-1")},
+	}))
+	assert.Equal(t, "vol-name", ontapVolumeIdentifier(&ontaprest.Volume{
+		Volume: models.Volume{Name: nillable.ToPointer("vol-name")},
+	}))
 }

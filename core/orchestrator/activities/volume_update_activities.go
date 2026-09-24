@@ -20,7 +20,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
-	"go.temporal.io/sdk/activity"
 )
 
 const (
@@ -44,7 +43,7 @@ type VolumeUpdateActivity struct {
 func (a *VolumeUpdateActivity) UpdateVolumeInONTAP(ctx context.Context, volume *datamodel.Volume, params *common.UpdateVolumeParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateVolumeInONTAP activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -85,7 +84,7 @@ func (a *VolumeUpdateActivity) UpdateVolumeInONTAP(ctx context.Context, volume *
 	}
 	logger.Debugf("Volume %s updated successfully in ontap", volume.Name)
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateVolumeInONTAP activity")
 	return nil
 }
 
@@ -146,7 +145,7 @@ func updateVolume(ctx context.Context, provider vsa.Provider, params vsa.UpdateV
 }
 
 func (a *VolumeUpdateActivity) UpdateVolumeJunctionpath(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
-	activity.RecordHeartbeat(ctx, "UpdateVolumeJunctionpath activity in progress")
+	orchestrator.RecordHeartbeat(ctx, "UpdateVolumeJunctionpath activity in progress")
 	if utils.IsSanProtocols(volume.VolumeAttributes.Protocols) {
 		return nil
 	}
@@ -159,7 +158,7 @@ func (a *VolumeUpdateActivity) UpdateVolumeJunctionpath(ctx context.Context, vol
 		UUID:         volume.VolumeAttributes.ExternalUUID,
 		JunctionPath: &volume.VolumeAttributes.FileProperties.JunctionPath,
 	})
-	activity.RecordHeartbeat(ctx, "UpdateVolumeJunctionpath activity completed")
+	orchestrator.RecordHeartbeat(ctx, "UpdateVolumeJunctionpath activity completed")
 	return err
 }
 
@@ -196,7 +195,7 @@ func (a *VolumeUpdateActivity) GetVolumeFromONTAP(ctx context.Context, volume *d
 // UpdateLun updates the LUN associated with the volume in the VSA cluster
 func (a *VolumeUpdateActivity) UpdateLun(ctx context.Context, volume *datamodel.Volume, volResponse *vsa.VolumeResponse, node *models.Node) (*vsa.LunResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateLun activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateLun activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -250,7 +249,7 @@ func (a *VolumeUpdateActivity) UpdateLun(ctx context.Context, volume *datamodel.
 
 func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Context, volume *datamodel.Volume, iGroups []string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting EnsureHostGroupsExistsAndMapDisk activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting EnsureHostGroupsExistsAndMapDisk activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -272,7 +271,7 @@ func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Cont
 	}
 
 	for _, hostGroup := range hgs {
-		activity.RecordHeartbeat(ctx, "Ensuring HostGroup "+hostGroup.Name+" exists for volume "+volume.Name)
+		orchestrator.RecordHeartbeat(ctx, "Ensuring HostGroup "+hostGroup.Name+" exists for volume "+volume.Name)
 
 		// Check if the hostGroup already exists
 		exists, _, err := provider.IgroupExists(hostGroup.Name, &volume.Svm.Name)
@@ -280,7 +279,7 @@ func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Cont
 			return err
 		}
 		if !exists {
-			activity.RecordHeartbeat(ctx, "Creating HostGroup "+hostGroup.Name+" for volume "+volume.Name)
+			orchestrator.RecordHeartbeat(ctx, "Creating HostGroup "+hostGroup.Name+" for volume "+volume.Name)
 			// Create the hostGroup if it doesn't exist
 			if _, err = provider.IgroupCreate(vsa.IgroupCreateParams{
 				IgroupName: hostGroup.Name,
@@ -308,14 +307,14 @@ func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Cont
 		return err
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished EnsureHostGroupsExistsAndMapDisk activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished EnsureHostGroupsExistsAndMapDisk activity")
 	return nil
 }
 
 // UnmapHostGroupFromDisk deletes the Disk HostGroup map
 func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volume *datamodel.Volume, iGroupUUIDs []string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UnmapHostGroupFromDisk activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UnmapHostGroupFromDisk activity")
 	se := a.SE
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -329,7 +328,7 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 		lunUUID = volume.VolumeAttributes.BlockProperties.LunUUID
 	}
 	for _, iGroupUUID := range iGroupUUIDs {
-		activity.RecordHeartbeat(ctx, "Unmapping HostGroup "+iGroupUUID+" from volume "+volume.Name)
+		orchestrator.RecordHeartbeat(ctx, "Unmapping HostGroup "+iGroupUUID+" from volume "+volume.Name)
 
 		hgMapsToDelete, err := a.SE.GetHostGroup(ctx, iGroupUUID, volume.AccountID)
 		if err != nil {
@@ -346,7 +345,7 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 			logger.Debugf("IGroup %s not found in vsa cluster, skipping unmapping lun map and igroup delete", iGroupUUID)
 			continue
 		}
-		activity.RecordHeartbeat(ctx, "Deleting lun map for igroup "+iGroupUUID+" from volume "+volume.Name)
+		orchestrator.RecordHeartbeat(ctx, "Deleting lun map for igroup "+iGroupUUID+" from volume "+volume.Name)
 		err = provider.LunMapDelete(vsa.LunMapDeleteParams{
 			LunUUID:    lunUUID,
 			IGroupUUID: *iGroupOntap.UUID,
@@ -356,7 +355,7 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 			return err
 		}
 
-		activity.RecordHeartbeat(ctx, "Fetching all volumes for HostGroup "+iGroupUUID+" to check if it can be deleted for volume "+volume.Name)
+		orchestrator.RecordHeartbeat(ctx, "Fetching all volumes for HostGroup "+iGroupUUID+" to check if it can be deleted for volume "+volume.Name)
 		// Fetch all volumes for the HG and delete the IGroup which doesn't have any volume in current pool
 		hgAttachedVolumes, err := se.GetAllVolumesForHG(ctx, iGroupUUID, volume.AccountID)
 		if err != nil {
@@ -371,9 +370,9 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 				break
 			}
 		}
-		activity.RecordHeartbeat(ctx, "Checking if HostGroup "+iGroupUUID+" can be deleted for volume "+volume.Name)
+		orchestrator.RecordHeartbeat(ctx, "Checking if HostGroup "+iGroupUUID+" can be deleted for volume "+volume.Name)
 		if deleteIGroup {
-			activity.RecordHeartbeat(ctx, "Deleting igroup "+iGroupUUID+" from volume "+volume.Name)
+			orchestrator.RecordHeartbeat(ctx, "Deleting igroup "+iGroupUUID+" from volume "+volume.Name)
 			err = provider.IgroupDelete(*iGroupOntap.UUID)
 			if err != nil {
 				logger.Errorf("Failed to delete igroup %s: %v", iGroupUUID, err)
@@ -382,7 +381,7 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UnmapHostGroupFromDisk activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UnmapHostGroupFromDisk activity")
 	return nil
 }
 
@@ -421,7 +420,7 @@ func (a *VolumeUpdateActivity) UpdateVolumeInDB(ctx context.Context, volume *dat
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeInDB activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateVolumeInDB activity")
 	logger.Debugf("Volume %s updated successfully in the database", volume.UUID)
 	return nil
 }
@@ -633,16 +632,48 @@ func _getHostGroup(se database.Storage, ctx context.Context, uuid string, accoun
 	return hg, nil
 }
 
-// UpdateSnapshotPolicyInOntap updates the snapshot policy for the given volume in ONTAP.
+// GetSnapshotPolicyInONTAP retrieves a cluster-scoped snapshot policy from ONTAP.
+func (a *VolumeUpdateActivity) GetSnapshotPolicyInONTAP(ctx context.Context, node *models.Node, policyName string) (*datamodel.SnapshotPolicy, error) {
+	orchestrator.RecordHeartbeat(ctx, "Starting GetSnapshotPolicyInONTAP activity")
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	policy, err := provider.GetSnapshotPolicy(policyName)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return convertVSASnapshotPolicyToDatamodel(policy), nil
+}
+
+// GetExportPolicyInONTAP retrieves an export policy and its rules from ONTAP.
+func (a *VolumeUpdateActivity) GetExportPolicyInONTAP(ctx context.Context, node *models.Node, policyName, svmName string) (*datamodel.ExportPolicy, error) {
+	orchestrator.RecordHeartbeat(ctx, "Starting GetExportPolicyInONTAP activity")
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	policy, err := provider.GetExportPolicy(policyName, svmName)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	orchestrator.RecordHeartbeat(ctx, "Finished GetExportPolicyInONTAP activity")
+	return convertVSAExportPolicyToDatamodel(policy), nil
+}
+
+// UpdateSnapshotPolicyInOntap updates a cluster-scoped snapshot policy in ONTAP.
 func (a *VolumeUpdateActivity) UpdateSnapshotPolicyInOntap(ctx context.Context, node *models.Node, currentPolicy, updatingPolicy *datamodel.SnapshotPolicy) error {
-	activity.RecordHeartbeat(ctx, "Initializing snapshot policy update")
+	orchestrator.RecordHeartbeat(ctx, "Initializing snapshot policy update")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Updating snapshot policy in ONTAP")
+	orchestrator.RecordHeartbeat(ctx, "Updating snapshot policy in ONTAP")
 	err = provider.UpdateSnapshotPolicy(ctx, &vsa.UpdateSnapshotPolicyParams{
 		CurrentSnapshotPolicy: &vsa.SnapshotPolicy{
 			Name:      currentPolicy.Name,
@@ -660,9 +691,78 @@ func (a *VolumeUpdateActivity) UpdateSnapshotPolicyInOntap(ctx context.Context, 
 		return err
 	}
 
-	activity.RecordHeartbeat(ctx, "Snapshot policy updated successfully")
+	orchestrator.RecordHeartbeat(ctx, "Snapshot policy updated successfully")
 	logger.Debugf("Snapshot policy %s updated successfully in ONTAP", updatingPolicy.Name)
 	return nil
+}
+
+func convertVSASnapshotPolicyToDatamodel(policy *vsa.SnapshotPolicy) *datamodel.SnapshotPolicy {
+	if policy == nil {
+		return nil
+	}
+	dbPolicy := &datamodel.SnapshotPolicy{
+		Name:      policy.Name,
+		IsEnabled: policy.IsEnabled,
+		Schedules: make([]*datamodel.SnapshotPolicySchedule, 0, len(policy.Schedules)),
+	}
+	for _, schedule := range policy.Schedules {
+		if schedule == nil {
+			continue
+		}
+		dbSchedule := &datamodel.SnapshotPolicySchedule{
+			Count:           schedule.Count,
+			SnapmirrorLabel: schedule.SnapmirrorLabel,
+		}
+		if schedule.Schedule != nil {
+			dbSchedule.DaysOfMonth = schedule.Schedule.DaysOfMonth
+			dbSchedule.DaysOfWeek = schedule.Schedule.DaysOfWeek
+			dbSchedule.Hours = schedule.Schedule.Hours
+			dbSchedule.Minutes = schedule.Schedule.Minutes
+		}
+		dbPolicy.Schedules = append(dbPolicy.Schedules, dbSchedule)
+	}
+	return dbPolicy
+}
+
+// convertVSAExportPolicyToDatamodel converts a VSA export policy to datamodel representation.
+func convertVSAExportPolicyToDatamodel(policy *vsa.ExportPolicy) *datamodel.ExportPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	rules := make([]*datamodel.ExportRule, 0, len(policy.ExportRules))
+	for _, rule := range policy.ExportRules {
+		if rule == nil {
+			continue
+		}
+		rules = append(rules, &datamodel.ExportRule{
+			AllowedClients:      rule.AllowedClients,
+			AnonymousUser:       rule.AnonymousUser,
+			ChownMode:           rule.ChownMode,
+			AccessType:          rule.AccessType,
+			CIFS:                rule.CIFS,
+			NFSv3:               rule.NFSv3,
+			NFSv4:               rule.NFSv4,
+			S3:                  rule.S3,
+			Index:               rule.Index,
+			Kerberos5iReadOnly:  rule.Kerberos5iReadOnly,
+			Kerberos5iReadWrite: rule.Kerberos5iReadWrite,
+			Kerberos5pReadWrite: rule.Kerberos5pReadWrite,
+			Kerberos5ReadOnly:   rule.Kerberos5ReadOnly,
+			Kerberos5ReadWrite:  rule.Kerberos5ReadWrite,
+			Kerberos5pReadOnly:  rule.Kerberos5pReadOnly,
+			Superuser:           rule.Superuser,
+			AllSquash:           rule.AllSquash,
+			AnonUid:             rule.AnonUid,
+			UnixReadOnly:        rule.UnixReadOnly,
+			UnixReadWrite:       rule.UnixReadWrite,
+		})
+	}
+
+	return &datamodel.ExportPolicy{
+		ExportPolicyName: policy.ExportPolicyName,
+		ExportRules:      rules,
+	}
 }
 
 // FindTenancyDetails retrieves the tenancy information for the given consumer VPC and customer project number
@@ -740,7 +840,7 @@ func (a *VolumeUpdateActivity) CreateScheduleForBackupPolicy(ctx context.Context
 // UpdateJunctionPathInONTAP updates the junction path for a volume in ONTAP
 func (a *VolumeUpdateActivity) UpdateJunctionPathInONTAP(ctx context.Context, volume *datamodel.Volume, junctionPath string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateJunctionPathInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateJunctionPathInONTAP activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -755,7 +855,7 @@ func (a *VolumeUpdateActivity) UpdateJunctionPathInONTAP(ctx context.Context, vo
 	// Only proceed if junction path is different
 	if currentJunctionPath != junctionPath {
 		// If volume is currently mounted (has existing junction path), unmount it first
-		activity.RecordHeartbeat(ctx, "Unmounting volume before updating junction path")
+		orchestrator.RecordHeartbeat(ctx, "Unmounting volume before updating junction path")
 		logger.Debugf("Unmounting volume %s from junction path %s", volume.Name, currentJunctionPath)
 		_, err := provider.UnmountVolume(volume.VolumeAttributes.ExternalUUID)
 		if err != nil {
@@ -768,7 +868,7 @@ func (a *VolumeUpdateActivity) UpdateJunctionPathInONTAP(ctx context.Context, vo
 	// Now mount the volume to the new junction path
 	logger.Debugf("Mounting volume %s to new junction path %s", volume.Name, junctionPath)
 
-	activity.RecordHeartbeat(ctx, "Mounting volume to new junction path")
+	orchestrator.RecordHeartbeat(ctx, "Mounting volume to new junction path")
 	_, err = provider.MountVolume(vsa.MountVolumeParams{
 		UUID:         volume.VolumeAttributes.ExternalUUID,
 		JunctionPath: junctionPath,
@@ -778,7 +878,7 @@ func (a *VolumeUpdateActivity) UpdateJunctionPathInONTAP(ctx context.Context, vo
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateJunctionPathInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateJunctionPathInONTAP activity")
 	logger.Debugf("Junction path updated successfully for volume %s in ONTAP", volume.Name)
 	return nil
 }
@@ -786,7 +886,7 @@ func (a *VolumeUpdateActivity) UpdateJunctionPathInONTAP(ctx context.Context, vo
 // UpdateExportPolicyRulesInONTAP updates the export policy rules for a volume in ONTAP
 func (a *VolumeUpdateActivity) UpdateExportPolicyRulesInONTAP(ctx context.Context, volume *datamodel.Volume, exportPolicy *models.ExportPolicy, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateExportPolicyRulesInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateExportPolicyRulesInONTAP activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -858,7 +958,7 @@ func (a *VolumeUpdateActivity) UpdateExportPolicyRulesInONTAP(ctx context.Contex
 		logger.Infof("NAS UID set to %d for AllSquash on volume %s", *allSquashUid, volume.Name)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateExportPolicyRulesInONTAP activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateExportPolicyRulesInONTAP activity")
 	logger.Debugf("Export policy updated successfully for volume %s in ONTAP", volume.Name)
 	return nil
 }
@@ -877,7 +977,7 @@ func _isAllSquashExistInPreviousExportPolicy(volume *datamodel.Volume) bool {
 
 func (a *VolumeUpdateActivity) UpdateSMBShareSettings(ctx context.Context, volume *datamodel.Volume, params *common.UpdateVolumeParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateSMBShareSettings activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateSMBShareSettings activity")
 
 	if volume == nil || params == nil {
 		logger.Warn("Parameters are empty")
@@ -941,7 +1041,7 @@ func (a *VolumeUpdateActivity) UpdateQoSPolicyGroupForVolume(
 	node *models.Node,
 ) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateQoSPolicyGroupForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateQoSPolicyGroupForVolume activity")
 
 	// Validate inputs
 	if volume.VolumePerformanceGroup == nil {
@@ -957,7 +1057,7 @@ func (a *VolumeUpdateActivity) UpdateQoSPolicyGroupForVolume(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finding existing QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Finding existing QoS policy group")
 	findParams := vsa.FindQoSGroupPolicyParams{
 		UUID: volume.VolumePerformanceGroup.OntapQosPolicyID,
 	}
@@ -991,7 +1091,7 @@ func (a *VolumeUpdateActivity) UpdateQoSPolicyGroupForVolume(
 		MaxIOPS:       iops,
 	}
 
-	activity.RecordHeartbeat(ctx, "Updating QoS policy group in ONTAP")
+	orchestrator.RecordHeartbeat(ctx, "Updating QoS policy group in ONTAP")
 	err = provider.UpdateQoSGroupPolicy(updateQosPolicyParams)
 	if err != nil {
 		logger.Error("Failed to update QoS policy group", "error", err, "policyName", existingQosPolicy.Name, "policyUUID", existingQosPolicy.UUID)
@@ -1000,14 +1100,14 @@ func (a *VolumeUpdateActivity) UpdateQoSPolicyGroupForVolume(
 
 	logger.Info("QoS policy group updated successfully", "policyName", existingQosPolicy.Name, "policyUUID", existingQosPolicy.UUID)
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateQoSPolicyGroupForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateQoSPolicyGroupForVolume activity")
 	return nil
 }
 
 // UpdateVolumePerformanceGroupInDB updates a VolumePerformanceGroup in the database
 func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDB(ctx context.Context, vpg *datamodel.VolumePerformanceGroup) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumePerformanceGroupInDB activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateVolumePerformanceGroupInDB activity")
 
 	if vpg == nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("VolumePerformanceGroup is nil"))
@@ -1019,7 +1119,7 @@ func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDB(ctx context.Cont
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumePerformanceGroupInDB activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateVolumePerformanceGroupInDB activity")
 	logger.Debugf("VolumePerformanceGroup %s updated successfully in database", vpg.UUID)
 	return nil
 }
@@ -1028,7 +1128,7 @@ func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDB(ctx context.Cont
 // to match the provided VPG. If vpg is nil, it unassigns the VPG from the volume.
 func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDBForVolume(ctx context.Context, volumeUUID string, vpg *datamodel.VolumePerformanceGroup) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumePerformanceGroupInDBForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UpdateVolumePerformanceGroupInDBForVolume activity")
 
 	if volumeUUID == "" {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("volumeUUID is empty"))
@@ -1059,7 +1159,7 @@ func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDBForVolume(ctx con
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumePerformanceGroupInDBForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UpdateVolumePerformanceGroupInDBForVolume activity")
 	logger.Debugf("Volume %s VolumePerformanceGroupID updated successfully in database", volumeUUID)
 	return nil
 }
@@ -1067,7 +1167,7 @@ func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDBForVolume(ctx con
 // UnassignQoSPolicyFromVolume unassigns the QoS policy from a volume in ONTAP
 func (a *VolumeUpdateActivity) UnassignQoSPolicyFromVolume(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UnassignQoSPolicyFromVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting UnassignQoSPolicyFromVolume activity")
 
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.ExternalUUID == "" {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("volume %s has no ExternalUUID", volume.UUID))
@@ -1078,7 +1178,7 @@ func (a *VolumeUpdateActivity) UnassignQoSPolicyFromVolume(ctx context.Context, 
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Unassigning QoS policy from volume")
+	orchestrator.RecordHeartbeat(ctx, "Unassigning QoS policy from volume")
 	none := "none"
 	updateVolumeParams := vsa.UpdateVolumeParams{
 		UUID:          volume.VolumeAttributes.ExternalUUID,
@@ -1091,14 +1191,14 @@ func (a *VolumeUpdateActivity) UnassignQoSPolicyFromVolume(ctx context.Context, 
 	}
 
 	logger.Info("QoS policy unassigned from volume successfully", "volumeUUID", volume.UUID)
-	activity.RecordHeartbeat(ctx, "Finished UnassignQoSPolicyFromVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished UnassignQoSPolicyFromVolume activity")
 	return nil
 }
 
 // CreateQoSPolicyGroupForVolume creates a new QoS policy group for a volume with autogenerated naming
 func (a *VolumeUpdateActivity) CreateAutoGeneratedQoSPolicyGroupForVolume(ctx context.Context, volume *datamodel.Volume, throughputMibps int64, iops int64, node *models.Node) (*vsa.QoSGroupPolicyResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateQoSPolicyGroupForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting CreateQoSPolicyGroupForVolume activity")
 
 	if volume.Svm == nil || volume.Svm.Name == "" {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("volume %s has no SVM name", volume.UUID))
@@ -1118,7 +1218,7 @@ func (a *VolumeUpdateActivity) CreateAutoGeneratedQoSPolicyGroupForVolume(ctx co
 		Name: qosPolicyName,
 	}
 
-	activity.RecordHeartbeat(ctx, "Checking for existing QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Checking for existing QoS policy group")
 	existingQosPolicy, err := provider.FindQoSGroupPolicy(findQosPolicyParams)
 	if err == nil {
 		// QoS policy already exists, check if it matches our requirements
@@ -1145,7 +1245,7 @@ func (a *VolumeUpdateActivity) CreateAutoGeneratedQoSPolicyGroupForVolume(ctx co
 		IsShared:      &isShared,
 	}
 
-	activity.RecordHeartbeat(ctx, "Creating QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Creating QoS policy group")
 	qosPolicyResponse, err := provider.CreateQoSGroupPolicy(qosPolicyParams)
 	if err != nil {
 		logger.Error("Failed to create QoS policy group", "error", err, "policyName", qosPolicyName)
@@ -1153,14 +1253,14 @@ func (a *VolumeUpdateActivity) CreateAutoGeneratedQoSPolicyGroupForVolume(ctx co
 	}
 
 	logger.Info("QoS policy group created successfully", "policyName", qosPolicyResponse.Name, "policyUUID", qosPolicyResponse.UUID)
-	activity.RecordHeartbeat(ctx, "Finished CreateQoSPolicyGroupForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished CreateQoSPolicyGroupForVolume activity")
 	return qosPolicyResponse, nil
 }
 
 // AssignQoSPolicyToVolume assigns a QoS policy to a volume in ONTAP
 func (a *VolumeUpdateActivity) AssignQoSPolicyToVolume(ctx context.Context, volume *datamodel.Volume, qosPolicyName string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting AssignQoSPolicyToVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting AssignQoSPolicyToVolume activity")
 
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.ExternalUUID == "" {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("volume %s has no ExternalUUID", volume.UUID))
@@ -1176,7 +1276,7 @@ func (a *VolumeUpdateActivity) AssignQoSPolicyToVolume(ctx context.Context, volu
 		QosPolicyName: &qosPolicyName,
 	}
 
-	activity.RecordHeartbeat(ctx, "Assigning QoS policy to volume")
+	orchestrator.RecordHeartbeat(ctx, "Assigning QoS policy to volume")
 	err = provider.UpdateVolume(updateVolumeParams)
 	if err != nil {
 		logger.Error("Failed to assign QoS policy to volume", "error", err, "volumeUUID", volume.UUID, "policyName", qosPolicyName)
@@ -1184,14 +1284,14 @@ func (a *VolumeUpdateActivity) AssignQoSPolicyToVolume(ctx context.Context, volu
 	}
 
 	logger.Info("QoS policy assigned to volume successfully", "volumeUUID", volume.UUID, "policyName", qosPolicyName)
-	activity.RecordHeartbeat(ctx, "Finished AssignQoSPolicyToVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished AssignQoSPolicyToVolume activity")
 	return nil
 }
 
 // FindQoSGroupPolicyForVolume finds a QoS policy group by UUID for a volume
 func (a *VolumeUpdateActivity) FindQoSGroupPolicyForVolume(ctx context.Context, policyUUID string, svmName string, node *models.Node) (*vsa.QoSGroupPolicyResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting FindQoSGroupPolicyForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Starting FindQoSGroupPolicyForVolume activity")
 
 	if policyUUID == "" {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("policyUUID is empty"))
@@ -1214,7 +1314,7 @@ func (a *VolumeUpdateActivity) FindQoSGroupPolicyForVolume(ctx context.Context, 
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Finding QoS policy group")
+	orchestrator.RecordHeartbeat(ctx, "Finding QoS policy group")
 	qosPolicy, err := provider.FindQoSGroupPolicy(findQosPolicyParams)
 	if err != nil {
 		logger.Error("Failed to find QoS policy group", "error", err, "policyUUID", policyUUID)
@@ -1222,6 +1322,6 @@ func (a *VolumeUpdateActivity) FindQoSGroupPolicyForVolume(ctx context.Context, 
 	}
 
 	logger.Info("QoS policy group found", "policyName", qosPolicy.Name, "policyUUID", qosPolicy.UUID)
-	activity.RecordHeartbeat(ctx, "Finished FindQoSGroupPolicyForVolume activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished FindQoSGroupPolicyForVolume activity")
 	return qosPolicy, nil
 }

@@ -107,7 +107,7 @@ func TestV1CreateIgroup_TrimsIgroupName(t *testing.T) {
 	req := testIgroupCreateRequest()
 	req.Name = "  hg-db-linux  "
 
-	result, err := handler.V1CreateIgroup(ctx, req, vcmserver.V1CreateIgroupParams{})
+	result, err := handler.V1CreateIgroup(ctx, req, testOperationIgroupCreateParams())
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.OperationV1{}, result)
 }
@@ -131,11 +131,11 @@ func TestV1CreateIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 		}, nil)
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1CreateIgroup(ctx, testIgroupCreateRequest(), vcmserver.V1CreateIgroupParams{})
+	result, err := handler.V1CreateIgroup(ctx, testIgroupCreateRequest(), testOperationIgroupCreateParams())
 	require.NoError(t, err)
 	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
-	assert.Equal(t, "/v1/operations/op-create-1", accepted.Name)
+	assert.Equal(t, "/v1/operations/"+testOperationRequestID, accepted.Name)
 	assert.False(t, accepted.Done)
 }
 
@@ -144,16 +144,14 @@ func TestV1CreateIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 	orch.EXPECT().CreateHostGroup(mock.Anything, mock.Anything).Return(nil, errors.New("boom"))
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1CreateIgroup(context.Background(), testIgroupCreateRequest(), vcmserver.V1CreateIgroupParams{})
+	result, err := handler.V1CreateIgroup(context.Background(), testIgroupCreateRequest(), testOperationIgroupCreateParams())
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1CreateIgroupInternalServerError{}, result)
 }
 
 func TestV1DeleteIgroup_RejectsEmptyName(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1DeleteIgroup(context.Background(), vcmserver.V1DeleteIgroupParams{
-		Name: "   ",
-	})
+	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("   "))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DeleteIgroupBadRequest{}, result)
 }
@@ -170,14 +168,12 @@ func TestV1DeleteIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 		}, nil)
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1DeleteIgroup(context.Background(), vcmserver.V1DeleteIgroupParams{
-		Name: "hg-db-linux",
-	})
+	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("hg-db-linux"))
 	require.NoError(t, err)
 	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
 	assert.False(t, accepted.Done)
-	assert.Equal(t, "/v1/operations/op-delete-1", accepted.Name)
+	assert.Equal(t, "/v1/operations/"+testOperationRequestID, accepted.Name)
 }
 
 func TestV1DeleteIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) {
@@ -189,9 +185,7 @@ func TestV1DeleteIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 		Return(nil, errors.New("boom"))
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1DeleteIgroup(context.Background(), vcmserver.V1DeleteIgroupParams{
-		Name: "hg-db-linux",
-	})
+	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("hg-db-linux"))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DeleteIgroupInternalServerError{}, result)
 }
@@ -200,16 +194,14 @@ func TestV1UpdateIgroup_RejectsEmptyName(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
 		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	}, vcmserver.V1UpdateIgroupParams{Name: "   "})
+	}, testOperationIgroupUpdateParams("   "))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1UpdateIgroupBadRequest{}, result)
 }
 
 func TestV1UpdateIgroup_RejectsEmptyHosts(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{}, vcmserver.V1UpdateIgroupParams{
-		Name: "hg-db-linux",
-	})
+	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{}, testOperationIgroupUpdateParams("hg-db-linux"))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1UpdateIgroupBadRequest{}, result)
 }
@@ -219,7 +211,7 @@ func TestV1UpdateIgroup_RejectsTooManyHosts(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
 		Hosts: []string{"iqn.1", "iqn.2", "iqn.3"},
-	}, vcmserver.V1UpdateIgroupParams{Name: "hg-db-linux"})
+	}, testOperationIgroupUpdateParams("hg-db-linux"))
 	require.NoError(t, err)
 	badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
 	require.True(t, ok)
@@ -244,12 +236,12 @@ func TestV1UpdateIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 	handler := &Handler{Orchestrator: orch}
 	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
 		Hosts: []string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db3"},
-	}, vcmserver.V1UpdateIgroupParams{Name: "hg-db-linux"})
+	}, testOperationIgroupUpdateParams("hg-db-linux"))
 	require.NoError(t, err)
 	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
 	assert.False(t, accepted.Done)
-	assert.Contains(t, accepted.Name, "/v1/operations/")
+	assert.Equal(t, "/v1/operations/"+testOperationRequestID, accepted.Name)
 }
 
 func TestV1UpdateIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) {
@@ -261,7 +253,7 @@ func TestV1UpdateIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 	handler := &Handler{Orchestrator: orch}
 	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
 		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	}, vcmserver.V1UpdateIgroupParams{Name: "hg-db-linux"})
+	}, testOperationIgroupUpdateParams("hg-db-linux"))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1UpdateIgroupInternalServerError{}, result)
 }

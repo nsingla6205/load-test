@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -727,6 +728,80 @@ func TestCreateSnapshotPolicy(t *testing.T) {
 		mockStorage.AssertExpectations(t)
 		mockCluster.AssertExpectations(t)
 	})
+
+	t.Run("PolicyAlreadyExists_WithSchedulesIsIdempotent", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockStorage := new(ontaprest.MockStorageClient)
+		mockClient.On("Storage").Return(mockStorage)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		schedule := &Schedule{
+			Name:        "sched1",
+			Months:      []int{1},
+			DaysOfMonth: []int{1},
+			DaysOfWeek:  []int{1},
+			Hours:       []int{1},
+			Minutes:     []int{0},
+		}
+		policy := &SnapshotPolicy{
+			Name:      "policy1",
+			IsEnabled: true,
+			Schedules: []*SnapshotPolicySchedule{
+				{SnapmirrorLabel: "label1", Count: 1, Schedule: schedule},
+			},
+		}
+
+		mockStorage.On("SnapshotPolicyCreate", mock.Anything).Return(errors.New("entry already exists")).Once()
+		mockStorage.On("SnapshotPolicyFind", mock.Anything).Return(&models.SnapshotPolicy{
+			SnapshotPolicyInlineCopies: []*models.SnapshotPolicyInlineCopiesInlineArrayItem{
+				{Count: nillable.GetInt64Ptr(1)},
+			},
+		}, nil).Once()
+
+		err := rc.CreateSnapshotPolicy(policy)
+		assert.NoError(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("PolicyAlreadyExists_RecreatesAfterDelete", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockStorage := new(ontaprest.MockStorageClient)
+		mockClient.On("Storage").Return(mockStorage)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		schedule := &Schedule{
+			Name:        "sched1",
+			Months:      []int{1},
+			DaysOfMonth: []int{1},
+			DaysOfWeek:  []int{1},
+			Hours:       []int{1},
+			Minutes:     []int{0},
+		}
+		policy := &SnapshotPolicy{
+			Name:      "policy1",
+			IsEnabled: true,
+			Schedules: []*SnapshotPolicySchedule{
+				{SnapmirrorLabel: "label1", Count: 1, Schedule: schedule},
+			},
+		}
+
+		mockStorage.On("SnapshotPolicyCreate", mock.Anything).Return(errors.New("entry already exists")).Once()
+		mockStorage.On("SnapshotPolicyFind", mock.Anything).Return(&models.SnapshotPolicy{}, nil).Once()
+		mockStorage.On("SnapshotPolicyDelete", mock.Anything).Return(nil).Once()
+		mockStorage.On("SnapshotPolicyCreate", mock.Anything).Return(nil).Once()
+
+		err := rc.CreateSnapshotPolicy(policy)
+		assert.NoError(t, err)
+		mockStorage.AssertExpectations(t)
+	})
 }
 
 func TestDeleteSnapshot(t *testing.T) {
@@ -1042,6 +1117,84 @@ func TestGenerateNameForSchedule(t *testing.T) {
 		schedule := &Schedule{}
 		name := generateNameForSchedule(schedule)
 		assert.Contains(t, name, "hourly-0-min-past-hour")
+	})
+}
+
+func TestGetSnapshotPolicy(t *testing.T) {
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	t.Run("Success", func(t *testing.T) {
+		mockStorage := new(ontaprest.MockStorageClient)
+		mockCluster := new(ontaprest.MockClusterClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("Storage").Return(mockStorage)
+		mockClient.On("Cluster").Return(mockCluster)
+		mockCluster.On("ScheduleCollectionGet", mock.Anything, mock.Anything).Return(nil)
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+
+		mockStorage.On("SnapshotPolicyFind", mock.Anything).Return(&models.SnapshotPolicy{
+			Enabled: nillable.ToPointer(true),
+			SnapshotPolicyInlineCopies: []*models.SnapshotPolicyInlineCopiesInlineArrayItem{
+				{
+					Count:           nillable.ToPointer(int64(5)),
+					SnapmirrorLabel: nillable.ToPointer("daily"),
+					Schedule: &models.SnapshotPolicyInlineCopiesInlineArrayItemInlineSchedule{
+						Name: nillable.ToPointer("daily-schedule"),
+					},
+				},
+			},
+		}, nil)
+
+		rc := &OntapRestProvider{}
+		policy, err := rc.GetSnapshotPolicy("vol1")
+		assert.NoError(t, err)
+		assert.NotNil(t, policy)
+		assert.Equal(t, "vol1", policy.Name)
+		assert.True(t, policy.IsEnabled)
+		assert.Len(t, policy.Schedules, 1)
+		assert.Equal(t, int64(5), policy.Schedules[0].Count)
+		assert.Equal(t, "daily", policy.Schedules[0].SnapmirrorLabel)
+		assert.Equal(t, "daily-schedule", policy.Schedules[0].Schedule.Name)
+	})
+
+	t.Run("EmptyNameReturnsNil", func(t *testing.T) {
+		rc := &OntapRestProvider{}
+		policy, err := rc.GetSnapshotPolicy("  ")
+		assert.NoError(t, err)
+		assert.Nil(t, policy)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mockStorage := new(ontaprest.MockStorageClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("Storage").Return(mockStorage)
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+
+		mockStorage.On("SnapshotPolicyFind", mock.Anything).Return(nil, errors.New("not found"))
+
+		rc := &OntapRestProvider{}
+		_, err := rc.GetSnapshotPolicy("missing")
+		assert.Error(t, err)
+	})
+
+	t.Run("NilPolicyResponse", func(t *testing.T) {
+		mockStorage := new(ontaprest.MockStorageClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("Storage").Return(mockStorage)
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+
+		mockStorage.On("SnapshotPolicyFind", mock.Anything).Return(nil, nil)
+
+		rc := &OntapRestProvider{}
+		_, err := rc.GetSnapshotPolicy("missing")
+		assert.Error(t, err)
 	})
 }
 
@@ -2187,4 +2340,55 @@ func TestGetSnapshot(t *testing.T) {
 		assert.Contains(t, err.(*vsaerrors.CustomError).OriginalErr.Error(), "missing required fields")
 		mockStorage.AssertExpectations(t)
 	})
+}
+
+func TestSnapshotPolicySchedulesForONTAP_RejectsNilSchedule(t *testing.T) {
+	_, err := snapshotPolicySchedulesForONTAP([]*SnapshotPolicySchedule{
+		{Count: 1, SnapmirrorLabel: "daily", Schedule: &Schedule{Hours: []int{1}}},
+		nil,
+	})
+	require.Error(t, err)
+}
+
+func TestFindSnapshotPolicyOnONTAP_EmptyName(t *testing.T) {
+	policy, err := (&OntapRestProvider{}).findSnapshotPolicyOnONTAP(nil, "  ")
+	require.NoError(t, err)
+	assert.Nil(t, policy)
+}
+
+func TestPopulateScheduleFromONTAP_ParsesCron(t *testing.T) {
+	mockCluster := new(ontaprest.MockClusterClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Cluster").Return(mockCluster)
+
+	mockCluster.On("ScheduleCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Schedule])
+		require.NoError(t, callback([]*ontaprest.Schedule{
+			{Schedule: models.Schedule{Cron: &models.ScheduleInlineCron{
+				Days:     []*int64{nillable.ToPointer(int64(1))},
+				Weekdays: []*int64{nillable.ToPointer(int64(2))},
+				Hours:    []*int64{nillable.ToPointer(int64(3))},
+				Minutes:  []*int64{nillable.ToPointer(int64(4))},
+				Months:   []*int64{nillable.ToPointer(int64(5))},
+			}}},
+		}))
+	}).Return(nil)
+
+	schedule := &Schedule{}
+	err := (&OntapRestProvider{}).populateScheduleFromONTAP(mockClient, "daily-schedule", schedule)
+	require.NoError(t, err)
+	assert.Equal(t, "daily-schedule", schedule.Name)
+	assert.Equal(t, []int{1}, schedule.DaysOfMonth)
+	assert.Equal(t, []int{2}, schedule.DaysOfWeek)
+	assert.Equal(t, []int{3}, schedule.Hours)
+	assert.Equal(t, []int{4}, schedule.Minutes)
+	assert.Equal(t, []int{5}, schedule.Months)
+}
+
+func TestPointerInt64SliceToIntSlice(t *testing.T) {
+	assert.Nil(t, pointerInt64SliceToIntSlice(nil))
+	assert.Equal(t, []int{1, 2}, pointerInt64SliceToIntSlice([]*int64{
+		nillable.ToPointer(int64(1)),
+		nillable.ToPointer(int64(2)),
+	}))
 }

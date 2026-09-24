@@ -3470,8 +3470,9 @@ func igroupDeleteInitiatorParamsToONTAP(params *IgroupDeleteInitiatorParams) *sa
 // IgroupGetParams is the input parameter for getting Igroups
 type IgroupGetParams struct {
 	BaseParams
-	SvmName *string
-	Name    *string
+	SvmName        *string
+	Name           *string
+	LunMapsLunUUID *string
 }
 
 // igroupGetParamsToONTAP converts IgroupGetParams to ONTAP API parameters.
@@ -3483,6 +3484,7 @@ func igroupGetParamsToONTAP(params *IgroupGetParams) *san.IgroupCollectionGetPar
 
 	otParams.SetName(params.Name)
 	otParams.SetSvmName(params.SvmName)
+	otParams.SetLunMapsLunUUID(params.LunMapsLunUUID)
 	otParams.SetMaxRecords(getConstrainedMaxRecords(params.MaxRecords))
 	otParams.SetFields(params.Fields)
 	// MD: It's a GET call why is there return_timeout ??

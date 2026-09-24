@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -50,6 +51,15 @@ var (
 func CreateJunctionPath(token string) string {
 	junctionPath := "/" + token
 	return junctionPath
+}
+
+// ShareNameFromJunctionPath returns the customer-facing share name from an ONTAP junction path.
+func ShareNameFromJunctionPath(junctionPath string) string {
+	junctionPath = strings.TrimSpace(junctionPath)
+	if junctionPath == "" {
+		return ""
+	}
+	return strings.TrimPrefix(junctionPath, "/")
 }
 
 // ConvertStringSliceToPointerSlice converts []string to []*string

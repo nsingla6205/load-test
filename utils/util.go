@@ -189,6 +189,7 @@ const (
 	ActiveDirectorySeSecurityPrivilege = `SeSecurityPrivilege`
 	wildCardForAllowlist               = "*"
 	UnixSecurityStyle                  = "unix"
+	NtfsSecurityStyle                  = "ntfs"
 )
 
 var strongPasswordCharCategories = []string{lowercaseLetters, uppercaseLetters, digits}

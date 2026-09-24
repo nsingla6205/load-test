@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -13,27 +12,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
-
-const (
-	hostGroupWorkflowTimeout = 10 * time.Minute
-	volumeWorkflowTimeout    = 10 * time.Minute
-)
-
-func getOperationID() string {
-	return uuid.NewString()
-}
-
-func getOperationDeadline(timeout time.Duration) time.Time {
-	return time.Now().UTC().Add(timeout)
-}
-
-func getHostGroupOperationDeadline() time.Time {
-	return getOperationDeadline(hostGroupWorkflowTimeout)
-}
-
-func getVolumeOperationDeadline() time.Time {
-	return getOperationDeadline(volumeWorkflowTimeout)
-}
 
 // describeVCMOperationSurfaceJobErrorDetails reports whether the public operation GET
 // should use job.ErrorMessage as error.message (vs catalog text from errors.json).

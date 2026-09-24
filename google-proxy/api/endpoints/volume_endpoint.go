@@ -2927,7 +2927,7 @@ func convertToSnapshotPolicyV2(pol *models.SnapshotPolicy) *gcpgenserver.Snapsho
 				Minute:          gcpgenserver.NewOptFloat64(minute),
 			}
 		} else if len(schedule.Schedule.DaysOfWeek) > 0 {
-			days := convertDaysOfWeekFromIntArray(schedule.Schedule.DaysOfWeek)
+			days := utils.ConvertDaysOfWeekFromIntArray(schedule.Schedule.DaysOfWeek)
 			hour := float64(0)
 			if len(schedule.Schedule.Hours) > 0 {
 				hour = float64(schedule.Schedule.Hours[0])
@@ -3050,22 +3050,6 @@ func convertToCloneParentInfoV1(cp *models.CloneParentInfo, cloneSharedBytes uin
 		cloneParentInfo.StateDetails = gcpgenserver.NewOptNilString(*cp.StateDetails)
 	}
 	return cloneParentInfo
-}
-
-func convertDaysOfWeekFromIntArray(days []int) string {
-	var resultDays []string
-	for _, day := range days {
-		if day >= 0 && day <= 6 {
-			resultDays = append(resultDays, time.Weekday(day).String())
-		}
-	}
-
-	// Return Sunday by default
-	if len(resultDays) < 1 {
-		resultDays = append(resultDays, time.Sunday.String())
-	}
-
-	return strings.Join(resultDays, ",")
 }
 
 // validateBackupScheduleCron validates that the cron expression has a minimum interval of 5 minutes

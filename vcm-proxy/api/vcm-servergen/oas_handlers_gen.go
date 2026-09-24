@@ -905,6 +905,14 @@ func (s *Server) handleV1CreateIgroupRequest(args [0]string, argsEscaped bool, w
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
+				{
 					Name: "X-Correlation-ID",
 					In:   "header",
 				}: params.XCorrelationID,
@@ -1073,6 +1081,14 @@ func (s *Server) handleV1CreateVolumeRequest(args [0]string, argsEscaped bool, w
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
+				{
 					Name: "X-Correlation-ID",
 					In:   "header",
 				}: params.XCorrelationID,
@@ -1228,6 +1244,14 @@ func (s *Server) handleV1DeleteIgroupRequest(args [1]string, argsEscaped bool, w
 					Name: "name",
 					In:   "path",
 				}: params.Name,
+				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
 				{
 					Name: "X-Correlation-ID",
 					In:   "header",
@@ -1386,6 +1410,14 @@ func (s *Server) handleV1DeleteVolumeRequest(args [1]string, argsEscaped bool, w
 					Name: "uuid",
 					In:   "path",
 				}: params.UUID,
+				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
 				{
 					Name: "X-Correlation-ID",
 					In:   "header",
@@ -1905,6 +1937,158 @@ func (s *Server) handleV1ListIgroupsRequest(args [0]string, argsEscaped bool, w 
 	}
 }
 
+// handleV1ListVolumesRequest handles v1_listVolumes operation.
+//
+// Returns details of all volumes owned by the caller.
+//
+// GET /v1/volumes
+func (s *Server) handleV1ListVolumesRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_listVolumes"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/v1/volumes"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1ListVolumesOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1ListVolumesOperation,
+			ID:   "v1_listVolumes",
+		}
+	)
+	params, err := decodeV1ListVolumesParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response V1ListVolumesRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1ListVolumesOperation,
+			OperationSummary: "",
+			OperationID:      "v1_listVolumes",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = V1ListVolumesParams
+			Response = V1ListVolumesRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1ListVolumesParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1ListVolumes(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1ListVolumes(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1ListVolumesResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleV1UpdateIgroupRequest handles v1_updateIgroup operation.
 //
 // Update the specified igroup.
@@ -2022,6 +2206,14 @@ func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w
 					In:   "path",
 				}: params.Name,
 				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
+				{
 					Name: "X-Correlation-ID",
 					In:   "header",
 				}: params.XCorrelationID,
@@ -2078,16 +2270,17 @@ func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w
 
 // handleV1UpdateVolumeRequest handles v1_updateVolume operation.
 //
-// Updates specific fields of an existing volume using an update mask.
+// Updates specific fields of an existing volume using an update mask. The target volume is
+// identified by uuid in the request body.
 //
-// PATCH /v1/volumes/{uuid}
-func (s *Server) handleV1UpdateVolumeRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// PATCH /v1/volumes
+func (s *Server) handleV1UpdateVolumeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("v1_updateVolume"),
 		semconv.HTTPRequestMethodKey.String("PATCH"),
-		semconv.HTTPRouteKey.String("/v1/volumes/{uuid}"),
+		semconv.HTTPRouteKey.String("/v1/volumes"),
 	}
 
 	// Start a span for this request.
@@ -2189,9 +2382,13 @@ func (s *Server) handleV1UpdateVolumeRequest(args [1]string, argsEscaped bool, w
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
-					Name: "uuid",
-					In:   "path",
-				}: params.UUID,
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
 				{
 					Name: "X-Correlation-ID",
 					In:   "header",
@@ -2205,7 +2402,7 @@ func (s *Server) handleV1UpdateVolumeRequest(args [1]string, argsEscaped bool, w
 		}
 
 		type (
-			Request  = *VolumeV1
+			Request  = *VolumeUpdateV1
 			Params   = V1UpdateVolumeParams
 			Response = V1UpdateVolumeRes
 		)

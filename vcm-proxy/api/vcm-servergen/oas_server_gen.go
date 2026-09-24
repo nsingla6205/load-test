@@ -105,6 +105,12 @@ type Handler interface {
 	//
 	// GET /v1/igroups
 	V1ListIgroups(ctx context.Context, params V1ListIgroupsParams) (V1ListIgroupsRes, error)
+	// V1ListVolumes implements v1_listVolumes operation.
+	//
+	// Returns details of all volumes owned by the caller.
+	//
+	// GET /v1/volumes
+	V1ListVolumes(ctx context.Context, params V1ListVolumesParams) (V1ListVolumesRes, error)
 	// V1UpdateIgroup implements v1_updateIgroup operation.
 	//
 	// Update the specified igroup.
@@ -113,10 +119,11 @@ type Handler interface {
 	V1UpdateIgroup(ctx context.Context, req *IgroupUpdateV1, params V1UpdateIgroupParams) (V1UpdateIgroupRes, error)
 	// V1UpdateVolume implements v1_updateVolume operation.
 	//
-	// Updates specific fields of an existing volume using an update mask.
+	// Updates specific fields of an existing volume using an update mask. The target volume is
+	// identified by uuid in the request body.
 	//
-	// PATCH /v1/volumes/{uuid}
-	V1UpdateVolume(ctx context.Context, req *VolumeV1, params V1UpdateVolumeParams) (V1UpdateVolumeRes, error)
+	// PATCH /v1/volumes
+	V1UpdateVolume(ctx context.Context, req *VolumeUpdateV1, params V1UpdateVolumeParams) (V1UpdateVolumeRes, error)
 	// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
 	//
 	// Used for common default response.

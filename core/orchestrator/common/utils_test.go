@@ -1289,3 +1289,11 @@ func TestChunkSlice(t *testing.T) {
 		assert.Equal(t, items, batches[0])
 	})
 }
+
+func TestShareNameFromJunctionPath(t *testing.T) {
+	assert.Equal(t, "", ShareNameFromJunctionPath(""))
+	assert.Equal(t, "", ShareNameFromJunctionPath("   "))
+	assert.Equal(t, "", ShareNameFromJunctionPath("/"))
+	assert.Equal(t, "voltest_nfs01", ShareNameFromJunctionPath("/voltest_nfs01"))
+	assert.Equal(t, "nfs-vol", ShareNameFromJunctionPath("  /nfs-vol  "))
+}

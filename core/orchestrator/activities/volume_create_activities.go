@@ -40,9 +40,9 @@ import (
 )
 
 const (
-	VolumeTypeRW          = "rw"
-	VolumeTypeDP          = "dp"
-	CrossRegionBackupType = datamodel.BackupVaultTypeCrossRegion
+	VolumeTypeRW                 = "rw"
+	VolumeTypeDP                 = "dp"
+	CrossRegionBackupType        = datamodel.BackupVaultTypeCrossRegion
 	GCBDRServiceType             = datamodel.ServiceTypeCrossProject
 	CrossRegionBackupVaultErrMsg = "Cross region backup vaults are not supported for ISCSI volumes"
 	RestoreBackupWorkflow        = "RestoreBackupWorkflow"
