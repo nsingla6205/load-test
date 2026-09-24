@@ -1171,7 +1171,10 @@ func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_Success() 
 		UUID:    "test-uuid-1",
 		Healthy: &healthy,
 	}, nil)
-	s.env.OnActivity(backupActivity.FinishBackup, mock.Anything, mock.Anything).Return(nil)
+	// Regression: DestinationUUID must propagate to backup.Attributes.EndpointUUID (nil guard must not break happy path).
+	s.env.OnActivity(backupActivity.FinishBackup, mock.Anything, mock.MatchedBy(func(backup *datamodel.Backup) bool {
+		return backup != nil && backup.Attributes != nil && backup.Attributes.EndpointUUID == destinationUUID
+	})).Return(nil)
 	s.env.OnActivity(backupActivity.GetObjectStoreEndpointInfo, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.SmObjectStoreEndpointt{LogicalSize: &[]int64{1024000}[0]}, nil)
 	s.env.OnActivity(backupActivity.GetSnapshotFromObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.SmObjectStoreEndpointSnapshot{LogicalSize: &[]int64{1024000}[0]}, nil)
 	s.env.OnActivity(backupActivity.CreateBackupMetadataIfFirstBackupActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -3701,6 +3704,162 @@ func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_GetSnapmir
 
 	errMsg := s.env.GetWorkflowError().Error()
 	assert.Contains(s.T(), errMsg, "snapmirror relationship state is not snapmirrored")
+	assert.Contains(s.T(), errMsg, "An internal error occurred")
+	s.env.AssertExpectations(s.T())
+}
+
+// TestCreateScheduledBackupWorkflow_NilDestinationUUID_ReturnsVCPError ensures a SnapMirror
+// relationship missing DestinationUUID fails with a recoverable preTransfer ErrInternalServerError
+// instead of panicking.
+func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflow_NilDestinationUUID_ReturnsVCPError() {
+	scheduledWeeklyBackupDay = int(time.Now().UTC().Weekday())
+	scheduledMonthlyBackupDay = time.Now().UTC().Day()
+
+	mockStorage := database.NewMockStorage(s.T())
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	backupActivity := &activities.BackupActivity{SE: mockStorage}
+	scheduledBackupActivity := &backgroundactivities.ScheduledBackupActivity{SE: mockStorage}
+
+	s.registerCreateScheduledBackupActivities(commonActivity, backupActivity, scheduledBackupActivity)
+
+	s.env.OnActivity(commonActivity.CreateJob, mock.Anything, mock.Anything).Return(
+		&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}}, nil)
+	s.env.OnActivity(backupActivity.GetBackupVault, mock.Anything, mock.Anything).
+		Return(&datamodel.BackupVault{
+			Name: "test-backup-vault",
+			BucketDetails: []*datamodel.BucketDetails{
+				{
+					BucketName:         "vsa-backup-bucket",
+					VendorSubnetID:     "test-vendor-subnet-id",
+					ServiceAccountName: "test-service-account",
+				},
+			},
+		}, nil)
+	s.env.OnActivity(scheduledBackupActivity.CreateScheduledBackup, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&datamodel.Backup{Attributes: &datamodel.BackupAttributes{}}, nil)
+	s.env.OnActivity(backupActivity.DeleteBackup, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	s.mockScheduledBackupNodeAndObjectStore(backupActivity)
+
+	// Relationship exists but DestinationUUID is nil — fail immediately after GetOrCreate.
+	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&common.SnapmirrorRelationship{
+			UUID: "test-uuid-1",
+		}, nil)
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{
+			UUID: "volume-uuid-1",
+		},
+		Name:   "test-volume-1",
+		PoolID: 1,
+		Svm: &datamodel.Svm{
+			Name: "test-svm-1",
+		},
+		Pool: &datamodel.Pool{
+			PoolCredentials: &datamodel.PoolCredentials{
+				Password: "pool-password",
+				SecretID: "pool-credential-secret-id",
+			},
+			DeploymentName: "test-pool-deployment",
+			PoolAttributes: &datamodel.PoolAttributes{
+				PrimaryZone: "test-zone-1",
+			},
+		},
+		DataProtection: &datamodel.DataProtection{
+			BackupVaultID: "backup-vault-uuid-1",
+		},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID:   "external-uuid-1",
+			VendorSubnetID: "test-vendor-subnet-id",
+		},
+	}
+	backupPolicy := &datamodel.BackupPolicy{
+		AccountID:            1,
+		DailyBackupsToKeep:   3,
+		WeeklyBackupsToKeep:  1,
+		MonthlyBackupsToKeep: 1,
+	}
+	s.env.ExecuteWorkflow(CreateScheduledBackupWorkflow, volume, backupPolicy)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+
+	errMsg := s.env.GetWorkflowError().Error()
+	assert.Contains(s.T(), errMsg, "DestinationUUID not found in snapmirror relationship")
+	assert.Contains(s.T(), errMsg, "An internal error occurred")
+	s.env.AssertExpectations(s.T())
+}
+
+// TestCreateScheduledBackupWorkflowWithContext_NilSnapmirrorRelationship_ReturnsVCPError ensures a
+// continuation with a nil SnapmirrorRelationship fails with a recoverable preTransfer
+// ErrInternalServerError instead of panicking.
+func (s *ScheduledBackupsTestSuite) TestCreateScheduledBackupWorkflowWithContext_NilSnapmirrorRelationship_ReturnsVCPError() {
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "volume-uuid-1"},
+		Name:      "test-volume-1",
+		Account:   &datamodel.Account{Name: "test-account"},
+		Svm:       &datamodel.Svm{Name: "test-svm-1"},
+		PoolID:    1,
+		Pool: &datamodel.Pool{
+			PoolCredentials: &datamodel.PoolCredentials{Password: "pool-password", SecretID: "pool-credential-secret-id"},
+			DeploymentName:  "test-pool-deployment",
+			PoolAttributes:  &datamodel.PoolAttributes{PrimaryZone: "test-zone-1"},
+		},
+		DataProtection:   &datamodel.DataProtection{BackupVaultID: "backup-vault-uuid-1"},
+		VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "external-uuid-1", VendorSubnetID: "test-vendor-subnet-id"},
+	}
+	backup := &datamodel.Backup{Attributes: &datamodel.BackupAttributes{}}
+	ctx := &activities.BackupActivitiesContext{
+		BackupWorkflowInit: &activities.BackupWorkflowInput{
+			Backup:      backup,
+			BackupVault: &datamodel.BackupVault{Name: "vault"},
+			Volume:      volume,
+		},
+		Node:                   &models.Node{EndpointAddress: "127.0.0.1"},
+		BucketDetails:          &datamodel.BucketDetails{BucketName: "bucket", ServiceAccountName: "svc"},
+		ObjStoreName:           "objstore",
+		ObjStore:               &common.CloudTarget{Name: "target", UUID: "obj-store-uuid"},
+		SnapshotName:           "scheduled-snapshot-name",
+		SmSourcePath:           "svm:/vol",
+		SmDestinationPath:      "objstore:/path",
+		SnapmirrorRelationship: nil,
+		ScheduledBackupParams: &activities.ScheduledBackupParams{
+			BackupPolicy:  &datamodel.BackupPolicy{AccountID: 1, DailyBackupsToKeep: 3},
+			Backups:       []*datamodel.Backup{backup},
+			OntapSnapshot: &vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snap-uuid"}},
+			Job:           &datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"}},
+		},
+		DbSnapshot: &datamodel.Snapshot{},
+	}
+
+	mockStorage := database.NewMockStorage(s.T())
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	backupActivity := &activities.BackupActivity{SE: mockStorage}
+	scheduledBackupActivity := &backgroundactivities.ScheduledBackupActivity{SE: mockStorage}
+	s.registerCreateScheduledBackupActivities(commonActivity, backupActivity, scheduledBackupActivity)
+
+	s.env.SetContinuedExecutionRunID("previous-run-id")
+	s.env.OnActivity(backupActivity.DeleteBackup, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	s.env.OnActivity(backupActivity.DeleteBackupSnapshot, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(scheduledBackupActivity.DeleteBackupSnapshotInDB, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(CreateScheduledBackupWorkflowWithContext, ctx)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+
+	errMsg := s.env.GetWorkflowError().Error()
+	assert.Contains(s.T(), errMsg, "DestinationUUID not found in snapmirror relationship")
 	assert.Contains(s.T(), errMsg, "An internal error occurred")
 	s.env.AssertExpectations(s.T())
 }

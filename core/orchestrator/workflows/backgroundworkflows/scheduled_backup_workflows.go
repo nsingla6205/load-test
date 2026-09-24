@@ -408,6 +408,10 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		logger.Info("Resuming backup workflow from continuation",
 			"workflowID", wf.ID, "continuedFromRunID", info.OriginalRunID,
 			"snapshotName", scheduledBackupContext.SnapshotName, "transferStatus", scheduledBackupContext.TransferStatus)
+		if scheduledBackupContext.SnapmirrorRelationship == nil || scheduledBackupContext.SnapmirrorRelationship.DestinationUUID == nil {
+			preTransferErr = vsaerrors.New("DestinationUUID not found in snapmirror relationship")
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, preTransferErr)
+		}
 		registerScheduledPreTransferRollback(preTransferRollbackManager, scheduledBackupContext, backupActivities, scheduledBackupActivities)
 	} else {
 		if cid, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx); err == nil {
@@ -517,6 +521,10 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
 		scheduledBackupContext.SnapmirrorRelationship = snapmirrorRelationship
+		if scheduledBackupContext.SnapmirrorRelationship == nil || scheduledBackupContext.SnapmirrorRelationship.DestinationUUID == nil {
+			preTransferErr = vsaerrors.New("DestinationUUID not found in snapmirror relationship")
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, preTransferErr)
+		}
 
 		// Backups from this run, excluded by the rollback below and the transfer check further down.
 		excludeBackupUUIDs := scheduledBackupExcludeUUIDs(backups)
