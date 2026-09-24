@@ -1944,6 +1944,68 @@ func (_c *MockServices_GetCertificate_Call) RunAndReturn(run func(string, string
 	return _c
 }
 
+// GetCertificateAuthority provides a mock function with given fields: ctx, projectID, region, poolName, caName
+func (_m *MockServices) GetCertificateAuthority(ctx context.Context, projectID string, region string, poolName string, caName string) (*models.CertificateAuthority, error) {
+	ret := _m.Called(ctx, projectID, region, poolName, caName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetCertificateAuthority")
+	}
+
+	var r0 *models.CertificateAuthority
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (*models.CertificateAuthority, error)); ok {
+		return rf(ctx, projectID, region, poolName, caName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) *models.CertificateAuthority); ok {
+		r0 = rf(ctx, projectID, region, poolName, caName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CertificateAuthority)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, projectID, region, poolName, caName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockServices_GetCertificateAuthority_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCertificateAuthority'
+type MockServices_GetCertificateAuthority_Call struct {
+	*mock.Call
+}
+
+// GetCertificateAuthority is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectID string
+//   - region string
+//   - poolName string
+//   - caName string
+func (_e *MockServices_Expecter) GetCertificateAuthority(ctx interface{}, projectID interface{}, region interface{}, poolName interface{}, caName interface{}) *MockServices_GetCertificateAuthority_Call {
+	return &MockServices_GetCertificateAuthority_Call{Call: _e.mock.On("GetCertificateAuthority", ctx, projectID, region, poolName, caName)}
+}
+
+func (_c *MockServices_GetCertificateAuthority_Call) Run(run func(ctx context.Context, projectID string, region string, poolName string, caName string)) *MockServices_GetCertificateAuthority_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockServices_GetCertificateAuthority_Call) Return(_a0 *models.CertificateAuthority, _a1 error) *MockServices_GetCertificateAuthority_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockServices_GetCertificateAuthority_Call) RunAndReturn(run func(context.Context, string, string, string, string) (*models.CertificateAuthority, error)) *MockServices_GetCertificateAuthority_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCloudRunServiceURL provides a mock function with given fields: ctx, projectID, locationID, serviceName
 func (_m *MockServices) GetCloudRunServiceURL(ctx context.Context, projectID string, locationID string, serviceName string) (string, error) {
 	ret := _m.Called(ctx, projectID, locationID, serviceName)

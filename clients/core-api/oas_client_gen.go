@@ -179,6 +179,14 @@ type Invoker interface {
 	//
 	// POST /v1/expertMode/volumes/{name}:rename
 	V1ExpertModeVolumeRename(ctx context.Context, request *ExpertModeVolumeRenameV1, params V1ExpertModeVolumeRenameParams) (V1ExpertModeVolumeRenameRes, error)
+	// V1ForcePoolCertificateRotation invokes v1_forcePoolCertificateRotation operation.
+	//
+	// Internal SRE endpoint that starts asynchronous forced certificate rotation for all
+	// certificate-auth pools, a list of pool UUIDs, or one pool UUID. The worker-side certificate
+	// rotation feature gates still apply.
+	//
+	// POST /v1/pools/forceCertificateRotation
+	V1ForcePoolCertificateRotation(ctx context.Context, request *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error)
 	// V1GetAddressRange invokes v1_getAddressRange operation.
 	//
 	// Returns the address range identified by the given UUID.
@@ -231,6 +239,19 @@ type Invoker interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1GetPoolCertificateAuthorityReconciliationStatus invokes v1_getPoolCertificateAuthorityReconciliationStatus operation.
+	//
+	// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
+	//
+	// GET /v1/pools/reconcileCertificateAuthority
+	V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error)
+	// V1GetPoolCertificateRotationStatus invokes v1_getPoolCertificateRotationStatus operation.
+	//
+	// Returns aggregate and per-pool progress for the forced certificate rotation job started by POST on
+	// this path.
+	//
+	// GET /v1/pools/forceCertificateRotation
+	V1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error)
 	// V1ListAccounts invokes v1_listAccounts operation.
 	//
 	// Returns the description of all accounts.
@@ -301,6 +322,15 @@ type Invoker interface {
 	//
 	// POST /v1/externalClusters/onboard
 	V1OnboardExternalCluster(ctx context.Context, request *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)
+	// V1ReconcilePoolCertificateAuthority invokes v1_reconcilePoolCertificateAuthority operation.
+	//
+	// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's
+	// Helm-configured CA for all certificate-auth pools, a list of pool UUIDs, or one pool UUID.
+	// Fleet-wide requests persist the accepted CA URI after Temporal accepts the workflow. This
+	// operation is never triggered by worker startup.
+	//
+	// POST /v1/pools/reconcileCertificateAuthority
+	V1ReconcilePoolCertificateAuthority(ctx context.Context, request *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error)
 	// V1RefreshRbacForExpertModePoolById invokes v1_refreshRbacForExpertModePoolById operation.
 	//
 	// Triggers a workflow to update RBAC hash for a specific ONTAP mode pool identified by UUID,
@@ -2114,6 +2144,56 @@ func (c *Client) sendV1ExpertModeVolumeRename(ctx context.Context, request *Expe
 	return result, nil
 }
 
+// V1ForcePoolCertificateRotation invokes v1_forcePoolCertificateRotation operation.
+//
+// Internal SRE endpoint that starts asynchronous forced certificate rotation for all
+// certificate-auth pools, a list of pool UUIDs, or one pool UUID. The worker-side certificate
+// rotation feature gates still apply.
+//
+// POST /v1/pools/forceCertificateRotation
+func (c *Client) V1ForcePoolCertificateRotation(ctx context.Context, request *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error) {
+	res, err := c.sendV1ForcePoolCertificateRotation(ctx, request)
+	return res, err
+}
+
+func (c *Client) sendV1ForcePoolCertificateRotation(ctx context.Context, request *ForcePoolCertificateRotationRequestV1) (res V1ForcePoolCertificateRotationRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/forceCertificateRotation"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1ForcePoolCertificateRotationRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ForcePoolCertificateRotationResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1GetAddressRange invokes v1_getAddressRange operation.
 //
 // Returns the address range identified by the given UUID.
@@ -2726,6 +2806,113 @@ func (c *Client) sendV1GetPool(ctx context.Context, params V1GetPoolParams) (res
 	defer resp.Body.Close()
 
 	result, err := decodeV1GetPoolResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatus invokes v1_getPoolCertificateAuthorityReconciliationStatus operation.
+//
+// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
+//
+// GET /v1/pools/reconcileCertificateAuthority
+func (c *Client) V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error) {
+	res, err := c.sendV1GetPoolCertificateAuthorityReconciliationStatus(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (res V1GetPoolCertificateAuthorityReconciliationStatusRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/reconcileCertificateAuthority"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "jobId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.UUIDToString(params.JobId))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1GetPoolCertificateAuthorityReconciliationStatusResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1GetPoolCertificateRotationStatus invokes v1_getPoolCertificateRotationStatus operation.
+//
+// Returns aggregate and per-pool progress for the forced certificate rotation job started by POST on
+// this path.
+//
+// GET /v1/pools/forceCertificateRotation
+func (c *Client) V1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error) {
+	res, err := c.sendV1GetPoolCertificateRotationStatus(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (res V1GetPoolCertificateRotationStatusRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/forceCertificateRotation"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "jobId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.UUIDToString(params.JobId))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1GetPoolCertificateRotationStatusResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -3479,6 +3666,57 @@ func (c *Client) sendV1OnboardExternalCluster(ctx context.Context, request *Exte
 	defer resp.Body.Close()
 
 	result, err := decodeV1OnboardExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ReconcilePoolCertificateAuthority invokes v1_reconcilePoolCertificateAuthority operation.
+//
+// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's
+// Helm-configured CA for all certificate-auth pools, a list of pool UUIDs, or one pool UUID.
+// Fleet-wide requests persist the accepted CA URI after Temporal accepts the workflow. This
+// operation is never triggered by worker startup.
+//
+// POST /v1/pools/reconcileCertificateAuthority
+func (c *Client) V1ReconcilePoolCertificateAuthority(ctx context.Context, request *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error) {
+	res, err := c.sendV1ReconcilePoolCertificateAuthority(ctx, request)
+	return res, err
+}
+
+func (c *Client) sendV1ReconcilePoolCertificateAuthority(ctx context.Context, request *ReconcilePoolCertificateAuthorityRequestV1) (res V1ReconcilePoolCertificateAuthorityRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/reconcileCertificateAuthority"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1ReconcilePoolCertificateAuthorityRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ReconcilePoolCertificateAuthorityResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

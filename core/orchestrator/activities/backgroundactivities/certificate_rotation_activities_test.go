@@ -36,6 +36,7 @@ func createTestPool() *datamodel.Pool {
 			AuthType:      env.USER_CERTIFICATE,
 			CertificateID: "test-cert-id",
 			SecretID:      "test-secret-id",
+			Username:      "8d9c4db0_admin",
 		},
 	}
 }
@@ -54,6 +55,7 @@ func createTestPoolView() *datamodel.PoolView {
 				AuthType:      env.USER_CERTIFICATE,
 				CertificateID: "test-cert-id",
 				SecretID:      "test-secret-id",
+				Username:      "8d9c4db0_admin",
 			},
 		},
 	}
@@ -415,6 +417,38 @@ func TestRotateVcpToVsaCertificateActivity_ListPoolsWithCertificateAuth(t *testi
 		assert.Len(tt, result.Pools, 1)
 		assert.Equal(tt, "pool-1", result.Pools[0].UUID)
 		mockSE.AssertExpectations(tt)
+	})
+}
+
+func TestCertificateNeedsRotationForDesiredCA(t *testing.T) {
+	t.Run("rejects malformed desired CA", func(t *testing.T) {
+		needsRotation, err := (&RotateVcpToVsaCertificateActivity{}).
+			CertificateNeedsRotationForDesiredCA(context.Background(), "pool-1", "invalid")
+		require.Error(t, err)
+		require.False(t, needsRotation)
+	})
+
+	t.Run("detects issuer drift before lifetime lookup", func(t *testing.T) {
+		ctx := context.Background()
+		storage := database.NewMockStorage(t)
+		pool := datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-1"},
+			PoolCredentials: &datamodel.PoolCredentials{
+				AuthType:      env.USER_CERTIFICATE,
+				CertificateID: "certificate",
+				CaURI:         "project/pool/old-ca",
+			},
+		}
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: pool}}, nil).
+			Once()
+
+		needsRotation, err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			CertificateNeedsRotationForDesiredCA(ctx, pool.UUID, "project/pool/new-ca")
+
+		require.NoError(t, err)
+		require.True(t, needsRotation)
+		storage.AssertExpectations(t)
 	})
 }
 
@@ -1236,6 +1270,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
 		pool := createTestPool()
+		pool.PoolCredentials.CaURI = "test-project/test-pool/test-ca"
 		poolContext := &PoolContext{
 			PoolUUID: pool.UUID,
 			Pool:     pool,
@@ -1766,15 +1801,25 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			}, nil
 		}
 
-		// Mock state check before staging (checkPoolStateBeforeCriticalOperation) - this calls ListPools
+		// Staging now happens before the post-mint state gate so a candidate is
+		// never orphaned by a pool state transition.
 		poolViewReady := createTestPoolView()
 		poolViewReady.Pool.State = "READY"
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolViewReady}, nil).Once()
 
 		// Mock updatePoolCertificateIDNew to fail - covers lines 234-238, 247-250
-		// updatePoolCertificateIDNew calls ListPools and UpdatePoolFields
-		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{createTestPoolView()}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(errors.New("database update failed")).Once()
+		// updatePoolCertificateIDNew calls ListPools and guarded credential CAS.
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{createTestPoolView()}, nil).Maybe()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(errors.New("database update failed")).Once()
 
 		// Execute - should fail at certificate staging
 		err := activity.RotatePoolCertificateWithContext(ctx, poolContext)
@@ -1868,7 +1913,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 
 		// Mock updatePoolCertificateIDNew to succeed
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{createTestPoolView()}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Once()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Once()
 
 		// Mock checkPoolHasNodes to return false (no nodes) - covers lines 267-271, 273-280
 		// Rollback may also call GetNodesByPoolID, so use Maybe() or add another expectation
@@ -1973,7 +2027,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 
 		// Mock updatePoolCertificateIDNew to succeed
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{createTestPoolView()}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Once()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Once()
 
 		// Mock checkPoolHasNodes to return true (has nodes)
 		nodes := []*datamodel.Node{
@@ -2002,7 +2065,6 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			PoolUUID: pool.UUID,
 			Pool:     pool,
 		}
-
 		// Mock checkAndSyncPasswordConnectivity to succeed
 		activity.testPasswordConnectivityFunc = func(ctx context.Context, p *datamodel.Pool, password string) error {
 			return nil
@@ -2052,6 +2114,18 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			PoolUUID: pool.UUID,
 			Pool:     pool,
 		}
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			env.USER_CERTIFICATE,
+			"old-cert-id-new",
+			"",
+			mock.Anything,
+			mock.MatchedBy(func(credentials *datamodel.PoolCredentials) bool {
+				return credentials.CertificateIDNew == "" && credentials.StagedCaURI == ""
+			}),
+		).Return(nil).Once()
 
 		// Mock checkAndSyncPasswordConnectivity to succeed
 		activity.testPasswordConnectivityFunc = func(ctx context.Context, p *datamodel.Pool, password string) error {
@@ -2132,6 +2206,18 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			PoolUUID: pool.UUID,
 			Pool:     pool,
 		}
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			env.USER_CERTIFICATE,
+			"old-cert-id-new",
+			"",
+			mock.Anything,
+			mock.MatchedBy(func(credentials *datamodel.PoolCredentials) bool {
+				return credentials.CertificateIDNew == "" && credentials.StagedCaURI == ""
+			}),
+		).Return(nil).Once()
 
 		// Mock checkAndSyncPasswordConnectivity to succeed
 		activity.testPasswordConnectivityFunc = func(ctx context.Context, p *datamodel.Pool, password string) error {
@@ -2422,7 +2508,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			Pool: *pool,
 		}
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Maybe()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Maybe()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Maybe()
 
 		// Mock checkPoolHasNodes to return error - covers lines 269-270
 		// GetNodesByPoolID is called multiple times (for checkAndSyncCertificateConnectivity, checkPoolHasNodes, etc.)
@@ -2529,7 +2624,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			Pool: *pool,
 		}
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Maybe()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Maybe()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Maybe()
 
 		// Mock checkPoolHasNodes to succeed - this is called at line 267
 		// checkPoolHasNodes needs nodes with valid endpoint addresses
@@ -2694,7 +2798,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			Pool: *pool,
 		}
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Maybe()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Maybe()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Maybe()
 
 		// Mock checkPoolHasNodes to succeed - this is called early in RotatePoolCertificateWithContext
 		nodes := []*datamodel.Node{
@@ -2745,6 +2858,9 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		providerCallCount := 0
 		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
 			providerCallCount++
+			if node.AuthType == env.USER_CERTIFICATE && node.CertificateID == "new-cert-id" {
+				return nil, errors.New("connectivity test failed")
+			}
 			// Check if this is for password auth (AuthType USERNAME_PWD_SEC_MGR) - indicates installCertificateOnVSAWithPasswordAuth
 			if node.AuthType == env.USERNAME_PWD_SEC_MGR {
 				// This is for installCertificateOnVSAWithPasswordAuth - return provider with InstallServerCertificate mocked
@@ -2945,17 +3061,28 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return &mockProvider2, nil
 		}
 
-		// Mock swapCertificateIDs to fail - covers lines 325, 327-332
-		// swapCertificateIDs calls ListPools and UpdatePoolFields
-		// updatePoolCertificateIDNew also calls UpdatePoolFields
-		// We need to make the second UpdatePoolFields call (for swapCertificateIDs) fail
-		// Remove the earlier UpdatePoolFields mock and use this one that tracks call count
+		// Stage succeeds, then the guarded promotion CAS fails.
 		updateCallCount := 0
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Run(func(args mock.Arguments) {
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Run(func(mock.Arguments) {
 			updateCallCount++
-		}).Return(func(ctx context.Context, uuid string, updates map[string]interface{}) error {
-			// First call is for updatePoolCertificateIDNew - succeed
-			// Second call is for swapCertificateIDs - fail
+		}).Return(func(
+			context.Context,
+			string,
+			int,
+			string,
+			string,
+			[]string,
+			*datamodel.PoolCredentials,
+		) error {
 			if updateCallCount <= 1 {
 				return nil
 			}
@@ -3048,7 +3175,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		versionForConnectivity := "9.10.1"
 		mockProviderForConnectivity.On("GetONTAPVersion").Return(&versionForConnectivity, nil).Maybe()
 
-		// Mock GetProviderByNode for installCertificateOnVSA or installCertificateOnVSAWithPasswordAuth
+		// Mock the provider used to install the certificate with password authentication.
 		mockProvider1 := vsa.MockProvider{}
 		mockProvider1.On("InstallServerCertificate", mock.Anything).Return(&vsa.ServerCertificateResponse{}, nil).Once()
 		mockProvider1.On("ModifySSL", mock.Anything).Return(&vsa.ModifySSLResponse{Success: true}, nil).Once()
@@ -3058,16 +3185,14 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		versionForTest := "9.10.1"
 		mockProvider2.On("GetONTAPVersion").Return(&versionForTest, nil).Once()
 
-		// Mock GetProviderByNode - will be called multiple times (for checkAndSyncCertificateConnectivity, installCertificateOnVSA, testCertificateConnectivity)
-		// When certificate is expired, installCertificateOnVSAWithPasswordAuth is used, which creates a node with AuthType USERNAME_PWD_SEC_MGR
+		// Provider creation covers old-certificate connectivity, password-authenticated
+		// installation, and new-certificate connectivity.
 		providerCallCount := 0
 		seenPasswordAuth := false
 		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
 			providerCallCount++
-			// Check if this is for password auth (AuthType USERNAME_PWD_SEC_MGR) - indicates installCertificateOnVSAWithPasswordAuth
 			if node.AuthType == env.USERNAME_PWD_SEC_MGR {
 				seenPasswordAuth = true
-				// This is for installCertificateOnVSAWithPasswordAuth - return provider with InstallServerCertificate mocked
 				return &mockProvider1, nil
 			}
 			// If we've seen password auth, the next USER_CERTIFICATE call is testCertificateConnectivity after installation
@@ -3078,10 +3203,6 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			// If certificate_id works, only 1 call; if it fails, 2 calls (certificate_id and certificate_id_new)
 			if providerCallCount <= 2 {
 				return &mockProviderForConnectivity, nil
-			}
-			// Next call is for installCertificateOnVSA (if cert not expired)
-			if providerCallCount == 3 {
-				return &mockProvider1, nil
 			}
 			// Last call is for testCertificateConnectivity after installation
 			return &mockProvider2, nil
@@ -3142,24 +3263,32 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			poolView.Pool.PoolCredentials = &datamodel.PoolCredentials{}
 		}
 
-		// ListPools mock - return pool, with CertificateIDNew updated if UpdatePoolFields was called
+		// ListPools returns the pool snapshot updated by each successful CAS.
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Maybe()
 
-		// Update the certificate ID when UpdatePoolFields is called
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Run(func(args mock.Arguments) {
-			updates := args.Get(2).(map[string]interface{})
-			if poolCreds, ok := updates["pool_credentials"].(map[string]interface{}); ok {
-				if certIDNew, ok := poolCreds["certificate_id_new"].(string); ok && certIDNew != "" {
-					poolView.Pool.PoolCredentials.CertificateIDNew = certIDNew
-				}
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Run(func(args mock.Arguments) {
+			updatedCredentials := args.Get(6).(*datamodel.PoolCredentials)
+			if updatedCredentials.CertificateIDNew != "" && updatedCredentials.StagedCaURI == "" {
+				// Production staging always persists the certificate and issuer
+				// as a pair. Keep this legacy fixture aligned with that invariant.
+				updatedCredentials.StagedCaURI = "test-project/test-pool/test-ca"
 			}
+			poolView.Pool.PoolCredentials = updatedCredentials
 		}).Return(nil).Maybe()
 
 		// Note: GetCertificateFromCacheOrSecretManager is already mocked above and will handle all calls
 
 		// Mock swapCertificateIDs to succeed - covers lines 321-322, 325, 334, 336, 338-339
-		// swapCertificateIDs calls ListPools and UpdatePoolFields
-		// updatePoolCertificateIDNew already called ListPools/UpdatePoolFields with Maybe()
+		// swapCertificateIDs uses the same ListPools and CAS mocks.
 		// swapCertificateIDs will use the same mocks
 		// swapCertificateIDs also calls updateCertificateCache (line 633), which needs to be mocked
 		// Note: getGcpServiceForCerts is already mocked above, so we just need to mock GetCertificateAndPrivateKeyByID
@@ -3189,13 +3318,14 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 
 		// Should succeed - covers lines 321-322, 325, 334, 336, 338-339
 		assert.NoError(tt, err)
+		assert.True(tt, seenPasswordAuth, "certificate installation must use username and password authentication")
 		mockSE.AssertExpectations(tt)
 		mockProviderForConnectivity.AssertExpectations(tt)
 		mockProvider1.AssertExpectations(tt)
 		mockProvider2.AssertExpectations(tt)
 	})
 
-	t.Run("RotatePoolCertificateWithContext_StateChangesToDeletingBeforeStaging", func(tt *testing.T) {
+	t.Run("RotatePoolCertificateWithContext_StateCheckFailsAfterStaging", func(tt *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
@@ -3302,18 +3432,36 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			}, nil
 		}
 
-		// Mock checkPoolStateBeforeCriticalOperation to return false (pool is DELETING)
-		// This simulates the state check before staging certificate
-		// The state check happens before updatePoolCertificateIDNew, so we only need one ListPools call
-		poolViewDeleting := createTestPoolView()
-		poolViewDeleting.Pool.State = "DELETING"
-		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolViewDeleting}, nil).Once()
+		// The candidate is staged before the post-mint state gate so it remains
+		// DB-referenced and reusable when the pool changes to DELETING.
+		poolViewReady := createTestPoolView()
+		poolViewReady.Pool.State = "READY"
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolViewReady}, nil).Once()
+		var stagedCredentials *datamodel.PoolCredentials
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Run(func(args mock.Arguments) {
+			stagedCredentials = args.Get(6).(*datamodel.PoolCredentials)
+		}).Return(nil).Once()
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).
+			Return(nil, errors.New("database unavailable")).
+			Once()
 
 		// Execute
 		err := activity.RotatePoolCertificateWithContext(ctx, poolContext)
 
-		// Assert - should return nil (graceful skip) when state changes to DELETING
-		assert.NoError(tt, err)
+		// A failed state read must stop before ONTAP installation while preserving
+		// the DB-referenced candidate for the next retry.
+		assert.Error(tt, err)
+		require.NotNil(tt, stagedCredentials)
+		assert.NotEmpty(tt, stagedCredentials.CertificateIDNew)
 		mockSE.AssertExpectations(tt)
 	})
 
@@ -3472,7 +3620,16 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		poolViewReady := createTestPoolView()
 		poolViewReady.Pool.State = "READY"
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolViewReady}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Once()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Once()
 
 		// Mock checkPoolHasNodes to return true
 		// GetNodesByPoolID is called multiple times: checkPoolHasNodes, installCertificateOnVSA, testCertificateConnectivity, installCertificateOnVSAWithPasswordAuth

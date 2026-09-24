@@ -1026,6 +1026,57 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								break
 							}
 
+							if len(elem) == 0 {
+								break
+							}
+							switch elem[0] {
+							case 'f': // Prefix: "forceCertificateRotation"
+								origElem := elem
+								if l := len("forceCertificateRotation"); len(elem) >= l && elem[0:l] == "forceCertificateRotation" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleV1GetPoolCertificateRotationStatusRequest([0]string{}, elemIsEscaped, w, r)
+									case "POST":
+										s.handleV1ForcePoolCertificateRotationRequest([0]string{}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET,POST")
+									}
+
+									return
+								}
+
+								elem = origElem
+							case 'r': // Prefix: "reconcileCertificateAuthority"
+								origElem := elem
+								if l := len("reconcileCertificateAuthority"); len(elem) >= l && elem[0:l] == "reconcileCertificateAuthority" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleV1GetPoolCertificateAuthorityReconciliationStatusRequest([0]string{}, elemIsEscaped, w, r)
+									case "POST":
+										s.handleV1ReconcilePoolCertificateAuthorityRequest([0]string{}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET,POST")
+									}
+
+									return
+								}
+
+								elem = origElem
+							}
 							// Param: "poolId"
 							// Match until "/"
 							idx := strings.IndexByte(elem, '/')
@@ -2643,6 +2694,77 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								break
 							}
 
+							if len(elem) == 0 {
+								break
+							}
+							switch elem[0] {
+							case 'f': // Prefix: "forceCertificateRotation"
+								origElem := elem
+								if l := len("forceCertificateRotation"); len(elem) >= l && elem[0:l] == "forceCertificateRotation" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = V1GetPoolCertificateRotationStatusOperation
+										r.summary = "Get forced certificate rotation job status"
+										r.operationID = "v1_getPoolCertificateRotationStatus"
+										r.pathPattern = "/v1/pools/forceCertificateRotation"
+										r.args = args
+										r.count = 0
+										return r, true
+									case "POST":
+										r.name = V1ForcePoolCertificateRotationOperation
+										r.summary = "Force VSA pool certificate rotation"
+										r.operationID = "v1_forcePoolCertificateRotation"
+										r.pathPattern = "/v1/pools/forceCertificateRotation"
+										r.args = args
+										r.count = 0
+										return r, true
+									default:
+										return
+									}
+								}
+
+								elem = origElem
+							case 'r': // Prefix: "reconcileCertificateAuthority"
+								origElem := elem
+								if l := len("reconcileCertificateAuthority"); len(elem) >= l && elem[0:l] == "reconcileCertificateAuthority" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = V1GetPoolCertificateAuthorityReconciliationStatusOperation
+										r.summary = "Get CA reconciliation job status"
+										r.operationID = "v1_getPoolCertificateAuthorityReconciliationStatus"
+										r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
+										r.args = args
+										r.count = 0
+										return r, true
+									case "POST":
+										r.name = V1ReconcilePoolCertificateAuthorityOperation
+										r.summary = "Reconcile VSA pool certificates to the Helm-configured CA"
+										r.operationID = "v1_reconcilePoolCertificateAuthority"
+										r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
+										r.args = args
+										r.count = 0
+										return r, true
+									default:
+										return
+									}
+								}
+
+								elem = origElem
+							}
 							// Param: "poolId"
 							// Match until "/"
 							idx := strings.IndexByte(elem, '/')

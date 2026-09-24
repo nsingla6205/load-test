@@ -243,6 +243,17 @@ func (UnimplementedHandler) V1ExpertModeVolumeRename(ctx context.Context, req *E
 	return r, ht.ErrNotImplemented
 }
 
+// V1ForcePoolCertificateRotation implements v1_forcePoolCertificateRotation operation.
+//
+// Internal SRE endpoint that starts asynchronous forced certificate rotation for all
+// certificate-auth pools, a list of pool UUIDs, or one pool UUID. The worker-side certificate
+// rotation feature gates still apply.
+//
+// POST /v1/pools/forceCertificateRotation
+func (UnimplementedHandler) V1ForcePoolCertificateRotation(ctx context.Context, req *ForcePoolCertificateRotationRequestV1) (r V1ForcePoolCertificateRotationRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1GetAddressRange implements v1_getAddressRange operation.
 //
 // Returns the address range identified by the given UUID.
@@ -316,6 +327,25 @@ func (UnimplementedHandler) V1GetOntapCredentials(ctx context.Context, params V1
 //
 // GET /v1/pools/{poolId}
 func (UnimplementedHandler) V1GetPool(ctx context.Context, params V1GetPoolParams) (r V1GetPoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatus implements v1_getPoolCertificateAuthorityReconciliationStatus operation.
+//
+// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
+//
+// GET /v1/pools/reconcileCertificateAuthority
+func (UnimplementedHandler) V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (r V1GetPoolCertificateAuthorityReconciliationStatusRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1GetPoolCertificateRotationStatus implements v1_getPoolCertificateRotationStatus operation.
+//
+// Returns aggregate and per-pool progress for the forced certificate rotation job started by POST on
+// this path.
+//
+// GET /v1/pools/forceCertificateRotation
+func (UnimplementedHandler) V1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (r V1GetPoolCertificateRotationStatusRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -419,6 +449,18 @@ func (UnimplementedHandler) V1ListZones(ctx context.Context, params V1ListZonesP
 //
 // POST /v1/externalClusters/onboard
 func (UnimplementedHandler) V1OnboardExternalCluster(ctx context.Context, req *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (r V1OnboardExternalClusterRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ReconcilePoolCertificateAuthority implements v1_reconcilePoolCertificateAuthority operation.
+//
+// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's
+// Helm-configured CA for all certificate-auth pools, a list of pool UUIDs, or one pool UUID.
+// Fleet-wide requests persist the accepted CA URI after Temporal accepts the workflow. This
+// operation is never triggered by worker startup.
+//
+// POST /v1/pools/reconcileCertificateAuthority
+func (UnimplementedHandler) V1ReconcilePoolCertificateAuthority(ctx context.Context, req *ReconcilePoolCertificateAuthorityRequestV1) (r V1ReconcilePoolCertificateAuthorityRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -588,12 +630,4 @@ func (UnimplementedHandler) V1UpdateZone(ctx context.Context, req *ZoneV1, param
 // POST /v1/clusters/{clusterId}/upgrade
 func (UnimplementedHandler) V1UpgradeCluster(ctx context.Context, req *ClusterUpgradeRequestV1, params V1UpgradeClusterParams) (r V1UpgradeClusterRes, _ error) {
 	return r, ht.ErrNotImplemented
-}
-
-// NewError creates *ErrorStatusCode from error returned by handler.
-//
-// Used for common default response.
-func (UnimplementedHandler) NewError(ctx context.Context, err error) (r *ErrorStatusCode) {
-	r = new(ErrorStatusCode)
-	return r
 }

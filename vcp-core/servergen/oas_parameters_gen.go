@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 
 	"github.com/ogen-go/ogen/conv"
 	"github.com/ogen-go/ogen/middleware"
@@ -3792,6 +3793,122 @@ func decodeV1GetPoolParams(args [1]string, argsEscaped bool, r *http.Request) (p
 		return params, &ogenerrors.DecodeParamError{
 			Name: "x-correlation-id",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatusParams is parameters of v1_getPoolCertificateAuthorityReconciliationStatus operation.
+type V1GetPoolCertificateAuthorityReconciliationStatusParams struct {
+	// CA reconciliation parent job UUID returned by POST.
+	JobId uuid.UUID
+}
+
+func unpackV1GetPoolCertificateAuthorityReconciliationStatusParams(packed middleware.Parameters) (params V1GetPoolCertificateAuthorityReconciliationStatusParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "jobId",
+			In:   "query",
+		}
+		params.JobId = packed[key].(uuid.UUID)
+	}
+	return params
+}
+
+func decodeV1GetPoolCertificateAuthorityReconciliationStatusParams(args [0]string, argsEscaped bool, r *http.Request) (params V1GetPoolCertificateAuthorityReconciliationStatusParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: jobId.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToUUID(val)
+				if err != nil {
+					return err
+				}
+
+				params.JobId = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "jobId",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// V1GetPoolCertificateRotationStatusParams is parameters of v1_getPoolCertificateRotationStatus operation.
+type V1GetPoolCertificateRotationStatusParams struct {
+	// Forced rotation parent job UUID returned by POST.
+	JobId uuid.UUID
+}
+
+func unpackV1GetPoolCertificateRotationStatusParams(packed middleware.Parameters) (params V1GetPoolCertificateRotationStatusParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "jobId",
+			In:   "query",
+		}
+		params.JobId = packed[key].(uuid.UUID)
+	}
+	return params
+}
+
+func decodeV1GetPoolCertificateRotationStatusParams(args [0]string, argsEscaped bool, r *http.Request) (params V1GetPoolCertificateRotationStatusParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: jobId.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToUUID(val)
+				if err != nil {
+					return err
+				}
+
+				params.JobId = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "jobId",
+			In:   "query",
 			Err:  err,
 		}
 	}

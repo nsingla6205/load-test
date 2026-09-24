@@ -74,6 +74,10 @@ func TestUnsupportedServices_allUnsupportedMethods(t *testing.T) {
 		{name: "CreateCertificate", run: func() error { _, err := svc.CreateCertificate(nil); return err }},
 		{name: "RevokeCertificate", run: func() error { _, err := svc.RevokeCertificate(nil); return err }},
 		{name: "GetCertificate", run: func() error { _, err := svc.GetCertificate("proj", "us-central1", "pool", "cert"); return err }},
+		{name: "GetCertificateAuthority", run: func() error {
+			_, err := svc.GetCertificateAuthority(ctx, "proj", "us-central1", "pool", "ca")
+			return err
+		}},
 		{name: "CreateSecret", run: func() error { _, err := svc.CreateSecret("proj", "us-central1", "id", "value"); return err }},
 		{name: "GetSecretWithLatestVersion", run: func() error { _, err := svc.GetSecretWithLatestVersion("proj", "secret"); return err }},
 		{name: "DeleteSecret", run: func() error { return svc.DeleteSecret("proj", "secret") }},

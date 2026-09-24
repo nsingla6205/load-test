@@ -37,17 +37,272 @@ type PoolContext struct {
 	Pool           *datamodel.Pool
 	PoolUUID       string
 	OntapNodeUUIDs []string
+	DesiredCAURI   string
+	// Force skips remaining-lifetime eligibility for both the pool certificate and
+	// the expert mode certificates. Safety checks (pool state, missing credentials)
+	// still apply. Set only by ForceRotatePoolCertificateWorkflow.
+	Force bool
 }
 
 // RollbackResources tracks resources created during certificate rotation for cleanup
 type RollbackResources struct {
 	NewCertificateID string
+	NewCaURI         string
 	NewSecretID      string
+	DBReferenced     bool
 	NewCertificate   *hyperscalermodels.CustomCertificate
 	NewSecret        *hyperscalermodels.CustomSecret
 	OldCertificate   *models.Certificate
 	Pool             *datamodel.Pool
 	GcpService       hyperscaler2.Services
+}
+
+const (
+	rotatedCertificateIDTimeFormat                = "20060102-150405"
+	enableCAChangeDuringCertificateRotationEnvKey = "ENABLE_CA_CHANGE_DURING_CERTIFICATE_ROTATION"
+)
+
+func rotatedCertificateID(deploymentName string, now time.Time, qualifiers ...string) string {
+	parts := []string{deploymentName, "cert"}
+	parts = append(parts, qualifiers...)
+	parts = append(parts, now.Format(rotatedCertificateIDTimeFormat))
+	return strings.Join(parts, "-")
+}
+
+func certificateRotationUsername(pool *datamodel.Pool, activeCertificate *models.Certificate) (string, error) {
+	if pool == nil || pool.PoolCredentials == nil {
+		return "", errors.New("pool credentials are required to resolve certificate username")
+	}
+	if username := strings.TrimSpace(pool.PoolCredentials.Username); username != "" {
+		return username, nil
+	}
+	if activeCertificate != nil {
+		if username := strings.TrimSpace(activeCertificate.CommonName); username != "" {
+			return username, nil
+		}
+	}
+	return "", fmt.Errorf("pool %s has no persisted certificate username or recoverable certificate common name", pool.UUID)
+}
+
+// reusableStagedCertificate reports whether certificate_id_new is an in-flight
+// candidate for the target CA. After a successful promotion the previous cert is
+// parked in certificate_id_new/staged_ca_uri; that pair must not be reused when the
+// active cert is already current, or a same-CA forced rotation would undo itself.
+func reusableStagedCertificate(stagedID, stagedCAURI, targetCAURI string, activeCertificateCurrent bool) bool {
+	return stagedID != "" &&
+		targetCAURI != "" &&
+		stagedCAURI == targetCAURI &&
+		!activeCertificateCurrent
+}
+
+type stagedCertificateCandidateConfig struct {
+	stagedID                 string
+	stagedCAURI              string
+	fallbackCAURI            string
+	targetCAURI              string
+	activeCertificateCurrent bool
+	mintIfMissing            bool
+	newID                    func() string
+	load                     func(string) (*hyperscalermodels.CustomCertificateResponse, error)
+	mint                     func(string) (*hyperscalermodels.CustomCertificateResponse, error)
+	stage                    func(string, string) error
+	detach                   func(string, string) error
+	cleanupUnstaged          func(string, string) error
+}
+
+type stagedCertificateCandidate struct {
+	id       string
+	response *hyperscalermodels.CustomCertificateResponse
+	reused   bool
+}
+
+type stagedCertificateCandidateError struct {
+	operation string
+	err       error
+}
+
+func (e *stagedCertificateCandidateError) Error() string {
+	return e.operation + ": " + e.err.Error()
+}
+
+func (e *stagedCertificateCandidateError) Unwrap() error {
+	return e.err
+}
+
+// prepareStagedCertificateCandidate owns the common candidate lifecycle used by
+// pool and expert-mode certificate rotation: discard stale staging, validate a
+// reusable candidate, or mint and persist a replacement.
+func prepareStagedCertificateCandidate(config stagedCertificateCandidateConfig) (*stagedCertificateCandidate, error) {
+	stagedID := config.stagedID
+	reuse := reusableStagedCertificate(
+		stagedID,
+		config.stagedCAURI,
+		config.targetCAURI,
+		config.activeCertificateCurrent,
+	)
+	if stagedID != "" && !reuse {
+		staleCAURI := config.stagedCAURI
+		if staleCAURI == "" {
+			staleCAURI = config.fallbackCAURI
+		}
+		if err := config.detach(stagedID, staleCAURI); err != nil {
+			return nil, &stagedCertificateCandidateError{
+				operation: "detach stale staged certificate",
+				err:       fmt.Errorf("%s: %w", stagedID, err),
+			}
+		}
+		stagedID = ""
+	}
+
+	var response *hyperscalermodels.CustomCertificateResponse
+	if reuse {
+		var err error
+		response, err = config.load(stagedID)
+		if err == nil && response == nil {
+			err = errors.New("staged certificate lookup returned nil response")
+		}
+		if err != nil {
+			if detachErr := config.detach(stagedID, config.targetCAURI); detachErr != nil {
+				return nil, &stagedCertificateCandidateError{
+					operation: "detach invalid staged certificate",
+					err:       fmt.Errorf("%s: %w", stagedID, detachErr),
+				}
+			}
+			stagedID = ""
+			response = nil
+			reuse = false
+		}
+	}
+
+	if stagedID == "" && config.mintIfMissing {
+		stagedID = config.newID()
+		var err error
+		response, err = config.mint(stagedID)
+		if err != nil {
+			return nil, &stagedCertificateCandidateError{
+				operation: "mint certificate candidate",
+				err:       fmt.Errorf("%s: %w", stagedID, err),
+			}
+		}
+		if response == nil {
+			return nil, &stagedCertificateCandidateError{
+				operation: "mint certificate candidate",
+				err:       fmt.Errorf("%s returned an empty response", stagedID),
+			}
+		}
+		if err := config.stage(stagedID, config.targetCAURI); err != nil {
+			if cleanupErr := config.cleanupUnstaged(stagedID, config.targetCAURI); cleanupErr != nil {
+				err = fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+			}
+			return nil, &stagedCertificateCandidateError{
+				operation: "stage certificate candidate",
+				err:       fmt.Errorf("%s: %w", stagedID, err),
+			}
+		}
+	}
+
+	return &stagedCertificateCandidate{id: stagedID, response: response, reused: reuse}, nil
+}
+
+// inferIssuerForNewerLegacyStagedCert backfills staged_ca_uri only when the
+// unpaired staged ID is timestamp-newer than the active cert on the same CA.
+func inferIssuerForNewerLegacyStagedCert(
+	activeCertificateID, stagedCertificateID, stagedCAURI, activeCAURI, targetCAURI string,
+) (string, bool) {
+	if stagedCertificateID == "" ||
+		stagedCAURI != "" ||
+		activeCAURI == "" ||
+		activeCAURI != targetCAURI ||
+		!legacyStagedCertificateIsNewer(activeCertificateID, stagedCertificateID) {
+		return stagedCAURI, false
+	}
+	return activeCAURI, true
+}
+
+func legacyStagedCertificateIsNewer(activeCertificateID, stagedCertificateID string) bool {
+	stagedTime, stagedTimeOK := certificateIDTimestamp(stagedCertificateID)
+	if !stagedTimeOK {
+		return false
+	}
+	activeTime, activeTimeOK := certificateIDTimestamp(activeCertificateID)
+	if !activeTimeOK {
+		// Create-time certificate IDs have no timestamp. A staged timestamped
+		// certificate is therefore from a later rotation.
+		return activeCertificateID != ""
+	}
+	return stagedTime.After(activeTime)
+}
+
+func certificateIDTimestamp(certificateID string) (time.Time, bool) {
+	const formattedTimestampLength = len(rotatedCertificateIDTimeFormat)
+	if len(certificateID) <= formattedTimestampLength ||
+		certificateID[len(certificateID)-formattedTimestampLength-1] != '-' {
+		return time.Time{}, false
+	}
+	parsed, err := time.Parse(
+		rotatedCertificateIDTimeFormat,
+		certificateID[len(certificateID)-formattedTimestampLength:],
+	)
+	return parsed, err == nil
+}
+
+func defaultCertificateCaURI() string {
+	return env.BuildCaURI(env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName)
+}
+
+func certificateCaDrifted(credentials *datamodel.PoolCredentials) bool {
+	return caChangeDuringCertificateRotationEnabled() &&
+		certificateCaDriftedAgainst(credentials, defaultCertificateCaURI())
+}
+
+func certificateCaDriftedAgainst(credentials *datamodel.PoolCredentials, desiredCAURI string) bool {
+	if credentials == nil {
+		return false
+	}
+	return desiredCAURI != "" && (credentials.CaURI == "" || credentials.CaURI != desiredCAURI)
+}
+
+func validateExplicitDesiredCAURI(desiredCAURI string) error {
+	parts := strings.Split(desiredCAURI, "/")
+	if len(parts) != 3 {
+		return fmt.Errorf("desired CA URI must contain exactly three components")
+	}
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			return fmt.Errorf("desired CA URI components must not be empty")
+		}
+	}
+	return nil
+}
+
+func caChangeDuringCertificateRotationEnabled() bool {
+	return env.GetBool(enableCAChangeDuringCertificateRotationEnvKey, false)
+}
+
+func desiredCAForPoolContext(poolContext *PoolContext) string {
+	if poolContext != nil && poolContext.DesiredCAURI != "" {
+		return poolContext.DesiredCAURI
+	}
+	if !caChangeDuringCertificateRotationEnabled() &&
+		poolContext != nil &&
+		poolContext.Pool != nil &&
+		poolContext.Pool.PoolCredentials != nil &&
+		poolContext.Pool.PoolCredentials.CaURI != "" {
+		return poolContext.Pool.PoolCredentials.CaURI
+	}
+	return defaultCertificateCaURI()
+}
+
+func expertCertificateCAURIs(credentials *datamodel.PoolCredentials) (sourceCaURI, targetCaURI string) {
+	if credentials == nil {
+		return "", ""
+	}
+	targetCaURI = credentials.GetCaURIWithFallback()
+	sourceCaURI = targetCaURI
+	if credentials.CertificateIDNew != "" && credentials.StagedCaURI != "" {
+		sourceCaURI = credentials.StagedCaURI
+	}
+	return sourceCaURI, targetCaURI
 }
 
 var (
@@ -157,6 +412,19 @@ func (a *RotateVcpToVsaCertificateActivity) GetPoolContext(ctx context.Context, 
 	}, nil
 }
 
+// GetPoolContextForDesiredCA returns a pool context carrying an immutable desired CA from workflow history.
+func (a *RotateVcpToVsaCertificateActivity) GetPoolContextForDesiredCA(ctx context.Context, poolUUID, desiredCAURI string) (*PoolContext, error) {
+	if err := validateExplicitDesiredCAURI(desiredCAURI); err != nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
+	}
+	poolContext, err := a.GetPoolContext(ctx, poolUUID)
+	if err != nil {
+		return nil, err
+	}
+	poolContext.DesiredCAURI = desiredCAURI
+	return poolContext, nil
+}
+
 // checkPoolStateBeforeCriticalOperation re-checks pool state to detect if pool delete was triggered
 // during rotation. Returns true if pool is in a valid state for rotation, false otherwise.
 func (a *RotateVcpToVsaCertificateActivity) checkPoolStateBeforeCriticalOperation(ctx context.Context, poolUUID string) (bool, error) {
@@ -169,9 +437,10 @@ func (a *RotateVcpToVsaCertificateActivity) checkPoolStateBeforeCriticalOperatio
 	poolViews, err := a.SE.ListPools(ctx, filter)
 	if err != nil {
 		logger.Warnf("Failed to re-check pool state for %s: %v", poolUUID, err)
-		// Return true to allow operation to proceed if we can't check state
-		// This is a safety measure - better to proceed than fail rotation unnecessarily
-		return true, nil
+		return false, vsaerrors.NewVCPError(
+			vsaerrors.ErrDatabaseDataReadError,
+			fmt.Errorf("re-check pool %s state: %w", poolUUID, err),
+		)
 	}
 
 	if len(poolViews) == 0 {
@@ -191,6 +460,8 @@ func (a *RotateVcpToVsaCertificateActivity) checkPoolStateBeforeCriticalOperatio
 
 type RotateVcpToVsaCertificateActivity struct {
 	SE database.Storage
+	// deps contains narrow injectable seams for CA preflight and candidate verification.
+	deps *certificateRotationDependencies
 	// testPasswordConnectivityFunc is used for testing to override the default testPasswordConnectivity method
 	testPasswordConnectivityFunc func(ctx context.Context, pool *datamodel.Pool, testPassword string) error
 	// executeAPIRequestWithResponseFunc is used for testing to override the default executeAPIRequestWithResponse method
@@ -199,10 +470,26 @@ type RotateVcpToVsaCertificateActivity struct {
 
 // RotatePoolCertificateWithContext rotates the certificate for a pool using pre-fetched pool context
 func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx context.Context, poolContext *PoolContext) error {
+	return a.rotatePoolCertificateWithContext(ctx, poolContext)
+}
+
+// RotatePoolCertificateForDesiredCAWithContext rotates against the desired CA carried in PoolContext.
+func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateForDesiredCAWithContext(ctx context.Context, poolContext *PoolContext) error {
+	if poolContext == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(errors.New("pool context is nil"))
+	}
+	if err := validateExplicitDesiredCAURI(poolContext.DesiredCAURI); err != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
+	}
+	return a.rotatePoolCertificateWithContext(ctx, poolContext)
+}
+
+func (a *RotateVcpToVsaCertificateActivity) rotatePoolCertificateWithContext(ctx context.Context, poolContext *PoolContext) error {
 	safeRecordHeartbeat(ctx, "Starting certificate rotation activity")
 	logger := util.GetLogger(ctx)
 	pool := poolContext.Pool
 	poolUUID := poolContext.PoolUUID
+	desiredCAURI := desiredCAForPoolContext(poolContext)
 
 	logger.Infof("Starting certificate rotation for pool UUID: %s (using context)", poolUUID)
 	logger.Infof("Pool Details - UUID: %s, Name: %s, State: %s, ExternalName: %s, DeploymentName: %s",
@@ -234,7 +521,6 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 		logger.Warnf("Pool %s has no certificate ID, skipping rotation", poolUUID)
 		return vsaerrors.NewVCPError(vsaerrors.ErrPoolCredentialsMissing, fmt.Errorf("pool %s has no certificate ID", poolUUID))
 	}
-
 	safeRecordHeartbeat(ctx, "Checking and syncing password connectivity")
 	err := a.checkAndSyncPasswordConnectivity(ctx, pool)
 	if err != nil {
@@ -243,44 +529,61 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	}
 
 	safeRecordHeartbeat(ctx, "Checking if certificate is expired")
-	certExpired, err := a.isCertificateExpired(ctx, pool.PoolCredentials.CertificateID)
-	if err != nil {
-		logger.Warnf("Failed to check if certificate is expired: %v", err)
-		certExpired = false
+	currentCaURI := pool.PoolCredentials.GetCaURIWithFallback()
+	missingActiveIssuer := pool.PoolCredentials.CaURI == ""
+	certExpired := false
+	if !missingActiveIssuer {
+		certExpired, err = a.isCertificateExpiredAtCA(ctx, pool.PoolCredentials.CertificateID, currentCaURI)
+		if err != nil {
+			logger.Warnf("Failed to check if certificate is expired: %v", err)
+			certExpired = false
+		}
+	} else {
+		logger.Warnf("Pool %s active certificate has no persisted CA URI; using password recovery for one-time CA reconciliation", poolUUID)
 	}
 
-	if !certExpired {
+	switch {
+	case missingActiveIssuer:
+		logger.Warnf("Certificate issuer is unknown for pool %s; skipping certificate connectivity check and proceeding with password recovery", poolUUID)
+	case certExpired:
+		logger.Warnf("Certificate %s is expired - skipping certificate connectivity check and proceeding with rotation", pool.PoolCredentials.CertificateID)
+	default:
 		logger.Debug("Certificate is not expired - checking certificate connectivity")
-		err = a.checkAndSyncCertificateConnectivity(ctx, pool)
+		var credentialsChanged bool
+		credentialsChanged, err = a.checkAndSyncCertificateConnectivity(ctx, pool)
 		if err != nil {
 			logger.Errorf("Failed to check and sync certificate connectivity for pool %s: %v", poolUUID, err)
 			return err
 		}
-	} else {
-		logger.Warnf("Certificate %s is expired - skipping certificate connectivity check and proceeding with rotation", pool.PoolCredentials.CertificateID)
-	}
-
-	if pool.PoolCredentials.CertificateIDNew != "" {
-		logger.Info("Step 2.5: Revoking previous staged certificate from certificate_id_new")
-		logger.Infof("Revoking previous certificate: %s (after successful certificate connectivity checks)", pool.PoolCredentials.CertificateIDNew)
-
-		cloudService, err := getGcpServiceForCerts(ctx)
-		if err != nil {
-			logger.Warnf("Failed to get cloud service for certificate revocation: %v", err)
-		} else {
-			err = a.revokeOldCertificate(ctx, pool.PoolCredentials.CertificateIDNew, cloudService)
-			if err != nil {
-				logger.Warnf("Failed to revoke previous staged certificate %s: %v", pool.PoolCredentials.CertificateIDNew, err)
-			} else {
-				logger.Info("Successfully revoked previous staged certificate")
+		if credentialsChanged {
+			refreshedPoolContext, refreshErr := a.GetPoolContext(ctx, poolUUID)
+			if refreshErr != nil {
+				return fmt.Errorf("refresh pool after certificate connectivity sync: %w", refreshErr)
 			}
+			refreshedPoolContext.DesiredCAURI = poolContext.DesiredCAURI
+			refreshedPoolContext.Force = poolContext.Force
+			poolContext = refreshedPoolContext
+			pool = refreshedPoolContext.Pool
+			if pool == nil || pool.PoolCredentials == nil {
+				return vsaerrors.NewVCPError(vsaerrors.ErrPoolCredentialsMissing, fmt.Errorf("pool %s has no credentials after connectivity sync", poolUUID))
+			}
+			currentCaURI = pool.PoolCredentials.GetCaURIWithFallback()
+			missingActiveIssuer = pool.PoolCredentials.CaURI == ""
 		}
 	}
 
-	needsRotation, err := a.certificateNeedsRotation(ctx, pool, pool.PoolCredentials.CertificateID)
-	if err != nil {
-		logger.Errorf("Failed to check if certificate needs rotation for pool %s: %v", poolUUID, err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateNeedsRotationCheckFailed, err)
+	needsRotation := poolContext.Force || certificateCaDriftedAgainst(pool.PoolCredentials, desiredCAURI)
+	switch {
+	case poolContext.Force:
+		logger.Infof("Forcing certificate rotation for pool %s on explicit request, bypassing remaining-lifetime eligibility", poolUUID)
+	case needsRotation:
+		logger.Infof("Forcing certificate rotation for pool %s because CA URI drifted from desired state %q", poolUUID, desiredCAURI)
+	default:
+		needsRotation, err = a.certificateNeedsRotation(ctx, pool, pool.PoolCredentials.CertificateID)
+		if err != nil {
+			logger.Errorf("Failed to check if certificate needs rotation for pool %s: %v", poolUUID, err)
+			return vsaerrors.NewVCPError(vsaerrors.ErrCertificateNeedsRotationCheckFailed, err)
+		}
 	}
 
 	if !needsRotation {
@@ -315,81 +618,145 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 		logger.Warnf("Failed to get old certificate for rollback: %v", err)
 	}
 
-	timestamp := time.Now().Format("20060102-150405")
-	newCertificateID := fmt.Sprintf("%s-cert-%s", pool.DeploymentName, timestamp)
-	logger.Infof("Generated new certificate ID: %s with timestamp: %s", newCertificateID, timestamp)
-
-	newPoolCredentials := &datamodel.PoolCredentials{
-		CertificateID: newCertificateID,
-		CaURI:         pool.PoolCredentials.GetCaURIWithFallback(),
+	targetCaURI := desiredCAURI
+	if targetCaURI == "" {
+		targetCaURI = currentCaURI
 	}
 
-	username := pool.PoolCredentials.Username
-	if username == "" {
-		username = fmt.Sprintf("%s_admin", pool.DeploymentName)
-	}
-
-	logger.Infof("Step 2: Generating new certificate with ID: %s for deployment: %s", newCertificateID, pool.DeploymentName)
-	safeRecordHeartbeat(ctx, fmt.Sprintf("Generating new certificate with ID: %s", newCertificateID))
-
-	newCertResponse, err := generateAndCreateCertificateForVSACluster(cloudService, pool.DeploymentName, username, newPoolCredentials, true)
+	username, err := certificateRotationUsername(pool, oldCertificate)
 	if err != nil {
-		logger.Errorf("Failed to generate new certificate for pool %s: %v", poolUUID, err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateGenerationFailed, err)
+		return vsaerrors.NewVCPError(vsaerrors.ErrPoolCredentialsMissing, err)
 	}
-	logger.Info("Successfully generated new certificate")
 
-	// Re-check pool state before staging certificate to avoid conflicts with pool deletion
-	canProceed, err := a.checkPoolStateBeforeCriticalOperation(ctx, poolUUID)
-	if err != nil {
-		logger.Warnf("Failed to re-check pool state before staging: %v, proceeding with caution", err)
-	} else if !canProceed {
-		logger.Warnf("Pool %s state changed to CREATING/DELETING/UPGRADING, aborting certificate rotation", poolUUID)
-		cleanupErr := a.rollbackCertificateRotation(ctx, &RollbackResources{
-			NewCertificateID: newCertificateID,
-			NewSecretID:      extractSecretNameFromPath(newCertResponse.Secret.Name),
-			NewCertificate:   newCertResponse.Certificate,
-			NewSecret:        newCertResponse.Secret,
-			OldCertificate:   oldCertificate,
-			Pool:             pool,
-			GcpService:       cloudService,
-		})
-		if cleanupErr != nil {
-			logger.Errorf("Failed to cleanup after state change detection: %v", cleanupErr)
+	safeRecordHeartbeat(ctx, "Running issuing CA, trust, and security login preflight")
+	if err := a.preflightCertificateIssuance(ctx, pool, targetCaURI, env.Admin, username); err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateGenerationFailed, fmt.Errorf("certificate issuance preflight: %w", err))
+	}
+
+	newCertificateID := pool.PoolCredentials.CertificateIDNew
+	if inferredCAURI, inferred := inferIssuerForNewerLegacyStagedCert(
+		pool.PoolCredentials.CertificateID,
+		newCertificateID,
+		pool.PoolCredentials.StagedCaURI,
+		pool.PoolCredentials.CaURI,
+		targetCaURI,
+	); inferred {
+		logger.Infof("Backfilling legacy staged certificate %s with CA URI %s", newCertificateID, inferredCAURI)
+		if err := a.updatePoolCertificateIDNew(ctx, pool, newCertificateID, inferredCAURI); err != nil {
+			return vsaerrors.NewVCPError(
+				vsaerrors.ErrCertificateStagingFailed,
+				fmt.Errorf("backfill legacy staged certificate CA URI: %w", err),
+			)
 		}
-		return nil // Return nil to indicate graceful skip (not an error)
+		pool.PoolCredentials.StagedCaURI = inferredCAURI
 	}
-
-	logger.Infof("Staging new certificate ID %s in certificate_id_new", newCertificateID)
-	safeRecordHeartbeat(ctx, fmt.Sprintf("Staging new certificate ID %s in database", newCertificateID))
-	err = a.updatePoolCertificateIDNew(ctx, pool, newCertificateID)
-	if err != nil {
-		logger.Errorf("Failed to stage new certificate ID in database: %v", err)
-		cleanupErr := a.rollbackCertificateRotation(ctx, &RollbackResources{
-			NewCertificateID: newCertificateID,
-			NewSecretID:      extractSecretNameFromPath(newCertResponse.Secret.Name),
-			NewCertificate:   newCertResponse.Certificate,
-			NewSecret:        newCertResponse.Secret,
-			OldCertificate:   oldCertificate,
-			Pool:             pool,
-			GcpService:       cloudService,
-		})
-		if cleanupErr != nil {
-			logger.Errorf("Failed to cleanup after staging failure: %v", cleanupErr)
+	activeCertificateCurrent := false
+	if pool.PoolCredentials.CertificateID != "" && pool.PoolCredentials.CaURI == targetCaURI {
+		lifetimeNeedsRotation, checkErr := a.certificateNeedsRotation(ctx, pool, pool.PoolCredentials.CertificateID)
+		if checkErr == nil && !lifetimeNeedsRotation {
+			activeCertificateCurrent = true
 		}
-		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateStagingFailed, err)
 	}
+	candidate, candidateErr := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+		stagedID:                 newCertificateID,
+		stagedCAURI:              pool.PoolCredentials.StagedCaURI,
+		fallbackCAURI:            pool.PoolCredentials.CaURI,
+		targetCAURI:              targetCaURI,
+		activeCertificateCurrent: activeCertificateCurrent,
+		mintIfMissing:            true,
+		newID: func() string {
+			return rotatedCertificateID(pool.DeploymentName, a.dependencies().now())
+		},
+		load: func(certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+			caProjectID, caPoolName, _ := env.ParseCaURI(targetCaURI)
+			response, loadErr := a.dependencies().getCertificateAndPrivateKeyByID(
+				cloudService,
+				caProjectID,
+				env.SecretManagerProjectID,
+				env.Region,
+				caPoolName,
+				certificateID,
+			)
+			if loadErr == nil && response != nil {
+				loadErr = validateCertificateForReuse(
+					response.Certificate,
+					targetCaURI,
+					env.Region,
+					a.dependencies().now(),
+					env.GetCertificateRotationThresholdPercentage(),
+				)
+			}
+			return response, loadErr
+		},
+		mint: func(certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+			logger.Infof("Generating new certificate %s for deployment %s", certificateID, pool.DeploymentName)
+			safeRecordHeartbeat(ctx, fmt.Sprintf("Generating new certificate with ID: %s", certificateID))
+			return generateAndCreateCertificateForVSACluster(
+				cloudService,
+				pool.DeploymentName,
+				username,
+				&datamodel.PoolCredentials{CertificateID: certificateID, CaURI: targetCaURI},
+				true,
+			)
+		},
+		stage: func(certificateID, caURI string) error {
+			safeRecordHeartbeat(ctx, fmt.Sprintf("Staging new certificate ID %s in database", certificateID))
+			return a.updatePoolCertificateIDNew(ctx, pool, certificateID, caURI)
+		},
+		detach: func(certificateID, caURI string) error {
+			return a.detachAndRevokeStagedPoolCertificate(ctx, pool, certificateID, caURI, cloudService)
+		},
+		cleanupUnstaged: func(certificateID, caURI string) error {
+			return revokeCertificateAndDeleteFromCacheAndSecretManager(
+				cloudService,
+				&datamodel.PoolCredentials{CertificateID: certificateID, CaURI: caURI},
+			)
+		},
+	})
+	if candidateErr != nil {
+		var operationErr *stagedCertificateCandidateError
+		if errors.As(candidateErr, &operationErr) && operationErr.operation == "mint certificate candidate" {
+			return vsaerrors.NewVCPError(vsaerrors.ErrCertificateGenerationFailed, candidateErr)
+		}
+		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateStagingFailed, candidateErr)
+	}
+	newCertificateID = candidate.id
+	newCertResponse := candidate.response
+	if candidate.reused {
+		logger.Infof("Reusing valid staged certificate %s under target CA", newCertificateID)
+	}
+	pool.PoolCredentials.CertificateIDNew = newCertificateID
+	pool.PoolCredentials.StagedCaURI = targetCaURI
 
 	secretNameForRollback := extractSecretNameFromPath(newCertResponse.Secret.Name)
 
 	createdResources := &RollbackResources{
 		NewCertificateID: newCertificateID,
+		NewCaURI:         targetCaURI,
 		NewSecretID:      secretNameForRollback,
+		DBReferenced:     true,
 		NewCertificate:   newCertResponse.Certificate,
 		NewSecret:        newCertResponse.Secret,
 		OldCertificate:   oldCertificate,
 		Pool:             pool,
 		GcpService:       cloudService,
+	}
+
+	// State changes after minting must not orphan the candidate. Stage first,
+	// then preserve the DB-referenced candidate for a later retry.
+	canProceed, err := a.checkPoolStateBeforeCriticalOperation(ctx, poolUUID)
+	if err != nil {
+		if rollbackErr := a.rollbackCertificateRotation(ctx, createdResources); rollbackErr != nil {
+			logger.Errorf("Failed to preserve staged candidate after pool-state check error: %v", rollbackErr)
+		}
+		return err
+	}
+	if !canProceed {
+		logger.Warnf("Pool %s state changed to CREATING/DELETING/UPGRADING; preserving staged certificate for retry", poolUUID)
+		if rollbackErr := a.rollbackCertificateRotation(ctx, createdResources); rollbackErr != nil {
+			logger.Errorf("Failed to preserve staged candidate after state change: %v", rollbackErr)
+		}
+		return nil
 	}
 
 	hasNodes, err := a.checkPoolHasNodes(ctx, pool)
@@ -408,22 +775,9 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 		return vsaerrors.NewVCPError(vsaerrors.ErrPoolHasNoNodes, fmt.Errorf("pool %s has no associated nodes - database consistency issue", pool.UUID))
 	}
 
-	oldCertExpired, err := a.isCertificateExpired(ctx, pool.PoolCredentials.CertificateID)
-	if err != nil {
-		logger.Warnf("Failed to check if old certificate is expired for pool %s (%s): %v", poolUUID, pool.Name, err)
-		oldCertExpired = false
-	}
-
-	if oldCertExpired {
-		logger.Warnf("Old certificate %s is expired for pool %s (%s) - using password authentication (SSH) for certificate installation", pool.PoolCredentials.CertificateID, poolUUID, pool.Name)
-		logger.Info("Step 3: Installing certificate using password authentication (expired certificate)")
-		safeRecordHeartbeat(ctx, "Installing certificate on VSA using password authentication")
-		err = a.installCertificateOnVSAWithPasswordAuth(ctx, pool, newCertResponse.Certificate, newCertResponse.Secret)
-	} else {
-		logger.Infof("Old certificate %s is valid for pool %s (%s) - using certificate authentication (REST API) for certificate installation", pool.PoolCredentials.CertificateID, poolUUID, pool.Name)
-		safeRecordHeartbeat(ctx, "Installing certificate on VSA using certificate authentication")
-		err = a.installCertificateOnVSA(ctx, pool, newCertResponse.Certificate, newCertResponse.Secret)
-	}
+	logger.Info("Step 3: Installing certificate using username and password authentication")
+	safeRecordHeartbeat(ctx, "Installing certificate on VSA using username and password authentication")
+	err = a.installCertificateOnVSAWithPasswordAuth(ctx, pool, newCertResponse.Certificate, newCertResponse.Secret)
 
 	if err != nil {
 		logger.Errorf("Failed to install new certificate on VSA for pool %s (%s): %v", poolUUID, pool.Name, err)
@@ -449,14 +803,24 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	}
 	logger.Info("Successfully tested certificate connectivity", "poolUUID", poolUUID, "poolName", pool.Name)
 
-	secretName := extractSecretNameFromPath(newCertResponse.Secret.Name)
-	logger.Infof("Extracted secret name: %s from full path: %s", secretName, newCertResponse.Secret.Name)
+	if hasExpertModeCredentials(pool) {
+		if err := a.reconcileExpertModeCredentialsBeforePromotion(ctx, poolUUID, targetCaURI, poolContext.Force); err != nil {
+			return vsaerrors.NewVCPError(
+				vsaerrors.ErrCertificateRotationFailed,
+				fmt.Errorf("reconcile expert certificates before parent promotion: %w", err),
+			)
+		}
+	}
 
 	// Re-check pool state before swapping certificate IDs to avoid conflicts with pool deletion
 	canProceed, err = a.checkPoolStateBeforeCriticalOperation(ctx, poolUUID)
 	if err != nil {
-		logger.Warnf("Failed to re-check pool state before swapping: %v, proceeding with caution", err)
-	} else if !canProceed {
+		if rollbackErr := a.rollbackCertificateRotation(ctx, createdResources); rollbackErr != nil {
+			logger.Errorf("Failed to preserve staged candidate after pool-state check error: %v", rollbackErr)
+		}
+		return err
+	}
+	if !canProceed {
 		logger.Warnf("Pool %s state changed to CREATING/DELETING/UPGRADING, aborting certificate ID swap", poolUUID)
 		rollbackErr := a.rollbackCertificateRotation(ctx, createdResources)
 		if rollbackErr != nil {
@@ -469,7 +833,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	logger.Infof("Swapping CertificateID: %s with new CertificateID: %s for pool %s (%s)", pool.PoolCredentials.CertificateID, newCertificateID, poolUUID, pool.Name)
 	safeRecordHeartbeat(ctx, fmt.Sprintf("Swapping certificate IDs in database for pool %s", poolUUID))
 
-	err = a.swapCertificateIDs(ctx, poolUUID, newCertificateID, secretName)
+	err = a.swapCertificateIDs(ctx, poolUUID, newCertificateID, secretNameForRollback)
 	if err != nil {
 		logger.Errorf("Failed to swap certificate IDs for pool %s (%s): %v", poolUUID, pool.Name, err)
 		rollbackErr := a.rollbackCertificateRotation(ctx, createdResources)
@@ -483,17 +847,9 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	logger.Infof("Certificate rotation completed successfully for pool %s (%s)", poolUUID, pool.Name)
 	safeRecordHeartbeat(ctx, "Certificate rotation completed successfully")
 
-	// Rotate expert mode certificate for ONTAP mode pools (client-auth cert used for expert mode API)
-	if pool.APIAccessMode == common.ONTAPMode {
-		safeRecordHeartbeat(ctx, "Starting expert mode certificate rotation check")
-		if errExpert := a.rotateExpertModeCertificate(ctx, poolUUID); errExpert != nil {
-			logger.Warnf("Expert mode certificate rotation failed for pool %s (non-fatal): %v", poolUUID, errExpert)
-			// Do not fail the overall rotation; pool certificate rotation already succeeded
-		} else {
-			logger.Infof("Expert mode certificate rotation completed for pool %s", poolUUID)
-		}
-	}
-
+	// Parked parent and expert certificate_id_new pairs are revoked on the next
+	// reconcile, not in this activity. A post-swap expert sweep would treat the
+	// just-parked expert leaf as stale and revoke it immediately.
 	return nil
 }
 
@@ -516,7 +872,11 @@ func (a *RotateVcpToVsaCertificateActivity) expertModeCertificateNeedsRotation(c
 		if cred == nil || cred.AuthType != env.USER_CERTIFICATE || cred.CertificateID == "" {
 			continue
 		}
-		needsRotation, err := a.certificateNeedsRotation(ctx, pool, cred.CertificateID)
+		certificateCAURI := cred.CaURI
+		if certificateCAURI == "" {
+			certificateCAURI = pool.PoolCredentials.GetCaURIWithFallback()
+		}
+		needsRotation, err := a.certificateNeedsRotationWithCA(ctx, pool, cred.CertificateID, certificateCAURI)
 		if err != nil {
 			// Mirrors rotateExpertModeCertificate: a certificate that cannot be fetched (revoked,
 			// deleted, or expired and evicted from cache) still has to be replaced.
@@ -535,116 +895,41 @@ func (a *RotateVcpToVsaCertificateActivity) expertModeCertificateNeedsRotation(c
 // rotateExpertModeCertificate rotates the certificate used for expert mode (ONTAP mode pools) when it needs rotation.
 // It uses the same certificate_id_new / certificate_id staging and swap pattern as the main pool credentials.
 func (a *RotateVcpToVsaCertificateActivity) rotateExpertModeCertificate(ctx context.Context, poolUUID string) error {
-	logger := util.GetLogger(ctx)
-	safeRecordHeartbeat(ctx, "Re-fetching pool for expert mode certificate rotation")
-
 	poolContext, err := a.GetPoolContext(ctx, poolUUID)
-	if err != nil || poolContext == nil || poolContext.Pool == nil {
+	if err != nil {
 		return fmt.Errorf("get pool context: %w", err)
 	}
-	pool := poolContext.Pool
-
-	if pool.APIAccessMode != common.ONTAPMode {
-		return nil
+	if poolContext == nil || poolContext.Pool == nil {
+		return fmt.Errorf("get pool context: pool is nil")
 	}
-	if pool.ExpertModeCredentials == nil || len(pool.ExpertModeCredentials.ExpertModeCredential) == 0 {
+	pool := poolContext.Pool
+	if pool.APIAccessMode != common.ONTAPMode ||
+		pool.ExpertModeCredentials == nil ||
+		len(pool.ExpertModeCredentials.ExpertModeCredential) == 0 {
 		return nil
 	}
 	if pool.PoolCredentials == nil {
 		return fmt.Errorf("pool credentials required for expert mode rotation")
 	}
-
-	caURI := pool.PoolCredentials.GetCaURIWithFallback()
-	cloudService, err := getGcpServiceForCerts(ctx)
-	if err != nil {
-		return fmt.Errorf("get cloud service: %w", err)
-	}
-
-	// Step 2.5 (expert): Revoke any previously staged certificate (certificate_id_new) from a prior rotation
-	for _, cred := range pool.ExpertModeCredentials.ExpertModeCredential {
-		if cred == nil || cred.AuthType != env.USER_CERTIFICATE || cred.CertificateIDNew == "" {
-			continue
-		}
-		logger.Infof("Revoking previous staged expert mode certificate: %s", cred.CertificateIDNew)
-		oldStaged := &datamodel.PoolCredentials{CertificateID: cred.CertificateIDNew, CaURI: caURI}
-		if errRev := revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, oldStaged); errRev != nil {
-			logger.Warnf("Failed to revoke previous staged expert certificate %s: %v", cred.CertificateIDNew, errRev)
-		}
-	}
-
-	for i, cred := range pool.ExpertModeCredentials.ExpertModeCredential {
-		if cred == nil || cred.AuthType != env.USER_CERTIFICATE || cred.CertificateID == "" {
-			continue
-		}
-
-		// Re-fetch pool so ExpertModeCredentials reflects prior iterations' updates (staging/swap).
-		// Otherwise updateExpertModeCertificateIDNew would clone stale credentials and overwrite
-		// certificate_id_new for earlier credentials when updating the current one.
-		poolContext, err = a.GetPoolContext(ctx, poolUUID)
-		if err != nil || poolContext == nil || poolContext.Pool == nil {
-			return fmt.Errorf("get pool context for expert credential %d: %w", i, err)
-		}
-		pool = poolContext.Pool
-		if pool.ExpertModeCredentials == nil || i >= len(pool.ExpertModeCredentials.ExpertModeCredential) {
-			return fmt.Errorf("invalid expert mode credential index %d", i)
-		}
-		cred = pool.ExpertModeCredentials.ExpertModeCredential[i]
-		if cred == nil {
-			continue
-		}
-
-		needsRotation, err := a.certificateNeedsRotation(ctx, pool, cred.CertificateID)
-		if err != nil {
-			// Treat fetch/check failure as needs rotation so we replace expired or unreachable expert certs (e.g. revoked, deleted, or expired and not in cache).
-			logger.Warnf("Expert mode cert needs-rotation check failed for pool %s cert %s (treating as needs rotation): %v", poolUUID, cred.CertificateID, err)
-			needsRotation = true
-		}
-		if !needsRotation {
-			logger.Debugf("Expert mode certificate %s for pool %s does not need rotation", cred.CertificateID, poolUUID)
-			continue
-		}
-
-		safeRecordHeartbeat(ctx, fmt.Sprintf("Rotating expert mode certificate %s for pool %s", cred.CertificateID, poolUUID))
-		timestamp := time.Now().Format("20060102-150405")
-		newCertID := fmt.Sprintf("%s-cert-%s-%s", pool.DeploymentName, cred.Username, timestamp)
-
-		newExpertPoolCredentials := &datamodel.PoolCredentials{
-			CertificateID: newCertID,
-			CaURI:         caURI,
-		}
-		newCertResponse, err := generateAndCreateCertificateForVSACluster(cloudService, pool.DeploymentName, cred.Username, newExpertPoolCredentials, false)
-		if err != nil {
-			return fmt.Errorf("generate expert mode certificate %s: %w", newCertID, err)
-		}
-		_ = newCertResponse
-
-		// Stage: set certificate_id_new = newCertID (keep certificate_id as current)
-		if err := a.updateExpertModeCertificateIDNew(ctx, poolUUID, pool, i, newCertID); err != nil {
-			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, newExpertPoolCredentials)
-			return fmt.Errorf("stage expert mode certificate_id_new: %w", err)
-		}
-
-		// Swap: certificate_id <- newCertID, certificate_id_new <- old certificate_id
-		if err := a.swapExpertModeCertificateIDs(ctx, poolUUID, i); err != nil {
-			// Rollback staged cert
-			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, newExpertPoolCredentials)
-			return fmt.Errorf("swap expert mode certificate IDs: %w", err)
-		}
-
-		oldCertID := cred.CertificateID
-		// Ensure cache has new cert and never serves old cert after swap (otherwise expert mode can get invalid cert).
-		if err := a.updateCertificateCache(ctx, newCertID); err != nil {
-			logger.Warnf("Failed to update certificate cache for expert mode cert %s: %v", newCertID, err)
-		}
-		removeFromCertAuthCache(oldCertID)
-		logger.Infof("Rotated expert mode certificate for pool %s: %s -> %s", poolUUID, oldCertID, newCertID)
-	}
-
-	return nil
+	// Never forced: this runs when the pool certificate is already current so
+	// expert credentials can rotate on their own schedule. Forced parent
+	// rotation already reconciled expert certificates before promotion.
+	return a.reconcileExpertModeCredentialsBeforePromotion(
+		ctx,
+		poolUUID,
+		pool.PoolCredentials.GetCaURIWithFallback(),
+		false,
+	)
 }
 
-// updateExpertModeCertificateIDNew stages the new expert mode certificate ID in certificate_id_new for the given credential index.
-func (a *RotateVcpToVsaCertificateActivity) updateExpertModeCertificateIDNew(ctx context.Context, poolUUID string, pool *datamodel.Pool, credIndex int, newCertificateID string) error {
+// updateExpertModeCertificateIDNew stages a paired expert certificate ID and issuer CA.
+func (a *RotateVcpToVsaCertificateActivity) updateExpertModeCertificateIDNew(
+	ctx context.Context,
+	poolUUID string,
+	pool *datamodel.Pool,
+	credIndex int,
+	newCertificateID, newCAURI string,
+) error {
 	logger := util.GetLogger(ctx)
 	if pool.ExpertModeCredentials == nil || credIndex >= len(pool.ExpertModeCredentials.ExpertModeCredential) {
 		return fmt.Errorf("invalid expert mode credential index %d", credIndex)
@@ -652,6 +937,7 @@ func (a *RotateVcpToVsaCertificateActivity) updateExpertModeCertificateIDNew(ctx
 
 	updatedExpert := a.cloneExpertModeCredentials(pool.ExpertModeCredentials)
 	updatedExpert.ExpertModeCredential[credIndex].CertificateIDNew = newCertificateID
+	updatedExpert.ExpertModeCredential[credIndex].StagedCaURI = newCAURI
 	// Preserve existing certificate_id (active cert unchanged until swap)
 	updates := map[string]interface{}{
 		"expert_mode_credentials": updatedExpert,
@@ -683,14 +969,25 @@ func (a *RotateVcpToVsaCertificateActivity) swapExpertModeCertificateIDs(ctx con
 
 	cred := pool.ExpertModeCredentials.ExpertModeCredential[credIndex]
 	oldCertID := cred.CertificateID
+	oldCAURI := cred.CaURI
 	newCertIDFromDB := cred.CertificateIDNew
+	newCAURIFromDB := cred.StagedCaURI
 	if newCertIDFromDB == "" {
 		return fmt.Errorf("expert mode certificate_id_new is empty, cannot swap")
+	}
+	if newCAURIFromDB == "" {
+		return fmt.Errorf("expert mode staged_ca_uri is empty, cannot swap")
+	}
+	if oldCertID == "" || oldCAURI == "" {
+		oldCertID = ""
+		oldCAURI = ""
 	}
 
 	updatedExpert := a.cloneExpertModeCredentials(pool.ExpertModeCredentials)
 	updatedExpert.ExpertModeCredential[credIndex].CertificateID = newCertIDFromDB
+	updatedExpert.ExpertModeCredential[credIndex].CaURI = newCAURIFromDB
 	updatedExpert.ExpertModeCredential[credIndex].CertificateIDNew = oldCertID
+	updatedExpert.ExpertModeCredential[credIndex].StagedCaURI = oldCAURI
 
 	updates := map[string]interface{}{
 		"expert_mode_credentials": updatedExpert,
@@ -715,12 +1012,15 @@ func (a *RotateVcpToVsaCertificateActivity) cloneExpertModeCredentials(emc *data
 			continue
 		}
 		out.ExpertModeCredential[i] = &datamodel.ExpertModeCredential{
-			SecretID:         c.SecretID,
-			CertificateID:    c.CertificateID,
-			CertificateIDNew: c.CertificateIDNew,
-			Password:         c.Password,
-			Username:         c.Username,
-			AuthType:         c.AuthType,
+			SecretID:           c.SecretID,
+			CertificateID:      c.CertificateID,
+			CertificateIDNew:   c.CertificateIDNew,
+			CaURI:              c.CaURI,
+			StagedCaURI:        c.StagedCaURI,
+			Password:           c.Password,
+			Username:           c.Username,
+			UsernamePreCertFix: c.UsernamePreCertFix,
+			AuthType:           c.AuthType,
 		}
 	}
 	return out
@@ -891,22 +1191,41 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSA(ctx context.
 	vserverName := resolveVserverName(pool)
 	logger.Infof("Resolved vserver name: %q (deploymentName: %q)", vserverName, pool.DeploymentName)
 
+	intermediateCertificates, err := validatedCertificateChain(cert)
+	if err != nil {
+		return err
+	}
+	if len(intermediateCertificates) > 0 {
+		if err := installIssuingClientCA(provider, cert, intermediateCertificates); err != nil {
+			return fmt.Errorf("install issuing client CA: %w", err)
+		}
+	}
+
 	installParams := vsa.InstallServerCertificateParams{
-		SvmName:         vserverName,
-		CertificateName: cert.CertificateID,
-		Certificate:     cert.PemCertificate,
-		PrivateKey:      secretObj.SecretVersion.Value,
-		CertificateType: "server",
-		CommonName:      username,
+		SvmName:                  vserverName,
+		CertificateName:          cert.CertificateID,
+		Certificate:              cert.PemCertificate,
+		PrivateKey:               secretObj.SecretVersion.Value,
+		IntermediateCertificates: intermediateCertificates,
+		CertificateType:          "server",
+		CommonName:               username,
 	}
 
 	_, err = provider.InstallServerCertificate(installParams)
 	if err != nil {
+		if isDuplicateCertificateError(err) {
+			logger.Infof("Certificate %s is already installed on VSA; continuing idempotent rotation", cert.CertificateID)
+			err = nil
+		}
 		if isSVMNotFoundError(err) && vserverName != pool.DeploymentName {
 			logger.Warnf("SVM %q not found, retrying with deployment name: %q", vserverName, pool.DeploymentName)
 			vserverName = pool.DeploymentName
 			installParams.SvmName = pool.DeploymentName
 			_, err = provider.InstallServerCertificate(installParams)
+			if isDuplicateCertificateError(err) {
+				logger.Infof("Certificate %s is already installed on fallback SVM; continuing idempotent rotation", cert.CertificateID)
+				err = nil
+			}
 		}
 
 		if err != nil {
@@ -991,31 +1310,43 @@ func (a *RotateVcpToVsaCertificateActivity) swapCertificateIDs(ctx context.Conte
 
 	oldCertificateID := pool.PoolCredentials.CertificateID
 	newCertificateIDFromDB := pool.PoolCredentials.CertificateIDNew
+	// Park the displaced leaf under its persisted issuer. Helm fallback would
+	// attribute a legacy empty ca_uri to the current desired CA and break later
+	// revoke/reuse against the CA that actually minted the old certificate.
+	oldCaURI := pool.PoolCredentials.CaURI
+	newCaURIFromDB := pool.PoolCredentials.StagedCaURI
 
 	if newCertificateIDFromDB == "" {
 		logger.Errorf("certificate_id_new is empty, cannot swap certificate IDs")
 		return fmt.Errorf("certificate_id_new is empty, cannot swap certificate IDs")
 	}
+	if newCaURIFromDB == "" {
+		return fmt.Errorf("staged_ca_uri is empty, cannot swap certificate IDs")
+	}
+	if newCertificateIDFromDB != newCertificateID {
+		return fmt.Errorf(
+			"staged certificate changed before promotion: expected %s, found %s",
+			newCertificateID,
+			newCertificateIDFromDB,
+		)
+	}
 
 	logger.Infof("Swapping certificate IDs: %s -> %s", oldCertificateID, newCertificateIDFromDB)
 
-	// Prepare credentials update - handle both certificate-only and certificate+secret rotation
-	updatedCredentials := map[string]interface{}{
-		"certificate_id":     newCertificateIDFromDB, // New certificate becomes active
-		"certificate_id_new": oldCertificateID,       // Old certificate becomes inactive
-		"secret_id":          pool.PoolCredentials.SecretID,
-		"secret_id_new":      pool.PoolCredentials.SecretIDNew,
-		"auth_type":          pool.PoolCredentials.AuthType,
-		"password":           pool.PoolCredentials.Password,
-		"username":           pool.PoolCredentials.Username, // Preserve username field
-		"ca_uri":             pool.PoolCredentials.CaURI,    // Preserve ca_uri field
-	}
-
-	// Save the updated pool using UpdatePoolFields
-	updates := map[string]interface{}{
-		"pool_credentials": updatedCredentials,
-	}
-	err = a.SE.UpdatePoolFields(ctx, poolUUID, updates)
+	updatedCredentials := *pool.PoolCredentials
+	updatedCredentials.CertificateID = newCertificateIDFromDB
+	updatedCredentials.CertificateIDNew = oldCertificateID
+	updatedCredentials.CaURI = newCaURIFromDB
+	updatedCredentials.StagedCaURI = oldCaURI
+	err = a.SE.CompareAndSwapPoolCredentials(
+		ctx,
+		poolUUID,
+		pool.PoolCredentials.AuthType,
+		newCertificateIDFromDB,
+		pool.PoolCredentials.StagedCaURI,
+		env.GetCertificateRotationPoolStates(),
+		&updatedCredentials,
+	)
 	if err != nil {
 		logger.Errorf("Failed to update pool credentials in database: %v", err)
 		return err
@@ -1025,7 +1356,7 @@ func (a *RotateVcpToVsaCertificateActivity) swapCertificateIDs(ctx context.Conte
 
 	// Immediately update the certificate cache with the new certificate
 	logger.Debug("Updating certificate cache with new certificate")
-	err = a.updateCertificateCache(ctx, newCertificateIDFromDB)
+	err = a.updateCertificateCache(ctx, newCertificateIDFromDB, newCaURIFromDB)
 
 	if err != nil {
 		logger.Warnf("Failed to update certificate cache: %v", err)
@@ -1039,7 +1370,7 @@ func (a *RotateVcpToVsaCertificateActivity) swapCertificateIDs(ctx context.Conte
 }
 
 // updateCertificateCache updates the certificate cache with the new certificate
-func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.Context, certificateID string) error {
+func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.Context, certificateID, caURI string) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Updating certificate cache for certificate ID: %s", certificateID)
 
@@ -1051,7 +1382,11 @@ func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.C
 	}
 
 	// Get the certificate and private key
-	certificateResponse, err := vsa.GetCertificateAndPrivateKeyByID(cloudService, env.CaPoolDeployedProjectID, env.SecretManagerProjectID, env.Region, env.CaPoolName, certificateID)
+	caProjectID, caPoolName, _ := env.ParseCaURI(caURI)
+	if caProjectID == "" || caPoolName == "" {
+		return vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, fmt.Errorf("invalid CA URI %q", caURI))
+	}
+	certificateResponse, err := vsa.GetCertificateAndPrivateKeyByID(cloudService, caProjectID, env.SecretManagerProjectID, env.Region, caPoolName, certificateID)
 	if err != nil {
 		logger.Errorf("Failed to get certificate for cache update: %v", err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateCacheUpdateFailed, err)
@@ -1074,27 +1409,26 @@ func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.C
 	return nil
 }
 
-// installCertificateOnVSAWithPasswordAuth installs a new certificate using password authentication
-// This is used when the old certificate is expired and cannot be used for SSH authentication
-func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordAuth(ctx context.Context, pool *datamodel.Pool, certificate interface{}, secret interface{}) error {
+// passwordAuthProvider builds an ONTAP provider using the bootstrap admin
+// identity and the pool password stored in Secret Manager.
+func (a *RotateVcpToVsaCertificateActivity) passwordAuthProvider(ctx context.Context, pool *datamodel.Pool) (vsa.Provider, error) {
 	logger := util.GetLogger(ctx)
-	logger.Warnf("Installing certificate with password authentication due to expired old certificate for pool %s", pool.UUID)
 
 	// Get nodes directly from database using pool ID
 	dbNodes, err := a.SE.GetNodesByPoolID(ctx, pool.ID)
 	if err != nil {
 		logger.Errorf("Failed to get node information from database: %v", err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 	logger.Debugf("Retrieved %d nodes from database", len(dbNodes))
 
 	// Validate that we have nodes for this pool
 	if len(dbNodes) == 0 {
 		logger.Errorf("No nodes found for pool %s (ID: %d). This indicates a database consistency issue.", pool.UUID, pool.ID)
-		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("no nodes found for pool %s (ID: %d) - database consistency issue", pool.UUID, pool.ID))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("no nodes found for pool %s (ID: %d) - database consistency issue", pool.UUID, pool.ID))
 	}
 
-	// Get password for SSH authentication (this is critical for expired certificates)
+	// Fetch the current pool password used for ONTAP REST basic authentication.
 	password := pool.PoolCredentials.Password
 	if password == "" {
 		// For any auth type, fetch password from the secretID field
@@ -1107,18 +1441,9 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 		secret, err := vsa.GetPasswordFromCacheOrSecretManager(ctx, pool.PoolCredentials.SecretID)
 		if err != nil {
 			logger.Errorf("Failed to get password from Secret Manager: %v", err)
-			return vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
 		}
 		password = secret
-	}
-
-	// Get username from pool credentials, fallback to deployment name with admin suffix
-	// This matches the logic used during certificate generation
-	username := pool.PoolCredentials.Username
-	if username == "" {
-		// Fallback: use deployment name with admin suffix (matches certificate generation fallback)
-		username = fmt.Sprintf("%s_admin", pool.DeploymentName)
-		logger.Warnf("Username is empty in pool credentials for password auth certificate installation, using fallback: %s", username)
 	}
 
 	// Create node for provider using password authentication (not certificate auth)
@@ -1129,18 +1454,87 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 			Password:      password, // Use the fetched password
 			SecretID:      pool.PoolCredentials.SecretID,
 			CertificateID: pool.PoolCredentials.CertificateID,
-			AuthType:      env.USERNAME_PWD_SEC_MGR, // Force password authentication for expired certificates
+			AuthType:      env.USERNAME_PWD_SEC_MGR, // Always use password authentication for certificate installation.
 			CaURI:         pool.PoolCredentials.GetCaURIWithFallback(),
-			Username:      username, // Use username with fallback if needed
+			Username:      env.Admin,
 		},
 	})
 	// Create VSA provider with password authentication
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		logger.Errorf("Failed to get VSA provider for expired certificate scenario: %v", err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrVSAClusterCreateError, err)
+		logger.Errorf("Failed to get VSA provider for password-authenticated certificate installation: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVSAClusterCreateError, err)
 	}
 	logger.Debug("Successfully created VSA provider with password authentication")
+
+	return provider, nil
+}
+
+// installExpertClientTrustWithPasswordAuth trusts the CA chain that issued an expert-mode
+// client certificate so ONTAP accepts that certificate for client authentication.
+//
+// Expert-mode certificates are minted with client auth only (see
+// EnableServerAuthInCSRForExpMode), so they must never be installed as the cluster
+// server certificate or selected by "security ssl modify": doing so makes ONTAP serve a
+// certificate that TLS clients reject for incompatible key usage.
+func (a *RotateVcpToVsaCertificateActivity) installExpertClientTrustWithPasswordAuth(ctx context.Context, pool *datamodel.Pool, certificate interface{}, _ interface{}) error {
+	logger := util.GetLogger(ctx)
+	logger.Infof("Installing expert-mode client CA trust with username and password authentication for pool %s", pool.UUID)
+
+	provider, err := a.passwordAuthProvider(ctx, pool)
+	if err != nil {
+		return err
+	}
+
+	cert, err := asCustomCertificate(certificate)
+	if err != nil {
+		logger.Errorf("Failed to resolve expert certificate for client CA trust: %v", err)
+		return err
+	}
+
+	intermediateCertificates, err := validatedCertificateChain(cert)
+	if err != nil {
+		return err
+	}
+	if len(intermediateCertificates) == 0 {
+		logger.Warnf("Expert certificate %s carries no issuing CA chain; relying on previously installed client CA trust", cert.CertificateID)
+		return nil
+	}
+	if err := installIssuingClientCA(provider, cert, intermediateCertificates); err != nil {
+		return fmt.Errorf("install issuing client CA: %w", err)
+	}
+
+	logger.Info("Installed expert-mode client CA trust", "certificateID", cert.CertificateID)
+	return nil
+}
+
+// asCustomCertificate resolves a certificate that Temporal may have round-tripped
+// into a map back into its concrete type.
+func asCustomCertificate(certificate interface{}) (*hyperscalermodels.CustomCertificate, error) {
+	if directCert, ok := certificate.(*hyperscalermodels.CustomCertificate); ok {
+		return directCert, nil
+	}
+	certMap, ok := certificate.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid certificate type: %T", certificate)
+	}
+	cert, err := convertMapToCustomCertificate(certMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert certificate map to struct: %v", err)
+	}
+	return cert, nil
+}
+
+// installCertificateOnVSAWithPasswordAuth installs a new certificate through
+// ONTAP REST using the bootstrap admin username and password.
+func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordAuth(ctx context.Context, pool *datamodel.Pool, certificate interface{}, secret interface{}) error {
+	logger := util.GetLogger(ctx)
+	logger.Infof("Installing certificate with username and password authentication for pool %s", pool.UUID)
+
+	provider, err := a.passwordAuthProvider(ctx, pool)
+	if err != nil {
+		return err
+	}
 
 	var cert *hyperscalermodels.CustomCertificate
 	var secretObj *hyperscalermodels.CustomSecret
@@ -1176,22 +1570,48 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 	vserverName := resolveVserverName(pool)
 	logger.Infof("Resolved vserver name (password auth): %q (deploymentName: %q)", vserverName, pool.DeploymentName)
 
+	intermediateCertificates, err := validatedCertificateChain(cert)
+	if err != nil {
+		return err
+	}
+	if len(intermediateCertificates) > 0 {
+		if err := installIssuingClientCA(provider, cert, intermediateCertificates); err != nil {
+			return fmt.Errorf("install issuing client CA: %w", err)
+		}
+	}
+
+	certificateCommonName := strings.TrimSpace(cert.SubjectCommonName)
+	if certificateCommonName == "" {
+		certificateCommonName = strings.TrimSpace(pool.PoolCredentials.Username)
+	}
+	if certificateCommonName == "" {
+		return fmt.Errorf("certificate %s has no subject common name", cert.CertificateID)
+	}
 	installParams := vsa.InstallServerCertificateParams{
-		SvmName:         vserverName,
-		CertificateName: cert.CertificateID,
-		Certificate:     cert.PemCertificate,
-		PrivateKey:      secretObj.SecretVersion.Value,
-		CertificateType: "server",
-		CommonName:      username,
+		SvmName:                  vserverName,
+		CertificateName:          cert.CertificateID,
+		Certificate:              cert.PemCertificate,
+		PrivateKey:               secretObj.SecretVersion.Value,
+		IntermediateCertificates: intermediateCertificates,
+		CertificateType:          "server",
+		CommonName:               certificateCommonName,
 	}
 
 	_, err = provider.InstallServerCertificate(installParams)
 	if err != nil {
+		if isDuplicateCertificateError(err) {
+			logger.Infof("Certificate %s is already installed on VSA; continuing idempotent password-auth reconciliation", cert.CertificateID)
+			err = nil
+		}
 		if isSVMNotFoundError(err) && vserverName != pool.DeploymentName {
 			logger.Warnf("SVM %q not found (password auth), retrying with deployment name: %q", vserverName, pool.DeploymentName)
 			vserverName = pool.DeploymentName
 			installParams.SvmName = pool.DeploymentName
 			_, err = provider.InstallServerCertificate(installParams)
+			if isDuplicateCertificateError(err) {
+				logger.Infof("Certificate %s is already installed on fallback SVM; continuing idempotent password-auth reconciliation", cert.CertificateID)
+				err = nil
+			}
 		}
 		if err != nil {
 			logger.Errorf("Failed to install certificate on VSA with password auth: %v", err)
@@ -1240,7 +1660,7 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 	coreCert := &models.Certificate{
 		SignedCertificate:        cert.PemCertificate,
 		PrivateKey:               secretObj.SecretVersion.Value,
-		InterMediateCertificates: []string{},
+		InterMediateCertificates: intermediateCertificates,
 		CommonName:               cert.SubjectCommonName,
 	}
 
@@ -1252,12 +1672,16 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 
 // isCertificateExpired checks if a certificate is expired
 func (a *RotateVcpToVsaCertificateActivity) isCertificateExpired(ctx context.Context, certificateID string) (bool, error) {
+	return a.isCertificateExpiredAtCA(ctx, certificateID, defaultCertificateCaURI())
+}
+
+func (a *RotateVcpToVsaCertificateActivity) isCertificateExpiredAtCA(ctx context.Context, certificateID, caURI string) (bool, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Checking if certificate %s is expired", certificateID)
 
-	// Create minimal PoolCredentials for certificate lookup (CaURI will fallback to env vars)
 	poolCredentials := &datamodel.PoolCredentials{
 		CertificateID: certificateID,
+		CaURI:         caURI,
 	}
 
 	certificate, err := getCertificateFromCacheOrSecretManager(ctx, poolCredentials)
@@ -1315,6 +1739,82 @@ func parseCertificateExpiration(pemCertificate string) (time.Time, error) {
 	return cert.NotAfter, nil
 }
 
+func validatedCertificateChain(cert *hyperscalermodels.CustomCertificate) ([]string, error) {
+	if cert == nil {
+		return nil, errors.New("certificate is nil")
+	}
+	chain := make([]string, 0, len(cert.PemCertificateChain))
+	for _, certificatePEM := range cert.PemCertificateChain {
+		if trimmed := strings.TrimSpace(certificatePEM); trimmed != "" {
+			chain = append(chain, trimmed)
+		}
+	}
+	if len(chain) == 0 {
+		return nil, nil
+	}
+
+	leafBlock, _ := pem.Decode([]byte(cert.PemCertificate))
+	issuerBlock, _ := pem.Decode([]byte(chain[0]))
+	if leafBlock == nil || issuerBlock == nil {
+		return nil, fmt.Errorf("certificate %s leaf or issuing CA PEM cannot be decoded", cert.CertificateID)
+	}
+	leaf, err := x509.ParseCertificate(leafBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificate %s leaf: %w", cert.CertificateID, err)
+	}
+	issuer, err := x509.ParseCertificate(issuerBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificate %s issuing CA: %w", cert.CertificateID, err)
+	}
+	if leaf.Issuer.String() != issuer.Subject.String() {
+		return nil, fmt.Errorf("certificate %s chain ordering is invalid: first chain certificate subject %q does not match leaf issuer %q",
+			cert.CertificateID, issuer.Subject.String(), leaf.Issuer.String())
+	}
+	child := issuer
+	for index := 1; index < len(chain); index++ {
+		block, _ := pem.Decode([]byte(chain[index]))
+		if block == nil {
+			return nil, fmt.Errorf("certificate %s chain entry %d cannot be decoded", cert.CertificateID, index)
+		}
+		parent, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse certificate %s chain entry %d: %w", cert.CertificateID, index, err)
+		}
+		if child.Issuer.String() != parent.Subject.String() {
+			return nil, fmt.Errorf("certificate %s chain ordering is invalid at entry %d", cert.CertificateID, index)
+		}
+		child = parent
+	}
+	return chain, nil
+}
+
+func installIssuingClientCA(provider vsa.Provider, cert *hyperscalermodels.CustomCertificate, chain []string) error {
+	if len(chain) == 0 {
+		return errors.New("issuing CA certificate is required")
+	}
+	for index := len(chain) - 1; index >= 0; index-- {
+		commonName := strings.TrimSpace(cert.CaName)
+		if block, _ := pem.Decode([]byte(chain[index])); block != nil {
+			if caCertificate, err := x509.ParseCertificate(block.Bytes); err == nil && strings.TrimSpace(caCertificate.Subject.CommonName) != "" {
+				commonName = strings.TrimSpace(caCertificate.Subject.CommonName)
+			}
+		}
+		if commonName == "" {
+			return fmt.Errorf("certificate %s chain entry %d common name is empty", cert.CertificateID, index)
+		}
+		_, err := provider.InstallClientCA(vsa.InstallClientCAParams{
+			SvmName:         "",
+			CertificateName: commonName,
+			Certificate:     chain[index],
+			CommonName:      commonName,
+		})
+		if err != nil && !isDuplicateCertificateError(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // deriveCANameFromPEM extracts the issuer Common Name from the certificate PEM.
 // This is the same CA name ONTAP derives when it installs the cert (from the chain in the PEM),
 // and should be used for "security ssl modify" so the CLI finds the cert.
@@ -1370,13 +1870,27 @@ func serialHexFromPEM(pemCertificate string) (string, error) {
 // certificateNeedsRotation determines if a certificate needs to be rotated
 // Checks both time-based rotation (configurable percentage of lifetime via CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE) and actual certificate expiration
 func (a *RotateVcpToVsaCertificateActivity) certificateNeedsRotation(ctx context.Context, pool *datamodel.Pool, certificateID string) (bool, error) {
+	return a.certificateNeedsRotationWithCA(
+		ctx,
+		pool,
+		certificateID,
+		pool.PoolCredentials.GetCaURIWithFallback(),
+	)
+}
+
+func (a *RotateVcpToVsaCertificateActivity) certificateNeedsRotationWithCA(
+	ctx context.Context,
+	pool *datamodel.Pool,
+	certificateID, certificateCAURI string,
+) (bool, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Checking if certificate %s needs rotation for pool %s", certificateID, pool.UUID)
 
-	// Create PoolCredentials for certificate lookup (use pool's CaURI)
+	// Create PoolCredentials for certificate lookup using the certificate's
+	// persisted issuer. Expert credentials can have a different active CA.
 	poolCredentials := &datamodel.PoolCredentials{
 		CertificateID: certificateID,
-		CaURI:         pool.PoolCredentials.GetCaURIWithFallback(),
+		CaURI:         certificateCAURI,
 	}
 
 	// Get certificate from cache or secret manager
@@ -1494,6 +2008,11 @@ func (a *RotateVcpToVsaCertificateActivity) certificateNeedsRotation(ctx context
 // Parameters:
 //   - certificate: Can be a *hyperscalermodels.CustomCertificate, map[string]interface{}, or nil
 //   - If certificate is nil, uses certificate ID from pool credentials
+func isCertificateValidityError(err error) bool {
+	var certificateError x509.CertificateInvalidError
+	return errors.As(err, &certificateError) && certificateError.Reason == x509.Expired
+}
+
 func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx context.Context, pool *datamodel.Pool, certificate interface{}) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Starting certificate connectivity test for pool %s", pool.UUID)
@@ -1558,6 +2077,10 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 	// Note: Password is not required for certificate-based REST API connectivity testing.
 	// Password is only needed for SSH operations (like ModifySSL), not for REST API calls.
 	// The provider will use certificate authentication for REST API calls.
+	certificateCaURI := pool.PoolCredentials.GetCaURIWithFallback()
+	if certificate != nil && pool.PoolCredentials.StagedCaURI != "" {
+		certificateCaURI = pool.PoolCredentials.StagedCaURI
+	}
 	testNode := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
 		Nodes:          dbNodes,
 		DeploymentName: pool.DeploymentName,
@@ -1566,7 +2089,7 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 			SecretID:      pool.PoolCredentials.SecretID,
 			CertificateID: certificateID,
 			AuthType:      pool.PoolCredentials.AuthType,
-			CaURI:         pool.PoolCredentials.GetCaURIWithFallback(),
+			CaURI:         certificateCaURI,
 			Username:      username,
 		},
 	})
@@ -1588,12 +2111,7 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 	}
 
 	if err != nil {
-		errMsg := err.Error()
-
-		isTrulyExpired := strings.Contains(errMsg, "certificate has expired") ||
-			strings.Contains(errMsg, "certificate has expired or is not yet valid")
-
-		if isTrulyExpired {
+		if isCertificateValidityError(err) && certificate == nil {
 			logger.Warnf("Certificate %s is expired - falling back to password authentication for connectivity test", certificateID)
 			passwordErr := a.testPasswordConnectivity(ctx, pool, "")
 			if passwordErr == nil {
@@ -1613,7 +2131,7 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 }
 
 // revokeOldCertificate revokes the old certificate and cleans up resources
-func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID string, cloudService hyperscaler2.Services) error {
+func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID, caURI string, cloudService hyperscaler2.Services) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Starting revocation of old certificate: %s", certificateID)
 
@@ -1622,9 +2140,9 @@ func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Con
 	removeFromCertAuthCache(certificateID)
 	logger.Debug("Successfully removed certificate from cache")
 
-	// Create minimal PoolCredentials for certificate revocation (CaURI will fallback to env vars)
 	poolCredentials := &datamodel.PoolCredentials{
 		CertificateID: certificateID,
+		CaURI:         caURI,
 	}
 
 	// Revoke certificate and delete from secret manager
@@ -1702,14 +2220,22 @@ func (a *RotateVcpToVsaCertificateActivity) rollbackCertificateRotation(ctx cont
 
 	var rollbackErrors []string
 
-	// 1. Revoke and delete the new certificate from the cloud provider's certificate authority service
+	// A candidate referenced by certificate_id_new/staged_ca_uri is deliberately
+	// retained for retry after any post-stage failure.
+	if resources.DBReferenced {
+		logger.Infof("Preserving staged certificate %s for retry", resources.NewCertificateID)
+		return nil
+	}
+
+	// Revoke only a candidate that failed before the database referenced it.
 	if resources.NewCertificateID != "" {
 		logger.Debugf("Revoking and deleting new certificate: %s", resources.NewCertificateID)
 		// Create PoolCredentials for certificate revocation (use pool's CaURI if available)
 		poolCredentials := &datamodel.PoolCredentials{
 			CertificateID: resources.NewCertificateID,
+			CaURI:         resources.NewCaURI,
 		}
-		if resources.Pool != nil && resources.Pool.PoolCredentials != nil {
+		if poolCredentials.CaURI == "" && resources.Pool != nil && resources.Pool.PoolCredentials != nil {
 			poolCredentials.CaURI = resources.Pool.PoolCredentials.GetCaURIWithFallback()
 		}
 		err := revokeCertificateAndDeleteFromCacheAndSecretManager(resources.GcpService, poolCredentials)
@@ -2098,38 +2624,70 @@ func (a *RotateVcpToVsaCertificateActivity) checkAndSyncPasswordConnectivity(ctx
 }
 
 // checkAndSyncCertificateConnectivity checks certificate connectivity with certificate_id and certificate_id_new
-func (a *RotateVcpToVsaCertificateActivity) checkAndSyncCertificateConnectivity(ctx context.Context, pool *datamodel.Pool) error {
+func (a *RotateVcpToVsaCertificateActivity) checkAndSyncCertificateConnectivity(
+	ctx context.Context,
+	pool *datamodel.Pool,
+) (bool, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Checking certificate connectivity for pool %s", pool.UUID)
 
 	err := a.testCertificateConnectivity(ctx, pool, nil)
 	if err == nil {
 		logger.Debug("Connectivity test passed with certificate_id - no action needed")
-		return nil
+		return false, nil
 	}
 	logger.Warnf("Connectivity test failed with certificate_id: %v", err)
 
 	if pool.PoolCredentials.CertificateIDNew == "" {
 		logger.Warnf("No certificate_id_new available for pool %s, cannot test alternative certificate", pool.UUID)
-		return vsaerrors.NewVCPError(vsaerrors.ErrPoolConnectivityNoStagedCredential, fmt.Errorf("certificate connectivity failed with certificate_id and no certificate_id_new available: %v", err))
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrPoolConnectivityNoStagedCredential, fmt.Errorf("certificate connectivity failed with certificate_id and no certificate_id_new available: %v", err))
+	}
+
+	stagedCAURI := pool.PoolCredentials.StagedCaURI
+	if stagedCAURI == "" {
+		inferredCAURI, inferred := inferIssuerForNewerLegacyStagedCert(
+			pool.PoolCredentials.CertificateID,
+			pool.PoolCredentials.CertificateIDNew,
+			"",
+			pool.PoolCredentials.CaURI,
+			defaultCertificateCaURI(),
+		)
+		if !inferred {
+			return false, vsaerrors.NewVCPError(
+				vsaerrors.ErrPoolConnectivityNoStagedCredential,
+				fmt.Errorf(
+					"unpaired certificate_id_new %s cannot be safely associated with the desired CA",
+					pool.PoolCredentials.CertificateIDNew,
+				),
+			)
+		}
+		stagedCAURI = inferredCAURI
+		if updateErr := a.updatePoolCertificateIDNew(
+			ctx,
+			pool,
+			pool.PoolCredentials.CertificateIDNew,
+			stagedCAURI,
+		); updateErr != nil {
+			return false, vsaerrors.NewVCPError(
+				vsaerrors.ErrCertificateStagingFailed,
+				fmt.Errorf("backfill staged certificate issuer before connectivity fallback: %w", updateErr),
+			)
+		}
+		pool.PoolCredentials.StagedCaURI = stagedCAURI
 	}
 
 	logger.Debug("Testing connectivity with certificate_id_new (staging certificate)")
 
 	tempPool := *pool
-	tempPool.PoolCredentials = &datamodel.PoolCredentials{
-		CertificateID:    pool.PoolCredentials.CertificateIDNew,
-		CertificateIDNew: pool.PoolCredentials.CertificateID,
-		SecretID:         pool.PoolCredentials.SecretID,
-		SecretIDNew:      pool.PoolCredentials.SecretIDNew,
-		AuthType:         pool.PoolCredentials.AuthType,
-		Password:         pool.PoolCredentials.Password,
-	}
+	tempCredentials := *pool.PoolCredentials
+	tempCredentials.CertificateID = pool.PoolCredentials.CertificateIDNew
+	tempCredentials.CaURI = stagedCAURI
+	tempPool.PoolCredentials = &tempCredentials
 
 	err = a.testCertificateConnectivity(ctx, &tempPool, nil)
 	if err != nil {
 		logger.Errorf("Connectivity test also failed with certificate_id_new: %v", err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateConnectivityTestFailed, fmt.Errorf("certificate connectivity failed with both certificate_id and certificate_id_new: %v", err))
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrCertificateConnectivityTestFailed, fmt.Errorf("certificate connectivity failed with both certificate_id and certificate_id_new: %v", err))
 	}
 
 	logger.Info("Connectivity test passed with certificate_id_new - swapping certificate_id and certificate_id_new")
@@ -2137,11 +2695,11 @@ func (a *RotateVcpToVsaCertificateActivity) checkAndSyncCertificateConnectivity(
 	err = a.swapCertificateIDs(ctx, pool.UUID, pool.PoolCredentials.CertificateIDNew, pool.PoolCredentials.SecretID)
 	if err != nil {
 		logger.Errorf("Failed to swap certificate_id and certificate_id_new: %v", err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateIDSwapFailed, fmt.Errorf("failed to swap certificate IDs after connectivity test: %v", err))
+		return false, vsaerrors.NewVCPError(vsaerrors.ErrCertificateIDSwapFailed, fmt.Errorf("failed to swap certificate IDs after connectivity test: %v", err))
 	}
 
 	logger.Info("Successfully swapped certificate_id and certificate_id_new based on connectivity test")
-	return nil
+	return true, nil
 }
 
 // testPasswordConnectivity tests connectivity to VSA cluster with specified password
@@ -2515,6 +3073,7 @@ func (a *RotateVcpToVsaCertificateActivity) updatePoolSecretIDNew(ctx context.Co
 		"password":           currentPool.PoolCredentials.Password,
 		"username":           currentPool.PoolCredentials.Username, // Preserve username field
 		"ca_uri":             currentPool.PoolCredentials.CaURI,    // Preserve ca_uri field
+		"staged_ca_uri":      currentPool.PoolCredentials.StagedCaURI,
 	}
 
 	// Save the updated pool using UpdatePoolFields to update only the secret_id_new
@@ -2532,7 +3091,7 @@ func (a *RotateVcpToVsaCertificateActivity) updatePoolSecretIDNew(ctx context.Co
 }
 
 // updatePoolCertificateIDNew updates the pool's certificate_id_new field in the database
-func (a *RotateVcpToVsaCertificateActivity) updatePoolCertificateIDNew(ctx context.Context, pool *datamodel.Pool, newCertificateID string) error {
+func (a *RotateVcpToVsaCertificateActivity) updatePoolCertificateIDNew(ctx context.Context, pool *datamodel.Pool, newCertificateID, newCaURI string) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Updating pool %s certificate_id_new to %s", pool.UUID, newCertificateID)
 
@@ -2556,23 +3115,18 @@ func (a *RotateVcpToVsaCertificateActivity) updatePoolCertificateIDNew(ctx conte
 		return fmt.Errorf("pool %s has no credentials", pool.UUID)
 	}
 
-	// Preserve all existing pool_credentials fields and only update the certificate_id_new
-	updatedCredentials := map[string]interface{}{
-		"certificate_id_new": newCertificateID,                          // Update to new certificate ID
-		"certificate_id":     currentPool.PoolCredentials.CertificateID, // Preserve existing certificate ID
-		"secret_id":          currentPool.PoolCredentials.SecretID,      // Preserve existing secret ID
-		"secret_id_new":      currentPool.PoolCredentials.SecretIDNew,   // Preserve existing fields
-		"auth_type":          currentPool.PoolCredentials.AuthType,
-		"password":           currentPool.PoolCredentials.Password,
-		"username":           currentPool.PoolCredentials.Username, // Preserve username field
-		"ca_uri":             currentPool.PoolCredentials.CaURI,    // Preserve ca_uri field
-	}
-
-	// Save the updated pool using UpdatePoolFields to update only the certificate_id_new
-	updates := map[string]interface{}{
-		"pool_credentials": updatedCredentials,
-	}
-	err = a.SE.UpdatePoolFields(ctx, pool.UUID, updates)
+	updatedCredentials := *currentPool.PoolCredentials
+	updatedCredentials.CertificateIDNew = newCertificateID
+	updatedCredentials.StagedCaURI = newCaURI
+	err = a.SE.CompareAndSwapPoolCredentials(
+		ctx,
+		pool.UUID,
+		currentPool.PoolCredentials.AuthType,
+		currentPool.PoolCredentials.CertificateIDNew,
+		currentPool.PoolCredentials.StagedCaURI,
+		env.GetCertificateRotationPoolStates(),
+		&updatedCredentials,
+	)
 	if err != nil {
 		logger.Errorf("Failed to update pool certificate_id_new in database: %v", err)
 		return err
@@ -2626,6 +3180,7 @@ func (a *RotateVcpToVsaCertificateActivity) swapSecretIDs(ctx context.Context, p
 		"password":           currentPool.PoolCredentials.Password,
 		"username":           currentPool.PoolCredentials.Username, // Preserve username field
 		"ca_uri":             currentPool.PoolCredentials.CaURI,    // Preserve ca_uri field
+		"staged_ca_uri":      currentPool.PoolCredentials.StagedCaURI,
 	}
 
 	// Save the updated pool using UpdatePoolFields
@@ -2987,7 +3542,8 @@ func (a *RotateVcpToVsaCertificateActivity) PopulateMissingCaURI(ctx context.Con
 
 		// Preserve all existing pool_credentials fields and add ca_uri
 		updatedCredentials := map[string]interface{}{
-			"ca_uri":             caURI,                                        // Add ca_uri
+			"ca_uri":             caURI, // Add ca_uri
+			"staged_ca_uri":      currentPool.PoolCredentials.StagedCaURI,
 			"secret_id":          currentPool.PoolCredentials.SecretID,         // Preserve existing
 			"secret_id_new":      currentPool.PoolCredentials.SecretIDNew,      // Preserve existing
 			"certificate_id":     currentPool.PoolCredentials.CertificateID,    // Preserve existing

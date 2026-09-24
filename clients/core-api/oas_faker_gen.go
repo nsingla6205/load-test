@@ -919,6 +919,32 @@ func (s *ExternalClusterOnboardRequestV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ForcePoolCertificateRotationRequestV1) SetFake() {
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolId.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolIds = nil
+			for i := 0; i < 0; i++ {
+				var elem uuid.UUID
+				{
+					elem = uuid.New()
+				}
+				s.PoolIds = append(s.PoolIds, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *GcpKmsConfigV1) SetFake() {
 	{
 		{
@@ -1979,12 +2005,167 @@ func (s *OptString) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptUUID) SetFake() {
+	var elem uuid.UUID
+	{
+		elem = uuid.New()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptUpdateVolumeDatabaseValueVolumeAttributesV1) SetFake() {
 	var elem UpdateVolumeDatabaseValueVolumeAttributesV1
 	{
 		elem.SetFake()
 	}
 	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetFake() {
+	{
+		{
+			s.PoolId = uuid.New()
+		}
+	}
+	{
+		{
+			s.JobId = uuid.New()
+		}
+	}
+	{
+		{
+			s.WorkflowId = "string"
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.Error.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenancePoolStatusV1Status) SetFake() {
+	*s = PoolCertificateMaintenancePoolStatusV1StatusNEW
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenanceResponseV1) SetFake() {
+	{
+		{
+			s.JobId = uuid.New()
+		}
+	}
+	{
+		{
+			s.WorkflowId = "string"
+		}
+	}
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolIds = nil
+			for i := 0; i < 0; i++ {
+				var elem uuid.UUID
+				{
+					elem = uuid.New()
+				}
+				s.PoolIds = append(s.PoolIds, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenanceSelectionV1) SetFake() {
+	*s = PoolCertificateMaintenanceSelectionV1All
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetFake() {
+	{
+		{
+			s.JobId = uuid.New()
+		}
+	}
+	{
+		{
+			s.WorkflowId = "string"
+		}
+	}
+	{
+		{
+			s.Operation.SetFake()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.DesiredCaUri.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalPools = int(0)
+		}
+	}
+	{
+		{
+			s.CompletedPools = int(0)
+		}
+	}
+	{
+		{
+			s.FailedPools = int(0)
+		}
+	}
+	{
+		{
+			s.InProgressPools = int(0)
+		}
+	}
+	{
+		{
+			s.Pools = nil
+			for i := 0; i < 0; i++ {
+				var elem PoolCertificateMaintenancePoolStatusV1
+				{
+					elem.SetFake()
+				}
+				s.Pools = append(s.Pools, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenanceStatusResponseV1Operation) SetFake() {
+	*s = PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION
+}
+
+// SetFake set fake values.
+func (s *PoolCertificateMaintenanceStatusResponseV1Status) SetFake() {
+	*s = PoolCertificateMaintenanceStatusResponseV1StatusNEW
 }
 
 // SetFake set fake values.
@@ -2299,6 +2480,32 @@ func (s *PoolV1ServiceLevel) SetFake() {
 // SetFake set fake values.
 func (s *PoolV1StoragePoolState) SetFake() {
 	*s = PoolV1StoragePoolStateSTATEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) SetFake() {
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolId.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolIds = nil
+			for i := 0; i < 0; i++ {
+				var elem uuid.UUID
+				{
+					elem = uuid.New()
+				}
+				s.PoolIds = append(s.PoolIds, elem)
+			}
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -4136,6 +4343,33 @@ func (s *V1ExpertModeVolumeUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1ForcePoolCertificateRotationBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ForcePoolCertificateRotationBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ForcePoolCertificateRotationInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ForcePoolCertificateRotationInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ForcePoolCertificateRotationUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ForcePoolCertificateRotationUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1GetAddressRangeBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -4611,6 +4845,78 @@ func (s *V1GetPoolBadRequest) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1GetPoolBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateAuthorityReconciliationStatusBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateAuthorityReconciliationStatusBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateAuthorityReconciliationStatusNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateAuthorityReconciliationStatusNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateRotationStatusBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateRotationStatusBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateRotationStatusInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateRotationStatusInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateRotationStatusNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateRotationStatusNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolCertificateRotationStatusUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolCertificateRotationStatusUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.
@@ -5374,6 +5680,33 @@ func (s *V1OnboardExternalClusterUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1OnboardExternalClusterUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolCertificateAuthorityBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolCertificateAuthorityBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolCertificateAuthorityInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolCertificateAuthorityInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolCertificateAuthorityUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolCertificateAuthorityUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

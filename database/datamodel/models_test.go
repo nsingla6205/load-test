@@ -1222,11 +1222,12 @@ func TestExpertModeCredentials_ValueAndScan(t *testing.T) {
 	emc := ExpertModeCredentials{
 		ExpertModeCredential: []*ExpertModeCredential{
 			{
-				SecretID:      "secret1",
-				CertificateID: "cert1",
-				Password:      "pass",
-				Username:      "user",
-				AuthType:      1,
+				SecretID:           "secret1",
+				CertificateID:      "cert1",
+				Password:           "pass",
+				Username:           "user",
+				UsernamePreCertFix: "certificate-user",
+				AuthType:           1,
 			},
 		},
 	}
@@ -1253,11 +1254,12 @@ func TestExpertModeCredentials_ValueAndScan(t *testing.T) {
 // Unit tests for ExpertModeCredential's Value and Scan methods
 func TestExpertModeCredential_ValueAndScan(t *testing.T) {
 	cred := ExpertModeCredential{
-		SecretID:      "secret1",
-		CertificateID: "cert1",
-		Password:      "pass",
-		Username:      "user",
-		AuthType:      1,
+		SecretID:           "secret1",
+		CertificateID:      "cert1",
+		Password:           "pass",
+		Username:           "user",
+		UsernamePreCertFix: "certificate-user",
+		AuthType:           1,
 	}
 	val, err := cred.Value()
 	assert.NoError(t, err)

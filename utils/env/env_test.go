@@ -2413,6 +2413,17 @@ func TestParseCaURI(t *testing.T) {
 		assert.Equal(t, "provided-pool", poolName)
 		assert.Equal(t, "provided-ca", caName)
 	})
+
+	t.Run("WhenCaURIHasWhitespace_ShouldTrimComponents", func(t *testing.T) {
+		CaPoolDeployedProjectID = "env-project"
+		CaPoolName = "env-pool"
+		CaName = "env-ca"
+
+		projectID, poolName, caName := ParseCaURI("  provided-project / provided-pool / provided-ca  ")
+		assert.Equal(t, "provided-project", projectID)
+		assert.Equal(t, "provided-pool", poolName)
+		assert.Equal(t, "provided-ca", caName)
+	})
 }
 
 func TestGetCertificateRotationThresholdPercentage(t *testing.T) {

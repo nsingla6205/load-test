@@ -42,7 +42,7 @@ func RotateVsaCertificateAndPasswordWorkflow(ctx workflow.Context) error {
 	authType1PasswordRotationEnabled := env.GetBool("ENABLE_VSA_AUTHTYPE1_PASSWORD_ROTATION", false)
 
 	if !certificateRotationEnabled && !passwordRotationEnabled {
-		logger.Debug("Both certificate and password rotation disabled. Skipping workflow execution.")
+		logger.Debug("Certificate and password rotation disabled. Skipping workflow execution.")
 		return nil
 	}
 
@@ -102,10 +102,6 @@ func RotateVsaCertificateAndPasswordWorkflow(ctx workflow.Context) error {
 			logger.Info("Certificate pool batch retrieved", "batchNumber", certBatchNumber, "count", len(certPools), "hasMore", hasMoreCert)
 
 			if len(certPools) > 0 {
-				err = workflow.ExecuteActivity(ctx, rotateCertificateActivity.PopulateMissingCaURI, certPools).Get(ctx, nil)
-				if err != nil {
-					logger.Warn("Failed to populate missing ca_uri for some pools in batch", "error", err)
-				}
 				var batchFutures []workflow.Future
 				var batchPoolUUIDs []string
 				for _, pool := range certPools {

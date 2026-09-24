@@ -784,6 +784,22 @@ func TestServerRootCACertificateCollectionGet(t *testing.T) {
 	})
 }
 
+func TestServerRootCAGetCollectionParamsToONTAP_MapsProofFields(t *testing.T) {
+	certificateType := "client_ca"
+	name := "vcp-ca"
+	params := serverRootCAGetCollectionParamsToONTAP(&ServerRootCAGetCollectionParams{
+		BaseParams: BaseParams{
+			Fields: []string{"uuid", "name", "type", "public_certificate"},
+		},
+		CertificateType: &certificateType,
+		Name:            &name,
+	})
+
+	assert.Equal(t, []string{"uuid", "name", "type", "public_certificate"}, params.Fields)
+	assert.Equal(t, certificateType, nillable.FromPointer(params.Type))
+	assert.Equal(t, name, nillable.FromPointer(params.Name))
+}
+
 func TestRoleDelete(t *testing.T) {
 	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
 		transport := &mockTransport{err: errors.New("rest call failed")}

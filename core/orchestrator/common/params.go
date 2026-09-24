@@ -1839,3 +1839,23 @@ type PoolMaintenanceParams struct {
 	DisableAutoGiveBack bool
 	WorkflowID          string
 }
+
+// PoolCertificateMaintenanceSelection identifies the set of VSA pools targeted
+// by an on-demand certificate maintenance request.
+type PoolCertificateMaintenanceSelection string
+
+const (
+	PoolCertificateMaintenanceAll      PoolCertificateMaintenanceSelection = "all"
+	PoolCertificateMaintenancePoolList PoolCertificateMaintenanceSelection = "poolList"
+	PoolCertificateMaintenancePool     PoolCertificateMaintenanceSelection = "pool"
+)
+
+// PoolCertificateMaintenanceParams carries the immutable pool selection for
+// asynchronous certificate maintenance. For CA reconciliation, DesiredCAURI is
+// the Helm CA resolved at workflow start.
+type PoolCertificateMaintenanceParams struct {
+	SelectionType PoolCertificateMaintenanceSelection `json:"selectionType"`
+	PoolUUIDs     []string                            `json:"poolUUIDs,omitempty"`
+	DesiredCAURI  string                              `json:"desiredCAURI,omitempty"`
+	JobID         string                              `json:"jobID"`
+}

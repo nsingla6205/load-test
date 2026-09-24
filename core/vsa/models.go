@@ -1184,6 +1184,7 @@ type GetServerCertificateParams struct {
 	SvmName         string
 	CertificateName string
 	CertificateType string
+	Fields          []string
 }
 
 // DeleteServerCertificateParams represents the parameters for deleting a server certificate
@@ -1196,12 +1197,13 @@ type DeleteServerCertificateParams struct {
 
 // ServerCertificateResponse represents the response from certificate operations
 type ServerCertificateResponse struct {
-	UUID            string
-	Name            string
-	CommonName      string
-	CertificateType string
-	ExpiryTime      string
-	SerialNumber    string
+	UUID              string
+	Name              string
+	CommonName        string
+	PublicCertificate string
+	CertificateType   string
+	ExpiryTime        string
+	SerialNumber      string
 }
 
 // ModifySSLParams represents the parameters for modifying SSL configuration

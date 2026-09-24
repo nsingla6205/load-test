@@ -166,6 +166,14 @@ type Handler interface {
 	//
 	// POST /v1/expertMode/volumes/{name}:rename
 	V1ExpertModeVolumeRename(ctx context.Context, req *ExpertModeVolumeRenameV1, params V1ExpertModeVolumeRenameParams) (V1ExpertModeVolumeRenameRes, error)
+	// V1ForcePoolCertificateRotation implements v1_forcePoolCertificateRotation operation.
+	//
+	// Internal SRE endpoint that starts asynchronous forced certificate rotation for all
+	// certificate-auth pools, a list of pool UUIDs, or one pool UUID. The worker-side certificate
+	// rotation feature gates still apply.
+	//
+	// POST /v1/pools/forceCertificateRotation
+	V1ForcePoolCertificateRotation(ctx context.Context, req *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error)
 	// V1GetAddressRange implements v1_getAddressRange operation.
 	//
 	// Returns the address range identified by the given UUID.
@@ -218,6 +226,19 @@ type Handler interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1GetPoolCertificateAuthorityReconciliationStatus implements v1_getPoolCertificateAuthorityReconciliationStatus operation.
+	//
+	// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
+	//
+	// GET /v1/pools/reconcileCertificateAuthority
+	V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error)
+	// V1GetPoolCertificateRotationStatus implements v1_getPoolCertificateRotationStatus operation.
+	//
+	// Returns aggregate and per-pool progress for the forced certificate rotation job started by POST on
+	// this path.
+	//
+	// GET /v1/pools/forceCertificateRotation
+	V1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error)
 	// V1ListAccounts implements v1_listAccounts operation.
 	//
 	// Returns the description of all accounts.
@@ -288,6 +309,15 @@ type Handler interface {
 	//
 	// POST /v1/externalClusters/onboard
 	V1OnboardExternalCluster(ctx context.Context, req *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)
+	// V1ReconcilePoolCertificateAuthority implements v1_reconcilePoolCertificateAuthority operation.
+	//
+	// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's
+	// Helm-configured CA for all certificate-auth pools, a list of pool UUIDs, or one pool UUID.
+	// Fleet-wide requests persist the accepted CA URI after Temporal accepts the workflow. This
+	// operation is never triggered by worker startup.
+	//
+	// POST /v1/pools/reconcileCertificateAuthority
+	V1ReconcilePoolCertificateAuthority(ctx context.Context, req *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error)
 	// V1RefreshRbacForExpertModePoolById implements v1_refreshRbacForExpertModePoolById operation.
 	//
 	// Triggers a workflow to update RBAC hash for a specific ONTAP mode pool identified by UUID,
@@ -408,10 +438,6 @@ type Handler interface {
 	//
 	// POST /v1/clusters/{clusterId}/upgrade
 	V1UpgradeCluster(ctx context.Context, req *ClusterUpgradeRequestV1, params V1UpgradeClusterParams) (V1UpgradeClusterRes, error)
-	// NewError creates *ErrorStatusCode from error returned by handler.
-	//
-	// Used for common default response.
-	NewError(ctx context.Context, err error) *ErrorStatusCode
 }
 
 // Server implements http server based on OpenAPI v3 specification and

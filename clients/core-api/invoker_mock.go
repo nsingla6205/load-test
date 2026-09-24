@@ -1448,6 +1448,65 @@ func (_c *MockInvoker_V1ExpertModeVolumeRename_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// V1ForcePoolCertificateRotation provides a mock function with given fields: ctx, request
+func (_m *MockInvoker) V1ForcePoolCertificateRotation(ctx context.Context, request *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error) {
+	ret := _m.Called(ctx, request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ForcePoolCertificateRotation")
+	}
+
+	var r0 V1ForcePoolCertificateRotationRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ForcePoolCertificateRotationRequestV1) V1ForcePoolCertificateRotationRes); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ForcePoolCertificateRotationRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ForcePoolCertificateRotationRequestV1) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ForcePoolCertificateRotation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ForcePoolCertificateRotation'
+type MockInvoker_V1ForcePoolCertificateRotation_Call struct {
+	*mock.Call
+}
+
+// V1ForcePoolCertificateRotation is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *ForcePoolCertificateRotationRequestV1
+func (_e *MockInvoker_Expecter) V1ForcePoolCertificateRotation(ctx interface{}, request interface{}) *MockInvoker_V1ForcePoolCertificateRotation_Call {
+	return &MockInvoker_V1ForcePoolCertificateRotation_Call{Call: _e.mock.On("V1ForcePoolCertificateRotation", ctx, request)}
+}
+
+func (_c *MockInvoker_V1ForcePoolCertificateRotation_Call) Run(run func(ctx context.Context, request *ForcePoolCertificateRotationRequestV1)) *MockInvoker_V1ForcePoolCertificateRotation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*ForcePoolCertificateRotationRequestV1))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ForcePoolCertificateRotation_Call) Return(_a0 V1ForcePoolCertificateRotationRes, _a1 error) *MockInvoker_V1ForcePoolCertificateRotation_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ForcePoolCertificateRotation_Call) RunAndReturn(run func(context.Context, *ForcePoolCertificateRotationRequestV1) (V1ForcePoolCertificateRotationRes, error)) *MockInvoker_V1ForcePoolCertificateRotation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1GetAddressRange provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (V1GetAddressRangeRes, error) {
 	ret := _m.Called(ctx, params)
@@ -1916,6 +1975,124 @@ func (_c *MockInvoker_V1GetPool_Call) Return(_a0 V1GetPoolRes, _a1 error) *MockI
 }
 
 func (_c *MockInvoker_V1GetPool_Call) RunAndReturn(run func(context.Context, V1GetPoolParams) (V1GetPoolRes, error)) *MockInvoker_V1GetPool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatus provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetPoolCertificateAuthorityReconciliationStatus")
+	}
+
+	var r0 V1GetPoolCertificateAuthorityReconciliationStatusRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolCertificateAuthorityReconciliationStatusParams) V1GetPoolCertificateAuthorityReconciliationStatusRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetPoolCertificateAuthorityReconciliationStatusRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1GetPoolCertificateAuthorityReconciliationStatusParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetPoolCertificateAuthorityReconciliationStatus'
+type MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call struct {
+	*mock.Call
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1GetPoolCertificateAuthorityReconciliationStatusParams
+func (_e *MockInvoker_Expecter) V1GetPoolCertificateAuthorityReconciliationStatus(ctx interface{}, params interface{}) *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call {
+	return &MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call{Call: _e.mock.On("V1GetPoolCertificateAuthorityReconciliationStatus", ctx, params)}
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call) Run(run func(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams)) *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1GetPoolCertificateAuthorityReconciliationStatusParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call) Return(_a0 V1GetPoolCertificateAuthorityReconciliationStatusRes, _a1 error) *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call) RunAndReturn(run func(context.Context, V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error)) *MockInvoker_V1GetPoolCertificateAuthorityReconciliationStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1GetPoolCertificateRotationStatus provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1GetPoolCertificateRotationStatus(ctx context.Context, params V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetPoolCertificateRotationStatus")
+	}
+
+	var r0 V1GetPoolCertificateRotationStatusRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolCertificateRotationStatusParams) V1GetPoolCertificateRotationStatusRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetPoolCertificateRotationStatusRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1GetPoolCertificateRotationStatusParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1GetPoolCertificateRotationStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetPoolCertificateRotationStatus'
+type MockInvoker_V1GetPoolCertificateRotationStatus_Call struct {
+	*mock.Call
+}
+
+// V1GetPoolCertificateRotationStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1GetPoolCertificateRotationStatusParams
+func (_e *MockInvoker_Expecter) V1GetPoolCertificateRotationStatus(ctx interface{}, params interface{}) *MockInvoker_V1GetPoolCertificateRotationStatus_Call {
+	return &MockInvoker_V1GetPoolCertificateRotationStatus_Call{Call: _e.mock.On("V1GetPoolCertificateRotationStatus", ctx, params)}
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateRotationStatus_Call) Run(run func(ctx context.Context, params V1GetPoolCertificateRotationStatusParams)) *MockInvoker_V1GetPoolCertificateRotationStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1GetPoolCertificateRotationStatusParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateRotationStatus_Call) Return(_a0 V1GetPoolCertificateRotationStatusRes, _a1 error) *MockInvoker_V1GetPoolCertificateRotationStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1GetPoolCertificateRotationStatus_Call) RunAndReturn(run func(context.Context, V1GetPoolCertificateRotationStatusParams) (V1GetPoolCertificateRotationStatusRes, error)) *MockInvoker_V1GetPoolCertificateRotationStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2566,6 +2743,65 @@ func (_c *MockInvoker_V1OnboardExternalCluster_Call) Return(_a0 V1OnboardExterna
 }
 
 func (_c *MockInvoker_V1OnboardExternalCluster_Call) RunAndReturn(run func(context.Context, *ExternalClusterOnboardRequestV1, V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)) *MockInvoker_V1OnboardExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ReconcilePoolCertificateAuthority provides a mock function with given fields: ctx, request
+func (_m *MockInvoker) V1ReconcilePoolCertificateAuthority(ctx context.Context, request *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error) {
+	ret := _m.Called(ctx, request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ReconcilePoolCertificateAuthority")
+	}
+
+	var r0 V1ReconcilePoolCertificateAuthorityRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ReconcilePoolCertificateAuthorityRequestV1) V1ReconcilePoolCertificateAuthorityRes); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ReconcilePoolCertificateAuthorityRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ReconcilePoolCertificateAuthorityRequestV1) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ReconcilePoolCertificateAuthority_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ReconcilePoolCertificateAuthority'
+type MockInvoker_V1ReconcilePoolCertificateAuthority_Call struct {
+	*mock.Call
+}
+
+// V1ReconcilePoolCertificateAuthority is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *ReconcilePoolCertificateAuthorityRequestV1
+func (_e *MockInvoker_Expecter) V1ReconcilePoolCertificateAuthority(ctx interface{}, request interface{}) *MockInvoker_V1ReconcilePoolCertificateAuthority_Call {
+	return &MockInvoker_V1ReconcilePoolCertificateAuthority_Call{Call: _e.mock.On("V1ReconcilePoolCertificateAuthority", ctx, request)}
+}
+
+func (_c *MockInvoker_V1ReconcilePoolCertificateAuthority_Call) Run(run func(ctx context.Context, request *ReconcilePoolCertificateAuthorityRequestV1)) *MockInvoker_V1ReconcilePoolCertificateAuthority_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*ReconcilePoolCertificateAuthorityRequestV1))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ReconcilePoolCertificateAuthority_Call) Return(_a0 V1ReconcilePoolCertificateAuthorityRes, _a1 error) *MockInvoker_V1ReconcilePoolCertificateAuthority_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ReconcilePoolCertificateAuthority_Call) RunAndReturn(run func(context.Context, *ReconcilePoolCertificateAuthorityRequestV1) (V1ReconcilePoolCertificateAuthorityRes, error)) *MockInvoker_V1ReconcilePoolCertificateAuthority_Call {
 	_c.Call.Return(run)
 	return _c
 }

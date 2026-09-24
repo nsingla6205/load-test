@@ -16,6 +16,7 @@ import (
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"gorm.io/driver/postgres"
@@ -2722,6 +2723,156 @@ func TestUpdatePoolFields(t *testing.T) {
 	// Test error when pool does not exist
 	err = store.UpdatePoolFields(context.Background(), "non-existent-uuid", updates)
 	assert.Error(t, err)
+}
+
+func TestCompareAndSwapExpertModeCredentials_GuardsEntirePayload(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: "expert-cas-account"},
+		Name:      "expert-cas-account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+	expected := &datamodel.ExpertModeCredentials{
+		ExpertModeCredential: []*datamodel.ExpertModeCredential{
+			{Username: "expert", CertificateID: "active-cert", CaURI: "project/pool/ca"},
+		},
+	}
+	pool := &datamodel.Pool{
+		BaseModel:             datamodel.BaseModel{UUID: "expert-cas-pool"},
+		Name:                  "expert-cas-pool",
+		AccountID:             account.ID,
+		State:                 "READY",
+		ExpertModeCredentials: expected,
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+	replacement := &datamodel.ExpertModeCredentials{
+		ExpertModeCredential: []*datamodel.ExpertModeCredential{
+			{
+				Username:         "expert",
+				CertificateID:    "active-cert",
+				CaURI:            "project/pool/ca",
+				CertificateIDNew: "staged-cert",
+				StagedCaURI:      "project/pool/ca",
+			},
+		},
+	}
+
+	err := store.CompareAndSwapExpertModeCredentials(
+		ctx,
+		pool.UUID,
+		expected,
+		replacement,
+		[]string{"READY"},
+	)
+	require.NoError(t, err)
+
+	var updated datamodel.Pool
+	require.NoError(t, store.db.GORM().First(&updated, "uuid = ?", pool.UUID).Error)
+	require.Equal(t, replacement, updated.ExpertModeCredentials)
+
+	err = store.CompareAndSwapExpertModeCredentials(
+		ctx,
+		pool.UUID,
+		expected,
+		&datamodel.ExpertModeCredentials{},
+		[]string{"READY"},
+	)
+	require.Error(t, err)
+	require.NoError(t, store.db.GORM().First(&updated, "uuid = ?", pool.UUID).Error)
+	require.Equal(t, replacement, updated.ExpertModeCredentials)
+}
+
+func TestCompareAndSwapPoolCredentials(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: "pool-cas-account"},
+		Name:      "pool-cas-account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-cas"},
+		Name:      "pool-cas",
+		AccountID: account.ID,
+		State:     "READY",
+		PoolCredentials: &datamodel.PoolCredentials{
+			AuthType:         env.USERNAME_PWD_SEC_MGR,
+			CertificateIDNew: "staged-cert",
+			StagedCaURI:      "project/pool/ca",
+		},
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+	replacement := &datamodel.PoolCredentials{
+		AuthType:      env.USER_CERTIFICATE,
+		CertificateID: "staged-cert",
+		CaURI:         "project/pool/ca",
+	}
+
+	err := store.CompareAndSwapPoolCredentials(
+		ctx,
+		pool.UUID,
+		env.USERNAME_PWD_SEC_MGR,
+		"staged-cert",
+		"project/pool/ca",
+		[]string{"READY"},
+		replacement,
+	)
+	// SQLite does not apply the production PostgreSQL JSONB predicate, so the
+	// guarded update must fail closed in the in-memory test database.
+	require.Error(t, err)
+}
+
+func TestCredentialCompareAndSwapRejectsNilPayloads(t *testing.T) {
+	store := setup(t)
+	err := store.CompareAndSwapPoolCredentials(
+		context.Background(),
+		"pool-1",
+		env.USERNAME_PWD_SEC_MGR,
+		"",
+		"",
+		[]string{"READY"},
+		nil,
+	)
+	require.Error(t, err)
+
+	err = store.CompareAndSwapExpertModeCredentials(
+		context.Background(),
+		"pool-1",
+		nil,
+		&datamodel.ExpertModeCredentials{},
+		[]string{"READY"},
+	)
+	require.Error(t, err)
+}
+
+func TestBuildExpertModeCredentialsCASPredicate_DialectAndPayload(t *testing.T) {
+	expected := &datamodel.ExpertModeCredentials{
+		ExpertModeCredential: []*datamodel.ExpertModeCredential{
+			{
+				Username:      "expert",
+				CertificateID: "certificate",
+			},
+		},
+	}
+
+	postgresPredicate, postgresArgs, err := buildExpertModeCredentialsCASPredicate(
+		"postgres",
+		expected,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "expert_mode_credentials = CAST(? AS jsonb)", postgresPredicate)
+	require.Equal(t, []interface{}{
+		`{"expert_mode_credential":[{"secret_id":"","certificate_id":"certificate","certificate_id_new":"","password":"","username":"expert","auth_type":0}]}`,
+	}, postgresArgs)
+
+	sqlitePredicate, sqliteArgs, err := buildExpertModeCredentialsCASPredicate(
+		"sqlite",
+		expected,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "expert_mode_credentials = ?", sqlitePredicate)
+	require.Equal(t, []interface{}{expected}, sqliteArgs)
 }
 
 func TestUpdatedPool_PersistsVLMConfig(t *testing.T) {
@@ -6156,4 +6307,3 @@ func TestPoolMetricsData_GetEffectiveServiceLevel(t *testing.T) {
 		assert.Equal(tt, "PREMIUM", pool.GetEffectiveServiceLevel())
 	})
 }
-

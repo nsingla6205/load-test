@@ -383,6 +383,32 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 	})
 }
 
+func TestWaitForJobs_TerminalStates(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("all jobs done", func(t *testing.T) {
+		storage := database.NewMockStorage(t)
+		storage.EXPECT().GetJob(ctx, "job-1").Return(&datamodel.Job{
+			State: string(datamodel.JobsStateDONE),
+		}, nil).Once()
+
+		err := (CommonActivities{SE: storage}).WaitForJobs(ctx, []string{"job-1"}, time.Second)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("failed child returns error", func(t *testing.T) {
+		storage := database.NewMockStorage(t)
+		storage.EXPECT().GetJob(ctx, "job-2").Return(&datamodel.Job{
+			State: string(datamodel.JobsStateERROR),
+		}, nil).Once()
+
+		err := (CommonActivities{SE: storage}).WaitForJobs(ctx, []string{"job-2"}, time.Second)
+
+		require.ErrorContains(t, err, "job-2")
+	})
+}
+
 func TestCreateJob_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := CommonActivities{SE: mockStorage}

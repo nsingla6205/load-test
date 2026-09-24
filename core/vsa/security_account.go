@@ -44,9 +44,10 @@ type DeleteSecurityAccountParams struct {
 
 // SecurityAccount represents an ONTAP security account.
 type SecurityAccount struct {
-	Name      string
-	OwnerUUID string
-	Role      *SecurityAccountRole
+	Name         string
+	OwnerUUID    string
+	Role         *SecurityAccountRole
+	Applications []ontapRest.SecurityAccountApplication
 }
 
 // SecurityAccountRole represents the role assigned to a security account.
@@ -117,7 +118,10 @@ func (rc *OntapRestProvider) GetSecurityAccount(params GetSecurityAccountParams)
 	if err != nil {
 		return nil, err
 	}
-	account, err := client.Security().AccountGet(&ontapRest.AccountGetParams{Name: params.Name})
+	account, err := client.Security().AccountGet(&ontapRest.AccountGetParams{
+		Name:   params.Name,
+		Fields: []string{"name", "applications", "owner", "role"},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +135,7 @@ func (rc *OntapRestProvider) GetSecurityAccount(params GetSecurityAccountParams)
 	if account.Role != nil {
 		result.Role = &SecurityAccountRole{Name: account.Role.Name}
 	}
+	result.Applications = append([]ontapRest.SecurityAccountApplication(nil), account.Applications...)
 	return result, nil
 }
 

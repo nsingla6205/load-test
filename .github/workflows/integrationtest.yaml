@@ -125,7 +125,7 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -trimpath google-proxy/app.go && \
             chmod +x app && cp app $PROJECT_ROOT/docker_services/infra/google-proxy/app &
             pid1=$!
-            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o temporal-worker -trimpath worker/main.go && \
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o temporal-worker -trimpath ./worker && \
             chmod +x temporal-worker && cp temporal-worker $PROJECT_ROOT/docker_services/infra/temporal-worker/temporal-worker &
             pid2=$!
             CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vsa-db-setup -trimpath tools/migrate/main.go && \

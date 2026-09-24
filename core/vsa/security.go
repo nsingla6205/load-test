@@ -82,12 +82,13 @@ func (rc *OntapRestProvider) InstallServerCertificate(params InstallServerCertif
 
 	// Convert the result to our response format
 	response := &ServerCertificateResponse{
-		UUID:            nillable.FromPointer(result.UUID),
-		Name:            nillable.FromPointer(result.Name),
-		CommonName:      nillable.FromPointer(result.CommonName),
-		CertificateType: nillable.FromPointer(result.Type),
-		ExpiryTime:      nillable.FromPointer(result.ExpiryTime),
-		SerialNumber:    nillable.FromPointer(result.SerialNumber),
+		UUID:              nillable.FromPointer(result.UUID),
+		Name:              nillable.FromPointer(result.Name),
+		CommonName:        nillable.FromPointer(result.CommonName),
+		PublicCertificate: nillable.FromPointer(result.PublicCertificate),
+		CertificateType:   nillable.FromPointer(result.Type),
+		ExpiryTime:        nillable.FromPointer(result.ExpiryTime),
+		SerialNumber:      nillable.FromPointer(result.SerialNumber),
 	}
 
 	return response, nil
@@ -136,12 +137,13 @@ func (rc *OntapRestProvider) InstallClientCA(params InstallClientCAParams) (*Ser
 	}
 
 	return &ServerCertificateResponse{
-		UUID:            nillable.FromPointer(result.UUID),
-		Name:            nillable.FromPointer(result.Name),
-		CommonName:      nillable.FromPointer(result.CommonName),
-		CertificateType: nillable.FromPointer(result.Type),
-		ExpiryTime:      nillable.FromPointer(result.ExpiryTime),
-		SerialNumber:    nillable.FromPointer(result.SerialNumber),
+		UUID:              nillable.FromPointer(result.UUID),
+		Name:              nillable.FromPointer(result.Name),
+		CommonName:        nillable.FromPointer(result.CommonName),
+		PublicCertificate: nillable.FromPointer(result.PublicCertificate),
+		CertificateType:   nillable.FromPointer(result.Type),
+		ExpiryTime:        nillable.FromPointer(result.ExpiryTime),
+		SerialNumber:      nillable.FromPointer(result.SerialNumber),
 	}, nil
 }
 
@@ -185,12 +187,13 @@ func (rc *OntapRestProvider) InstallServerCA(params InstallServerCAParams) (*Ser
 	}
 
 	return &ServerCertificateResponse{
-		UUID:            nillable.FromPointer(result.UUID),
-		Name:            nillable.FromPointer(result.Name),
-		CommonName:      nillable.FromPointer(result.CommonName),
-		CertificateType: nillable.FromPointer(result.Type),
-		ExpiryTime:      nillable.FromPointer(result.ExpiryTime),
-		SerialNumber:    nillable.FromPointer(result.SerialNumber),
+		UUID:              nillable.FromPointer(result.UUID),
+		Name:              nillable.FromPointer(result.Name),
+		CommonName:        nillable.FromPointer(result.CommonName),
+		PublicCertificate: nillable.FromPointer(result.PublicCertificate),
+		CertificateType:   nillable.FromPointer(result.Type),
+		ExpiryTime:        nillable.FromPointer(result.ExpiryTime),
+		SerialNumber:      nillable.FromPointer(result.SerialNumber),
 	}, nil
 }
 
@@ -219,7 +222,21 @@ func (rc *OntapRestProvider) GetServerCertificates(params GetServerCertificatePa
 
 	// Prepare the certificate collection get parameters
 	getParams := &ontapRest.ServerRootCAGetCollectionParams{
+		BaseParams: ontapRest.BaseParams{
+			Fields: append([]string(nil), params.Fields...),
+		},
 		CertificateType: &params.CertificateType,
+	}
+	if len(getParams.Fields) == 0 {
+		getParams.Fields = []string{
+			"uuid",
+			"name",
+			"common_name",
+			"type",
+			"expiry_time",
+			"serial_number",
+			"public_certificate",
+		}
 	}
 	if strings.TrimSpace(params.SvmName) != "" {
 		getParams.SvmName = &params.SvmName
@@ -238,12 +255,13 @@ func (rc *OntapRestProvider) GetServerCertificates(params GetServerCertificatePa
 	responses := make([]*ServerCertificateResponse, len(results))
 	for i, result := range results {
 		responses[i] = &ServerCertificateResponse{
-			UUID:            nillable.FromPointer(result.UUID),
-			Name:            nillable.FromPointer(result.Name),
-			CommonName:      nillable.FromPointer(result.CommonName),
-			CertificateType: nillable.FromPointer(result.Type),
-			ExpiryTime:      nillable.FromPointer(result.ExpiryTime),
-			SerialNumber:    nillable.FromPointer(result.SerialNumber),
+			UUID:              nillable.FromPointer(result.UUID),
+			Name:              nillable.FromPointer(result.Name),
+			CommonName:        nillable.FromPointer(result.CommonName),
+			PublicCertificate: nillable.FromPointer(result.PublicCertificate),
+			CertificateType:   nillable.FromPointer(result.Type),
+			ExpiryTime:        nillable.FromPointer(result.ExpiryTime),
+			SerialNumber:      nillable.FromPointer(result.SerialNumber),
 		}
 	}
 

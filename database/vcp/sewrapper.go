@@ -123,6 +123,36 @@ func (re *retryEngine) UpdatePoolFields(ctx context.Context, poolUUID string, up
 	return err
 }
 
+func (re *retryEngine) CompareAndSwapPoolCredentials(ctx context.Context, poolUUID string, expectedAuthType int, expectedCertificateIDNew, expectedStagedCaURI string, eligibleStates []string, credentials *datamodel.PoolCredentials) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.CompareAndSwapPoolCredentials(ctx, poolUUID, expectedAuthType, expectedCertificateIDNew, expectedStagedCaURI, eligibleStates, credentials)
+		if err != nil {
+			re.logError("CompareAndSwapPoolCredentials", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) CompareAndSwapExpertModeCredentials(ctx context.Context, poolUUID string, expected, replacement *datamodel.ExpertModeCredentials, eligibleStates []string) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.CompareAndSwapExpertModeCredentials(ctx, poolUUID, expected, replacement, eligibleStates)
+		if err != nil {
+			re.logError("CompareAndSwapExpertModeCredentials", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
@@ -2145,6 +2175,21 @@ func (re *retryEngine) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) (
 		return true, err
 	})
 	return var0, err
+}
+
+func (re *retryEngine) UpdateNodeHostDNSNames(ctx context.Context, poolID int64, hostNamesByEndpoint map[string]string) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateNodeHostDNSNames(ctx, poolID, hostNamesByEndpoint)
+		if err != nil {
+			re.logError("UpdateNodeHostDNSNames", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
 }
 
 func (re *retryEngine) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {

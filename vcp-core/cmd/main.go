@@ -123,7 +123,7 @@ func main() {
 
 	// Create GCP proxy server and inject required dependencies
 	orch := factory.GetOrchestratorForProvider(dbCon, workflowClient.GetTemporalClient())
-	newHandler := &api.Handler{Orchestrator: orch} // inject the orchestrator into the handler
+	newHandler := api.NewHandler(orch)
 	oasserver, err := coregenserver.NewServer(newHandler)
 	if err != nil {
 		logger.Error("Failed to create server", "error", err.Error())

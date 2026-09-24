@@ -3,17 +3,12 @@
 package coreapi
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
 	"github.com/google/uuid"
 )
-
-func (s *ErrorStatusCode) Error() string {
-	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
-}
 
 // Ref: #/components/schemas/Account_v1
 type AccountV1 struct {
@@ -1491,6 +1486,66 @@ func (s *ErrorStatusCode) SetResponse(val Error) {
 	s.Response = val
 }
 
+func (*ErrorStatusCode) getHealthRes()                               {}
+func (*ErrorStatusCode) v1BatchUpgradeClustersRes()                  {}
+func (*ErrorStatusCode) v1CreateAddressRangeRes()                    {}
+func (*ErrorStatusCode) v1CreateHostRes()                            {}
+func (*ErrorStatusCode) v1CreateIPRangeRes()                         {}
+func (*ErrorStatusCode) v1CreateImageVersionRes()                    {}
+func (*ErrorStatusCode) v1CreatePoolRes()                            {}
+func (*ErrorStatusCode) v1CreateRegionRes()                          {}
+func (*ErrorStatusCode) v1CreateSnapshotRes()                        {}
+func (*ErrorStatusCode) v1CreateZoneRes()                            {}
+func (*ErrorStatusCode) v1DeleteAddressRangeRes()                    {}
+func (*ErrorStatusCode) v1DeleteExternalClusterRes()                 {}
+func (*ErrorStatusCode) v1DeleteHostRes()                            {}
+func (*ErrorStatusCode) v1DeleteIPRangeRes()                         {}
+func (*ErrorStatusCode) v1DeleteImageVersionRes()                    {}
+func (*ErrorStatusCode) v1DeletePoolRes()                            {}
+func (*ErrorStatusCode) v1DeleteRegionRes()                          {}
+func (*ErrorStatusCode) v1DeleteZoneRes()                            {}
+func (*ErrorStatusCode) v1DescribeAccountRes()                       {}
+func (*ErrorStatusCode) v1DescribeHostRes()                          {}
+func (*ErrorStatusCode) v1EncryptPoolRes()                           {}
+func (*ErrorStatusCode) v1ExpertModeVolumeFlexCloneSplitRes()        {}
+func (*ErrorStatusCode) v1ExpertModeVolumeRenameRes()                {}
+func (*ErrorStatusCode) v1ExpertModeVolumeRes()                      {}
+func (*ErrorStatusCode) v1GetAddressRangeRes()                       {}
+func (*ErrorStatusCode) v1GetAllVolumeTenancyRes()                   {}
+func (*ErrorStatusCode) v1GetBatchUpgradeStatusRes()                 {}
+func (*ErrorStatusCode) v1GetClusterUpgradeStatusRes()               {}
+func (*ErrorStatusCode) v1GetExternalClusterRes()                    {}
+func (*ErrorStatusCode) v1GetMultipleReplicationsByExternalUUIDRes() {}
+func (*ErrorStatusCode) v1GetOntapCredentialsRes()                   {}
+func (*ErrorStatusCode) v1GetPoolRes()                               {}
+func (*ErrorStatusCode) v1ListAccountsRes()                          {}
+func (*ErrorStatusCode) v1ListAddressRangesRes()                     {}
+func (*ErrorStatusCode) v1ListHostsRes()                             {}
+func (*ErrorStatusCode) v1ListIPRangesRes()                          {}
+func (*ErrorStatusCode) v1ListImageVersionsRes()                     {}
+func (*ErrorStatusCode) v1ListInterclusterLifsRes()                  {}
+func (*ErrorStatusCode) v1ListPoolsRes()                             {}
+func (*ErrorStatusCode) v1ListRegionsRes()                           {}
+func (*ErrorStatusCode) v1ListSVMsRes()                              {}
+func (*ErrorStatusCode) v1ListZonesRes()                             {}
+func (*ErrorStatusCode) v1OnboardExternalClusterRes()                {}
+func (*ErrorStatusCode) v1RefreshRbacForExpertModePoolByIdRes()      {}
+func (*ErrorStatusCode) v1RefreshRbacForExpertModePoolsRes()         {}
+func (*ErrorStatusCode) v1RotateGcpKmsConfigRes()                    {}
+func (*ErrorStatusCode) v1SetAccountHostsRes()                       {}
+func (*ErrorStatusCode) v1SplitStartVolumeRes()                      {}
+func (*ErrorStatusCode) v1SplitStopVolumeRes()                       {}
+func (*ErrorStatusCode) v1UpdateAddressRangeRes()                    {}
+func (*ErrorStatusCode) v1UpdateAddressRangeStateRes()               {}
+func (*ErrorStatusCode) v1UpdateExternalClusterRes()                 {}
+func (*ErrorStatusCode) v1UpdateHostRes()                            {}
+func (*ErrorStatusCode) v1UpdateIPRangeRes()                         {}
+func (*ErrorStatusCode) v1UpdatePoolRes()                            {}
+func (*ErrorStatusCode) v1UpdateRegionRes()                          {}
+func (*ErrorStatusCode) v1UpdateVolumeDatabaseValueRes()             {}
+func (*ErrorStatusCode) v1UpdateZoneRes()                            {}
+func (*ErrorStatusCode) v1UpgradeClusterRes()                        {}
+
 // Ref: #/components/schemas/ExpertModeVolumeFlexCloneSplit_v1
 type ExpertModeVolumeFlexCloneSplitV1 struct {
 	// GCP project number.
@@ -2507,6 +2562,45 @@ func (s *ExternalClusterOnboardRequestV1) SetLocationId(val string) {
 // SetHosts sets the value of Hosts.
 func (s *ExternalClusterOnboardRequestV1) SetHosts(val []ExternalClusterHostV1) {
 	s.Hosts = val
+}
+
+// Ref: #/components/schemas/ForcePoolCertificateRotationRequest_v1
+type ForcePoolCertificateRotationRequestV1 struct {
+	SelectionType PoolCertificateMaintenanceSelectionV1 `json:"selectionType"`
+	// Pool UUID when selectionType is pool.
+	PoolId OptUUID `json:"poolId"`
+	// Pool UUIDs when selectionType is poolList.
+	PoolIds []uuid.UUID `json:"poolIds"`
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *ForcePoolCertificateRotationRequestV1) GetSelectionType() PoolCertificateMaintenanceSelectionV1 {
+	return s.SelectionType
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *ForcePoolCertificateRotationRequestV1) GetPoolId() OptUUID {
+	return s.PoolId
+}
+
+// GetPoolIds returns the value of PoolIds.
+func (s *ForcePoolCertificateRotationRequestV1) GetPoolIds() []uuid.UUID {
+	return s.PoolIds
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *ForcePoolCertificateRotationRequestV1) SetSelectionType(val PoolCertificateMaintenanceSelectionV1) {
+	s.SelectionType = val
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *ForcePoolCertificateRotationRequestV1) SetPoolId(val OptUUID) {
+	s.PoolId = val
+}
+
+// SetPoolIds sets the value of PoolIds.
+func (s *ForcePoolCertificateRotationRequestV1) SetPoolIds(val []uuid.UUID) {
+	s.PoolIds = val
 }
 
 // Gcp customer managed encryption key configuration.
@@ -6727,6 +6821,52 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
+// NewOptUUID returns new OptUUID with value set to v.
+func NewOptUUID(v uuid.UUID) OptUUID {
+	return OptUUID{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUUID is optional uuid.UUID.
+type OptUUID struct {
+	Value uuid.UUID
+	Set   bool
+}
+
+// IsSet returns true if OptUUID was set.
+func (o OptUUID) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUUID) Reset() {
+	var v uuid.UUID
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUUID) SetTo(v uuid.UUID) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUUID) Get() (v uuid.UUID, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUUID) Or(d uuid.UUID) uuid.UUID {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptUpdateVolumeDatabaseValueVolumeAttributesV1 returns new OptUpdateVolumeDatabaseValueVolumeAttributesV1 with value set to v.
 func NewOptUpdateVolumeDatabaseValueVolumeAttributesV1(v UpdateVolumeDatabaseValueVolumeAttributesV1) OptUpdateVolumeDatabaseValueVolumeAttributesV1 {
 	return OptUpdateVolumeDatabaseValueVolumeAttributesV1{
@@ -6771,6 +6911,464 @@ func (o OptUpdateVolumeDatabaseValueVolumeAttributesV1) Or(d UpdateVolumeDatabas
 		return v
 	}
 	return d
+}
+
+// Ref: #/components/schemas/PoolCertificateMaintenancePoolStatus_v1
+type PoolCertificateMaintenancePoolStatusV1 struct {
+	PoolId     uuid.UUID                                    `json:"poolId"`
+	JobId      uuid.UUID                                    `json:"jobId"`
+	WorkflowId string                                       `json:"workflowId"`
+	Status     PoolCertificateMaintenancePoolStatusV1Status `json:"status"`
+	Error      OptString                                    `json:"error"`
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *PoolCertificateMaintenancePoolStatusV1) GetPoolId() uuid.UUID {
+	return s.PoolId
+}
+
+// GetJobId returns the value of JobId.
+func (s *PoolCertificateMaintenancePoolStatusV1) GetJobId() uuid.UUID {
+	return s.JobId
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *PoolCertificateMaintenancePoolStatusV1) GetWorkflowId() string {
+	return s.WorkflowId
+}
+
+// GetStatus returns the value of Status.
+func (s *PoolCertificateMaintenancePoolStatusV1) GetStatus() PoolCertificateMaintenancePoolStatusV1Status {
+	return s.Status
+}
+
+// GetError returns the value of Error.
+func (s *PoolCertificateMaintenancePoolStatusV1) GetError() OptString {
+	return s.Error
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetPoolId(val uuid.UUID) {
+	s.PoolId = val
+}
+
+// SetJobId sets the value of JobId.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetJobId(val uuid.UUID) {
+	s.JobId = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetWorkflowId(val string) {
+	s.WorkflowId = val
+}
+
+// SetStatus sets the value of Status.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetStatus(val PoolCertificateMaintenancePoolStatusV1Status) {
+	s.Status = val
+}
+
+// SetError sets the value of Error.
+func (s *PoolCertificateMaintenancePoolStatusV1) SetError(val OptString) {
+	s.Error = val
+}
+
+type PoolCertificateMaintenancePoolStatusV1Status string
+
+const (
+	PoolCertificateMaintenancePoolStatusV1StatusNEW        PoolCertificateMaintenancePoolStatusV1Status = "NEW"
+	PoolCertificateMaintenancePoolStatusV1StatusPROCESSING PoolCertificateMaintenancePoolStatusV1Status = "PROCESSING"
+	PoolCertificateMaintenancePoolStatusV1StatusDONE       PoolCertificateMaintenancePoolStatusV1Status = "DONE"
+	PoolCertificateMaintenancePoolStatusV1StatusERROR      PoolCertificateMaintenancePoolStatusV1Status = "ERROR"
+	PoolCertificateMaintenancePoolStatusV1StatusCANCELLED  PoolCertificateMaintenancePoolStatusV1Status = "CANCELLED"
+)
+
+// AllValues returns all PoolCertificateMaintenancePoolStatusV1Status values.
+func (PoolCertificateMaintenancePoolStatusV1Status) AllValues() []PoolCertificateMaintenancePoolStatusV1Status {
+	return []PoolCertificateMaintenancePoolStatusV1Status{
+		PoolCertificateMaintenancePoolStatusV1StatusNEW,
+		PoolCertificateMaintenancePoolStatusV1StatusPROCESSING,
+		PoolCertificateMaintenancePoolStatusV1StatusDONE,
+		PoolCertificateMaintenancePoolStatusV1StatusERROR,
+		PoolCertificateMaintenancePoolStatusV1StatusCANCELLED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolCertificateMaintenancePoolStatusV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolCertificateMaintenancePoolStatusV1StatusNEW:
+		return []byte(s), nil
+	case PoolCertificateMaintenancePoolStatusV1StatusPROCESSING:
+		return []byte(s), nil
+	case PoolCertificateMaintenancePoolStatusV1StatusDONE:
+		return []byte(s), nil
+	case PoolCertificateMaintenancePoolStatusV1StatusERROR:
+		return []byte(s), nil
+	case PoolCertificateMaintenancePoolStatusV1StatusCANCELLED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolCertificateMaintenancePoolStatusV1Status) UnmarshalText(data []byte) error {
+	switch PoolCertificateMaintenancePoolStatusV1Status(data) {
+	case PoolCertificateMaintenancePoolStatusV1StatusNEW:
+		*s = PoolCertificateMaintenancePoolStatusV1StatusNEW
+		return nil
+	case PoolCertificateMaintenancePoolStatusV1StatusPROCESSING:
+		*s = PoolCertificateMaintenancePoolStatusV1StatusPROCESSING
+		return nil
+	case PoolCertificateMaintenancePoolStatusV1StatusDONE:
+		*s = PoolCertificateMaintenancePoolStatusV1StatusDONE
+		return nil
+	case PoolCertificateMaintenancePoolStatusV1StatusERROR:
+		*s = PoolCertificateMaintenancePoolStatusV1StatusERROR
+		return nil
+	case PoolCertificateMaintenancePoolStatusV1StatusCANCELLED:
+		*s = PoolCertificateMaintenancePoolStatusV1StatusCANCELLED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/PoolCertificateMaintenanceResponse_v1
+type PoolCertificateMaintenanceResponseV1 struct {
+	// Persistent job UUID used to query progress.
+	JobId uuid.UUID `json:"jobId"`
+	// Temporal parent workflow ID.
+	WorkflowId    string                                `json:"workflowId"`
+	SelectionType PoolCertificateMaintenanceSelectionV1 `json:"selectionType"`
+	// Explicitly selected pool UUIDs; empty for all.
+	PoolIds []uuid.UUID `json:"poolIds"`
+}
+
+// GetJobId returns the value of JobId.
+func (s *PoolCertificateMaintenanceResponseV1) GetJobId() uuid.UUID {
+	return s.JobId
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *PoolCertificateMaintenanceResponseV1) GetWorkflowId() string {
+	return s.WorkflowId
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *PoolCertificateMaintenanceResponseV1) GetSelectionType() PoolCertificateMaintenanceSelectionV1 {
+	return s.SelectionType
+}
+
+// GetPoolIds returns the value of PoolIds.
+func (s *PoolCertificateMaintenanceResponseV1) GetPoolIds() []uuid.UUID {
+	return s.PoolIds
+}
+
+// SetJobId sets the value of JobId.
+func (s *PoolCertificateMaintenanceResponseV1) SetJobId(val uuid.UUID) {
+	s.JobId = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *PoolCertificateMaintenanceResponseV1) SetWorkflowId(val string) {
+	s.WorkflowId = val
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *PoolCertificateMaintenanceResponseV1) SetSelectionType(val PoolCertificateMaintenanceSelectionV1) {
+	s.SelectionType = val
+}
+
+// SetPoolIds sets the value of PoolIds.
+func (s *PoolCertificateMaintenanceResponseV1) SetPoolIds(val []uuid.UUID) {
+	s.PoolIds = val
+}
+
+func (*PoolCertificateMaintenanceResponseV1) v1ForcePoolCertificateRotationRes()      {}
+func (*PoolCertificateMaintenanceResponseV1) v1ReconcilePoolCertificateAuthorityRes() {}
+
+// Pool selection mode for a certificate maintenance operation.
+// Ref: #/components/schemas/PoolCertificateMaintenanceSelection_v1
+type PoolCertificateMaintenanceSelectionV1 string
+
+const (
+	PoolCertificateMaintenanceSelectionV1All      PoolCertificateMaintenanceSelectionV1 = "all"
+	PoolCertificateMaintenanceSelectionV1PoolList PoolCertificateMaintenanceSelectionV1 = "poolList"
+	PoolCertificateMaintenanceSelectionV1Pool     PoolCertificateMaintenanceSelectionV1 = "pool"
+)
+
+// AllValues returns all PoolCertificateMaintenanceSelectionV1 values.
+func (PoolCertificateMaintenanceSelectionV1) AllValues() []PoolCertificateMaintenanceSelectionV1 {
+	return []PoolCertificateMaintenanceSelectionV1{
+		PoolCertificateMaintenanceSelectionV1All,
+		PoolCertificateMaintenanceSelectionV1PoolList,
+		PoolCertificateMaintenanceSelectionV1Pool,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolCertificateMaintenanceSelectionV1) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolCertificateMaintenanceSelectionV1All:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceSelectionV1PoolList:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceSelectionV1Pool:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolCertificateMaintenanceSelectionV1) UnmarshalText(data []byte) error {
+	switch PoolCertificateMaintenanceSelectionV1(data) {
+	case PoolCertificateMaintenanceSelectionV1All:
+		*s = PoolCertificateMaintenanceSelectionV1All
+		return nil
+	case PoolCertificateMaintenanceSelectionV1PoolList:
+		*s = PoolCertificateMaintenanceSelectionV1PoolList
+		return nil
+	case PoolCertificateMaintenanceSelectionV1Pool:
+		*s = PoolCertificateMaintenanceSelectionV1Pool
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/PoolCertificateMaintenanceStatusResponse_v1
+type PoolCertificateMaintenanceStatusResponseV1 struct {
+	JobId         uuid.UUID                                           `json:"jobId"`
+	WorkflowId    string                                              `json:"workflowId"`
+	Operation     PoolCertificateMaintenanceStatusResponseV1Operation `json:"operation"`
+	Status        PoolCertificateMaintenanceStatusResponseV1Status    `json:"status"`
+	SelectionType PoolCertificateMaintenanceSelectionV1               `json:"selectionType"`
+	// Desired CA URI for CA reconciliation jobs.
+	DesiredCaUri    OptString                                `json:"desiredCaUri"`
+	TotalPools      int                                      `json:"totalPools"`
+	CompletedPools  int                                      `json:"completedPools"`
+	FailedPools     int                                      `json:"failedPools"`
+	InProgressPools int                                      `json:"inProgressPools"`
+	Pools           []PoolCertificateMaintenancePoolStatusV1 `json:"pools"`
+}
+
+// GetJobId returns the value of JobId.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetJobId() uuid.UUID {
+	return s.JobId
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetWorkflowId() string {
+	return s.WorkflowId
+}
+
+// GetOperation returns the value of Operation.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetOperation() PoolCertificateMaintenanceStatusResponseV1Operation {
+	return s.Operation
+}
+
+// GetStatus returns the value of Status.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetStatus() PoolCertificateMaintenanceStatusResponseV1Status {
+	return s.Status
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetSelectionType() PoolCertificateMaintenanceSelectionV1 {
+	return s.SelectionType
+}
+
+// GetDesiredCaUri returns the value of DesiredCaUri.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetDesiredCaUri() OptString {
+	return s.DesiredCaUri
+}
+
+// GetTotalPools returns the value of TotalPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetTotalPools() int {
+	return s.TotalPools
+}
+
+// GetCompletedPools returns the value of CompletedPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetCompletedPools() int {
+	return s.CompletedPools
+}
+
+// GetFailedPools returns the value of FailedPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetFailedPools() int {
+	return s.FailedPools
+}
+
+// GetInProgressPools returns the value of InProgressPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetInProgressPools() int {
+	return s.InProgressPools
+}
+
+// GetPools returns the value of Pools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) GetPools() []PoolCertificateMaintenancePoolStatusV1 {
+	return s.Pools
+}
+
+// SetJobId sets the value of JobId.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetJobId(val uuid.UUID) {
+	s.JobId = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetWorkflowId(val string) {
+	s.WorkflowId = val
+}
+
+// SetOperation sets the value of Operation.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetOperation(val PoolCertificateMaintenanceStatusResponseV1Operation) {
+	s.Operation = val
+}
+
+// SetStatus sets the value of Status.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetStatus(val PoolCertificateMaintenanceStatusResponseV1Status) {
+	s.Status = val
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetSelectionType(val PoolCertificateMaintenanceSelectionV1) {
+	s.SelectionType = val
+}
+
+// SetDesiredCaUri sets the value of DesiredCaUri.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetDesiredCaUri(val OptString) {
+	s.DesiredCaUri = val
+}
+
+// SetTotalPools sets the value of TotalPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetTotalPools(val int) {
+	s.TotalPools = val
+}
+
+// SetCompletedPools sets the value of CompletedPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetCompletedPools(val int) {
+	s.CompletedPools = val
+}
+
+// SetFailedPools sets the value of FailedPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetFailedPools(val int) {
+	s.FailedPools = val
+}
+
+// SetInProgressPools sets the value of InProgressPools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetInProgressPools(val int) {
+	s.InProgressPools = val
+}
+
+// SetPools sets the value of Pools.
+func (s *PoolCertificateMaintenanceStatusResponseV1) SetPools(val []PoolCertificateMaintenancePoolStatusV1) {
+	s.Pools = val
+}
+
+func (*PoolCertificateMaintenanceStatusResponseV1) v1GetPoolCertificateAuthorityReconciliationStatusRes() {
+}
+func (*PoolCertificateMaintenanceStatusResponseV1) v1GetPoolCertificateRotationStatusRes() {}
+
+type PoolCertificateMaintenanceStatusResponseV1Operation string
+
+const (
+	PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION PoolCertificateMaintenanceStatusResponseV1Operation = "CA_RECONCILIATION"
+	PoolCertificateMaintenanceStatusResponseV1OperationFORCEDROTATION   PoolCertificateMaintenanceStatusResponseV1Operation = "FORCED_ROTATION"
+)
+
+// AllValues returns all PoolCertificateMaintenanceStatusResponseV1Operation values.
+func (PoolCertificateMaintenanceStatusResponseV1Operation) AllValues() []PoolCertificateMaintenanceStatusResponseV1Operation {
+	return []PoolCertificateMaintenanceStatusResponseV1Operation{
+		PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION,
+		PoolCertificateMaintenanceStatusResponseV1OperationFORCEDROTATION,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolCertificateMaintenanceStatusResponseV1Operation) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceStatusResponseV1OperationFORCEDROTATION:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolCertificateMaintenanceStatusResponseV1Operation) UnmarshalText(data []byte) error {
+	switch PoolCertificateMaintenanceStatusResponseV1Operation(data) {
+	case PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION:
+		*s = PoolCertificateMaintenanceStatusResponseV1OperationCARECONCILIATION
+		return nil
+	case PoolCertificateMaintenanceStatusResponseV1OperationFORCEDROTATION:
+		*s = PoolCertificateMaintenanceStatusResponseV1OperationFORCEDROTATION
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type PoolCertificateMaintenanceStatusResponseV1Status string
+
+const (
+	PoolCertificateMaintenanceStatusResponseV1StatusNEW        PoolCertificateMaintenanceStatusResponseV1Status = "NEW"
+	PoolCertificateMaintenanceStatusResponseV1StatusPROCESSING PoolCertificateMaintenanceStatusResponseV1Status = "PROCESSING"
+	PoolCertificateMaintenanceStatusResponseV1StatusDONE       PoolCertificateMaintenanceStatusResponseV1Status = "DONE"
+	PoolCertificateMaintenanceStatusResponseV1StatusERROR      PoolCertificateMaintenanceStatusResponseV1Status = "ERROR"
+	PoolCertificateMaintenanceStatusResponseV1StatusCANCELLED  PoolCertificateMaintenanceStatusResponseV1Status = "CANCELLED"
+)
+
+// AllValues returns all PoolCertificateMaintenanceStatusResponseV1Status values.
+func (PoolCertificateMaintenanceStatusResponseV1Status) AllValues() []PoolCertificateMaintenanceStatusResponseV1Status {
+	return []PoolCertificateMaintenanceStatusResponseV1Status{
+		PoolCertificateMaintenanceStatusResponseV1StatusNEW,
+		PoolCertificateMaintenanceStatusResponseV1StatusPROCESSING,
+		PoolCertificateMaintenanceStatusResponseV1StatusDONE,
+		PoolCertificateMaintenanceStatusResponseV1StatusERROR,
+		PoolCertificateMaintenanceStatusResponseV1StatusCANCELLED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolCertificateMaintenanceStatusResponseV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolCertificateMaintenanceStatusResponseV1StatusNEW:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusPROCESSING:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusDONE:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusERROR:
+		return []byte(s), nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusCANCELLED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolCertificateMaintenanceStatusResponseV1Status) UnmarshalText(data []byte) error {
+	switch PoolCertificateMaintenanceStatusResponseV1Status(data) {
+	case PoolCertificateMaintenanceStatusResponseV1StatusNEW:
+		*s = PoolCertificateMaintenanceStatusResponseV1StatusNEW
+		return nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusPROCESSING:
+		*s = PoolCertificateMaintenanceStatusResponseV1StatusPROCESSING
+		return nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusDONE:
+		*s = PoolCertificateMaintenanceStatusResponseV1StatusDONE
+		return nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusERROR:
+		*s = PoolCertificateMaintenanceStatusResponseV1StatusERROR
+		return nil
+	case PoolCertificateMaintenanceStatusResponseV1StatusCANCELLED:
+		*s = PoolCertificateMaintenanceStatusResponseV1StatusCANCELLED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Ref: #/components/schemas/PoolUpdate_v1
@@ -7694,6 +8292,45 @@ func (s *PoolV1StoragePoolState) UnmarshalText(data []byte) error {
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
+}
+
+// Ref: #/components/schemas/ReconcilePoolCertificateAuthorityRequest_v1
+type ReconcilePoolCertificateAuthorityRequestV1 struct {
+	SelectionType PoolCertificateMaintenanceSelectionV1 `json:"selectionType"`
+	// Pool UUID when selectionType is pool.
+	PoolId OptUUID `json:"poolId"`
+	// Pool UUIDs when selectionType is poolList.
+	PoolIds []uuid.UUID `json:"poolIds"`
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) GetSelectionType() PoolCertificateMaintenanceSelectionV1 {
+	return s.SelectionType
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) GetPoolId() OptUUID {
+	return s.PoolId
+}
+
+// GetPoolIds returns the value of PoolIds.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) GetPoolIds() []uuid.UUID {
+	return s.PoolIds
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) SetSelectionType(val PoolCertificateMaintenanceSelectionV1) {
+	s.SelectionType = val
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) SetPoolId(val OptUUID) {
+	s.PoolId = val
+}
+
+// SetPoolIds sets the value of PoolIds.
+func (s *ReconcilePoolCertificateAuthorityRequestV1) SetPoolIds(val []uuid.UUID) {
+	s.PoolIds = val
 }
 
 // Ref: #/components/schemas/Region_v1
@@ -9332,6 +9969,18 @@ type V1ExpertModeVolumeUnprocessableEntity Error
 
 func (*V1ExpertModeVolumeUnprocessableEntity) v1ExpertModeVolumeRes() {}
 
+type V1ForcePoolCertificateRotationBadRequest Error
+
+func (*V1ForcePoolCertificateRotationBadRequest) v1ForcePoolCertificateRotationRes() {}
+
+type V1ForcePoolCertificateRotationInternalServerError Error
+
+func (*V1ForcePoolCertificateRotationInternalServerError) v1ForcePoolCertificateRotationRes() {}
+
+type V1ForcePoolCertificateRotationUnauthorized Error
+
+func (*V1ForcePoolCertificateRotationUnauthorized) v1ForcePoolCertificateRotationRes() {}
+
 type V1GetAddressRangeBadRequest Error
 
 func (*V1GetAddressRangeBadRequest) v1GetAddressRangeRes() {}
@@ -9579,6 +10228,43 @@ func (*V1GetOntapCredentialsUnprocessableEntity) v1GetOntapCredentialsRes() {}
 type V1GetPoolBadRequest Error
 
 func (*V1GetPoolBadRequest) v1GetPoolRes() {}
+
+type V1GetPoolCertificateAuthorityReconciliationStatusBadRequest Error
+
+func (*V1GetPoolCertificateAuthorityReconciliationStatusBadRequest) v1GetPoolCertificateAuthorityReconciliationStatusRes() {
+}
+
+type V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError Error
+
+func (*V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError) v1GetPoolCertificateAuthorityReconciliationStatusRes() {
+}
+
+type V1GetPoolCertificateAuthorityReconciliationStatusNotFound Error
+
+func (*V1GetPoolCertificateAuthorityReconciliationStatusNotFound) v1GetPoolCertificateAuthorityReconciliationStatusRes() {
+}
+
+type V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized Error
+
+func (*V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized) v1GetPoolCertificateAuthorityReconciliationStatusRes() {
+}
+
+type V1GetPoolCertificateRotationStatusBadRequest Error
+
+func (*V1GetPoolCertificateRotationStatusBadRequest) v1GetPoolCertificateRotationStatusRes() {}
+
+type V1GetPoolCertificateRotationStatusInternalServerError Error
+
+func (*V1GetPoolCertificateRotationStatusInternalServerError) v1GetPoolCertificateRotationStatusRes() {
+}
+
+type V1GetPoolCertificateRotationStatusNotFound Error
+
+func (*V1GetPoolCertificateRotationStatusNotFound) v1GetPoolCertificateRotationStatusRes() {}
+
+type V1GetPoolCertificateRotationStatusUnauthorized Error
+
+func (*V1GetPoolCertificateRotationStatusUnauthorized) v1GetPoolCertificateRotationStatusRes() {}
 
 type V1GetPoolForbidden Error
 
@@ -9899,6 +10585,19 @@ func (*V1OnboardExternalClusterUnauthorized) v1OnboardExternalClusterRes() {}
 type V1OnboardExternalClusterUnprocessableEntity Error
 
 func (*V1OnboardExternalClusterUnprocessableEntity) v1OnboardExternalClusterRes() {}
+
+type V1ReconcilePoolCertificateAuthorityBadRequest Error
+
+func (*V1ReconcilePoolCertificateAuthorityBadRequest) v1ReconcilePoolCertificateAuthorityRes() {}
+
+type V1ReconcilePoolCertificateAuthorityInternalServerError Error
+
+func (*V1ReconcilePoolCertificateAuthorityInternalServerError) v1ReconcilePoolCertificateAuthorityRes() {
+}
+
+type V1ReconcilePoolCertificateAuthorityUnauthorized Error
+
+func (*V1ReconcilePoolCertificateAuthorityUnauthorized) v1ReconcilePoolCertificateAuthorityRes() {}
 
 type V1RefreshRbacForExpertModePoolByIdBadRequest Error
 

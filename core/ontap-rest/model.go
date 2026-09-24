@@ -4354,6 +4354,7 @@ func accountCollectionGetParamsToONTAP(params *AccountGetParams) *security.Accou
 	}
 
 	otParams.SetName(nillable.ToPointer(params.Name))
+	otParams.SetFields(params.Fields)
 	return otParams
 }
 

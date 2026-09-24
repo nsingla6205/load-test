@@ -75,6 +75,9 @@ type OrchestratorFactory interface {
 	CreateJob(ctx context.Context, params *commonparams.CreateJobParams) (*datamodel.Job, error)
 	UpdateJobStatus(ctx context.Context, jobID string, status string, trackingID int, errorDetails string) error
 	UpdateJobAttributes(ctx context.Context, jobID string, jobAttributes *datamodel.JobAttributes) error
+	StartVsaCAReconciliation(ctx context.Context, params *commonparams.PoolCertificateMaintenanceParams) (string, string, error)
+	StartForcedVsaCertificateRotation(ctx context.Context, params *commonparams.PoolCertificateMaintenanceParams) (string, string, error)
+	GetCertificateMaintenanceStatus(ctx context.Context, jobID string) (*models.CertificateMaintenanceProgress, error)
 
 	CreateSnapshot(ctx context.Context, params *commonparams.CreateSnapshotParams) (*models.Snapshot, string, error)
 	GetSnapshot(ctx context.Context, params *commonparams.GetSnapshotParams) (*models.Snapshot, error)

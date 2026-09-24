@@ -149,12 +149,25 @@ workerConfig:
   certificateLifetime: "94608000s"
   # Minimum required certificate lifetime for service startup (e.g. 5184000s = 2 months). Used for ValidateCertificateLifetime.
   minimumCertificateLifetime: "5184000s"
+  # Minimum remaining lifetime required on the issuing CA. The worker enforces
+  # max(this value, certificateLifetime) before minting a leaf.
+  minimumIssuingCaRemainingLifetime: "2160h" # 90 days / 3 months
+  # Allowed shortfall between requested CERTIFICATE_LIFETIME and the issued
+  # notAfter-notBefore window. Go duration (default 1m). CAS truncation is days
+  # or months; keep this small so shortened leaves still fail.
+  issuedCertificateLifetimeSlack: "1m"
   caName: "20250718-pn6-boa"
   caPoolName: "vsa-pool-ca"
   caPoolDeployedProjectId: "266893635349"
   secretManagerProjectId: "266893635349"
   enableVsaCertificateRotation: "false"
   enableVsaExpiredCertificatesRotation: "false"
+  # Allows scheduled and forced certificate rotation to move pools to the Helm-configured CA.
+  # Explicit CA reconciliation is not controlled by this flag.
+  enableCaChangeDuringCertificateRotation: "false"
+  # Allows ForcePoolCertificateRotationWorkflow to rotate one pool's certificate on demand,
+  # skipping the remaining-lifetime check. Test/CD and operator recovery only; keep "false" in prod.
+  enableForcedCertificateRotation: "false"
   certificateRotationThresholdPercentage: "75"
   # Comma-separated pool states eligible for certificate/password rotation (default: READY,DEGRADED)
   certificateRotationPoolStates: "READY,DEGRADED"

@@ -8,6 +8,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/security"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
 
 func TestSecurityClient_AccountGet_NotFound(t *testing.T) {
@@ -23,12 +24,22 @@ func TestSecurityClient_AccountGet_NotFound(t *testing.T) {
 func TestSecurityClient_AccountGet_Success(t *testing.T) {
 	accountName := "svc-user"
 	roleName := "gcnvadmin"
+	ownerUUID := "owner-uuid"
+	application := "http"
+	certificateMethod := "certificate"
 	transport := &mockTransport{response: &security.AccountCollectionGetOK{
 		Payload: &models.AccountResponse{
 			AccountResponseInlineRecords: []*models.Account{
 				{
-					Name: &accountName,
-					Role: &models.AccountInlineRole{Name: &roleName},
+					Name:  &accountName,
+					Role:  &models.AccountInlineRole{Name: &roleName},
+					Owner: &models.AccountInlineOwner{UUID: &ownerUUID},
+					AccountInlineApplications: []*models.AccountApplication{
+						{
+							Application:           &application,
+							AuthenticationMethods: []*string{&certificateMethod},
+						},
+					},
 				},
 			},
 		},
@@ -41,6 +52,20 @@ func TestSecurityClient_AccountGet_Success(t *testing.T) {
 	assert.NotNil(t, account)
 	assert.Equal(t, "svc-user", account.Name)
 	assert.Equal(t, "gcnvadmin", account.Role.Name)
+	assert.Equal(t, "owner-uuid", account.Owner.UUID)
+	assert.Equal(t, []SecurityAccountApplication{
+		{Application: "http", AuthenticationMethods: []string{"certificate"}},
+	}, account.Applications)
+}
+
+func TestAccountCollectionGetParamsToONTAP_MapsProofFields(t *testing.T) {
+	params := accountCollectionGetParamsToONTAP(&AccountGetParams{
+		Name:   "svc-user",
+		Fields: []string{"name", "applications", "owner", "role"},
+	})
+
+	assert.Equal(t, "svc-user", nillable.FromPointer(params.Name))
+	assert.Equal(t, []string{"name", "applications", "owner", "role"}, params.Fields)
 }
 
 func TestSecurityClient_AccountCreate_Success(t *testing.T) {

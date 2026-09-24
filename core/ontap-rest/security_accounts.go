@@ -39,7 +39,8 @@ type AccountModifyParams struct {
 
 // AccountGetParams describes parameters for looking up an ONTAP security account.
 type AccountGetParams struct {
-	Name string
+	Name   string
+	Fields []string
 }
 
 // AccountDeleteParams describes parameters for deleting an ONTAP security account.
@@ -50,9 +51,10 @@ type AccountDeleteParams struct {
 
 // SecurityAccount describes an ONTAP security account response record.
 type SecurityAccount struct {
-	Name  string                `json:"name,omitempty"`
-	Role  *SecurityAccountRole  `json:"role,omitempty"`
-	Owner *SecurityAccountOwner `json:"owner,omitempty"`
+	Name         string                       `json:"name,omitempty"`
+	Role         *SecurityAccountRole         `json:"role,omitempty"`
+	Owner        *SecurityAccountOwner        `json:"owner,omitempty"`
+	Applications []SecurityAccountApplication `json:"applications,omitempty"`
 }
 
 // SecurityAccountRole describes the role assigned to a security account.
@@ -170,6 +172,18 @@ func securityAccountFromONTAP(account *models.Account) *SecurityAccount {
 	}
 	if account.Owner != nil && account.Owner.UUID != nil {
 		resp.Owner = &SecurityAccountOwner{UUID: *account.Owner.UUID}
+	}
+	for _, application := range account.AccountInlineApplications {
+		if application == nil || application.Application == nil {
+			continue
+		}
+		mapped := SecurityAccountApplication{Application: *application.Application}
+		for _, method := range application.AuthenticationMethods {
+			if method != nil {
+				mapped.AuthenticationMethods = append(mapped.AuthenticationMethods, *method)
+			}
+		}
+		resp.Applications = append(resp.Applications, mapped)
 	}
 	return resp
 }

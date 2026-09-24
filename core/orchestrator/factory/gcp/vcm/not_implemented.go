@@ -14,6 +14,27 @@ import (
 type notImplementedOrchestrator struct{}
 
 // Pools
+func (notImplementedOrchestrator) StartVsaCAReconciliation(
+	context.Context,
+	*commonparams.PoolCertificateMaintenanceParams,
+) (string, string, error) {
+	return "", "", customerrors.NewNotImplementedYetErr()
+}
+
+func (notImplementedOrchestrator) StartForcedVsaCertificateRotation(
+	context.Context,
+	*commonparams.PoolCertificateMaintenanceParams,
+) (string, string, error) {
+	return "", "", customerrors.NewNotImplementedYetErr()
+}
+
+func (notImplementedOrchestrator) GetCertificateMaintenanceStatus(
+	context.Context,
+	string,
+) (*models.CertificateMaintenanceProgress, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
+
 func (notImplementedOrchestrator) CreatePool(context.Context, *commonparams.CreatePoolParams) (*models.Pool, string, error) {
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }

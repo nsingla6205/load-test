@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -860,4 +862,61 @@ func TestPersistenceStore_GetFaultDomainCountsByZone(t *testing.T) {
 	counts, err := store.GetFaultDomainCountsByZone(context.Background())
 	assert.NoError(t, err)
 	assert.NotNil(t, counts)
+}
+
+func TestUpdateNodeHostDNSNames(t *testing.T) {
+	t.Run("NoHostNamesIsNoOp", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+
+		assert.NoError(tt, store.UpdateNodeHostDNSNames(context.Background(), 1234, nil))
+	})
+
+	// Postgres holds the column as the quoted, mixed-case identifier "endpoint_Address",
+	// so an unquoted predicate is folded to lowercase and fails with SQLSTATE 42703.
+	// SQLite treats identifiers case-insensitively, so this needs the postgres dialect.
+	t.Run("QuotesMixedCaseEndpointColumnOnPostgres", func(tt *testing.T) {
+		dbSQL, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		defer func() {
+			if err := mock.ExpectationsWereMet(); err != nil {
+				tt.Fatalf("there were unfulfilled expectations: %v", err)
+			}
+		}()
+
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(gormDB))
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE "nodes" SET .*"host_dns_name".* WHERE pool_id = .* AND "endpoint_Address" = `).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		err = store.UpdateNodeHostDNSNames(context.Background(), 1234,
+			map[string]string{"10.0.0.1": "node1.example.com"})
+		assert.NoError(tt, err)
+	})
+
+	t.Run("MissingNodeReturnsNotFound", func(tt *testing.T) {
+		dbSQL, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(gormDB))
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE "nodes" SET`).WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectRollback()
+
+		err = store.UpdateNodeHostDNSNames(context.Background(), 1234,
+			map[string]string{"10.0.0.1": "node1.example.com"})
+		assert.Error(tt, err)
+		var ce *vsaerrors.CustomError
+		if assert.True(tt, errors.As(err, &ce)) {
+			assert.Equal(tt, vsaerrors.ErrDatabaseDataNotFoundError, ce.TrackingID)
+		}
+	})
 }

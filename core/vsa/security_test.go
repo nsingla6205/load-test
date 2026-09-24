@@ -426,7 +426,17 @@ func TestGetServerCertificates_Success(t *testing.T) {
 
 	mockClient.On("Security").Return(mockSecurityClient)
 	mockSecurityClient.On("ServerRootCACertificateCollectionGet", mock.MatchedBy(func(p *ontapRest.ServerRootCAGetCollectionParams) bool {
-		return *p.SvmName == "test-svm" && *p.Name == "test-cert"
+		return *p.SvmName == "test-svm" &&
+			*p.Name == "test-cert" &&
+			assert.ElementsMatch(t, []string{
+				"uuid",
+				"name",
+				"common_name",
+				"type",
+				"expiry_time",
+				"serial_number",
+				"public_certificate",
+			}, p.Fields)
 	})).Return(results, nil)
 
 	resp, err := ontapProvider.GetServerCertificates(params)

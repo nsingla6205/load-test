@@ -329,6 +329,7 @@ func serverRootCAGetCollectionParamsToONTAP(params *ServerRootCAGetCollectionPar
 	if params == nil {
 		return otParams
 	}
+	otParams.SetFields(params.Fields)
 	otParams.SetSvmName(params.SvmName)
 	otParams.SetType(params.CertificateType)
 	if params.Name != nil {

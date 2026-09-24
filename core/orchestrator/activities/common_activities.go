@@ -111,6 +111,16 @@ func (ca CommonActivities) CreateJob(ctx context.Context, job *datamodel.Job) (*
 	return se.CreateJob(ctx, job)
 }
 
+// CreateJobWithWorkflowID creates a job associated with a distinct Temporal workflow ID.
+func (ca CommonActivities) CreateJobWithWorkflowID(
+	ctx context.Context,
+	job *datamodel.Job,
+	workflowID string,
+) (*datamodel.Job, error) {
+	recordHeartbeat(ctx, "Creating child certificate maintenance job in database")
+	return ca.SE.CreateJobWithWorkflowID(ctx, job, workflowID)
+}
+
 // UpdateJobStatus updates the status of a job in the database.
 func (ca CommonActivities) UpdateJobStatus(ctx context.Context, job *datamodel.Job) error {
 	logger := util.GetLogger(ctx)
@@ -133,6 +143,47 @@ func (ca CommonActivities) GetJob(ctx context.Context, jobUUID string) (*datamod
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDescribingJobNotFound, fmt.Errorf("job with UUID %s not found", jobUUID))
 	}
 	return job, nil
+}
+
+// WaitForJobs waits until all supplied jobs reach a terminal state.
+func (ca CommonActivities) WaitForJobs(
+	ctx context.Context,
+	jobUUIDs []string,
+	timeout time.Duration,
+) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		allTerminal := true
+		failedJobs := make([]string, 0)
+		for _, jobUUID := range jobUUIDs {
+			job, err := ca.SE.GetJob(ctx, jobUUID)
+			if err != nil {
+				return fmt.Errorf("get child job %s: %w", jobUUID, err)
+			}
+			switch datamodel.JobState(job.State) {
+			case datamodel.JobsStateDONE:
+			case datamodel.JobsStateERROR, datamodel.JobsStateCANCELLED:
+				failedJobs = append(failedJobs, jobUUID)
+			default:
+				allTerminal = false
+			}
+		}
+		if allTerminal {
+			if len(failedJobs) > 0 {
+				return fmt.Errorf("certificate maintenance failed for child jobs: %s", strings.Join(failedJobs, ", "))
+			}
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for certificate maintenance child jobs")
+		}
+		recordHeartbeat(ctx, fmt.Sprintf("Waiting for %d certificate maintenance child jobs", len(jobUUIDs)))
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
 }
 
 // DescribeJob gives the status of a job in the database.

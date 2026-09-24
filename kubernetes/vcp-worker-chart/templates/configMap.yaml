@@ -105,12 +105,16 @@ data:
   VSA_NODE_PASSWORD: {{$.Values.workerConfig.vsaNodePassword | quote }}
   CERTIFICATE_LIFETIME: {{$.Values.workerConfig.certificateLifetime | quote }}
   MINIMUM_CERTIFICATE_LIFETIME: {{$.Values.workerConfig.minimumCertificateLifetime | quote }}
+  MINIMUM_ISSUING_CA_REMAINING_LIFETIME: {{$.Values.workerConfig.minimumIssuingCaRemainingLifetime | quote }}
+  ISSUED_CERTIFICATE_LIFETIME_SLACK: {{$.Values.workerConfig.issuedCertificateLifetimeSlack | default "1m" | quote }}
   CA_POOL_NAME: {{$.Values.workerConfig.caPoolName | quote }}
   CA_NAME: {{$.Values.workerConfig.caName | quote }}
   CA_POOL_DEPLOYED_PROJECT_ID: {{$.Values.workerConfig.caPoolDeployedProjectId | quote }}
   SECRET_MANAGER_PROJECT_ID: {{$.Values.workerConfig.secretManagerProjectId | quote }}
   ENABLE_VSA_CERTIFICATE_ROTATION: {{$.Values.workerConfig.enableVsaCertificateRotation | quote }}
   ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION: {{$.Values.workerConfig.enableVsaExpiredCertificatesRotation | quote }}
+  ENABLE_CA_CHANGE_DURING_CERTIFICATE_ROTATION: {{$.Values.workerConfig.enableCaChangeDuringCertificateRotation | default "false" | quote }}
+  ENABLE_FORCED_CERTIFICATE_ROTATION: {{$.Values.workerConfig.enableForcedCertificateRotation | default "false" | quote }}
   CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE: {{$.Values.workerConfig.certificateRotationThresholdPercentage | quote }}
   CERTIFICATE_ROTATION_POOL_STATES: {{$.Values.workerConfig.certificateRotationPoolStates | quote }}
   VSA_DEPLOYED_DNS_NAME: {{$.Values.workerConfig.vsaDeployedDnsName | quote }}

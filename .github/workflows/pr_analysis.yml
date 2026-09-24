@@ -38,7 +38,15 @@ jobs:
 
       - name: Fetch and switch to PR branch
         run: |
-          git diff -U50 --no-renames origin/$GITHUB_BASE_REF > temp_diff_before_checkout.txt
+          # Keep the analysis payload below the model context limit. Generated
+          # code, generated mocks, and checksums are derived artifacts; their
+          # source specifications and handwritten callers remain in the diff.
+          git diff --unified=5 --no-renames "origin/$GITHUB_BASE_REF" -- \
+            . \
+            ':(glob,exclude)**/*_gen.go' \
+            ':(glob,exclude)**/*_mock.go' \
+            ':(exclude)checksums/**' \
+            > temp_diff_before_checkout.txt
           # Get the PR branch name
           PR_BRANCH=$(echo $GITHUB_HEAD_REF)
           echo "Pull request branch: $PR_BRANCH"

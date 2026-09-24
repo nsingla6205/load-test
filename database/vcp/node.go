@@ -14,7 +14,12 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// nodeEndpointAddressColumn matches the column name declared on datamodel.Node.
+// AutoMigrate created it as a quoted, mixed-case identifier.
+const nodeEndpointAddressColumn = "endpoint_Address"
 
 // GetNodesByPoolID retrieves nodes by their corresponding pool ID
 func (d *DataStoreRepository) GetNodesByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Node, error) {
@@ -27,6 +32,39 @@ func (d *DataStoreRepository) GetNodesByPoolIDs(ctx context.Context, poolIDs []i
 		return nil, nil
 	}
 	return getNodesByPoolIDs(d.db.GORM().WithContext(ctx), poolIDs)
+}
+
+// UpdateNodeHostDNSNames updates persisted TLS host names for nodes in one pool.
+func (d *DataStoreRepository) UpdateNodeHostDNSNames(
+	ctx context.Context,
+	poolID int64,
+	hostNamesByEndpoint map[string]string,
+) (err error) {
+	if len(hostNamesByEndpoint) == 0 {
+		return nil
+	}
+	tx, err := startTransaction(d.db.GORM().WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer commitOrRollbackOnError(util.GetLogger(ctx), tx, &err)
+
+	for endpoint, hostName := range hostNamesByEndpoint {
+		// The nodes column is the mixed-case identifier "endpoint_Address",
+		// so it must be quoted by GORM rather than inlined into raw SQL.
+		result := tx.Model(&datamodel.Node{}).
+			Where("pool_id = ?", poolID).
+			Where(clause.Eq{Column: clause.Column{Name: nodeEndpointAddressColumn}, Value: endpoint}).
+			Update("host_dns_name", hostName)
+		if result.Error != nil {
+			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+		}
+		if result.RowsAffected != 1 {
+			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				fmt.Errorf("node endpoint %q not found for pool %d", endpoint, poolID))
+		}
+	}
+	return nil
 }
 
 // GetNodeByID retrieves a node by ID. Uses Unscoped to include soft-deleted nodes so callers can check State.

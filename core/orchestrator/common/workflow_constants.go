@@ -17,8 +17,12 @@ const (
 
 	// Workflow name constants for use with control workflows
 	// These are used to reference workflows by name when executing them sequentially
-	RotatePoolCertificateWorkflowName = "RotatePoolCertificateWorkflow"
-	RotatePoolPasswordWorkflowName    = "RotatePoolPasswordWorkflow"
+	RotatePoolCertificateWorkflowName             = "RotatePoolCertificateWorkflow"
+	ForceRotatePoolCertificateWorkflowName        = "ForceRotatePoolCertificateWorkflow"
+	TrackedForceRotatePoolCertificateWorkflowName = "TrackedForceRotatePoolCertificateWorkflow"
+	TrackedReconcilePoolCAWorkflowName            = "TrackedReconcilePoolCAWorkflow"
+	RotatePoolPasswordWorkflowName                = "RotatePoolPasswordWorkflow"
+	ReconcilePoolCAWorkflowName                   = "ReconcilePoolCAWorkflow"
 
 	// RotateOciPoolCertificateWorkflowName is used to start the OCI per-pool certificate
 	// rotation as an independent top-level workflow from the dispatch activity (the OCI

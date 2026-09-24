@@ -144,6 +144,9 @@ func (UnsupportedServices) RevokeCertificate(cert *models.CustomCertificate) (st
 func (UnsupportedServices) GetCertificate(projectID, region, poolName, certificateID string) (*models.CustomCertificate, error) {
 	return nil, unsupported()
 }
+func (UnsupportedServices) GetCertificateAuthority(ctx context.Context, projectID, region, poolName, caName string) (*models.CertificateAuthority, error) {
+	return nil, unsupported()
+}
 func (UnsupportedServices) CreateSecret(projectID, region, secretID, secretValue string) (*models.CustomSecret, error) {
 	return nil, unsupported()
 }

@@ -193,8 +193,36 @@ func encodeV1ExpertModeVolumeRenameRequest(
 	return nil
 }
 
+func encodeV1ForcePoolCertificateRotationRequest(
+	req *ForcePoolCertificateRotationRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1OnboardExternalClusterRequest(
 	req *ExternalClusterOnboardRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1ReconcilePoolCertificateAuthorityRequest(
+	req *ReconcilePoolCertificateAuthorityRequestV1,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

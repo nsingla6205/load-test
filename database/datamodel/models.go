@@ -120,6 +120,10 @@ type ExpertModeCredential struct {
 	Password         string `json:"password"`
 	Username         string `json:"username"`
 	AuthType         int    `json:"auth_type"`
+
+	CaURI              string `json:"ca_uri,omitempty"`
+	StagedCaURI        string `json:"staged_ca_uri,omitempty"`
+	UsernamePreCertFix string `json:"username_pre_cert_fix,omitempty"`
 }
 
 // Value implements the driver.Valuer interface for GORM
@@ -149,6 +153,9 @@ type PoolCredentials struct {
 	Password         string `json:"password"`
 	AuthType         int    `json:"auth_type"`
 	Username         string `json:"username"`
+
+	StagedCaURI        string `json:"staged_ca_uri,omitempty"`
+	UsernamePreCertFix string `json:"username_pre_cert_fix,omitempty"`
 
 	// Certificate-related configuration (stored from environment variables during pool creation)
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
@@ -781,6 +788,10 @@ type Job struct {
 type JobAttributes struct {
 	ResourceUUID         string                 `json:"resource_uuid"`
 	PoolUUID             string                 `json:"pool_uuid"`
+	ParentJobID          string                 `json:"parent_job_id,omitempty"`
+	Operation            string                 `json:"operation,omitempty"`
+	SelectionType        string                 `json:"selection_type,omitempty"`
+	DesiredCAURI         string                 `json:"desired_ca_uri,omitempty"`
 	VolumeUUID           string                 `json:"volume_uuid,omitempty"`
 	CurrentRetryCount    int                    `json:"current_retry_count"`
 	Location             string                 `json:"location"`

@@ -45,6 +45,8 @@ type (
 		UpdatePoolSubnetNames(ctx context.Context, poolUUID, snHostProject, regionalTenantProject string, subnetNames []string) error
 		UpdatePoolState(ctx context.Context, pool *datamodel.Pool, state string, stateDetails string) (*datamodel.Pool, error)
 		UpdatePoolFields(ctx context.Context, poolUUID string, updates map[string]interface{}) error
+		CompareAndSwapPoolCredentials(ctx context.Context, poolUUID string, expectedAuthType int, expectedCertificateIDNew, expectedStagedCaURI string, eligibleStates []string, credentials *datamodel.PoolCredentials) error
+		CompareAndSwapExpertModeCredentials(ctx context.Context, poolUUID string, expected, replacement *datamodel.ExpertModeCredentials, eligibleStates []string) error
 		UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error
 		UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error
 		DeletePool(ctx context.Context, pool *datamodel.Pool) error
@@ -209,6 +211,7 @@ type (
 		GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error)
 		GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error)
 		GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error)
+		UpdateNodeHostDNSNames(ctx context.Context, poolID int64, hostNamesByEndpoint map[string]string) error
 		GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error)
 		GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error)
 		CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error)

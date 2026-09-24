@@ -4,12 +4,10 @@ package database
 
 import (
 	context "context"
+	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
-
-	time "time"
-
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
@@ -127,6 +125,65 @@ func (_c *MockDataStore_AddKeyToServiceAccount_Call) Return(_a0 error) *MockData
 }
 
 func (_c *MockDataStore_AddKeyToServiceAccount_Call) RunAndReturn(run func(context.Context, string, datamodel.ServiceAccountKey) error) *MockDataStore_AddKeyToServiceAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AdoptInterclusterIPRange provides a mock function with given fields: ctx, claim
+func (_m *MockDataStore) AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error) {
+	ret := _m.Called(ctx, claim)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdoptInterclusterIPRange")
+	}
+
+	var r0 *InterclusterCarveResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)); ok {
+		return rf(ctx, claim)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) *InterclusterCarveResult); ok {
+		r0 = rf(ctx, claim)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*InterclusterCarveResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, InterclusterAdoptClaim) error); ok {
+		r1 = rf(ctx, claim)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_AdoptInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdoptInterclusterIPRange'
+type MockDataStore_AdoptInterclusterIPRange_Call struct {
+	*mock.Call
+}
+
+// AdoptInterclusterIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - claim InterclusterAdoptClaim
+func (_e *MockDataStore_Expecter) AdoptInterclusterIPRange(ctx interface{}, claim interface{}) *MockDataStore_AdoptInterclusterIPRange_Call {
+	return &MockDataStore_AdoptInterclusterIPRange_Call{Call: _e.mock.On("AdoptInterclusterIPRange", ctx, claim)}
+}
+
+func (_c *MockDataStore_AdoptInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterAdoptClaim)) *MockDataStore_AdoptInterclusterIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(InterclusterAdoptClaim))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_AdoptInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockDataStore_AdoptInterclusterIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_AdoptInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)) *MockDataStore_AdoptInterclusterIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -969,6 +1026,55 @@ func (_c *MockDataStore_BatchUpdateVolumeTieringFields_Call) RunAndReturn(run fu
 	return _c
 }
 
+// BindInterclusterLifToNode provides a mock function with given fields: ctx, poolID, ipAddress, nodeID
+func (_m *MockDataStore) BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error {
+	ret := _m.Called(ctx, poolID, ipAddress, nodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BindInterclusterLifToNode")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, int64) error); ok {
+		r0 = rf(ctx, poolID, ipAddress, nodeID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_BindInterclusterLifToNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BindInterclusterLifToNode'
+type MockDataStore_BindInterclusterLifToNode_Call struct {
+	*mock.Call
+}
+
+// BindInterclusterLifToNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+//   - ipAddress string
+//   - nodeID int64
+func (_e *MockDataStore_Expecter) BindInterclusterLifToNode(ctx interface{}, poolID interface{}, ipAddress interface{}, nodeID interface{}) *MockDataStore_BindInterclusterLifToNode_Call {
+	return &MockDataStore_BindInterclusterLifToNode_Call{Call: _e.mock.On("BindInterclusterLifToNode", ctx, poolID, ipAddress, nodeID)}
+}
+
+func (_c *MockDataStore_BindInterclusterLifToNode_Call) Run(run func(ctx context.Context, poolID int64, ipAddress string, nodeID int64)) *MockDataStore_BindInterclusterLifToNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(string), args[3].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_BindInterclusterLifToNode_Call) Return(_a0 error) *MockDataStore_BindInterclusterLifToNode_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_BindInterclusterLifToNode_Call) RunAndReturn(run func(context.Context, int64, string, int64) error) *MockDataStore_BindInterclusterLifToNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CancelPrepopulateJobsForVolume provides a mock function with given fields: ctx, volumeUUID
 func (_m *MockDataStore) CancelPrepopulateJobsForVolume(ctx context.Context, volumeUUID string) error {
 	ret := _m.Called(ctx, volumeUUID)
@@ -1119,6 +1225,167 @@ func (_c *MockDataStore_CheckAndFetchDuplicateJobs_Call) Return(_a0 *datamodel.J
 }
 
 func (_c *MockDataStore_CheckAndFetchDuplicateJobs_Call) RunAndReturn(run func(context.Context, string, string) (*datamodel.Job, error)) *MockDataStore_CheckAndFetchDuplicateJobs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ClaimCarvedInterclusterIPRange provides a mock function with given fields: ctx, claim
+func (_m *MockDataStore) ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error) {
+	ret := _m.Called(ctx, claim)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimCarvedInterclusterIPRange")
+	}
+
+	var r0 *InterclusterCarveResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)); ok {
+		return rf(ctx, claim)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) *InterclusterCarveResult); ok {
+		r0 = rf(ctx, claim)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*InterclusterCarveResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, InterclusterCarveClaim) error); ok {
+		r1 = rf(ctx, claim)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ClaimCarvedInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimCarvedInterclusterIPRange'
+type MockDataStore_ClaimCarvedInterclusterIPRange_Call struct {
+	*mock.Call
+}
+
+// ClaimCarvedInterclusterIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - claim InterclusterCarveClaim
+func (_e *MockDataStore_Expecter) ClaimCarvedInterclusterIPRange(ctx interface{}, claim interface{}) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
+	return &MockDataStore_ClaimCarvedInterclusterIPRange_Call{Call: _e.mock.On("ClaimCarvedInterclusterIPRange", ctx, claim)}
+}
+
+func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterCarveClaim)) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(InterclusterCarveClaim))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CompareAndSwapExpertModeCredentials provides a mock function with given fields: ctx, poolUUID, expected, replacement, eligibleStates
+func (_m *MockDataStore) CompareAndSwapExpertModeCredentials(ctx context.Context, poolUUID string, expected *datamodel.ExpertModeCredentials, replacement *datamodel.ExpertModeCredentials, eligibleStates []string) error {
+	ret := _m.Called(ctx, poolUUID, expected, replacement, eligibleStates)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompareAndSwapExpertModeCredentials")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *datamodel.ExpertModeCredentials, *datamodel.ExpertModeCredentials, []string) error); ok {
+		r0 = rf(ctx, poolUUID, expected, replacement, eligibleStates)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_CompareAndSwapExpertModeCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompareAndSwapExpertModeCredentials'
+type MockDataStore_CompareAndSwapExpertModeCredentials_Call struct {
+	*mock.Call
+}
+
+// CompareAndSwapExpertModeCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - expected *datamodel.ExpertModeCredentials
+//   - replacement *datamodel.ExpertModeCredentials
+//   - eligibleStates []string
+func (_e *MockDataStore_Expecter) CompareAndSwapExpertModeCredentials(ctx interface{}, poolUUID interface{}, expected interface{}, replacement interface{}, eligibleStates interface{}) *MockDataStore_CompareAndSwapExpertModeCredentials_Call {
+	return &MockDataStore_CompareAndSwapExpertModeCredentials_Call{Call: _e.mock.On("CompareAndSwapExpertModeCredentials", ctx, poolUUID, expected, replacement, eligibleStates)}
+}
+
+func (_c *MockDataStore_CompareAndSwapExpertModeCredentials_Call) Run(run func(ctx context.Context, poolUUID string, expected *datamodel.ExpertModeCredentials, replacement *datamodel.ExpertModeCredentials, eligibleStates []string)) *MockDataStore_CompareAndSwapExpertModeCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*datamodel.ExpertModeCredentials), args[3].(*datamodel.ExpertModeCredentials), args[4].([]string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CompareAndSwapExpertModeCredentials_Call) Return(_a0 error) *MockDataStore_CompareAndSwapExpertModeCredentials_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_CompareAndSwapExpertModeCredentials_Call) RunAndReturn(run func(context.Context, string, *datamodel.ExpertModeCredentials, *datamodel.ExpertModeCredentials, []string) error) *MockDataStore_CompareAndSwapExpertModeCredentials_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CompareAndSwapPoolCredentials provides a mock function with given fields: ctx, poolUUID, expectedAuthType, expectedCertificateIDNew, expectedStagedCaURI, eligibleStates, credentials
+func (_m *MockDataStore) CompareAndSwapPoolCredentials(ctx context.Context, poolUUID string, expectedAuthType int, expectedCertificateIDNew string, expectedStagedCaURI string, eligibleStates []string, credentials *datamodel.PoolCredentials) error {
+	ret := _m.Called(ctx, poolUUID, expectedAuthType, expectedCertificateIDNew, expectedStagedCaURI, eligibleStates, credentials)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompareAndSwapPoolCredentials")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, string, string, []string, *datamodel.PoolCredentials) error); ok {
+		r0 = rf(ctx, poolUUID, expectedAuthType, expectedCertificateIDNew, expectedStagedCaURI, eligibleStates, credentials)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_CompareAndSwapPoolCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompareAndSwapPoolCredentials'
+type MockDataStore_CompareAndSwapPoolCredentials_Call struct {
+	*mock.Call
+}
+
+// CompareAndSwapPoolCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - expectedAuthType int
+//   - expectedCertificateIDNew string
+//   - expectedStagedCaURI string
+//   - eligibleStates []string
+//   - credentials *datamodel.PoolCredentials
+func (_e *MockDataStore_Expecter) CompareAndSwapPoolCredentials(ctx interface{}, poolUUID interface{}, expectedAuthType interface{}, expectedCertificateIDNew interface{}, expectedStagedCaURI interface{}, eligibleStates interface{}, credentials interface{}) *MockDataStore_CompareAndSwapPoolCredentials_Call {
+	return &MockDataStore_CompareAndSwapPoolCredentials_Call{Call: _e.mock.On("CompareAndSwapPoolCredentials", ctx, poolUUID, expectedAuthType, expectedCertificateIDNew, expectedStagedCaURI, eligibleStates, credentials)}
+}
+
+func (_c *MockDataStore_CompareAndSwapPoolCredentials_Call) Run(run func(ctx context.Context, poolUUID string, expectedAuthType int, expectedCertificateIDNew string, expectedStagedCaURI string, eligibleStates []string, credentials *datamodel.PoolCredentials)) *MockDataStore_CompareAndSwapPoolCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(string), args[4].(string), args[5].([]string), args[6].(*datamodel.PoolCredentials))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CompareAndSwapPoolCredentials_Call) Return(_a0 error) *MockDataStore_CompareAndSwapPoolCredentials_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_CompareAndSwapPoolCredentials_Call) RunAndReturn(run func(context.Context, string, int, string, string, []string, *datamodel.PoolCredentials) error) *MockDataStore_CompareAndSwapPoolCredentials_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2530,120 +2797,6 @@ func (_c *MockDataStore_CreateIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 e
 }
 
 func (_c *MockDataStore_CreateIPRange_Call) RunAndReturn(run func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)) *MockDataStore_CreateIPRange_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClaimCarvedInterclusterIPRange provides a mock function with given fields: ctx, claim
-func (_m *MockDataStore) ClaimCarvedInterclusterIPRange(ctx context.Context, claim InterclusterCarveClaim) (*InterclusterCarveResult, error) {
-	ret := _m.Called(ctx, claim)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClaimCarvedInterclusterIPRange")
-	}
-
-	var r0 *InterclusterCarveResult
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)); ok {
-		return rf(ctx, claim)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, InterclusterCarveClaim) *InterclusterCarveResult); ok {
-		r0 = rf(ctx, claim)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*InterclusterCarveResult)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, InterclusterCarveClaim) error); ok {
-		r1 = rf(ctx, claim)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_ClaimCarvedInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimCarvedInterclusterIPRange'
-type MockDataStore_ClaimCarvedInterclusterIPRange_Call struct {
-	*mock.Call
-}
-
-// ClaimCarvedInterclusterIPRange is a helper method to define mock.On call
-func (_e *MockDataStore_Expecter) ClaimCarvedInterclusterIPRange(ctx interface{}, claim interface{}) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
-	return &MockDataStore_ClaimCarvedInterclusterIPRange_Call{Call: _e.mock.On("ClaimCarvedInterclusterIPRange", ctx, claim)}
-}
-
-func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterCarveClaim)) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(InterclusterCarveClaim))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_ClaimCarvedInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterCarveClaim) (*InterclusterCarveResult, error)) *MockDataStore_ClaimCarvedInterclusterIPRange_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// AdoptInterclusterIPRange provides a mock function with given fields: ctx, claim
-func (_m *MockDataStore) AdoptInterclusterIPRange(ctx context.Context, claim InterclusterAdoptClaim) (*InterclusterCarveResult, error) {
-	ret := _m.Called(ctx, claim)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AdoptInterclusterIPRange")
-	}
-
-	var r0 *InterclusterCarveResult
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)); ok {
-		return rf(ctx, claim)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, InterclusterAdoptClaim) *InterclusterCarveResult); ok {
-		r0 = rf(ctx, claim)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*InterclusterCarveResult)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, InterclusterAdoptClaim) error); ok {
-		r1 = rf(ctx, claim)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_AdoptInterclusterIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdoptInterclusterIPRange'
-type MockDataStore_AdoptInterclusterIPRange_Call struct {
-	*mock.Call
-}
-
-// AdoptInterclusterIPRange is a helper method to define mock.On call
-func (_e *MockDataStore_Expecter) AdoptInterclusterIPRange(ctx interface{}, claim interface{}) *MockDataStore_AdoptInterclusterIPRange_Call {
-	return &MockDataStore_AdoptInterclusterIPRange_Call{Call: _e.mock.On("AdoptInterclusterIPRange", ctx, claim)}
-}
-
-func (_c *MockDataStore_AdoptInterclusterIPRange_Call) Run(run func(ctx context.Context, claim InterclusterAdoptClaim)) *MockDataStore_AdoptInterclusterIPRange_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(InterclusterAdoptClaim))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_AdoptInterclusterIPRange_Call) Return(_a0 *InterclusterCarveResult, _a1 error) *MockDataStore_AdoptInterclusterIPRange_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_AdoptInterclusterIPRange_Call) RunAndReturn(run func(context.Context, InterclusterAdoptClaim) (*InterclusterCarveResult, error)) *MockDataStore_AdoptInterclusterIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -4838,6 +4991,7 @@ func (_c *MockDataStore_DeleteIPRange_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// DeleteIPRangeByID provides a mock function with given fields: ctx, ipRangeID
 func (_m *MockDataStore) DeleteIPRangeByID(ctx context.Context, ipRangeID int64) (*datamodel.IPRange, error) {
 	ret := _m.Called(ctx, ipRangeID)
 
@@ -4867,77 +5021,33 @@ func (_m *MockDataStore) DeleteIPRangeByID(ctx context.Context, ipRangeID int64)
 	return r0, r1
 }
 
-func (_m *MockDataStore) ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber, vpcName string) ([]*datamodel.IPRange, error) {
-	ret := _m.Called(ctx, hostProjectNumber, vpcName)
-	if len(ret) == 0 {
-		panic("no return value specified for ListInterclusterIPRangesForVPC")
-	}
-	var r0 []*datamodel.IPRange
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]*datamodel.IPRange, error)); ok {
-		return rf(ctx, hostProjectNumber, vpcName)
-	}
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]*datamodel.IPRange)
-	}
-	r1 = ret.Error(1)
-	return r0, r1
+// MockDataStore_DeleteIPRangeByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIPRangeByID'
+type MockDataStore_DeleteIPRangeByID_Call struct {
+	*mock.Call
 }
 
-func (_m *MockDataStore) ReserveInterclusterLifIPs(ctx context.Context, poolID, accountID, ipRangeID int64, count int) ([]string, error) {
-	ret := _m.Called(ctx, poolID, accountID, ipRangeID, count)
-	if len(ret) == 0 {
-		panic("no return value specified for ReserveInterclusterLifIPs")
-	}
-	var r0 []string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, int64, int) ([]string, error)); ok {
-		return rf(ctx, poolID, accountID, ipRangeID, count)
-	}
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]string)
-	}
-	r1 = ret.Error(1)
-	return r0, r1
+// DeleteIPRangeByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipRangeID int64
+func (_e *MockDataStore_Expecter) DeleteIPRangeByID(ctx interface{}, ipRangeID interface{}) *MockDataStore_DeleteIPRangeByID_Call {
+	return &MockDataStore_DeleteIPRangeByID_Call{Call: _e.mock.On("DeleteIPRangeByID", ctx, ipRangeID)}
 }
 
-func (_m *MockDataStore) ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error) {
-	ret := _m.Called(ctx, poolID)
-	if len(ret) == 0 {
-		panic("no return value specified for ListInterclusterLifsByPoolID")
-	}
-	var r0 []*datamodel.Lif
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Lif, error)); ok {
-		return rf(ctx, poolID)
-	}
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]*datamodel.Lif)
-	}
-	r1 = ret.Error(1)
-	return r0, r1
+func (_c *MockDataStore_DeleteIPRangeByID_Call) Run(run func(ctx context.Context, ipRangeID int64)) *MockDataStore_DeleteIPRangeByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
 }
 
-func (_m *MockDataStore) BindInterclusterLifToNode(ctx context.Context, poolID int64, ipAddress string, nodeID int64) error {
-	ret := _m.Called(ctx, poolID, ipAddress, nodeID)
-	if len(ret) == 0 {
-		panic("no return value specified for BindInterclusterLifToNode")
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, string, int64) error); ok {
-		return rf(ctx, poolID, ipAddress, nodeID)
-	}
-	return ret.Error(0)
+func (_c *MockDataStore_DeleteIPRangeByID_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockDataStore_DeleteIPRangeByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
 }
 
-func (_m *MockDataStore) DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error {
-	ret := _m.Called(ctx, poolID)
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteInterclusterLifsByPoolID")
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		return rf(ctx, poolID)
-	}
-	return ret.Error(0)
+func (_c *MockDataStore_DeleteIPRangeByID_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.IPRange, error)) *MockDataStore_DeleteIPRangeByID_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DeleteImageVersion provides a mock function with given fields: ctx, ontapVersion
@@ -4983,6 +5093,53 @@ func (_c *MockDataStore_DeleteImageVersion_Call) Return(_a0 error) *MockDataStor
 }
 
 func (_c *MockDataStore_DeleteImageVersion_Call) RunAndReturn(run func(context.Context, string) error) *MockDataStore_DeleteImageVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteInterclusterLifsByPoolID provides a mock function with given fields: ctx, poolID
+func (_m *MockDataStore) DeleteInterclusterLifsByPoolID(ctx context.Context, poolID int64) error {
+	ret := _m.Called(ctx, poolID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteInterclusterLifsByPoolID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
+		r0 = rf(ctx, poolID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_DeleteInterclusterLifsByPoolID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteInterclusterLifsByPoolID'
+type MockDataStore_DeleteInterclusterLifsByPoolID_Call struct {
+	*mock.Call
+}
+
+// DeleteInterclusterLifsByPoolID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+func (_e *MockDataStore_Expecter) DeleteInterclusterLifsByPoolID(ctx interface{}, poolID interface{}) *MockDataStore_DeleteInterclusterLifsByPoolID_Call {
+	return &MockDataStore_DeleteInterclusterLifsByPoolID_Call{Call: _e.mock.On("DeleteInterclusterLifsByPoolID", ctx, poolID)}
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsByPoolID_Call) Run(run func(ctx context.Context, poolID int64)) *MockDataStore_DeleteInterclusterLifsByPoolID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsByPoolID_Call) Return(_a0 error) *MockDataStore_DeleteInterclusterLifsByPoolID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_DeleteInterclusterLifsByPoolID_Call) RunAndReturn(run func(context.Context, int64) error) *MockDataStore_DeleteInterclusterLifsByPoolID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -10794,6 +10951,8 @@ type MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call struct {
 }
 
 // GetExpertModePoolsUsedCapacityAndVolumeCount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolIDs []int64
 func (_e *MockDataStore_Expecter) GetExpertModePoolsUsedCapacityAndVolumeCount(ctx interface{}, poolIDs interface{}) *MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call {
 	return &MockDataStore_GetExpertModePoolsUsedCapacityAndVolumeCount_Call{Call: _e.mock.On("GetExpertModePoolsUsedCapacityAndVolumeCount", ctx, poolIDs)}
 }
@@ -19821,6 +19980,67 @@ func (_c *MockDataStore_ListExpertModeVolumesByPoolID_Call) RunAndReturn(run fun
 	return _c
 }
 
+// ListExpertModeVolumesForResourceData provides a mock function with given fields: ctx, startTime, endTime, pagination
+func (_m *MockDataStore) ListExpertModeVolumesForResourceData(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
+	ret := _m.Called(ctx, startTime, endTime, pagination)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListExpertModeVolumesForResourceData")
+	}
+
+	var r0 []*ExpertModeVolumeMetricsData
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)); ok {
+		return rf(ctx, startTime, endTime, pagination)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) []*ExpertModeVolumeMetricsData); ok {
+		r0 = rf(ctx, startTime, endTime, pagination)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*ExpertModeVolumeMetricsData)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, *utils.Pagination) error); ok {
+		r1 = rf(ctx, startTime, endTime, pagination)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListExpertModeVolumesForResourceData_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListExpertModeVolumesForResourceData'
+type MockDataStore_ListExpertModeVolumesForResourceData_Call struct {
+	*mock.Call
+}
+
+// ListExpertModeVolumesForResourceData is a helper method to define mock.On call
+//   - ctx context.Context
+//   - startTime time.Time
+//   - endTime time.Time
+//   - pagination *utils.Pagination
+func (_e *MockDataStore_Expecter) ListExpertModeVolumesForResourceData(ctx interface{}, startTime interface{}, endTime interface{}, pagination interface{}) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	return &MockDataStore_ListExpertModeVolumesForResourceData_Call{Call: _e.mock.On("ListExpertModeVolumesForResourceData", ctx, startTime, endTime, pagination)}
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Run(run func(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time), args[3].(*utils.Pagination))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Return(_a0 []*ExpertModeVolumeMetricsData, _a1 error) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListExpertModeVolumesForTelemetryMetrics provides a mock function with given fields: ctx, pagination
 func (_m *MockDataStore) ListExpertModeVolumesForTelemetryMetrics(ctx context.Context, pagination *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
 	ret := _m.Called(ctx, pagination)
@@ -19876,63 +20096,6 @@ func (_c *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call) Return(_a
 }
 
 func (_c *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call) RunAndReturn(run func(context.Context, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)) *MockDataStore_ListExpertModeVolumesForTelemetryMetrics_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListExpertModeVolumesForResourceData provides a mock function with given fields: ctx, startTime, endTime, pagination
-func (_m *MockDataStore) ListExpertModeVolumesForResourceData(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error) {
-	ret := _m.Called(ctx, startTime, endTime, pagination)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListExpertModeVolumesForResourceData")
-	}
-
-	var r0 []*ExpertModeVolumeMetricsData
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)); ok {
-		return rf(ctx, startTime, endTime, pagination)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, *utils.Pagination) []*ExpertModeVolumeMetricsData); ok {
-		r0 = rf(ctx, startTime, endTime, pagination)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*ExpertModeVolumeMetricsData)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, *utils.Pagination) error); ok {
-		r1 = rf(ctx, startTime, endTime, pagination)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_ListExpertModeVolumesForResourceData_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListExpertModeVolumesForResourceData'
-type MockDataStore_ListExpertModeVolumesForResourceData_Call struct {
-	*mock.Call
-}
-
-// ListExpertModeVolumesForResourceData is a helper method to define mock.On call
-func (_e *MockDataStore_Expecter) ListExpertModeVolumesForResourceData(ctx interface{}, startTime interface{}, endTime interface{}, pagination interface{}) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
-	return &MockDataStore_ListExpertModeVolumesForResourceData_Call{Call: _e.mock.On("ListExpertModeVolumesForResourceData", ctx, startTime, endTime, pagination)}
-}
-
-func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Run(run func(ctx context.Context, startTime time.Time, endTime time.Time, pagination *utils.Pagination)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time), args[3].(*utils.Pagination))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) Return(_a0 []*ExpertModeVolumeMetricsData, _a1 error) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_ListExpertModeVolumesForResourceData_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, *utils.Pagination) ([]*ExpertModeVolumeMetricsData, error)) *MockDataStore_ListExpertModeVolumesForResourceData_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -20227,6 +20390,125 @@ func (_c *MockDataStore_ListImageVersions_Call) Return(_a0 []*datamodel.ImageVer
 }
 
 func (_c *MockDataStore_ListImageVersions_Call) RunAndReturn(run func(context.Context, bool) ([]*datamodel.ImageVersion, error)) *MockDataStore_ListImageVersions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListInterclusterIPRangesForVPC provides a mock function with given fields: ctx, hostProjectNumber, vpcName
+func (_m *MockDataStore) ListInterclusterIPRangesForVPC(ctx context.Context, hostProjectNumber string, vpcName string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, hostProjectNumber, vpcName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListInterclusterIPRangesForVPC")
+	}
+
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, hostProjectNumber, vpcName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, hostProjectNumber, vpcName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, hostProjectNumber, vpcName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListInterclusterIPRangesForVPC_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListInterclusterIPRangesForVPC'
+type MockDataStore_ListInterclusterIPRangesForVPC_Call struct {
+	*mock.Call
+}
+
+// ListInterclusterIPRangesForVPC is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostProjectNumber string
+//   - vpcName string
+func (_e *MockDataStore_Expecter) ListInterclusterIPRangesForVPC(ctx interface{}, hostProjectNumber interface{}, vpcName interface{}) *MockDataStore_ListInterclusterIPRangesForVPC_Call {
+	return &MockDataStore_ListInterclusterIPRangesForVPC_Call{Call: _e.mock.On("ListInterclusterIPRangesForVPC", ctx, hostProjectNumber, vpcName)}
+}
+
+func (_c *MockDataStore_ListInterclusterIPRangesForVPC_Call) Run(run func(ctx context.Context, hostProjectNumber string, vpcName string)) *MockDataStore_ListInterclusterIPRangesForVPC_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListInterclusterIPRangesForVPC_Call) Return(_a0 []*datamodel.IPRange, _a1 error) *MockDataStore_ListInterclusterIPRangesForVPC_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListInterclusterIPRangesForVPC_Call) RunAndReturn(run func(context.Context, string, string) ([]*datamodel.IPRange, error)) *MockDataStore_ListInterclusterIPRangesForVPC_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListInterclusterLifsByPoolID provides a mock function with given fields: ctx, poolID
+func (_m *MockDataStore) ListInterclusterLifsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, poolID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListInterclusterLifsByPoolID")
+	}
+
+	var r0 []*datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, poolID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Lif); ok {
+		r0 = rf(ctx, poolID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Lif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, poolID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListInterclusterLifsByPoolID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListInterclusterLifsByPoolID'
+type MockDataStore_ListInterclusterLifsByPoolID_Call struct {
+	*mock.Call
+}
+
+// ListInterclusterLifsByPoolID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+func (_e *MockDataStore_Expecter) ListInterclusterLifsByPoolID(ctx interface{}, poolID interface{}) *MockDataStore_ListInterclusterLifsByPoolID_Call {
+	return &MockDataStore_ListInterclusterLifsByPoolID_Call{Call: _e.mock.On("ListInterclusterLifsByPoolID", ctx, poolID)}
+}
+
+func (_c *MockDataStore_ListInterclusterLifsByPoolID_Call) Run(run func(ctx context.Context, poolID int64)) *MockDataStore_ListInterclusterLifsByPoolID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListInterclusterLifsByPoolID_Call) Return(_a0 []*datamodel.Lif, _a1 error) *MockDataStore_ListInterclusterLifsByPoolID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListInterclusterLifsByPoolID_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Lif, error)) *MockDataStore_ListInterclusterLifsByPoolID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -22189,6 +22471,63 @@ func (_c *MockDataStore_ListZones_Call) RunAndReturn(run func(context.Context) (
 	return _c
 }
 
+// MarkAddressRangeInUseByID provides a mock function with given fields: ctx, addressRangeID
+func (_m *MockDataStore) MarkAddressRangeInUseByID(ctx context.Context, addressRangeID int64) (bool, error) {
+	ret := _m.Called(ctx, addressRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkAddressRangeInUseByID")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (bool, error)); ok {
+		return rf(ctx, addressRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) bool); ok {
+		r0 = rf(ctx, addressRangeID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, addressRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_MarkAddressRangeInUseByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkAddressRangeInUseByID'
+type MockDataStore_MarkAddressRangeInUseByID_Call struct {
+	*mock.Call
+}
+
+// MarkAddressRangeInUseByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - addressRangeID int64
+func (_e *MockDataStore_Expecter) MarkAddressRangeInUseByID(ctx interface{}, addressRangeID interface{}) *MockDataStore_MarkAddressRangeInUseByID_Call {
+	return &MockDataStore_MarkAddressRangeInUseByID_Call{Call: _e.mock.On("MarkAddressRangeInUseByID", ctx, addressRangeID)}
+}
+
+func (_c *MockDataStore_MarkAddressRangeInUseByID_Call) Run(run func(ctx context.Context, addressRangeID int64)) *MockDataStore_MarkAddressRangeInUseByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_MarkAddressRangeInUseByID_Call) Return(_a0 bool, _a1 error) *MockDataStore_MarkAddressRangeInUseByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_MarkAddressRangeInUseByID_Call) RunAndReturn(run func(context.Context, int64) (bool, error)) *MockDataStore_MarkAddressRangeInUseByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkKeyForDeletion provides a mock function with given fields: ctx, serviceAccountUUID, keyID
 func (_m *MockDataStore) MarkKeyForDeletion(ctx context.Context, serviceAccountUUID string, keyID string) error {
 	ret := _m.Called(ctx, serviceAccountUUID, keyID)
@@ -22291,6 +22630,63 @@ func (_c *MockDataStore_PoolExistsForAccount_Call) Return(_a0 bool, _a1 error) *
 }
 
 func (_c *MockDataStore_PoolExistsForAccount_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockDataStore_PoolExistsForAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReleaseInterclusterAddressRangeIfUnused provides a mock function with given fields: ctx, addressRangeID
+func (_m *MockDataStore) ReleaseInterclusterAddressRangeIfUnused(ctx context.Context, addressRangeID int64) (bool, error) {
+	ret := _m.Called(ctx, addressRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReleaseInterclusterAddressRangeIfUnused")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (bool, error)); ok {
+		return rf(ctx, addressRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) bool); ok {
+		r0 = rf(ctx, addressRangeID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, addressRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReleaseInterclusterAddressRangeIfUnused'
+type MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call struct {
+	*mock.Call
+}
+
+// ReleaseInterclusterAddressRangeIfUnused is a helper method to define mock.On call
+//   - ctx context.Context
+//   - addressRangeID int64
+func (_e *MockDataStore_Expecter) ReleaseInterclusterAddressRangeIfUnused(ctx interface{}, addressRangeID interface{}) *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call {
+	return &MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call{Call: _e.mock.On("ReleaseInterclusterAddressRangeIfUnused", ctx, addressRangeID)}
+}
+
+func (_c *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call) Run(run func(ctx context.Context, addressRangeID int64)) *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call) Return(_a0 bool, _a1 error) *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call) RunAndReturn(run func(context.Context, int64) (bool, error)) *MockDataStore_ReleaseInterclusterAddressRangeIfUnused_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -22401,6 +22797,68 @@ func (_c *MockDataStore_ReplaceDstQuotaRulesWithSrc_Call) Return(_a0 []*datamode
 }
 
 func (_c *MockDataStore_ReplaceDstQuotaRulesWithSrc_Call) RunAndReturn(run func(context.Context, int64, int64, []string, []*datamodel.QuotaRule) ([]*datamodel.QuotaRule, error)) *MockDataStore_ReplaceDstQuotaRulesWithSrc_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReserveInterclusterLifIPs provides a mock function with given fields: ctx, poolID, accountID, ipRangeID, count
+func (_m *MockDataStore) ReserveInterclusterLifIPs(ctx context.Context, poolID int64, accountID int64, ipRangeID int64, count int) ([]string, error) {
+	ret := _m.Called(ctx, poolID, accountID, ipRangeID, count)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReserveInterclusterLifIPs")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, int64, int) ([]string, error)); ok {
+		return rf(ctx, poolID, accountID, ipRangeID, count)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, int64, int) []string); ok {
+		r0 = rf(ctx, poolID, accountID, ipRangeID, count)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, int64, int) error); ok {
+		r1 = rf(ctx, poolID, accountID, ipRangeID, count)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ReserveInterclusterLifIPs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReserveInterclusterLifIPs'
+type MockDataStore_ReserveInterclusterLifIPs_Call struct {
+	*mock.Call
+}
+
+// ReserveInterclusterLifIPs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+//   - accountID int64
+//   - ipRangeID int64
+//   - count int
+func (_e *MockDataStore_Expecter) ReserveInterclusterLifIPs(ctx interface{}, poolID interface{}, accountID interface{}, ipRangeID interface{}, count interface{}) *MockDataStore_ReserveInterclusterLifIPs_Call {
+	return &MockDataStore_ReserveInterclusterLifIPs_Call{Call: _e.mock.On("ReserveInterclusterLifIPs", ctx, poolID, accountID, ipRangeID, count)}
+}
+
+func (_c *MockDataStore_ReserveInterclusterLifIPs_Call) Run(run func(ctx context.Context, poolID int64, accountID int64, ipRangeID int64, count int)) *MockDataStore_ReserveInterclusterLifIPs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64), args[3].(int64), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ReserveInterclusterLifIPs_Call) Return(_a0 []string, _a1 error) *MockDataStore_ReserveInterclusterLifIPs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ReserveInterclusterLifIPs_Call) RunAndReturn(run func(context.Context, int64, int64, int64, int) ([]string, error)) *MockDataStore_ReserveInterclusterLifIPs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -25746,6 +26204,54 @@ func (_c *MockDataStore_UpdateNodeGroup_Call) Return(_a0 *datamodel.NodeGroup, _
 }
 
 func (_c *MockDataStore_UpdateNodeGroup_Call) RunAndReturn(run func(context.Context, *datamodel.NodeGroup) (*datamodel.NodeGroup, error)) *MockDataStore_UpdateNodeGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateNodeHostDNSNames provides a mock function with given fields: ctx, poolID, hostNamesByEndpoint
+func (_m *MockDataStore) UpdateNodeHostDNSNames(ctx context.Context, poolID int64, hostNamesByEndpoint map[string]string) error {
+	ret := _m.Called(ctx, poolID, hostNamesByEndpoint)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNodeHostDNSNames")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, map[string]string) error); ok {
+		r0 = rf(ctx, poolID, hostNamesByEndpoint)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateNodeHostDNSNames_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNodeHostDNSNames'
+type MockDataStore_UpdateNodeHostDNSNames_Call struct {
+	*mock.Call
+}
+
+// UpdateNodeHostDNSNames is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+//   - hostNamesByEndpoint map[string]string
+func (_e *MockDataStore_Expecter) UpdateNodeHostDNSNames(ctx interface{}, poolID interface{}, hostNamesByEndpoint interface{}) *MockDataStore_UpdateNodeHostDNSNames_Call {
+	return &MockDataStore_UpdateNodeHostDNSNames_Call{Call: _e.mock.On("UpdateNodeHostDNSNames", ctx, poolID, hostNamesByEndpoint)}
+}
+
+func (_c *MockDataStore_UpdateNodeHostDNSNames_Call) Run(run func(ctx context.Context, poolID int64, hostNamesByEndpoint map[string]string)) *MockDataStore_UpdateNodeHostDNSNames_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(map[string]string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateNodeHostDNSNames_Call) Return(_a0 error) *MockDataStore_UpdateNodeHostDNSNames_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateNodeHostDNSNames_Call) RunAndReturn(run func(context.Context, int64, map[string]string) error) *MockDataStore_UpdateNodeHostDNSNames_Call {
 	_c.Call.Return(run)
 	return _c
 }

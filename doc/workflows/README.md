@@ -16,6 +16,69 @@ This directory contains detailed documentation for all workflows in the VSA Cont
 - [Scheduled Backup Workflows](./background/scheduled-backup-workflows.md) - Automated backup scheduling
 - [Resource Cleanup Workflows](./background/resource-cleanup-workflows.md) - Resource cleanup and maintenance
 
+#### Certificate CA and authentication reconciliation
+- Core API `POST /v1/pools/reconcileCertificateAuthority` accepts `all`,
+  `poolList`, or `pool` selection and always reconciles toward the Helm CA.
+  The `202` response includes a persistent `jobId`. Poll
+  `GET /v1/pools/reconcileCertificateAuthority?jobId={jobId}` for aggregate and
+  per-pool status; forced rotation jobs are polled the same way on
+  `GET /v1/pools/forceCertificateRotation?jobId={jobId}`. Each status route only
+  reports jobs from its own operation and returns `404` otherwise. `DONE` means
+  every selected/discovered pool completed; `ERROR` includes the failed child
+  pool jobs. Worker startup never initiates CA changes.
+- `ReconcileVsaCAOnChangeWorkflow` carries the desired CA URI and selected pool
+  UUIDs in Temporal history. With `all`, it scans certificate-auth (AuthType 2)
+  pools in batches.
+- `ReconcilePoolCAWorkflow` serializes each pool through the control workflow
+  before rotating toward that explicit desired CA.
+- `ReconcilePoolAuthTypeWorkflow` is scheduled separately and selects only
+  AuthType 1 pools that retain a parent certificate ID, CA URI, or the approved
+  fallback username marker proving prior certificate authentication. Native
+  AuthType 1 pools are filtered out and
+  defensively skipped by the activity. Emergency-fallback rows use
+  `username_pre_cert_fix` to keep password bootstrap on `admin` while restoring
+  the original pool and expert certificate usernames at promotion. The workflow restores authentication only
+  after CA lifetime validation, root-to-intermediate `client_ca` and `server_ca`
+  trust installation and readback, security-login verification, parent
+  candidate connectivity, and certificate-auth expert credential connectivity.
+- Minted candidates are persisted as `certificate_id_new`/`staged_ca_uri` and
+  reused after post-stage failures. Only an unreferenced stage-write failure,
+  or a guarded detach of a stale or wrong-CA candidate, permits revocation.
+- `MINIMUM_ISSUING_CA_REMAINING_LIFETIME` defaults to `2160h` (90 days / 3 months). The effective
+  issuance floor is the greater of this value and `CERTIFICATE_LIFETIME`.
+
+#### On-demand certificate rotation
+- Core API `POST /v1/pools/forceCertificateRotation` accepts `all`, `poolList`,
+  or `pool` selection and starts `ForceVsaCertificateRotationWorkflow`. Its
+  `jobId` is polled through the same certificate-maintenance GET endpoint.
+- Scheduled and forced certificate rotation retain each pool's persisted CA by
+  default. Set `ENABLE_CA_CHANGE_DURING_CERTIFICATE_ROTATION=true` to allow
+  those paths to move pools to the Helm-configured CA. Explicit CA
+  reconciliation is not controlled by this flag.
+- `ForcePoolCertificateRotationWorkflow` rotates one pool's certificate
+  regardless of remaining lifetime. It is gated by
+  `ENABLE_FORCED_CERTIFICATE_ROTATION` and `ENABLE_VSA_CERTIFICATE_ROTATION`, both
+  read in a `SideEffect` so the decision is recorded in history, and it fails with
+  a non-retryable error when either is off.
+- It queues `ForceRotatePoolCertificateWorkflow` through the per-pool
+  `Pool_<uuid>_Ops_All` control workflow, so a forced run serializes against pool
+  update, delete, and scheduled rotation exactly like the fleet path.
+- The forced child skips the remaining-lifetime check, does not chain password
+  rotation, and propagates rotation failures instead of swallowing them. The skip
+  is carried into the activity as `PoolContext.Force`, because the activity
+  re-derives eligibility itself and would otherwise no-op on a current certificate.
+- `Force` changes the eligibility gate, not the scope: a forced run replaces the
+  same certificates the scheduled path would. For ONTAP mode pools that includes
+  certificate-auth expert mode credentials, which expire independently of the pool
+  certificate. Password-auth expert credentials remain unchanged and are handled
+  only by the separate AuthType reconciliation flow.
+- Expert credentials are reconciled to the target CA before parent promotion.
+  The previous expert leaf stays parked in `certificate_id_new` until the next
+  expert reconcile, matching parent certificate deferred cleanup.
+- Exists because a freshly created pool can never satisfy the lifetime check, so
+  the scheduled path cannot verify rotation end to end. Driven by the
+  `tests/ccfe/certificate_rotation` suite in `vsa-cp-cd`.
+
 ### Replication Workflows
 - [Replication Workflows](./replication/replication-workflows.md) - Volume replication management
 

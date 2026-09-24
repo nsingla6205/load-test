@@ -2,6 +2,10 @@
 
 package coreapi
 
+import (
+	"github.com/google/uuid"
+)
+
 // V1CreateAddressRangeParams is parameters of v1_createAddressRange operation.
 type V1CreateAddressRangeParams struct {
 	// Correlation identifier.
@@ -246,6 +250,18 @@ type V1GetPoolParams struct {
 	LocationId string
 	// Correlation identifier.
 	XCorrelationID OptString
+}
+
+// V1GetPoolCertificateAuthorityReconciliationStatusParams is parameters of v1_getPoolCertificateAuthorityReconciliationStatus operation.
+type V1GetPoolCertificateAuthorityReconciliationStatusParams struct {
+	// CA reconciliation parent job UUID returned by POST.
+	JobId uuid.UUID
+}
+
+// V1GetPoolCertificateRotationStatusParams is parameters of v1_getPoolCertificateRotationStatus operation.
+type V1GetPoolCertificateRotationStatusParams struct {
+	// Forced rotation parent job UUID returned by POST.
+	JobId uuid.UUID
 }
 
 // V1ListAccountsParams is parameters of v1_listAccounts operation.

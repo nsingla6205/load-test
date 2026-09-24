@@ -60,6 +60,7 @@ type Services interface {
 	CreateCertificate(cert *models.CustomCertificate) (*models.CustomCertificate, error)
 	RevokeCertificate(cert *models.CustomCertificate) (string, error)
 	GetCertificate(projectID, region, poolName, certificateID string) (*models.CustomCertificate, error)
+	GetCertificateAuthority(ctx context.Context, projectID, region, poolName, caName string) (*models.CertificateAuthority, error)
 
 	CreateSecret(projectID, region, secretID, secretValue string) (*models.CustomSecret, error)
 	GetSecretWithLatestVersion(projectID, secretID string) (*models.CustomSecret, error)

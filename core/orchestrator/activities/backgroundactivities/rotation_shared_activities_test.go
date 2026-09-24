@@ -43,6 +43,50 @@ func init() {
 	}
 }
 
+func TestCertificateCaDriftedAgainst(t *testing.T) {
+	tests := []struct {
+		name        string
+		credentials *datamodel.PoolCredentials
+		desired     string
+		want        bool
+	}{
+		{name: "nil credentials", desired: "project/pool/ca", want: false},
+		{name: "empty desired", credentials: &datamodel.PoolCredentials{CaURI: "project/pool/old"}, want: false},
+		{name: "missing active CA", credentials: &datamodel.PoolCredentials{}, desired: "project/pool/ca", want: true},
+		{name: "same CA", credentials: &datamodel.PoolCredentials{CaURI: "project/pool/ca"}, desired: "project/pool/ca", want: false},
+		{name: "different CA", credentials: &datamodel.PoolCredentials{CaURI: "project/pool/old"}, desired: "project/pool/ca", want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, certificateCaDriftedAgainst(test.credentials, test.desired))
+		})
+	}
+}
+
+func TestValidateExplicitDesiredCAURI(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		wantErr bool
+	}{
+		{name: "valid", uri: "project/pool/ca"},
+		{name: "empty", wantErr: true},
+		{name: "partial", uri: "project/pool", wantErr: true},
+		{name: "empty component", uri: "project//ca", wantErr: true},
+		{name: "extra component", uri: "project/pool/ca/extra", wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateExplicitDesiredCAURI(test.uri)
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // generateTestCertificate creates a test certificate with the specified expiration times
 func generateTestCertificate(notBefore, notAfter time.Time) string {
 	cert := &x509.Certificate{
@@ -53,6 +97,326 @@ func generateTestCertificate(notBefore, notAfter time.Time) string {
 	certDER, _ := x509.CreateCertificate(rand.Reader, cert, cert, &testPrivateKey.PublicKey, testPrivateKey)
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	return string(certPEM)
+}
+
+func generateTestCertificateWithCN(t *testing.T, commonName string) string {
+	t.Helper()
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		IsCA:         true,
+		KeyUsage:     x509.KeyUsageCertSign,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &testPrivateKey.PublicKey, testPrivateKey)
+	require.NoError(t, err)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+}
+
+func TestCertificateCaDrifted(t *testing.T) {
+	t.Setenv(enableCAChangeDuringCertificateRotationEnvKey, "true")
+	originalProject, originalPool, originalCA := env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName
+	env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName = "desired-project", "desired-pool", "desired-ca"
+	t.Cleanup(func() {
+		env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName = originalProject, originalPool, originalCA
+	})
+
+	tests := []struct {
+		name        string
+		credentials *datamodel.PoolCredentials
+		want        bool
+	}{
+		{name: "matching full URI", credentials: &datamodel.PoolCredentials{CaURI: "desired-project/desired-pool/desired-ca"}, want: false},
+		{name: "CA name drift", credentials: &datamodel.PoolCredentials{CaURI: "desired-project/desired-pool/old-ca"}, want: true},
+		{name: "project drift", credentials: &datamodel.PoolCredentials{CaURI: "old-project/desired-pool/desired-ca"}, want: true},
+		{name: "missing URI is unknown and forces one-time reconciliation", credentials: &datamodel.PoolCredentials{}, want: true},
+		{name: "nil credentials", credentials: nil, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, certificateCaDrifted(test.credentials))
+		})
+	}
+}
+
+func TestCertificateCaDriftedDisabled(t *testing.T) {
+	t.Setenv(enableCAChangeDuringCertificateRotationEnvKey, "false")
+	credentials := &datamodel.PoolCredentials{CaURI: "project/pool/current-ca"}
+
+	assert.False(t, certificateCaDrifted(credentials))
+}
+
+func TestDesiredCAForPoolContext(t *testing.T) {
+	originalProject, originalPool, originalCA := env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName
+	env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName = "desired-project", "desired-pool", "desired-ca"
+	t.Cleanup(func() {
+		env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName = originalProject, originalPool, originalCA
+	})
+	poolContext := &PoolContext{Pool: &datamodel.Pool{
+		PoolCredentials: &datamodel.PoolCredentials{CaURI: "current-project/current-pool/current-ca"},
+	}}
+
+	t.Run("scheduled rotation retains current CA when flag is disabled", func(t *testing.T) {
+		t.Setenv(enableCAChangeDuringCertificateRotationEnvKey, "false")
+		assert.Equal(t, "current-project/current-pool/current-ca", desiredCAForPoolContext(poolContext))
+	})
+
+	t.Run("scheduled rotation uses Helm CA when flag is enabled", func(t *testing.T) {
+		t.Setenv(enableCAChangeDuringCertificateRotationEnvKey, "true")
+		assert.Equal(t, "desired-project/desired-pool/desired-ca", desiredCAForPoolContext(poolContext))
+	})
+
+	t.Run("explicit reconciliation always uses requested CA", func(t *testing.T) {
+		t.Setenv(enableCAChangeDuringCertificateRotationEnvKey, "false")
+		explicitContext := *poolContext
+		explicitContext.DesiredCAURI = "explicit-project/explicit-pool/explicit-ca"
+		assert.Equal(t, explicitContext.DesiredCAURI, desiredCAForPoolContext(&explicitContext))
+	})
+}
+
+func TestExpertCertificateCAURIs(t *testing.T) {
+	tests := []struct {
+		name        string
+		credentials *datamodel.PoolCredentials
+		wantSource  string
+		wantTarget  string
+	}{
+		{
+			name:        "before parent promotion",
+			credentials: &datamodel.PoolCredentials{CaURI: "project/pool/old-ca"},
+			wantSource:  "project/pool/old-ca",
+			wantTarget:  "project/pool/old-ca",
+		},
+		{
+			name: "after parent promotion",
+			credentials: &datamodel.PoolCredentials{
+				CertificateID:    "new-cert",
+				CertificateIDNew: "old-cert",
+				CaURI:            "project/pool/new-ca",
+				StagedCaURI:      "project/pool/old-ca",
+			},
+			wantSource: "project/pool/old-ca",
+			wantTarget: "project/pool/new-ca",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			source, target := expertCertificateCAURIs(test.credentials)
+			assert.Equal(t, test.wantSource, source)
+			assert.Equal(t, test.wantTarget, target)
+		})
+	}
+}
+
+func TestExplicitCAContextValidation(t *testing.T) {
+	require.Equal(t, "project/pool/ca", desiredCAForPoolContext(&PoolContext{
+		DesiredCAURI: "project/pool/ca",
+	}))
+
+	source, target := expertCertificateCAURIs(nil)
+	require.Empty(t, source)
+	require.Empty(t, target)
+
+	t.Run("get context rejects malformed CA", func(t *testing.T) {
+		_, err := (&RotateVcpToVsaCertificateActivity{}).
+			GetPoolContextForDesiredCA(context.Background(), "pool-1", "invalid")
+		require.Error(t, err)
+	})
+
+	t.Run("get context carries explicit CA", func(t *testing.T) {
+		ctx := context.Background()
+		storage := database.NewMockStorage(t)
+		pool := datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-1"}}
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: pool}}, nil).
+			Once()
+
+		poolContext, err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			GetPoolContextForDesiredCA(ctx, pool.UUID, "project/pool/ca")
+
+		require.NoError(t, err)
+		require.Equal(t, "project/pool/ca", poolContext.DesiredCAURI)
+	})
+
+	t.Run("rotation rejects missing context", func(t *testing.T) {
+		err := (&RotateVcpToVsaCertificateActivity{}).
+			RotatePoolCertificateForDesiredCAWithContext(context.Background(), nil)
+		require.ErrorContains(t, err, "pool context is nil")
+	})
+
+	t.Run("rotation rejects context without valid CA", func(t *testing.T) {
+		err := (&RotateVcpToVsaCertificateActivity{}).
+			RotatePoolCertificateForDesiredCAWithContext(
+				context.Background(),
+				&PoolContext{DesiredCAURI: "invalid"},
+			)
+		require.Error(t, err)
+	})
+}
+
+func TestCertificateConversionAndExpertTrustGuards(t *testing.T) {
+	t.Run("rejects unsupported certificate type", func(t *testing.T) {
+		_, err := asCustomCertificate(42)
+		require.ErrorContains(t, err, "invalid certificate type")
+	})
+
+	t.Run("rejects unmarshalable certificate map", func(t *testing.T) {
+		_, err := asCustomCertificate(map[string]interface{}{"invalid": make(chan int)})
+		require.ErrorContains(t, err, "failed to convert certificate map")
+	})
+
+	t.Run("converts serialized certificate", func(t *testing.T) {
+		certificate, err := asCustomCertificate(map[string]interface{}{
+			"certificate_id": "certificate",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, certificate)
+	})
+
+	t.Run("password provider failure is returned", func(t *testing.T) {
+		ctx := context.Background()
+		original := vsa.GetProviderByNode
+		t.Cleanup(func() { vsa.GetProviderByNode = original })
+		vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+			return nil, errors.New("provider unavailable")
+		}
+		storage := database.NewMockStorage(t)
+		storage.On("GetNodesByPoolID", ctx, int64(1)).
+			Return([]*datamodel.Node{{EndpointAddress: "10.0.0.1"}}, nil).
+			Once()
+		_, err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			passwordAuthProvider(ctx, &datamodel.Pool{
+				BaseModel:      datamodel.BaseModel{ID: 1},
+				DeploymentName: "deployment",
+				PoolCredentials: &datamodel.PoolCredentials{
+					Password: "password",
+					Username: "admin",
+				},
+			})
+		require.ErrorContains(t, err, "An internal error occurred")
+	})
+
+	t.Run("expert trust accepts preinstalled issuer", func(t *testing.T) {
+		ctx := context.Background()
+		original := vsa.GetProviderByNode
+		t.Cleanup(func() { vsa.GetProviderByNode = original })
+		provider := vsa.NewMockProvider(t)
+		vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+			return provider, nil
+		}
+		storage := database.NewMockStorage(t)
+		storage.On("GetNodesByPoolID", ctx, int64(1)).
+			Return([]*datamodel.Node{{EndpointAddress: "10.0.0.1"}}, nil).
+			Once()
+		err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			installExpertClientTrustWithPasswordAuth(
+				ctx,
+				&datamodel.Pool{
+					BaseModel:      datamodel.BaseModel{UUID: "pool-1", ID: 1},
+					DeploymentName: "deployment",
+					PoolCredentials: &datamodel.PoolCredentials{
+						Password: "password",
+						Username: "admin",
+					},
+				},
+				&hyperscalermodels.CustomCertificate{CertificateID: "certificate"},
+				nil,
+			)
+		require.NoError(t, err)
+	})
+}
+
+func TestValidatedCertificateChain(t *testing.T) {
+	validPEM := generateTestCertificate(time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	tests := []struct {
+		name    string
+		cert    *hyperscalermodels.CustomCertificate
+		wantLen int
+		wantErr string
+	}{
+		{name: "empty chain remains optional", cert: &hyperscalermodels.CustomCertificate{CertificateID: "cert", PemCertificate: validPEM}, wantLen: 0},
+		{name: "matching first issuer accepted", cert: &hyperscalermodels.CustomCertificate{CertificateID: "cert", PemCertificate: validPEM, PemCertificateChain: []string{validPEM}}, wantLen: 1},
+		{name: "invalid issuer PEM rejected", cert: &hyperscalermodels.CustomCertificate{CertificateID: "cert", PemCertificate: validPEM, PemCertificateChain: []string{"not-pem"}}, wantErr: "cannot be decoded"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			chain, err := validatedCertificateChain(test.cert)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, chain, test.wantLen)
+		})
+	}
+}
+
+func TestInstallIssuingClientCAUsesClusterScope(t *testing.T) {
+	caPEM := generateTestCertificateWithCN(t, "target-ca")
+	provider := vsa.NewMockProvider(t)
+	provider.On("InstallClientCA", mock.MatchedBy(func(params vsa.InstallClientCAParams) bool {
+		return params.SvmName == "" &&
+			params.CertificateName == "target-ca" &&
+			params.CommonName == "target-ca" &&
+			params.Certificate == caPEM
+	})).Return(&vsa.ServerCertificateResponse{}, nil).Once()
+
+	err := installIssuingClientCA(provider, &hyperscalermodels.CustomCertificate{
+		CertificateID: "new-cert",
+		CaName:        "target-ca",
+	}, []string{caPEM})
+
+	require.NoError(t, err)
+	provider.AssertExpectations(t)
+}
+
+// Expert-mode certificates are minted with client auth only. Installing one as the
+// cluster server certificate makes ONTAP serve a certificate that TLS clients reject
+// with "x509: certificate specifies an incompatible key usage".
+func TestInstallExpertClientTrustWithPasswordAuthOnlyTrustsIssuer(t *testing.T) {
+	ctx := context.Background()
+	caPEM := generateTestCertificate(time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+
+	mockSE := database.NewMockStorage(t)
+	activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "pool-uuid", ID: 1},
+		DeploymentName: "deployment",
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "password",
+			SecretID: "secret",
+			AuthType: env.USERNAME_PWD_SEC_MGR,
+			Username: "admin",
+		},
+	}
+	mockSE.On("GetNodesByPoolID", ctx, int64(1)).
+		Return([]*datamodel.Node{{BaseModel: datamodel.BaseModel{ID: 1}, EndpointAddress: "1.2.3.4"}}, nil)
+
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProvider := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProvider }()
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	mockProvider.On("InstallClientCA", mock.Anything).Return(&vsa.ServerCertificateResponse{}, nil).Once()
+
+	err := activity.installExpertClientTrustWithPasswordAuth(ctx, pool,
+		&hyperscalermodels.CustomCertificate{
+			CertificateID:       "expert-cert",
+			PemCertificate:      caPEM,
+			PemCertificateChain: []string{caPEM},
+			SerialNumber:        "12345",
+			CaName:              "target-ca",
+		},
+		&hyperscalermodels.CustomSecret{
+			SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: "private-key"},
+		})
+
+	require.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+	mockProvider.AssertNotCalled(t, "InstallServerCertificate", mock.Anything)
+	mockProvider.AssertNotCalled(t, "ModifySSL", mock.Anything)
 }
 
 // Test utility functions that don't require complex mocking
@@ -685,7 +1049,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}
 
 		// Execute
-		err := activity.updateCertificateCache(ctx, certificateID)
+		err := activity.updateCertificateCache(ctx, certificateID, "project/pool/ca")
 
 		// Assert - should succeed
 		assert.NoError(tt, err)
@@ -710,7 +1074,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}
 
 		// Execute
-		err := activity.updateCertificateCache(ctx, certificateID)
+		err := activity.updateCertificateCache(ctx, certificateID, "project/pool/ca")
 
 		// Assert - should fail
 		assert.Error(tt, err)
@@ -743,7 +1107,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}
 
 		// Execute
-		err := activity.updateCertificateCache(ctx, certificateID)
+		err := activity.updateCertificateCache(ctx, certificateID, "project/pool/ca")
 
 		// Assert - should fail
 		assert.Error(tt, err)
@@ -873,6 +1237,306 @@ func TestRotateVcpToVsaCertificateActivity_certificateNeedsRotation_Additional(t
 	t.Skip("Test cases merged into TestRotateVcpToVsaCertificateActivity_certificateNeedsRotation")
 }
 
+func TestReusableStagedCertificate(t *testing.T) {
+	targetCA := "project/pool/ca"
+	tests := []struct {
+		name                     string
+		stagedID                 string
+		stagedCAURI              string
+		targetCAURI              string
+		activeCertificateCurrent bool
+		want                     bool
+	}{
+		{
+			name:        "in-flight staged cert for target CA is reusable",
+			stagedID:    "new-cert",
+			stagedCAURI: targetCA,
+			targetCAURI: targetCA,
+			want:        true,
+		},
+		{
+			name:                     "parked previous cert is not reused when active cert is current",
+			stagedID:                 "previous-cert",
+			stagedCAURI:              targetCA,
+			targetCAURI:              targetCA,
+			activeCertificateCurrent: true,
+			want:                     false,
+		},
+		{
+			name:        "staged cert for a different CA is not reused",
+			stagedID:    "old-ca-cert",
+			stagedCAURI: "project/pool/old-ca",
+			targetCAURI: targetCA,
+			want:        false,
+		},
+		{
+			name:        "empty staged id is not reused",
+			targetCAURI: targetCA,
+			want:        false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, reusableStagedCertificate(
+				test.stagedID,
+				test.stagedCAURI,
+				test.targetCAURI,
+				test.activeCertificateCurrent,
+			))
+		})
+	}
+}
+
+func TestPrepareStagedCertificateCandidate(t *testing.T) {
+	response := &hyperscalermodels.CustomCertificateResponse{
+		Certificate: &hyperscalermodels.CustomCertificate{CertificateID: "candidate"},
+	}
+
+	t.Run("reuses valid staged candidate", func(t *testing.T) {
+		loadCalls := 0
+		candidate, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			stagedID:                 "staged",
+			stagedCAURI:              "project/pool/ca",
+			targetCAURI:              "project/pool/ca",
+			activeCertificateCurrent: false,
+			mintIfMissing:            true,
+			load: func(id string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				loadCalls++
+				assert.Equal(t, "staged", id)
+				return response, nil
+			},
+			detach: func(string, string) error { return nil },
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, candidate)
+		assert.Equal(t, "staged", candidate.id)
+		assert.True(t, candidate.reused)
+		assert.Equal(t, response, candidate.response)
+		assert.Equal(t, 1, loadCalls)
+	})
+
+	t.Run("detaches stale candidate and mints replacement", func(t *testing.T) {
+		var detachedID, detachedCAURI string
+		staged := false
+		candidate, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			stagedID:      "stale",
+			stagedCAURI:   "",
+			fallbackCAURI: "project/pool/old",
+			targetCAURI:   "project/pool/new",
+			mintIfMissing: true,
+			newID:         func() string { return "replacement" },
+			mint: func(id string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				assert.Equal(t, "replacement", id)
+				return response, nil
+			},
+			stage: func(id, caURI string) error {
+				staged = true
+				assert.Equal(t, "replacement", id)
+				assert.Equal(t, "project/pool/new", caURI)
+				return nil
+			},
+			detach: func(id, caURI string) error {
+				detachedID = id
+				detachedCAURI = caURI
+				return nil
+			},
+			cleanupUnstaged: func(string, string) error { return nil },
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "stale", detachedID)
+		assert.Equal(t, "project/pool/old", detachedCAURI)
+		assert.True(t, staged)
+		assert.Equal(t, "replacement", candidate.id)
+		assert.False(t, candidate.reused)
+	})
+
+	t.Run("current certificate only cleans deferred candidate", func(t *testing.T) {
+		mintCalled := false
+		candidate, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			stagedID:                 "previous",
+			stagedCAURI:              "project/pool/ca",
+			targetCAURI:              "project/pool/ca",
+			activeCertificateCurrent: true,
+			mintIfMissing:            false,
+			mint: func(string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				mintCalled = true
+				return response, nil
+			},
+			detach:          func(string, string) error { return nil },
+			cleanupUnstaged: func(string, string) error { return nil },
+		})
+
+		require.NoError(t, err)
+		assert.Empty(t, candidate.id)
+		assert.False(t, mintCalled)
+	})
+
+	t.Run("force rotation detaches parked candidate before minting", func(t *testing.T) {
+		detachCalls := 0
+		loadCalled := false
+		mintCalled := false
+		candidate, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			stagedID:                 "previous",
+			stagedCAURI:              "project/pool/ca",
+			targetCAURI:              "project/pool/ca",
+			activeCertificateCurrent: true,
+			mintIfMissing:            true,
+			newID:                    func() string { return "replacement" },
+			load: func(string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				loadCalled = true
+				return response, nil
+			},
+			mint: func(id string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				mintCalled = true
+				assert.Equal(t, "replacement", id)
+				return response, nil
+			},
+			stage: func(string, string) error { return nil },
+			detach: func(id, caURI string) error {
+				detachCalls++
+				assert.Equal(t, "previous", id)
+				assert.Equal(t, "project/pool/ca", caURI)
+				return nil
+			},
+			cleanupUnstaged: func(string, string) error { return nil },
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, detachCalls)
+		assert.False(t, loadCalled)
+		assert.True(t, mintCalled)
+		assert.Equal(t, "replacement", candidate.id)
+		assert.False(t, candidate.reused)
+	})
+
+	t.Run("invalid reusable candidate is replaced", func(t *testing.T) {
+		detached := false
+		minted := false
+		staged := false
+		candidate, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			stagedID:                 "invalid",
+			stagedCAURI:              "project/pool/ca",
+			targetCAURI:              "project/pool/ca",
+			activeCertificateCurrent: false,
+			mintIfMissing:            true,
+			newID:                    func() string { return "replacement" },
+			load: func(string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				return nil, assert.AnError
+			},
+			mint: func(id string) (*hyperscalermodels.CustomCertificateResponse, error) {
+				minted = true
+				assert.Equal(t, "replacement", id)
+				return response, nil
+			},
+			stage: func(id, caURI string) error {
+				staged = true
+				assert.Equal(t, "replacement", id)
+				assert.Equal(t, "project/pool/ca", caURI)
+				return nil
+			},
+			detach: func(id, caURI string) error {
+				detached = true
+				assert.Equal(t, "invalid", id)
+				assert.Equal(t, "project/pool/ca", caURI)
+				return nil
+			},
+			cleanupUnstaged: func(string, string) error { return nil },
+		})
+
+		require.NoError(t, err)
+		assert.True(t, detached)
+		assert.True(t, minted)
+		assert.True(t, staged)
+		assert.Equal(t, "replacement", candidate.id)
+		assert.False(t, candidate.reused)
+	})
+
+	t.Run("cleans unreferenced candidate when staging fails", func(t *testing.T) {
+		cleanupCalled := false
+		_, err := prepareStagedCertificateCandidate(stagedCertificateCandidateConfig{
+			targetCAURI:   "project/pool/ca",
+			mintIfMissing: true,
+			newID:         func() string { return "candidate" },
+			mint:          func(string) (*hyperscalermodels.CustomCertificateResponse, error) { return response, nil },
+			stage:         func(string, string) error { return assert.AnError },
+			detach:        func(string, string) error { return nil },
+			cleanupUnstaged: func(id, caURI string) error {
+				cleanupCalled = true
+				assert.Equal(t, "candidate", id)
+				assert.Equal(t, "project/pool/ca", caURI)
+				return nil
+			},
+		})
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "stage certificate candidate")
+		assert.True(t, cleanupCalled)
+	})
+}
+
+func TestCertificateRotationUsername(t *testing.T) {
+	tests := []struct {
+		name              string
+		pool              *datamodel.Pool
+		activeCertificate *models.Certificate
+		want              string
+		wantError         string
+	}{
+		{
+			name: "uses persisted username",
+			pool: &datamodel.Pool{
+				PoolCredentials: &datamodel.PoolCredentials{Username: "8d9c4db0_admin"},
+			},
+			activeCertificate: &models.Certificate{CommonName: "certificate-cn"},
+			want:              "8d9c4db0_admin",
+		},
+		{
+			name: "recovers legacy username from active certificate common name",
+			pool: &datamodel.Pool{
+				PoolCredentials: &datamodel.PoolCredentials{},
+			},
+			activeCertificate: &models.Certificate{CommonName: "legacyhash_admin"},
+			want:              "legacyhash_admin",
+		},
+		{
+			name:      "rejects missing pool credentials",
+			pool:      &datamodel.Pool{},
+			wantError: "pool credentials are required",
+		},
+		{
+			name: "rejects an unrecoverable username",
+			pool: &datamodel.Pool{
+				BaseModel:       datamodel.BaseModel{UUID: "pool-1"},
+				PoolCredentials: &datamodel.PoolCredentials{},
+			},
+			activeCertificate: &models.Certificate{},
+			wantError:         "no persisted certificate username",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := certificateRotationUsername(test.pool, test.activeCertificate)
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestIsCertificateValidityError(t *testing.T) {
+	expired := x509.CertificateInvalidError{Reason: x509.Expired}
+	require.True(t, isCertificateValidityError(expired))
+	require.True(t, isCertificateValidityError(fmt.Errorf("TLS verification failed: %w", expired)))
+	require.False(t, isCertificateValidityError(errors.New("certificate has expired")))
+	require.False(t, isCertificateValidityError(x509.CertificateInvalidError{Reason: x509.NameMismatch}))
+}
+
 // Tests for swapCertificateIDs (0% coverage)
 func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs(t *testing.T) {
 	ctx := context.Background()
@@ -897,13 +1561,29 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs(t *testing.T) {
 					SecretID:         "old-secret-id",
 					SecretIDNew:      newSecretID,
 					AuthType:         env.USER_CERTIFICATE,
+					CaURI:            "old-project/old-pool/old-ca",
+					StagedCaURI:      "new-project/new-pool/new-ca",
 				},
 			},
 		}
 
 		// Mock database calls
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, poolUUID, mock.Anything).Return(nil).Once()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			poolUUID,
+			env.USER_CERTIFICATE,
+			newCertificateID,
+			"new-project/new-pool/new-ca",
+			mock.Anything,
+			mock.MatchedBy(func(credentials *datamodel.PoolCredentials) bool {
+				return credentials.CertificateID == newCertificateID &&
+					credentials.CertificateIDNew == "old-cert-id" &&
+					credentials.CaURI == "new-project/new-pool/new-ca" &&
+					credentials.StagedCaURI == "old-project/old-pool/old-ca"
+			}),
+		).Return(nil).Once()
 
 		// Execute - updateCertificateCache will be called but may fail (non-critical)
 		err := activity.swapCertificateIDs(ctx, poolUUID, newCertificateID, newSecretID)
@@ -930,6 +1610,55 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs(t *testing.T) {
 		// Assert
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "not found")
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("swapCertificateIDs_EmptyCaURIParksPersistedIssuer", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+
+		poolUUID := "test-pool-uuid"
+		newCertificateID := "new-cert-id"
+		tt.Setenv("CA_POOL_DEPLOYED_PROJECT_ID", "helm-project")
+		tt.Setenv("CA_POOL_NAME", "helm-pool")
+		tt.Setenv("CA_NAME", "helm-ca")
+
+		poolView := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				BaseModel: datamodel.BaseModel{
+					UUID: poolUUID,
+					ID:   1,
+				},
+				PoolCredentials: &datamodel.PoolCredentials{
+					CertificateID:    "old-cert-id",
+					CertificateIDNew: newCertificateID,
+					SecretID:         "old-secret-id",
+					AuthType:         env.USER_CERTIFICATE,
+					CaURI:            "",
+					StagedCaURI:      "helm-project/helm-pool/helm-ca",
+				},
+			},
+		}
+
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Once()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			poolUUID,
+			env.USER_CERTIFICATE,
+			newCertificateID,
+			"helm-project/helm-pool/helm-ca",
+			mock.Anything,
+			mock.MatchedBy(func(credentials *datamodel.PoolCredentials) bool {
+				return credentials.CertificateID == newCertificateID &&
+					credentials.CertificateIDNew == "old-cert-id" &&
+					credentials.CaURI == "helm-project/helm-pool/helm-ca" &&
+					credentials.StagedCaURI == ""
+			}),
+		).Return(nil).Once()
+
+		err := activity.swapCertificateIDs(ctx, poolUUID, newCertificateID, "new-secret-id")
+		assert.NoError(tt, err)
 		mockSE.AssertExpectations(tt)
 	})
 
@@ -1081,7 +1810,7 @@ func TestRotateVcpToVsaCertificateActivity_revokeOldCertificate(t *testing.T) {
 		var gcpService hyperscaler2.Services = nil
 
 		// Execute
-		err := activity.revokeOldCertificate(ctx, certificateID, gcpService)
+		err := activity.revokeOldCertificate(ctx, certificateID, "project/pool/ca", gcpService)
 
 		// Assert
 		assert.NoError(tt, err)
@@ -1110,7 +1839,7 @@ func TestRotateVcpToVsaCertificateActivity_revokeOldCertificate(t *testing.T) {
 		var gcpService hyperscaler2.Services = nil
 
 		// Execute
-		err := activity.revokeOldCertificate(ctx, certificateID, gcpService)
+		err := activity.revokeOldCertificate(ctx, certificateID, "project/pool/ca", gcpService)
 
 		// Assert
 		assert.Error(tt, err)
@@ -1487,10 +2216,11 @@ func TestRotateVcpToVsaCertificateActivity_installCertificateOnVSA(t *testing.T)
 		}
 
 		cert := &hyperscalermodels.CustomCertificate{
-			CertificateID:  "new-cert-id",
-			PemCertificate: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
-			SerialNumber:   "12345",
-			CaName:         "test-ca",
+			CertificateID:     "new-cert-id",
+			PemCertificate:    "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
+			SerialNumber:      "12345",
+			CaName:            "test-ca",
+			SubjectCommonName: "8d9c4db0_admin",
 		}
 		secret := &hyperscalermodels.CustomSecret{
 			SecretVersion: &hyperscalermodels.CustomSecretVersion{
@@ -2057,10 +2787,11 @@ func TestRotateVcpToVsaCertificateActivity_installCertificateOnVSA(t *testing.T)
 		}
 
 		cert := &hyperscalermodels.CustomCertificate{
-			CertificateID:  "new-cert-id",
-			PemCertificate: "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
-			SerialNumber:   "123456",
-			CaName:         "test-ca",
+			CertificateID:     "new-cert-id",
+			PemCertificate:    "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
+			SerialNumber:      "123456",
+			CaName:            "test-ca",
+			SubjectCommonName: "8d9c4db0_admin",
 		}
 
 		secret := &hyperscalermodels.CustomSecret{
@@ -2925,8 +3656,10 @@ func TestRotateVcpToVsaCertificateActivity_testCertificateConnectivity_Additiona
 			return mockProvider, nil
 		}
 
-		// Mock GetONTAPVersion to return expired certificate error
-		mockProvider.On("GetONTAPVersion").Return(nil, errors.New("certificate has expired")).Once()
+		// The TLS handshake fails before ONTAP can return an HTTP error code.
+		mockProvider.On("GetONTAPVersion").Return(nil, x509.CertificateInvalidError{
+			Reason: x509.Expired,
+		}).Once()
 
 		// Mock testPasswordConnectivity to succeed (fallback)
 		activity.testPasswordConnectivityFunc = func(ctx context.Context, p *datamodel.Pool, password string) error {
@@ -3031,7 +3764,7 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 		}
 
 		// Execute - will call actual testCertificateConnectivity
-		err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
+		_, err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
 
 		// Assert - may fail due to missing dependencies, but structure is tested
 		_ = err
@@ -3051,6 +3784,8 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 				CertificateID:    "test-cert-id",
 				CertificateIDNew: "test-cert-id-new",
 				SecretID:         "test-secret-id",
+				CaURI:            "project/pool/ca",
+				StagedCaURI:      "project/pool/ca",
 			},
 		}
 
@@ -3083,7 +3818,7 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Maybe()
 
 		// Execute
-		err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
+		_, err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
 
 		// Assert - should succeed after testing certificate_id_new
 		assert.NoError(tt, err)
@@ -3122,7 +3857,7 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 		}
 
 		// Execute
-		err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
+		_, err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
 
 		// Assert - should fail when both tests fail
 		assert.Error(tt, err)
@@ -3750,10 +4485,11 @@ func TestRotateVcpToVsaCertificateActivity_installCertificateOnVSA_Comprehensive
 		}
 
 		cert := &hyperscalermodels.CustomCertificate{
-			CertificateID:  "new-cert-id",
-			PemCertificate: "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
-			SerialNumber:   "12345",
-			CaName:         "test-ca",
+			CertificateID:     "new-cert-id",
+			PemCertificate:    "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
+			SerialNumber:      "12345",
+			CaName:            "test-ca",
+			SubjectCommonName: "8d9c4db0_admin",
 		}
 
 		secret := &hyperscalermodels.CustomSecret{
@@ -4146,6 +4882,8 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 				PoolCredentials: &datamodel.PoolCredentials{
 					CertificateID:    "old-cert-id",
 					CertificateIDNew: "new-cert-id",
+					CaURI:            "project/pool/old-ca",
+					StagedCaURI:      "project/pool/new-ca",
 					SecretID:         "old-secret-id",
 					SecretIDNew:      "new-secret-id",
 					AuthType:         env.USER_CERTIFICATE,
@@ -4155,7 +4893,16 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 
 		// Mock database calls
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
-		mockSE.On("UpdatePoolFields", ctx, poolUUID, mock.Anything).Return(nil)
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			poolUUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil)
 
 		// Save original function
 		originalGetGCP := getGcpServiceForCerts
@@ -4215,6 +4962,8 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 				PoolCredentials: &datamodel.PoolCredentials{
 					CertificateID:    "old-cert-id",
 					CertificateIDNew: "new-cert-id",
+					CaURI:            "project/pool/old-ca",
+					StagedCaURI:      "project/pool/new-ca",
 					SecretID:         "old-secret-id",
 					AuthType:         env.USER_CERTIFICATE,
 				},
@@ -4223,7 +4972,16 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 
 		// Mock database calls
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
-		mockSE.On("UpdatePoolFields", ctx, poolUUID, mock.Anything).Return(nil)
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			poolUUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil)
 
 		// Save original function
 		originalGetGCP := getGcpServiceForCerts
@@ -4363,13 +5121,15 @@ func TestRotateVcpToVsaCertificateActivity_installCertificateOnVSAWithPasswordAu
 				SecretID:      "test-secret-id",
 				CertificateID: "test-cert-id",
 				AuthType:      env.USER_CERTIFICATE,
+				Username:      "8d9c4db0_admin",
 			},
 		}
 
 		cert := &hyperscalermodels.CustomCertificate{
-			CertificateID: "new-cert-id",
-			SerialNumber:  "12345",
-			CaName:        "test-ca",
+			CertificateID:     "new-cert-id",
+			SerialNumber:      "12345",
+			CaName:            "test-ca",
+			SubjectCommonName: "8d9c4db0_admin",
 		}
 
 		secret := &hyperscalermodels.CustomSecret{
@@ -4408,7 +5168,9 @@ func TestRotateVcpToVsaCertificateActivity_installCertificateOnVSAWithPasswordAu
 		}
 
 		// Mock InstallServerCertificate and ModifySSL
-		mockProvider.On("InstallServerCertificate", mock.Anything).Return(&vsa.ServerCertificateResponse{}, nil).Once()
+		mockProvider.On("InstallServerCertificate", mock.MatchedBy(func(params vsa.InstallServerCertificateParams) bool {
+			return params.CommonName == "8d9c4db0_admin"
+		})).Return(&vsa.ServerCertificateResponse{}, nil).Once()
 		mockProvider.On("ModifySSL", mock.Anything).Return(&vsa.ModifySSLResponse{Success: true}, nil).Once()
 
 		// Execute
@@ -4493,6 +5255,8 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 				CertificateID:    "test-cert-id",
 				CertificateIDNew: "test-cert-id-new",
 				SecretID:         "test-secret-id",
+				CaURI:            "project/pool/ca",
+				StagedCaURI:      "project/pool/ca",
 			},
 		}
 
@@ -4503,7 +5267,16 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 
 		// Mock database calls for swapCertificateIDs
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil).Maybe()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil).Maybe()
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Maybe()
 
 		// Mock GetProviderByNode and GetONTAPVersion for testCertificateConnectivity
 		mockProvider := &vsa.MockProvider{}
@@ -4531,10 +5304,10 @@ func TestRotateVcpToVsaCertificateActivity_checkAndSyncCertificateConnectivity_A
 		}, nil).Maybe()
 
 		// Execute
-		err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
+		credentialsChanged, err := activity.checkAndSyncCertificateConnectivity(ctx, pool)
 
-		// Assert - may fail due to missing dependencies, but tests structure
-		_ = err
+		require.NoError(tt, err)
+		require.True(tt, credentialsChanged)
 		mockSE.AssertExpectations(tt)
 	})
 }
@@ -5241,15 +6014,29 @@ func TestRotateVcpToVsaCertificateActivity_updatePoolCertificateIDNew(t *testing
 				},
 				PoolCredentials: &datamodel.PoolCredentials{
 					CertificateID: "old-cert-id",
+					AuthType:      env.USER_CERTIFICATE,
 				},
 			},
 		}
 
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Return(nil)
+		mockSE.On(
+			"CompareAndSwapPoolCredentials",
+			ctx,
+			pool.UUID,
+			env.USER_CERTIFICATE,
+			"",
+			"",
+			env.GetCertificateRotationPoolStates(),
+			mock.MatchedBy(func(credentials *datamodel.PoolCredentials) bool {
+				return credentials.CertificateID == "old-cert-id" &&
+					credentials.CertificateIDNew == "new-cert-id" &&
+					credentials.StagedCaURI == "project/pool/ca"
+			}),
+		).Return(nil)
 
 		// Execute
-		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id")
+		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id", "project/pool/ca")
 
 		// Assert
 		assert.NoError(tt, err)
@@ -5269,7 +6056,7 @@ func TestRotateVcpToVsaCertificateActivity_updatePoolCertificateIDNew(t *testing
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{}, nil)
 
 		// Execute
-		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id")
+		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id", "project/pool/ca")
 
 		// Assert
 		assert.Error(tt, err)
@@ -5299,7 +6086,7 @@ func TestRotateVcpToVsaCertificateActivity_updatePoolCertificateIDNew(t *testing
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
 
 		// Execute
-		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id")
+		err := activity.updatePoolCertificateIDNew(ctx, pool, "new-cert-id", "project/pool/ca")
 
 		// Assert
 		assert.Error(tt, err)
@@ -5318,8 +6105,8 @@ func TestRotateVcpToVsaCertificateActivity_expertModeCertificateNeedsRotation(t 
 
 	ontapPoolWithExpert := func(expertCertID string, authType int) *datamodel.Pool {
 		return &datamodel.Pool{
-			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid"},
-			APIAccessMode:  common.ONTAPMode,
+			BaseModel:     datamodel.BaseModel{UUID: "pool-uuid"},
+			APIAccessMode: common.ONTAPMode,
 			PoolCredentials: &datamodel.PoolCredentials{
 				CertificateID: "pool-cert",
 				CaURI:         "ca-uri",
@@ -5507,6 +6294,52 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext_Expe
 		mockSE.AssertNotCalled(tt, "UpdatePoolFields")
 	})
 
+	// The activity derives rotation eligibility itself, so a caller that only skips the
+	// workflow-level check would still be turned away here. Force has to reach the
+	// activity, otherwise a forced rotation silently no-ops. Both halves run against an
+	// identical current certificate: the unforced half stops at the gate, the forced half
+	// gets past it and fails at the next step.
+	t.Run("PoolCertCurrent_ForceRotatesAnyway", func(tt *testing.T) {
+		origGCP := getGcpServiceForCerts
+		origGetCert := getCertificateFromCacheOrSecretManager
+		defer func() {
+			getGcpServiceForCerts = origGCP
+			getCertificateFromCacheOrSecretManager = origGetCert
+		}()
+		gcpCalled := false
+		getGcpServiceForCerts = func(context.Context) (hyperscaler2.Services, error) {
+			gcpCalled = true
+			return nil, errors.New("stop past eligibility gate")
+		}
+		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
+			cert := &models.Certificate{SignedCertificate: freshCertPEM}
+			if creds != nil {
+				common.AddToCertAuthCache(creds.CertificateID, cert)
+			}
+			return cert, nil
+		}
+
+		rotate := func(tt *testing.T, forceCertRotationOnly bool) error {
+			tt.Helper()
+			mockSE := database.NewMockStorage(tt)
+			activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+			pool := createTestPool()
+			pool.APIAccessMode = "GCP"
+			setupConnectivityOK(tt, mockSE, activity)
+			defer common.RemoveFromCertAuthCache(pool.PoolCredentials.CertificateID)
+
+			return activity.RotatePoolCertificateWithContext(ctx, &PoolContext{
+				PoolUUID: pool.UUID, Pool: pool, Force: forceCertRotationOnly,
+			})
+		}
+
+		require.NoError(tt, rotate(tt, false))
+		require.False(tt, gcpCalled, "an unforced run must stop at the eligibility gate")
+
+		require.Error(tt, rotate(tt, true))
+		require.True(tt, gcpCalled, "a forced run must rotate past the eligibility gate")
+	})
+
 	t.Run("PoolCertCurrent_ONTAP_ExpertCurrent_NoOp", func(tt *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
@@ -5547,14 +6380,27 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext_Expe
 	})
 
 	t.Run("PoolCertCurrent_ONTAP_ExpertNeedsRotation_Succeeds", func(tt *testing.T) {
+		originalHyperscaler := env.Hyperscaler
+		env.Hyperscaler = "oci"
+		tt.Cleanup(func() { env.Hyperscaler = originalHyperscaler })
 		mockSE := database.NewMockStorage(t)
-		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+		mockCloudService := hyperscaler2.NewMockServices(tt)
+		activity := &RotateVcpToVsaCertificateActivity{
+			SE: mockSE,
+			deps: &certificateRotationDependencies{
+				resolveCloudService: func(context.Context) (hyperscaler2.Services, error) {
+					return mockCloudService, nil
+				},
+				now: time.Now,
+			},
+		}
 		pool := createTestPool()
 		pool.APIAccessMode = common.ONTAPMode
 		pool.DeploymentName = "deploy-1"
+		pool.PoolCredentials.CaURI = "project/pool/ca"
 		pool.ExpertModeCredentials = &datamodel.ExpertModeCredentials{
 			ExpertModeCredential: []*datamodel.ExpertModeCredential{
-				{CertificateID: "expert-old", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
+				{CertificateID: "expert-old", CaURI: "project/pool/ca", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
 			},
 		}
 		poolContext := &PoolContext{PoolUUID: pool.UUID, Pool: pool}
@@ -5564,13 +6410,18 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext_Expe
 		pv := &datamodel.PoolView{Pool: *pool}
 		pvAfterStage := &datamodel.PoolView{Pool: *pool}
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil).Once()
-		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, pool.UUID, mock.Anything).Run(func(args mock.Arguments) {
-			updates := args.Get(2).(map[string]interface{})
-			if emc, ok := updates["expert_mode_credentials"].(*datamodel.ExpertModeCredentials); ok && emc != nil {
-				pvAfterStage.Pool.ExpertModeCredentials = emc
-			}
+		mockSE.On(
+			"CompareAndSwapExpertModeCredentials",
+			ctx,
+			pool.UUID,
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Run(func(args mock.Arguments) {
+			pvAfterStage.Pool.ExpertModeCredentials = args.Get(3).(*datamodel.ExpertModeCredentials)
 		}).Return(nil).Twice()
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
 
 		origGCP := getGcpServiceForCerts
@@ -5610,7 +6461,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext_Expe
 
 		err := activity.RotatePoolCertificateWithContext(ctx, poolContext)
 		assert.NoError(tt, err)
-		mockSE.AssertNumberOfCalls(tt, "UpdatePoolFields", 2)
+		mockSE.AssertNumberOfCalls(tt, "CompareAndSwapExpertModeCredentials", 2)
 	})
 
 	t.Run("PoolCertCurrent_ONTAP_ExpertRotationFails_ReturnsError", func(tt *testing.T) {
@@ -5649,6 +6500,118 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext_Expe
 
 // Tests for expert mode certificate rotation helpers and rotateExpertModeCertificate
 
+func TestRotatedCertificateID(t *testing.T) {
+	now := time.Date(2026, time.September, 3, 12, 34, 56, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		qualifiers []string
+		expected   string
+	}{
+		{
+			name:     "pool certificate",
+			expected: "gcnv-deployment-cert-20260903-123456",
+		},
+		{
+			name:       "expert mode certificate",
+			qualifiers: []string{"3d8eedc5_gadmin"},
+			expected:   "gcnv-deployment-cert-3d8eedc5_gadmin-20260903-123456",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(
+				t,
+				test.expected,
+				rotatedCertificateID("gcnv-deployment", now, test.qualifiers...),
+			)
+		})
+	}
+}
+
+func Test_InferIssuerForNewerLegacyStagedCert_ProductionCredentialShapes(t *testing.T) {
+	tests := []struct {
+		name          string
+		activeID      string
+		certificateID string
+		stagedCAURI   string
+		activeCAURI   string
+		targetCAURI   string
+		expectedURI   string
+		expected      bool
+	}{
+		{
+			name:          "same CA legacy stage is inferred",
+			activeID:      "deployment-cert-20260818-000135",
+			certificateID: "deployment-cert-20260820-051552",
+			activeCAURI:   "project/pool/ca",
+			targetCAURI:   "project/pool/ca",
+			expectedURI:   "project/pool/ca",
+			expected:      true,
+		},
+		{
+			name:          "cross CA legacy stage is not inferred",
+			activeID:      "deployment-cert-20260818-000135",
+			certificateID: "deployment-cert-20260820-051552",
+			activeCAURI:   "project/pool/old-ca",
+			targetCAURI:   "project/pool/new-ca",
+		},
+		{
+			name:          "already paired stage is unchanged",
+			activeID:      "deployment-cert-20260818-000135",
+			certificateID: "deployment-cert-20260820-051552",
+			stagedCAURI:   "project/pool/old-ca",
+			activeCAURI:   "project/pool/old-ca",
+			targetCAURI:   "project/pool/new-ca",
+			expectedURI:   "project/pool/old-ca",
+		},
+		{
+			name:          "older expert leftover is not inferred as candidate",
+			activeID:      "deployment-cert-user-20260818-000200",
+			certificateID: "deployment-cert-user-20260809-000054",
+			activeCAURI:   "project/pool/ca",
+			targetCAURI:   "project/pool/ca",
+		},
+		{
+			name:          "create-time active ID accepts timestamped stage",
+			activeID:      "deployment-cert",
+			certificateID: "deployment-cert-20260820-051552",
+			activeCAURI:   "project/pool/ca",
+			targetCAURI:   "project/pool/ca",
+			expectedURI:   "project/pool/ca",
+			expected:      true,
+		},
+		{
+			name:          "ambiguous arbitrary staged ID is not inferred",
+			activeID:      "deployment-cert",
+			certificateID: "legacy-arbitrary-certificate-id",
+			activeCAURI:   "project/pool/ca",
+			targetCAURI:   "project/pool/ca",
+		},
+		{
+			name:        "fresh pool has no stage to infer",
+			activeID:    "deployment-cert",
+			activeCAURI: "project/pool/ca",
+			targetCAURI: "project/pool/ca",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualURI, inferred := inferIssuerForNewerLegacyStagedCert(
+				test.activeID,
+				test.certificateID,
+				test.stagedCAURI,
+				test.activeCAURI,
+				test.targetCAURI,
+			)
+			assert.Equal(t, test.expectedURI, actualURI)
+			assert.Equal(t, test.expected, inferred)
+		})
+	}
+}
+
 func TestRotateVcpToVsaCertificateActivity_cloneExpertModeCredentials(t *testing.T) {
 	t.Run("cloneExpertModeCredentials_Nil", func(tt *testing.T) {
 		activity := &RotateVcpToVsaCertificateActivity{}
@@ -5669,12 +6632,13 @@ func TestRotateVcpToVsaCertificateActivity_cloneExpertModeCredentials(t *testing
 		emc := &datamodel.ExpertModeCredentials{
 			ExpertModeCredential: []*datamodel.ExpertModeCredential{
 				{
-					SecretID:         "s1",
-					CertificateID:    "c1",
-					CertificateIDNew: "c1-new",
-					Password:         "p",
-					Username:         "u",
-					AuthType:         env.USER_CERTIFICATE,
+					SecretID:           "s1",
+					CertificateID:      "c1",
+					CertificateIDNew:   "c1-new",
+					Password:           "p",
+					Username:           "u",
+					UsernamePreCertFix: "u-before-fallback",
+					AuthType:           env.USER_CERTIFICATE,
 				},
 			},
 		}
@@ -5685,6 +6649,7 @@ func TestRotateVcpToVsaCertificateActivity_cloneExpertModeCredentials(t *testing
 		assert.Equal(tt, "c1-new", got.ExpertModeCredential[0].CertificateIDNew)
 		assert.Equal(tt, "p", got.ExpertModeCredential[0].Password)
 		assert.Equal(tt, "u", got.ExpertModeCredential[0].Username)
+		assert.Equal(tt, "u-before-fallback", got.ExpertModeCredential[0].UsernamePreCertFix)
 		assert.Equal(tt, env.USER_CERTIFICATE, got.ExpertModeCredential[0].AuthType)
 	})
 }
@@ -5707,10 +6672,11 @@ func TestRotateVcpToVsaCertificateActivity_updateExpertModeCertificateIDNew(t *t
 			emc, ok := updates["expert_mode_credentials"].(*datamodel.ExpertModeCredentials)
 			return ok && emc != nil && len(emc.ExpertModeCredential) == 1 &&
 				emc.ExpertModeCredential[0].CertificateIDNew == "new-cert-id" &&
+				emc.ExpertModeCredential[0].StagedCaURI == "project/pool/ca" &&
 				emc.ExpertModeCredential[0].CertificateID == "old-cert"
 		})).Return(nil)
 
-		err := activity.updateExpertModeCertificateIDNew(ctx, poolUUID, pool, 0, "new-cert-id")
+		err := activity.updateExpertModeCertificateIDNew(ctx, poolUUID, pool, 0, "new-cert-id", "project/pool/ca")
 		assert.NoError(tt, err)
 		mockSE.AssertExpectations(tt)
 	})
@@ -5725,7 +6691,7 @@ func TestRotateVcpToVsaCertificateActivity_updateExpertModeCertificateIDNew(t *t
 				},
 			},
 		}
-		err := activity.updateExpertModeCertificateIDNew(ctx, "pool-uuid", pool, 1, "new-cert-id")
+		err := activity.updateExpertModeCertificateIDNew(ctx, "pool-uuid", pool, 1, "new-cert-id", "project/pool/ca")
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "invalid expert mode credential index")
 		mockSE.AssertNotCalled(tt, "UpdatePoolFields")
@@ -5733,7 +6699,7 @@ func TestRotateVcpToVsaCertificateActivity_updateExpertModeCertificateIDNew(t *t
 
 	t.Run("updateExpertModeCertificateIDNew_NilExpertModeCredentials", func(tt *testing.T) {
 		activity := &RotateVcpToVsaCertificateActivity{SE: database.NewMockStorage(t)}
-		err := activity.updateExpertModeCertificateIDNew(ctx, "pool-uuid", &datamodel.Pool{}, 0, "new-cert-id")
+		err := activity.updateExpertModeCertificateIDNew(ctx, "pool-uuid", &datamodel.Pool{}, 0, "new-cert-id", "project/pool/ca")
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "invalid expert mode credential index")
 	})
@@ -5750,7 +6716,14 @@ func TestRotateVcpToVsaCertificateActivity_swapExpertModeCertificateIDs(t *testi
 			Pool: datamodel.Pool{
 				ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 					ExpertModeCredential: []*datamodel.ExpertModeCredential{
-						{CertificateID: "old-active", CertificateIDNew: "new-staged", Username: "u", AuthType: env.USER_CERTIFICATE},
+						{
+							CertificateID:    "old-active",
+							CertificateIDNew: "new-staged",
+							CaURI:            "project/pool/old-ca",
+							StagedCaURI:      "project/pool/new-ca",
+							Username:         "u",
+							AuthType:         env.USER_CERTIFICATE,
+						},
 					},
 				},
 			},
@@ -5760,7 +6733,9 @@ func TestRotateVcpToVsaCertificateActivity_swapExpertModeCertificateIDs(t *testi
 			emc, ok := updates["expert_mode_credentials"].(*datamodel.ExpertModeCredentials)
 			return ok && emc != nil && len(emc.ExpertModeCredential) == 1 &&
 				emc.ExpertModeCredential[0].CertificateID == "new-staged" &&
-				emc.ExpertModeCredential[0].CertificateIDNew == "old-active"
+				emc.ExpertModeCredential[0].CaURI == "project/pool/new-ca" &&
+				emc.ExpertModeCredential[0].CertificateIDNew == "old-active" &&
+				emc.ExpertModeCredential[0].StagedCaURI == "project/pool/old-ca"
 		})).Return(nil)
 
 		err := activity.swapExpertModeCertificateIDs(ctx, poolUUID, 0)
@@ -5788,6 +6763,27 @@ func TestRotateVcpToVsaCertificateActivity_swapExpertModeCertificateIDs(t *testi
 		mockSE.AssertNotCalled(tt, "UpdatePoolFields")
 	})
 
+	t.Run("swapExpertModeCertificateIDs_EmptyStagedCaURI", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+		poolView := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				ExpertModeCredentials: &datamodel.ExpertModeCredentials{
+					ExpertModeCredential: []*datamodel.ExpertModeCredential{{
+						CertificateID:    "old-active",
+						CertificateIDNew: "new-staged",
+					}},
+				},
+			},
+		}
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{poolView}, nil)
+
+		err := activity.swapExpertModeCertificateIDs(ctx, "pool-uuid", 0)
+
+		assert.ErrorContains(tt, err, "staged_ca_uri is empty")
+		mockSE.AssertNotCalled(tt, "UpdatePoolFields")
+	})
+
 	t.Run("swapExpertModeCertificateIDs_PoolNotFound", func(tt *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
@@ -5809,7 +6805,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 				BaseModel:             datamodel.BaseModel{UUID: "pool-uuid"},
 				APIAccessMode:         common.ONTAPMode,
 				DeploymentName:        "deploy-1",
-				PoolCredentials:       &datamodel.PoolCredentials{CaURI: "ca-uri", CertificateID: "pool-cert"},
+				PoolCredentials:       &datamodel.PoolCredentials{CaURI: "project/pool/ca", CertificateID: "pool-cert"},
 				ExpertModeCredentials: expertCreds,
 			},
 		}
@@ -5883,14 +6879,30 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 	})
 
 	t.Run("rotateExpertModeCertificate_Step25_RevokesCertificateIDNew", func(tt *testing.T) {
+		// Next reconcile after promotion: live expert is current, parked pair is not reusable.
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 		pv := ontapPoolView(&datamodel.ExpertModeCredentials{
 			ExpertModeCredential: []*datamodel.ExpertModeCredential{
-				{CertificateID: "active-cert", CertificateIDNew: "staged-from-last-run", Username: "u", AuthType: env.USER_CERTIFICATE},
+				{
+					CertificateID:    "active-cert",
+					CertificateIDNew: "staged-from-last-run",
+					CaURI:            "project/pool/ca",
+					StagedCaURI:      "project/pool/old-ca",
+					Username:         "u",
+					AuthType:         env.USER_CERTIFICATE,
+				},
 			},
 		})
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil)
+		mockSE.On(
+			"CompareAndSwapExpertModeCredentials",
+			ctx,
+			"pool-uuid",
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Return(nil).Once()
 
 		revokeCalled := false
 		origRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
@@ -5926,7 +6938,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 		pv := ontapPoolView(&datamodel.ExpertModeCredentials{
 			ExpertModeCredential: []*datamodel.ExpertModeCredential{
-				{CertificateID: "current-cert", Username: "u", AuthType: env.USER_CERTIFICATE},
+				{CertificateID: "current-cert", CaURI: "project/pool/ca", Username: "u", AuthType: env.USER_CERTIFICATE},
 			},
 		})
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil)
@@ -5952,25 +6964,55 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 	})
 
 	t.Run("rotateExpertModeCertificate_OldCertNotRevokedImmediately_AfterSwap", func(tt *testing.T) {
-		// Asserts that we do NOT revoke the old (just-swapped-out) cert in the same run; it is revoked in next run via Step 2.5.
+		// Asserts that we do NOT revoke the old (just-swapped-out) cert in the same run.
+		// Parent rotation also leaves that parked pair until this next reconcile.
+		originalHyperscaler := env.Hyperscaler
+		env.Hyperscaler = "oci"
+		tt.Cleanup(func() { env.Hyperscaler = originalHyperscaler })
 		mockSE := database.NewMockStorage(t)
-		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+		mockCloudService := hyperscaler2.NewMockServices(tt)
+		activity := &RotateVcpToVsaCertificateActivity{
+			SE: mockSE,
+			deps: &certificateRotationDependencies{
+				resolveCloudService: func(context.Context) (hyperscaler2.Services, error) {
+					return mockCloudService, nil
+				},
+				now: time.Now,
+			},
+		}
 		pv := ontapPoolView(&datamodel.ExpertModeCredentials{
 			ExpertModeCredential: []*datamodel.ExpertModeCredential{
-				{CertificateID: "old-active", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
+				{CertificateID: "old-active", CaURI: "project/pool/ca", Username: "expert-user", AuthType: env.USER_CERTIFICATE},
 			},
 		})
 		pvAfterStage := &datamodel.PoolView{Pool: pv.Pool}
-		// ListPools: 1) initial GetPoolContext, 2) re-fetch at start of loop iteration (multi-cred fix), 3) swapExpertModeCertificateIDs
+		// ListPools: initial GetPoolContext plus the staging and promotion CAS reads.
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil).Once()
-		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pv}, nil).Once()
-		mockSE.On("UpdatePoolFields", ctx, "pool-uuid", mock.Anything).Run(func(args mock.Arguments) {
-			updates := args.Get(2).(map[string]interface{})
-			if emc, ok := updates["expert_mode_credentials"].(*datamodel.ExpertModeCredentials); ok && emc != nil {
-				pvAfterStage.Pool.ExpertModeCredentials = emc
-			}
+		mockSE.On(
+			"CompareAndSwapExpertModeCredentials",
+			ctx,
+			"pool-uuid",
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Run(func(args mock.Arguments) {
+			pvAfterStage.Pool.ExpertModeCredentials = args.Get(3).(*datamodel.ExpertModeCredentials)
 		}).Return(nil).Twice()
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
+		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).Return([]*datamodel.PoolView{pvAfterStage}, nil).Once()
+		mockSE.On("GetNodesByPoolID", ctx, mock.Anything).Return(
+			[]*datamodel.Node{{EndpointAddress: "1.2.3.4"}},
+			nil,
+		).Maybe()
+		connectivityProvider := &vsa.MockProvider{}
+		version := "9.10.1"
+		connectivityProvider.On("GetONTAPVersion").Return(&version, nil).Once()
+		originalProvider := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalProvider }()
+		vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+			return connectivityProvider, nil
+		}
 
 		origGCP := getGcpServiceForCerts
 		origGen := generateAndCreateCertificateForVSACluster
@@ -6739,10 +7781,9 @@ func TestRotateVcpToVsaCertificateActivity_checkPoolStateBeforeCriticalOperation
 		// Execute
 		canProceed, err := activity.checkPoolStateBeforeCriticalOperation(ctx, poolUUID)
 
-		// Assert - should return true to allow operation to proceed if we can't check state
-		// This is a safety measure as per the implementation
-		assert.NoError(tt, err)
-		assert.True(tt, canProceed)
+		// Assert - a failed state read must fail closed before a critical write.
+		assert.Error(tt, err)
+		assert.False(tt, canProceed)
 		mockSE.AssertExpectations(tt)
 	})
 }

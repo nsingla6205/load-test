@@ -40,13 +40,88 @@ RotateVsaCertificateAndPasswordWorkflow (Main Workflow)
             └── CleanupPreviousSecret
 ```
 
+#### On-demand certificate rotation (test/CD and operator recovery)
+
+The scheduled path above only rotates certificates that are actually due, so it
+cannot be used to verify rotation on a freshly created pool. A separate entry
+point rotates exactly one pool regardless of remaining lifetime:
+
+```
+ForcePoolCertificateRotationWorkflow (background task queue, started manually)
+├── Gate: ENABLE_FORCED_CERTIFICATE_ROTATION && ENABLE_VSA_CERTIFICATE_ROTATION
+└── ExecutePoolForcedCertificateRotationSequentially (activity)
+    └── Pool_<uuid>_Ops_All control workflow
+        └── ForceRotatePoolCertificateWorkflow (child, customer task queue)
+            ├── GetPoolContext
+            ├── (CertificateNeedsRotation is skipped)
+            └── RotatePoolCertificateWithContext (PoolContext.Force = true)
+```
+
+Differences from the scheduled child workflow:
+
+- The remaining-lifetime eligibility check is skipped. The activity re-derives
+  eligibility on its own, so `Force` travels in `PoolContext` rather than stopping
+  at the workflow boundary; skipping only the workflow-level check would leave the
+  activity to decide the certificate is current and return without doing anything.
+- Password rotation is not chained: the certificate was not due, so the password
+  is not due either, and a forced run must not touch credentials the caller did
+  not ask about.
+- A rotation failure fails the workflow instead of being swallowed, so the caller
+  sees the error.
+- Serialization is unchanged: it still runs through the per-pool
+  `Pool_<uuid>_Ops_All` control workflow, so it cannot race pool update, delete,
+  or a scheduled rotation.
+
+Scope of a forced run — which certificates are replaced:
+
+| Pool | Pool certificate | Expert mode certificates |
+|---|---|---|
+| Non-ONTAP mode (Flex, GCP) | Replaced | None exist |
+| ONTAP mode | Replaced | Replaced (all certificate-auth credentials) |
+
+`Force` changes only the eligibility gate, never the set of certificates a run
+touches: it is the same set the scheduled path would rotate. Expert mode
+certificates are issued separately from the pool certificate and expire on their
+own schedule, so they are forced too — otherwise an ONTAP mode pool would come out
+of a forced run with a new pool certificate and an untouched expert certificate.
+Forcing applies to the pre-promotion expert reconciliation only. Parked expert
+leaves stay in `certificate_id_new` until the next expert reconcile (the
+pool-certificate-current check, or a later parent/CA rotation), matching parent
+certificate deferred cleanup. A post-swap expert sweep would revoke the
+just-parked expert leaf in the same activity.
+
+Safety checks are not bypassed by `Force`. A run is still skipped or rejected for a
+pool in `CREATING`/`DELETING`/`UPGRADING`, for missing credentials or certificate
+ID. Password-auth expert credentials are not migrated by certificate rotation;
+AuthType 1-to-2 restoration remains in its separate reconciliation flow.
+
+### Per-pool log correlation
+
+Every sequenced pool certificate rotation, password rotation, CA reconciliation,
+and AuthType 1-to-2 reconciliation has its own correlation ID. The correlation ID
+is the unique Temporal child workflow ID created for that queued pool operation.
+The child workflow adds these structured fields before it starts any activity:
+
+- `requestCorrelationID` — stable for the complete per-pool operation.
+- `poolUUID` — the pool being changed.
+- `poolOperation` — `certificate_rotation`, `password_rotation`, or
+  `auth_type_1_to_2_reconciliation`.
+- `workflowID` — the Temporal workflow ID, equal to `requestCorrelationID`.
+
+The Temporal context propagator carries the same fields into every activity, and a
+nested password-rotation workflow inherits the parent certificate-rotation
+correlation ID. Start and terminal logs use explicit `outcome=success|failure`
+fields. Search by `poolUUID` to discover an execution's correlation ID, then search
+by `requestCorrelationID` to obtain its complete timeline.
+
 ### File Organization
 
 - **`rotate_vsa_certificate_password_workflow.go`** - Main workflow orchestrating both certificate and password rotation
 - **`certificate_rotation_activities.go`** - Certificate-specific activities
 - **`password_rotation_activities.go`** - Password-specific activities  
 - **`rotation_shared_activities.go`** - Shared utilities and common functions
-- **`rotate_pool_certificate_workflow.go`** - Child workflow for certificate rotation
+- **`rotate_pool_certificate_workflow.go`** - Child workflow for certificate rotation (scheduled and forced variants)
+- **`force_pool_certificate_rotation_workflow.go`** - On-demand single-pool rotation entry point
 - **`rotate_pool_password_workflow.go`** - Child workflow for password rotation
 
 ## Authentication Types
@@ -208,9 +283,11 @@ func (a *RotateVcpToVsaCertificateActivity) CleanupPreviousSecret(ctx context.Co
 
 #### Certificate Rotation
 - `ENABLE_VSA_CERTIFICATE_ROTATION`: Enable/disable certificate rotation (default: false)
+- `ENABLE_CA_CHANGE_DURING_CERTIFICATE_ROTATION`: Allow scheduled and forced certificate rotation to move a pool from its persisted CA to the Helm-configured CA (default: false). This does not gate explicit CA reconciliation.
 - `CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE`: Percentage of certificate lifetime after which rotation should occur (default: 75, meaning 75% of lifetime)
 - `MINIMUM_CERTIFICATE_LIFETIME`: Minimum required certificate lifetime for service startup (default: 5184000s, meaning 2 months)
 - `ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION`: Enable/disable rotation of expired certificates (default: false)
+- `ENABLE_FORCED_CERTIFICATE_ROTATION`: Allow `ForcePoolCertificateRotationWorkflow` to rotate one pool on demand, skipping the remaining-lifetime check (default: false). Test/CD and operator recovery only — keep `false` in production.
 
 #### Password Rotation
 - `ENABLE_VSA_PASSWORD_ROTATION`: Enable/disable password rotation (default: false)
@@ -232,6 +309,30 @@ export ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION="true"
 # Disable rotation of expired certificates (default)
 export ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION="false"
 ```
+
+#### Forcing Rotation on a Single Pool
+
+Enable the gate on the background worker (Helm:
+`workerConfig.enableForcedCertificateRotation`), then start the workflow for one
+pool UUID:
+
+```bash
+export ENABLE_VSA_CERTIFICATE_ROTATION="true"
+export ENABLE_FORCED_CERTIFICATE_ROTATION="true"
+```
+
+```bash
+temporal workflow start \
+  --task-queue background-workflows \
+  --type ForcePoolCertificateRotationWorkflow \
+  --workflow-id "force-cert-rotation-${POOL_UUID}-$(date +%s)" \
+  --input "\"${POOL_UUID}\""
+```
+
+The workflow fails fast with a non-retryable error if either flag is off, so a
+misconfigured environment reports the reason instead of hanging. The
+`tests/ccfe/certificate_rotation` suite in `vsa-cp-cd` drives this same entry
+point.
 
 #### Minimum Certificate Lifetime
 ```bash

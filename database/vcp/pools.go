@@ -802,6 +802,112 @@ func (d *DataStoreRepository) UpdatePoolFields(ctx context.Context, poolUUID str
 	return nil
 }
 
+// CompareAndSwapPoolCredentials replaces pool credentials only when the
+// authentication type, staged certificate pair, and pool state still match.
+func (d *DataStoreRepository) CompareAndSwapPoolCredentials(
+	ctx context.Context,
+	poolUUID string,
+	expectedAuthType int,
+	expectedCertificateIDNew, expectedStagedCaURI string,
+	eligibleStates []string,
+	credentials *datamodel.PoolCredentials,
+) (err error) {
+	if credentials == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, errors.New("pool credentials are required"))
+	}
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return err
+	}
+	defer commitOrRollbackOnError(util.GetLogger(ctx), tx, &err)
+
+	result := tx.
+		Model(&datamodel.Pool{}).
+		Where("uuid = ?", poolUUID).
+		Where("pool_credentials->>'auth_type' = ?", fmt.Sprintf("%d", expectedAuthType)).
+		Where("COALESCE(pool_credentials->>'certificate_id_new', '') = ?", expectedCertificateIDNew).
+		Where("COALESCE(pool_credentials->>'staged_ca_uri', '') = ?", expectedStagedCaURI).
+		Where("state IN ?", eligibleStates).
+		Updates(map[string]interface{}{
+			"pool_credentials": credentials,
+			"updated_at":       time.Now(),
+		})
+	if result.Error != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrResourceStateConflictError,
+			fmt.Errorf("pool %s credentials changed before compare-and-swap", poolUUID),
+		)
+	}
+	return nil
+}
+
+// CompareAndSwapExpertModeCredentials replaces the complete expert credential
+// payload only when the expected JSONB value and pool state still match.
+func (d *DataStoreRepository) CompareAndSwapExpertModeCredentials(
+	ctx context.Context,
+	poolUUID string,
+	expected, replacement *datamodel.ExpertModeCredentials,
+	eligibleStates []string,
+) (err error) {
+	if expected == nil || replacement == nil {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrDatabaseDataUpdateError,
+			errors.New("expected and replacement expert mode credentials are required"),
+		)
+	}
+	db := d.db.GORM().WithContext(ctx)
+	predicate, expectedArgs, err := buildExpertModeCredentialsCASPredicate(
+		db.Dialector.Name(),
+		expected,
+	)
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+	tx, err := startTransaction(db)
+	if err != nil {
+		return err
+	}
+	defer commitOrRollbackOnError(util.GetLogger(ctx), tx, &err)
+
+	result := tx.
+		Model(&datamodel.Pool{}).
+		Where("uuid = ?", poolUUID).
+		Where(predicate, expectedArgs...).
+		Where("state IN ?", eligibleStates).
+		Updates(map[string]interface{}{
+			"expert_mode_credentials": replacement,
+			"updated_at":              time.Now(),
+		})
+	if result.Error != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrResourceStateConflictError,
+			fmt.Errorf("pool %s expert mode credentials changed before compare-and-swap", poolUUID),
+		)
+	}
+	return nil
+}
+
+func buildExpertModeCredentialsCASPredicate(
+	dialect string,
+	expected *datamodel.ExpertModeCredentials,
+) (string, []interface{}, error) {
+	encoded, err := json.Marshal(expected)
+	if err != nil {
+		return "", nil, fmt.Errorf("marshal expected expert mode credentials: %w", err)
+	}
+	if dialect == "postgres" || dialect == "postgresql" {
+		return "expert_mode_credentials = CAST(? AS jsonb)", []interface{}{string(encoded)}, nil
+	}
+	return "expert_mode_credentials = ?", []interface{}{expected}, nil
+}
+
 // auto_tiering_config JSON keys by owner.
 const (
 	autoTieringKeyHotTierConsumption       = "hot_tier_consumption"

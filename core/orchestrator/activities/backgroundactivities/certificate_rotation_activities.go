@@ -19,6 +19,27 @@ type ListPoolsBatchResult struct {
 
 // CertificateNeedsRotation checks if a certificate needs rotation for a specific pool
 func (a *RotateVcpToVsaCertificateActivity) CertificateNeedsRotation(ctx context.Context, poolUUID string) (bool, error) {
+	return a.certificateNeedsRotationForDesiredCA(
+		ctx,
+		poolUUID,
+		defaultCertificateCaURI(),
+		caChangeDuringCertificateRotationEnabled(),
+	)
+}
+
+// CertificateNeedsRotationForDesiredCA compares a pool against the desired CA carried in workflow history.
+func (a *RotateVcpToVsaCertificateActivity) CertificateNeedsRotationForDesiredCA(ctx context.Context, poolUUID, desiredCAURI string) (bool, error) {
+	if err := validateExplicitDesiredCAURI(desiredCAURI); err != nil {
+		return false, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
+	}
+	return a.certificateNeedsRotationForDesiredCA(ctx, poolUUID, desiredCAURI, true)
+}
+
+func (a *RotateVcpToVsaCertificateActivity) certificateNeedsRotationForDesiredCA(
+	ctx context.Context,
+	poolUUID, desiredCAURI string,
+	allowCAChange bool,
+) (bool, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Checking if certificate needs rotation for pool: %s", poolUUID)
 
@@ -43,6 +64,12 @@ func (a *RotateVcpToVsaCertificateActivity) CertificateNeedsRotation(ctx context
 	if pool.PoolCredentials == nil || pool.PoolCredentials.CertificateID == "" {
 		logger.Warnf("Pool %s has no certificate ID", poolUUID)
 		return false, nil
+	}
+
+	if allowCAChange && certificateCaDriftedAgainst(pool.PoolCredentials, desiredCAURI) {
+		logger.Infof("Pool %s certificate CA drift detected: current=%q desired=%q", poolUUID,
+			pool.PoolCredentials.GetCaURIWithFallback(), desiredCAURI)
+		return true, nil
 	}
 
 	needsRotation, err := a.certificateNeedsRotation(ctx, pool, pool.PoolCredentials.CertificateID)

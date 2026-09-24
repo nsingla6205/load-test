@@ -145,7 +145,10 @@ func TestGetSecurityAccount_MapsOwnerAndRole(t *testing.T) {
 	mockSecurity := new(ontaprest.MockSecurityClient)
 	mockClient := new(ontaprest.MockRESTClient)
 	mockClient.On("Security").Return(mockSecurity)
-	mockSecurity.On("AccountGet", mock.Anything).Return(&ontaprest.SecurityAccount{
+	mockSecurity.On("AccountGet", mock.MatchedBy(func(params *ontaprest.AccountGetParams) bool {
+		return params.Name == "svc-user" &&
+			assert.ElementsMatch(t, []string{"name", "applications", "owner", "role"}, params.Fields)
+	})).Return(&ontaprest.SecurityAccount{
 		Name:  "svc-user",
 		Owner: &ontaprest.SecurityAccountOwner{UUID: "owner-uuid"},
 		Role:  &ontaprest.SecurityAccountRole{Name: "gcnv_r_test"},

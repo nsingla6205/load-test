@@ -97,6 +97,10 @@ type V1ExpertModeVolumeRes interface {
 	v1ExpertModeVolumeRes()
 }
 
+type V1ForcePoolCertificateRotationRes interface {
+	v1ForcePoolCertificateRotationRes()
+}
+
 type V1GetAddressRangeRes interface {
 	v1GetAddressRangeRes()
 }
@@ -123,6 +127,14 @@ type V1GetMultipleReplicationsByExternalUUIDRes interface {
 
 type V1GetOntapCredentialsRes interface {
 	v1GetOntapCredentialsRes()
+}
+
+type V1GetPoolCertificateAuthorityReconciliationStatusRes interface {
+	v1GetPoolCertificateAuthorityReconciliationStatusRes()
+}
+
+type V1GetPoolCertificateRotationStatusRes interface {
+	v1GetPoolCertificateRotationStatusRes()
 }
 
 type V1GetPoolRes interface {
@@ -171,6 +183,10 @@ type V1ListZonesRes interface {
 
 type V1OnboardExternalClusterRes interface {
 	v1OnboardExternalClusterRes()
+}
+
+type V1ReconcilePoolCertificateAuthorityRes interface {
+	v1ReconcilePoolCertificateAuthorityRes()
 }
 
 type V1RefreshRbacForExpertModePoolByIdRes interface {

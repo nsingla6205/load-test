@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -59,6 +60,62 @@ func (s *RotatePoolCertificateWorkflowTestSuite) TestRotatePoolCertificateWorkfl
 	s.env.OnActivity((&backgroundactivities.RotateVcpToVsaCertificateActivity{}).RotatePoolCertificateWithContext, mock.Anything, poolContext).Return(nil)
 
 	s.env.ExecuteWorkflow(RotatePoolCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *RotatePoolCertificateWorkflowTestSuite) TestTrackedForceRotatePoolCertificateWorkflowUpdatesChildJob() {
+	const (
+		poolUUID   = "test-pool-uuid"
+		childJobID = "child-job"
+	)
+	poolContext := &backgroundactivities.PoolContext{
+		Pool: &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: poolUUID},
+			Name:      "test-pool",
+		},
+		PoolUUID: poolUUID,
+	}
+	commonActivity := &activities.CommonActivities{}
+	for _, state := range []datamodel.JobState{
+		datamodel.JobsStatePROCESSING,
+		datamodel.JobsStateDONE,
+	} {
+		expectedState := state
+		s.env.OnActivity(
+			commonActivity.UpdateJobStatus,
+			mock.Anything,
+			mock.MatchedBy(func(job *datamodel.Job) bool {
+				return job.UUID == childJobID &&
+					job.State == string(expectedState) &&
+					job.ErrorDetails == ""
+			}),
+		).Return(nil).Once()
+	}
+	rotationActivity := &backgroundactivities.RotateVcpToVsaCertificateActivity{}
+	s.env.OnActivity(
+		rotationActivity.GetPoolContext,
+		mock.Anything,
+		poolUUID,
+	).Return(poolContext, nil).Once()
+	s.env.OnActivity(
+		rotationActivity.RotatePoolCertificateWithContext,
+		mock.Anything,
+		mock.MatchedBy(func(context *backgroundactivities.PoolContext) bool {
+			return context != nil &&
+				context.PoolUUID == poolUUID &&
+				context.Pool != nil &&
+				context.Pool.UUID == poolUUID &&
+				context.Force
+		}),
+	).Return(nil).Once()
+
+	s.env.ExecuteWorkflow(
+		TrackedForceRotatePoolCertificateWorkflow,
+		poolUUID,
+		childJobID,
+	)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())

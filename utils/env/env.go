@@ -49,9 +49,9 @@ func ParseCaURI(caURI string) (caPoolDeployedProjectID, caPoolName, caName strin
 		return CaPoolDeployedProjectID, CaPoolName, CaName
 	}
 
-	caPoolDeployedProjectID = parts[0]
-	caPoolName = parts[1]
-	caName = parts[2]
+	caPoolDeployedProjectID = strings.TrimSpace(parts[0])
+	caPoolName = strings.TrimSpace(parts[1])
+	caName = strings.TrimSpace(parts[2])
 
 	// Fallback to environment variables for empty parts
 	if caPoolDeployedProjectID == "" {

@@ -1057,6 +1057,18 @@ func TestExternalClusterOnboardRequestV1_Examples(t *testing.T) {
 		})
 	}
 }
+func TestForcePoolCertificateRotationRequestV1_EncodeDecode(t *testing.T) {
+	var typ ForcePoolCertificateRotationRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ForcePoolCertificateRotationRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestGcpKmsConfigV1_EncodeDecode(t *testing.T) {
 	var typ GcpKmsConfigV1
 	typ.SetFake()
@@ -1719,6 +1731,90 @@ func TestOperationV1_Examples(t *testing.T) {
 		})
 	}
 }
+func TestPoolCertificateMaintenancePoolStatusV1_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenancePoolStatusV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenancePoolStatusV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenancePoolStatusV1Status_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenancePoolStatusV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenancePoolStatusV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenanceResponseV1_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenanceResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenanceResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenanceSelectionV1_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenanceSelectionV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenanceSelectionV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenanceStatusResponseV1_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenanceStatusResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenanceStatusResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenanceStatusResponseV1Operation_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenanceStatusResponseV1Operation
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenanceStatusResponseV1Operation
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolCertificateMaintenanceStatusResponseV1Status_EncodeDecode(t *testing.T) {
+	var typ PoolCertificateMaintenanceStatusResponseV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolCertificateMaintenanceStatusResponseV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestPoolUpdateV1_EncodeDecode(t *testing.T) {
 	var typ PoolUpdateV1
 	typ.SetFake()
@@ -2049,6 +2145,18 @@ func TestPoolV1StoragePoolState_Examples(t *testing.T) {
 			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
 		})
 	}
+}
+func TestReconcilePoolCertificateAuthorityRequestV1_EncodeDecode(t *testing.T) {
+	var typ ReconcilePoolCertificateAuthorityRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ReconcilePoolCertificateAuthorityRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestRegionV1_EncodeDecode(t *testing.T) {
 	var typ RegionV1
@@ -4355,6 +4463,42 @@ func TestV1ExpertModeVolumeUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1ExpertModeVolumeUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1ForcePoolCertificateRotationBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ForcePoolCertificateRotationBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ForcePoolCertificateRotationBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ForcePoolCertificateRotationInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ForcePoolCertificateRotationInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ForcePoolCertificateRotationInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ForcePoolCertificateRotationUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ForcePoolCertificateRotationUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ForcePoolCertificateRotationUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1GetAddressRangeBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1GetAddressRangeBadRequest
 	typ.SetFake()
@@ -4965,6 +5109,102 @@ func TestV1GetPoolBadRequest_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1GetPoolBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateAuthorityReconciliationStatusBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateAuthorityReconciliationStatusBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateAuthorityReconciliationStatusBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateAuthorityReconciliationStatusInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateAuthorityReconciliationStatusInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateAuthorityReconciliationStatusNotFound_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateAuthorityReconciliationStatusNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateAuthorityReconciliationStatusNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateAuthorityReconciliationStatusUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateAuthorityReconciliationStatusUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateRotationStatusBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateRotationStatusBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateRotationStatusBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateRotationStatusInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateRotationStatusInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateRotationStatusInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateRotationStatusNotFound_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateRotationStatusNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateRotationStatusNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolCertificateRotationStatusUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolCertificateRotationStatusUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolCertificateRotationStatusUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1GetPoolForbidden_EncodeDecode(t *testing.T) {
@@ -5889,6 +6129,42 @@ func TestV1OnboardExternalClusterUnprocessableEntity_EncodeDecode(t *testing.T) 
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1OnboardExternalClusterUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolCertificateAuthorityBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolCertificateAuthorityBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolCertificateAuthorityBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolCertificateAuthorityInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolCertificateAuthorityInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolCertificateAuthorityInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolCertificateAuthorityUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolCertificateAuthorityUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolCertificateAuthorityUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1RefreshRbacForExpertModePoolByIdBadRequest_EncodeDecode(t *testing.T) {

@@ -30,6 +30,14 @@ type CustomCertificate struct {
 	VersionNumber int64
 }
 
+// CertificateAuthority describes issuer metadata and its ordered PEM trust chain.
+type CertificateAuthority struct {
+	Name                string
+	State               string
+	ExpireTime          time.Time
+	PemCertificateChain []string
+}
+
 // CustomCertificateParam is a struct that represents the parameters needed to create a certificate
 type CustomCertificateParam struct {
 	Region           string

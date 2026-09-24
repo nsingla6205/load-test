@@ -25,6 +25,30 @@ type OCIOrchestrator struct {
 	temporal client.Client
 }
 
+// StartVsaCAReconciliation is GCP-only.
+func (o *OCIOrchestrator) StartVsaCAReconciliation(
+	context.Context,
+	*commonparams.PoolCertificateMaintenanceParams,
+) (string, string, error) {
+	return "", "", utilserrors.NewNotImplementedYetErr()
+}
+
+// StartForcedVsaCertificateRotation is GCP-only.
+func (o *OCIOrchestrator) StartForcedVsaCertificateRotation(
+	context.Context,
+	*commonparams.PoolCertificateMaintenanceParams,
+) (string, string, error) {
+	return "", "", utilserrors.NewNotImplementedYetErr()
+}
+
+// GetCertificateMaintenanceStatus is GCP-only.
+func (o *OCIOrchestrator) GetCertificateMaintenanceStatus(
+	context.Context,
+	string,
+) (*models.CertificateMaintenanceProgress, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 // NewOCIOrchestrator creates a new OCI orchestrator
 func NewOCIOrchestrator(storage database.Storage, temporalClient client.Client) *OCIOrchestrator {
 	return &OCIOrchestrator{

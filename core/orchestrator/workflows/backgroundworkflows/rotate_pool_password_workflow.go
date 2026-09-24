@@ -9,9 +9,16 @@ import (
 )
 
 // RotatePoolPasswordWorkflow is a child workflow that handles password rotation for a single pool
-func RotatePoolPasswordWorkflow(ctx workflow.Context, poolUUID string) error {
-	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting password rotation child workflow", "poolUUID", poolUUID)
+func RotatePoolPasswordWorkflow(ctx workflow.Context, poolUUID string) (workflowErr error) {
+	ctx, logger := withPoolOperationLogging(ctx, poolUUID, poolOperationPasswordRotation)
+	logger.Info("Pool password rotation started")
+	defer func() {
+		if workflowErr != nil {
+			logger.Error("Pool password rotation finished", "outcome", "failure", "error", workflowErr)
+			return
+		}
+		logger.Info("Pool password rotation finished", "outcome", "success")
+	}()
 
 	// Check if password rotation is enabled via feature flag
 	passwordRotationEnabled := env.GetBool("ENABLE_VSA_PASSWORD_ROTATION", false)
@@ -60,6 +67,5 @@ func RotatePoolPasswordWorkflow(ctx workflow.Context, poolUUID string) error {
 		return err
 	}
 
-	logger.Info("Password rotation completed successfully", "poolUUID", poolUUID)
 	return nil
 }

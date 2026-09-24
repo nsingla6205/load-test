@@ -1156,6 +1156,128 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/pools/reconcileCertificateAuthority:
+    post:
+      tags:
+        - pools
+      summary: Reconcile VSA pool certificates to the Helm-configured CA
+      description: >
+        Internal SRE endpoint that starts asynchronous certificate reconciliation
+        toward the worker's Helm-configured CA for all certificate-auth pools,
+        a list of pool UUIDs, or one pool UUID. Fleet-wide requests persist the
+        accepted CA URI after Temporal accepts the workflow. This operation is
+        never triggered by worker startup.
+      operationId: v1_reconcilePoolCertificateAuthority
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcilePoolCertificateAuthorityRequest_v1'
+      responses:
+        "202":
+          description: CA reconciliation workflow accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolCertificateMaintenanceResponse_v1'
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+    get:
+      tags:
+        - pools
+      summary: Get CA reconciliation job status
+      description: >
+        Returns aggregate and per-pool progress for the CA reconciliation job
+        started by POST on this path.
+      operationId: v1_getPoolCertificateAuthorityReconciliationStatus
+      parameters:
+        - name: jobId
+          in: query
+          description: CA reconciliation parent job UUID returned by POST
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CA reconciliation status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolCertificateMaintenanceStatusResponse_v1'
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+  /v1/pools/forceCertificateRotation:
+    post:
+      tags:
+        - pools
+      summary: Force VSA pool certificate rotation
+      description: >
+        Internal SRE endpoint that starts asynchronous forced certificate
+        rotation for all certificate-auth pools, a list of pool UUIDs, or one
+        pool UUID. The worker-side certificate rotation feature gates still apply.
+      operationId: v1_forcePoolCertificateRotation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForcePoolCertificateRotationRequest_v1'
+      responses:
+        "202":
+          description: Forced certificate rotation workflow accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolCertificateMaintenanceResponse_v1'
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+    get:
+      tags:
+        - pools
+      summary: Get forced certificate rotation job status
+      description: >
+        Returns aggregate and per-pool progress for the forced certificate
+        rotation job started by POST on this path.
+      operationId: v1_getPoolCertificateRotationStatus
+      parameters:
+        - name: jobId
+          in: query
+          description: Forced rotation parent job UUID returned by POST
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Forced certificate rotation status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolCertificateMaintenanceStatusResponse_v1'
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
   /v1/clusters/batchUpgrade:
     post:
       tags:
@@ -4320,6 +4442,156 @@ components:
           example:
             reason: "Scheduled maintenance"
             operator: "admin@company.com"
+    PoolCertificateMaintenanceSelection_v1:
+      type: string
+      description: Pool selection mode for a certificate maintenance operation
+      enum:
+        - all
+        - poolList
+        - pool
+    ReconcilePoolCertificateAuthorityRequest_v1:
+      type: object
+      title: ReconcilePoolCertificateAuthorityRequest
+      required:
+        - selectionType
+      properties:
+        selectionType:
+          $ref: '#/components/schemas/PoolCertificateMaintenanceSelection_v1'
+        poolId:
+          type: string
+          description: Pool UUID when selectionType is pool
+          format: uuid
+        poolIds:
+          type: array
+          description: Pool UUIDs when selectionType is poolList
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    ForcePoolCertificateRotationRequest_v1:
+      type: object
+      title: ForcePoolCertificateRotationRequest
+      required:
+        - selectionType
+      properties:
+        selectionType:
+          $ref: '#/components/schemas/PoolCertificateMaintenanceSelection_v1'
+        poolId:
+          type: string
+          description: Pool UUID when selectionType is pool
+          format: uuid
+        poolIds:
+          type: array
+          description: Pool UUIDs when selectionType is poolList
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    PoolCertificateMaintenanceResponse_v1:
+      type: object
+      title: PoolCertificateMaintenanceResponse
+      required:
+        - jobId
+        - workflowId
+        - selectionType
+        - poolIds
+      properties:
+        jobId:
+          type: string
+          description: Persistent job UUID used to query progress
+          format: uuid
+        workflowId:
+          type: string
+          description: Temporal parent workflow ID
+        selectionType:
+          $ref: '#/components/schemas/PoolCertificateMaintenanceSelection_v1'
+        poolIds:
+          type: array
+          description: Explicitly selected pool UUIDs; empty for all
+          items:
+            type: string
+            format: uuid
+    PoolCertificateMaintenanceStatusResponse_v1:
+      type: object
+      title: PoolCertificateMaintenanceStatusResponse
+      required:
+        - jobId
+        - workflowId
+        - operation
+        - status
+        - selectionType
+        - totalPools
+        - completedPools
+        - failedPools
+        - inProgressPools
+        - pools
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        workflowId:
+          type: string
+        operation:
+          type: string
+          enum:
+            - CA_RECONCILIATION
+            - FORCED_ROTATION
+        status:
+          type: string
+          enum:
+            - NEW
+            - PROCESSING
+            - DONE
+            - ERROR
+            - CANCELLED
+        selectionType:
+          $ref: '#/components/schemas/PoolCertificateMaintenanceSelection_v1'
+        desiredCaUri:
+          type: string
+          description: Desired CA URI for CA reconciliation jobs
+        totalPools:
+          type: integer
+          minimum: 0
+        completedPools:
+          type: integer
+          minimum: 0
+        failedPools:
+          type: integer
+          minimum: 0
+        inProgressPools:
+          type: integer
+          minimum: 0
+        pools:
+          type: array
+          items:
+            $ref: '#/components/schemas/PoolCertificateMaintenancePoolStatus_v1'
+    PoolCertificateMaintenancePoolStatus_v1:
+      type: object
+      title: PoolCertificateMaintenancePoolStatus
+      required:
+        - poolId
+        - jobId
+        - workflowId
+        - status
+      properties:
+        poolId:
+          type: string
+          format: uuid
+        jobId:
+          type: string
+          format: uuid
+        workflowId:
+          type: string
+        status:
+          type: string
+          enum:
+            - NEW
+            - PROCESSING
+            - DONE
+            - ERROR
+            - CANCELLED
+        error:
+          type: string
     BatchClusterUpgradeRequest_v1:
       type: object
       title: BatchClusterUpgradeRequest

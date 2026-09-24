@@ -435,6 +435,42 @@ func (s *PersistenceStore) UpdatePoolFields(ctx context.Context, poolUUID string
 	return s.dataStore.UpdatePoolFields(ctx, poolUUID, updates)
 }
 
+// CompareAndSwapPoolCredentials performs a guarded credential transition.
+func (s *PersistenceStore) CompareAndSwapPoolCredentials(
+	ctx context.Context,
+	poolUUID string,
+	expectedAuthType int,
+	expectedCertificateIDNew, expectedStagedCaURI string,
+	eligibleStates []string,
+	credentials *datamodel.PoolCredentials,
+) error {
+	return s.dataStore.CompareAndSwapPoolCredentials(
+		ctx,
+		poolUUID,
+		expectedAuthType,
+		expectedCertificateIDNew,
+		expectedStagedCaURI,
+		eligibleStates,
+		credentials,
+	)
+}
+
+// CompareAndSwapExpertModeCredentials performs a guarded expert credential transition.
+func (s *PersistenceStore) CompareAndSwapExpertModeCredentials(
+	ctx context.Context,
+	poolUUID string,
+	expected, replacement *datamodel.ExpertModeCredentials,
+	eligibleStates []string,
+) error {
+	return s.dataStore.CompareAndSwapExpertModeCredentials(
+		ctx,
+		poolUUID,
+		expected,
+		replacement,
+		eligibleStates,
+	)
+}
+
 func (s *PersistenceStore) UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error {
 	return s.dataStore.UpdatePoolTieringConfig(ctx, poolUUID, hotTierConsumption, coldTierConsumption, tieringThreshold, tieringStatus)
 }
@@ -867,6 +903,10 @@ func (s *PersistenceStore) GetNodesByPoolID(ctx context.Context, poolID int64) (
 
 func (s *PersistenceStore) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error) {
 	return s.dataStore.GetNodesByPoolIDs(ctx, poolIDs)
+}
+
+func (s *PersistenceStore) UpdateNodeHostDNSNames(ctx context.Context, poolID int64, hostNamesByEndpoint map[string]string) error {
+	return s.dataStore.UpdateNodeHostDNSNames(ctx, poolID, hostNamesByEndpoint)
 }
 
 func (s *PersistenceStore) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
@@ -2333,4 +2373,3 @@ func (s *PersistenceStore) ListNodeGroupsWithPollerCounts(ctx context.Context) (
 func (s *PersistenceStore) ListNodeNodeGroupMapsByNodeGroupID(ctx context.Context, nodeGroupID int64) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
 }
-
