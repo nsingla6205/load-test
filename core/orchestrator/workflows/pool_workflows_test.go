@@ -15813,6 +15813,9 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 			Labels:               make(map[string]string),
 			MediatorInstanceType: "e2-micro",
 			MediatorDiskType:     "pd-ssd",
+			PlacementPolicyConfig: vlm.PlacementPolicyConfig{
+				GCPPlacementPolicyConfig: vlm.GCPPlacementPolicyConfig{PolicyConfig: "spread_multi"},
+			},
 		}}
 		pool := &datamodel.Pool{
 			Name:           "standard-pool",
@@ -15831,13 +15834,18 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		// Mediator instance/disk types are retained for non true-zonal (mediator VM is provisioned).
 		assert.Equal(t, "e2-micro", req.VLMConfig.Deployment.MediatorInstanceType)
 		assert.Equal(t, "pd-ssd", req.VLMConfig.Deployment.MediatorDiskType)
+		assert.Equal(t, "none", req.VLMConfig.Deployment.PlacementPolicyConfig.GCPPlacementPolicyConfig.PolicyConfig)
 	})
 
 	t.Run("omits mediator zone and enables shared HA for true zonal pool", func(t *testing.T) {
+		incomingPlacement := vlm.PlacementPolicyConfig{
+			GCPPlacementPolicyConfig: vlm.GCPPlacementPolicyConfig{PolicyConfig: "spread_multi"},
+		}
 		vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{
-			Labels:               make(map[string]string),
-			MediatorInstanceType: "e2-micro",
-			MediatorDiskType:     "pd-ssd",
+			Labels:                make(map[string]string),
+			MediatorInstanceType:  "e2-micro",
+			MediatorDiskType:      "pd-ssd",
+			PlacementPolicyConfig: incomingPlacement,
 		}}
 		pool := &datamodel.Pool{
 			Name:           "true-zonal-pool",
@@ -15856,6 +15864,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		// True-zonal (active-active) has no mediator VM, so mediator instance/disk types are cleared.
 		assert.Empty(t, req.VLMConfig.Deployment.MediatorInstanceType)
 		assert.Empty(t, req.VLMConfig.Deployment.MediatorDiskType)
+		assert.Equal(t, incomingPlacement, req.VLMConfig.Deployment.PlacementPolicyConfig)
 	})
 
 	t.Run("allowlisted account does not set mediator image for true zonal pool", func(t *testing.T) {
@@ -15876,6 +15885,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 
 		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
 		assert.Empty(t, req.VLMConfig.Deployment.Images.MediatorImageName)
+		assert.Empty(t, req.VLMConfig.Deployment.PlacementPolicyConfig.GCPPlacementPolicyConfig.PolicyConfig)
 	})
 }
 

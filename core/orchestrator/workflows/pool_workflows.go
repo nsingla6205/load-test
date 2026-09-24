@@ -2991,6 +2991,14 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 		Zone2: resolvedLocationInfo.SecondaryZone,
 	}
 
+	if !pool.IsActiveActive() {
+		vlmConfig.Deployment.PlacementPolicyConfig = vlm.PlacementPolicyConfig{
+			GCPPlacementPolicyConfig: vlm.GCPPlacementPolicyConfig{
+				PolicyConfig: "none",
+			},
+		}
+	}
+
 	// Set default images
 	vlmConfig.Deployment.Images.VSAImageName = vsaImageName
 	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
