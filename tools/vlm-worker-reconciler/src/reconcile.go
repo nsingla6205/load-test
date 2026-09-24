@@ -128,6 +128,12 @@ func runWith(ctx context.Context, cfg config, k8s k8sClientInterface, db *sql.DB
 	var keepActive, scaleToZero []deploymentItem
 
 	for _, d := range deployments {
+		// Never manage Temporal drain Deployments via ONTAP inactivity rules.
+		if isDrainRoleDeployment(d.Labels) {
+			log.Info("KEEP — Temporal drain Deployment (skipped)", "deployment", d.Name)
+			keepActive = append(keepActive, d)
+			continue
+		}
 		depVer, ok := deployNameToVersion(d.Name)
 		if !ok {
 			log.Warn("cannot parse version from deployment name — keeping active (safe default)",

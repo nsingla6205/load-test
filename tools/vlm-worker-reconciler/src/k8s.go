@@ -20,6 +20,7 @@ type k8sClientInterface interface {
 type deploymentItem struct {
 	Name     string
 	Replicas int
+	Labels   map[string]string
 }
 
 // k8sClient makes authenticated requests to the Kubernetes API using
@@ -70,7 +71,8 @@ func (c *k8sClient) listVLMWorkerDeployments(ctx context.Context) ([]deploymentI
 	var result struct {
 		Items []struct {
 			Metadata struct {
-				Name string `json:"name"`
+				Name   string            `json:"name"`
+				Labels map[string]string `json:"labels"`
 			} `json:"metadata"`
 			Spec struct {
 				Replicas *int `json:"replicas"`
@@ -90,7 +92,11 @@ func (c *k8sClient) listVLMWorkerDeployments(ctx context.Context) ([]deploymentI
 		if item.Spec.Replicas != nil {
 			replicas = *item.Spec.Replicas
 		}
-		out = append(out, deploymentItem{Name: item.Metadata.Name, Replicas: replicas})
+		out = append(out, deploymentItem{
+			Name:     item.Metadata.Name,
+			Replicas: replicas,
+			Labels:   item.Metadata.Labels,
+		})
 	}
 	return out, nil
 }

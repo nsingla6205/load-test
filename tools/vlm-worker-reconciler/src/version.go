@@ -73,6 +73,13 @@ func deployNameToVersion(name string) (version, bool) {
 	return version{major, minor, patch, level}, true
 }
 
+const drainRoleLabel = "vlm.netapp.io/role"
+
+// isDrainRoleDeployment reports Deployments labeled as Temporal D-patch drain workers.
+func isDrainRoleDeployment(labels map[string]string) bool {
+	return labels[drainRoleLabel] == "drain"
+}
+
 // normalizeVersions strips test suffixes, deduplicates, and sorts.
 func normalizeVersions(raw []string) []version {
 	seen := map[version]struct{}{}

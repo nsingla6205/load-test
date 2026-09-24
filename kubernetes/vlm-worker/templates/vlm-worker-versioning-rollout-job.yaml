@@ -1,0 +1,116 @@
+{{- if and .Values.vlmWorkerVersioning.enabled .Values.vlmWorkerVersioning.rollout.enabled }}
+{{- $rolloutDigest := .Values.vlmWorkerVersioning.rollout.image.digest | toString | trim }}
+{{- if not .Values.global.useTags }}
+{{- $rolloutDigest = required "vlmWorkerVersioning.rollout.image.digest is required when global.useTags is false" $rolloutDigest }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vlm-worker-versioning-ensure-drain
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  # Two 15-minute gates: Kubernetes readiness, then Temporal Build A polling.
+  activeDeadlineSeconds: 1860
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: vlm-worker-versioning-ensure-drain
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      restartPolicy: Never
+      containers:
+        - name: rollout
+          image: "{{- include "containerImage" (list . (dict "vlmImageName" .Values.vlmWorkerVersioning.rollout.image.name "vlmImageTag" .Values.vlmWorkerVersioning.rollout.image.tag "vlmImageDigest" $rolloutDigest "secondary" .Values.vlmWorkerVersioning.rollout.image.secondary)) | trim -}}"
+          imagePullPolicy: {{ .Values.vlmWorkerVersioning.rollout.image.pullPolicy }}
+          resources:
+            limits:
+              cpu: {{ .Values.vlmWorkerVersioning.rollout.resources.limits.cpu }}
+              memory: {{ .Values.vlmWorkerVersioning.rollout.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.vlmWorkerVersioning.rollout.resources.requests.cpu }}
+              memory: {{ .Values.vlmWorkerVersioning.rollout.resources.requests.memory }}
+          env:
+            - name: MODE
+              value: ensure-drain
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: ROLLOUT_SPEC
+              value: {{ include "vlmWorkerVersioning.rolloutSpec" . | quote }}
+            - name: TEMPORAL_HOST
+              value: {{ .Values.workerConfig.temporalHost | quote }}
+            - name: TEMPORAL_PORT
+              value: {{ .Values.workerConfig.temporalPort | quote }}
+            - name: TEMPORAL_NAMESPACE
+              value: {{ .Values.vlmWorkerVersioning.rollout.temporalNamespace | default "default" | quote }}
+            - name: POLL_EVERY_SECONDS
+              value: {{ .Values.vlmWorkerVersioning.rollout.pollEverySeconds | default 15 | quote }}
+            - name: DRAIN_READY_TIMEOUT_MINUTES
+              value: "15"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vlm-worker-versioning-promote-retire
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    # Before reconciler (weight 5) so drain workers are not scaled by ONTAP inactivity mid-rollout.
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  # Allow 25 minutes for Deployment readiness and A/B polling before the drain timeout starts.
+  activeDeadlineSeconds: {{ add (mul (.Values.vlmWorkerVersioning.rollout.drainTimeoutMinutes | default 360) 60) 1500 }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: vlm-worker-versioning-rollout
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      restartPolicy: Never
+      containers:
+        - name: rollout
+          image: "{{- include "containerImage" (list . (dict "vlmImageName" .Values.vlmWorkerVersioning.rollout.image.name "vlmImageTag" .Values.vlmWorkerVersioning.rollout.image.tag "vlmImageDigest" $rolloutDigest "secondary" .Values.vlmWorkerVersioning.rollout.image.secondary)) | trim -}}"
+          imagePullPolicy: {{ .Values.vlmWorkerVersioning.rollout.image.pullPolicy }}
+          resources:
+            limits:
+              cpu: {{ .Values.vlmWorkerVersioning.rollout.resources.limits.cpu }}
+              memory: {{ .Values.vlmWorkerVersioning.rollout.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.vlmWorkerVersioning.rollout.resources.requests.cpu }}
+              memory: {{ .Values.vlmWorkerVersioning.rollout.resources.requests.memory }}
+          env:
+            - name: MODE
+              value: promote-and-retire
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: DRY_RUN
+              value: {{ .Values.vlmWorkerVersioning.rollout.dryRun | quote }}
+            - name: DELETE_VERSION_AFTER_DRAIN
+              value: {{ .Values.vlmWorkerVersioning.rollout.deleteVersionAfterDrain | quote }}
+            - name: ROLLOUT_SPEC
+              value: {{ include "vlmWorkerVersioning.rolloutSpec" . | quote }}
+            - name: TEMPORAL_HOST
+              value: {{ .Values.workerConfig.temporalHost | quote }}
+            - name: TEMPORAL_PORT
+              value: {{ .Values.workerConfig.temporalPort | quote }}
+            - name: TEMPORAL_NAMESPACE
+              value: {{ .Values.vlmWorkerVersioning.rollout.temporalNamespace | default "default" | quote }}
+            - name: POLL_EVERY_SECONDS
+              value: {{ .Values.vlmWorkerVersioning.rollout.pollEverySeconds | default 15 | quote }}
+            - name: DRAIN_READY_TIMEOUT_MINUTES
+              value: "15"
+            - name: DRAIN_TIMEOUT_MINUTES
+              value: {{ .Values.vlmWorkerVersioning.rollout.drainTimeoutMinutes | default 360 | quote }}
+{{- end }}

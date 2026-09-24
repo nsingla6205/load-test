@@ -1,0 +1,80 @@
+{{- /*
+  Drain Deployments for D-patch Build A pollers.
+  Rendered as normal release resources alongside the primary Build B Deployment.
+  The pre-upgrade ensure-drain Job creates or patches the same objects through the Kubernetes
+  API and blocks the upgrade until Build A is ready and polling, so the primary Deployment is
+  never rolled to Build B while Build A has no poller (see design 0032).
+*/ -}}
+{{- if $.Values.vlmWorkerVersioning.enabled }}
+{{- range $mapping := $.Values.ontapVersionVlmImageMappings }}
+  {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) }}
+  {{- $version := ($versionName | lower | replace "." "-") }}
+  {{- if $mapping.drainingBuilds }}
+  {{- range $drain := $mapping.drainingBuilds }}
+    {{- $drainBuild := (default "" $drain.buildId) | toString | trim }}
+    {{- if $drainBuild }}
+    {{- $drainSuffix := printf "%s-drain-%s" $version $drainBuild }}
+    {{- $drainImageName := default $mapping.vlmImageName $drain.vlmImageName }}
+    {{- $drainImageTag := default $mapping.vlmImageTag $drain.vlmImageTag }}
+    {{- $drainDigest := default "" $drain.vlmImageDigest | toString | trim }}
+    {{- if not $.Values.global.useTags }}
+    {{- $drainDigest = required (printf "drainingBuilds[%s].vlmImageDigest is required when global.useTags is false" $drainBuild) $drainDigest }}
+    {{- end }}
+    {{- $drainSecondary := default $mapping.secondary $drain.secondary }}
+    {{- $drainPull := default $mapping.pullPolicy $drain.pullPolicy }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Values.app.name }}-{{ $drainSuffix }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+    vlm.netapp.io/role: drain
+    vlm-ontap-version: {{ $versionName | quote }}
+    vlm-build-id: {{ $drainBuild | quote }}
+spec:
+  replicas: {{ $.Values.app.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+  template:
+    metadata:
+      labels:
+        app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+        vlm.netapp.io/role: drain
+        vlm-ontap-version: {{ $versionName | quote }}
+        vlm-build-id: {{ $drainBuild | quote }}
+    spec:
+      serviceAccountName: {{ $.Values.serviceAccount.name }}
+      containers:
+        - name: {{ $.Values.app.name }}-{{ $drainSuffix }}
+          {{- if $drainSecondary }}
+          image: "{{- include "containerImage" (list $ (dict "secondary" true "vlmImageName" $drainImageName "vlmImageTag" $drainImageTag "vlmImageDigest" $drainDigest )) | trim -}}"
+          {{- else }}
+          image: "{{- include "containerImage" (list $ (dict "secondary" false "vlmImageName" $drainImageName "vlmImageTag" $drainImageTag "vlmImageDigest" $drainDigest )) | trim -}}"
+          {{- end }}
+          imagePullPolicy: {{ $drainPull }}
+          resources:
+            limits:
+              cpu: {{ $.Values.resources.limits.cpu }}
+              memory: {{ $.Values.resources.limits.memory }}
+            requests:
+              cpu: {{ $.Values.resources.requests.cpu }}
+              memory: {{ $.Values.resources.requests.memory }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "vlm-worker.configMapName" (list $ $drainSuffix) }}
+            - secretRef:
+                name: {{ include "vlm-worker.secretName" $ }}
+---
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

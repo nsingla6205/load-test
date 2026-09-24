@@ -51,6 +51,18 @@ ontapVersionVlmImageMappings:
     vlmImageName: "vlm-worker"
     vlmImageTag: "R9.17.1x_7882520"
     vlmImageDigest: "sha256:0b0a7f4063ba4e848af6f5d43c120c830ab1bcadf4f13e11710a3f15f066bf27"
+    # Set by the D-patch pipeline when vlmWorkerVersioning.enabled. Empty = not a D-patch.
+    # buildId is the new VLM image tag suffix (e.g. R9.18.1x_8141647 → "8141647").
+    # drainingBuilds is the previous build for the duration of the rollout only, e.g.:
+    #   drainingBuilds:
+    #     - buildId: "8083481"
+    #       vlmImageDigest: "sha256:35ed962d3209593086b29403dc158e36d3a84bc21eecd8c835ee2b6a17e37f02"
+    #       vlmImageName: "vlm-worker"    # optional; defaults to this mapping
+    #       vlmImageTag: "R9.18.1x_8083481" # optional; defaults to this mapping
+    #       secondary: true                 # optional
+    #       pullPolicy: IfNotPresent        # optional
+    buildId: ""
+    drainingBuilds: []
     secondary: true
     pullPolicy: IfNotPresent
   # VLM worker to support ONTAP patch version 9.17.1P1
@@ -133,6 +145,36 @@ workerConfig:
   # credentials refresh for long-running workers (see vlm-worker ConfigMap ENABLE_GLOBAL_GCP_CLIENTS).
   enableGlobalGcpClients: "true"
   useVmReservations: "true"
+
+# Temporal Worker Versioning for VLM D-patches (GCP). Off until staging sign-off.
+# See doc/architecture/designs/0032-vlm-dpatch-temporal-worker-versioning.md
+vlmWorkerVersioning:
+  enabled: false
+  # Optional override; empty → sanitized TASK_QUEUE (dots → hyphens).
+  temporalWorkerDeploymentName: ""
+  rollout:
+    enabled: false
+    # Only skips the post-upgrade promote/retire actions; the pre-upgrade
+    # ensure-drain gate still creates/patches drain resources and waits.
+    dryRun: true
+    deleteVersionAfterDrain: false
+    pollEverySeconds: 15
+    drainTimeoutMinutes: 360
+    temporalNamespace: "default"
+    image:
+      name: "vlm-worker-versioning-rollout"
+      tag: "v0.1.0"
+      # Required when global.useTags is false (images resolve by digest).
+      digest: ""
+      secondary: true
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
 
 #Enabling or Disabling Secret Manager for Microservice Secrets
 secretManagerEnabled: false

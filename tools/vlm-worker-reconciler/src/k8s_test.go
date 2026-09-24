@@ -28,8 +28,11 @@ func TestListVLMWorkerDeployments_FiltersNonWorkerDeployments(t *testing.T) {
 	deploymentList := map[string]any{
 		"items": []map[string]any{
 			{
-				"metadata": map[string]any{"name": "vlm-worker-9-12-1"},
-				"spec":     map[string]any{"replicas": 2},
+				"metadata": map[string]any{
+					"name":   "vlm-worker-9-12-1",
+					"labels": map[string]any{"vlm.netapp.io/role": "primary"},
+				},
+				"spec": map[string]any{"replicas": 2},
 			},
 			{
 				"metadata": map[string]any{"name": "other-service"},
@@ -58,7 +61,11 @@ func TestListVLMWorkerDeployments_FiltersNonWorkerDeployments(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, got, 3)
-	assert.Equal(t, deploymentItem{Name: "vlm-worker-9-12-1", Replicas: 2}, got[0])
+	assert.Equal(t, deploymentItem{
+		Name:     "vlm-worker-9-12-1",
+		Replicas: 2,
+		Labels:   map[string]string{"vlm.netapp.io/role": "primary"},
+	}, got[0])
 	assert.Equal(t, deploymentItem{Name: "vlm-worker-9-13-0", Replicas: 1}, got[1])
 	assert.Equal(t, deploymentItem{Name: "vlm-worker-9-11-0", Replicas: 1}, got[2])
 }

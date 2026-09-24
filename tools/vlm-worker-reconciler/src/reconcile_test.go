@@ -139,6 +139,32 @@ func TestRunWith_ScalesInactiveKeepsActive(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRunWith_DrainLabeledDeploymentNeverScaled(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery(`SELECT DISTINCT`).WillReturnRows(versionRows("9.12.1"))
+
+	k8s := &fakeK8s{
+		deployments: []deploymentItem{
+			{Name: "vlm-worker-9-12-1", Replicas: 1},
+			{
+				Name:     "vlm-worker-9-11-0-drain-A",
+				Replicas: 1,
+				Labels:   map[string]string{drainRoleLabel: "drain"},
+			},
+		},
+	}
+
+	result, outcome := runWith(context.Background(), testCfg(false), k8s, db, discardLogger())
+
+	assert.Equal(t, 0, result)
+	assert.Equal(t, outcomeSuccess, outcome)
+	assert.Empty(t, k8s.scaledTo)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 // ── Dry-run: no scale calls made ──────────────────────────────────────────────
 
 func TestRunWith_DryRun_NoScaleCalls(t *testing.T) {
@@ -407,8 +433,8 @@ func TestRunWith_UnparseableDeploymentName_KeptActive(t *testing.T) {
 
 	k8s := &fakeK8s{
 		deployments: []deploymentItem{
-			{Name: "vlm-worker-9-12-1", Replicas: 1},   // normal KEEP
-			{Name: "vlm-worker-badname", Replicas: 1},   // unparseable → safe default KEEP
+			{Name: "vlm-worker-9-12-1", Replicas: 1},  // normal KEEP
+			{Name: "vlm-worker-badname", Replicas: 1}, // unparseable → safe default KEEP
 		},
 	}
 

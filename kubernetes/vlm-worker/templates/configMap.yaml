@@ -1,6 +1,10 @@
 {{- range $mapping := $.Values.ontapVersionVlmImageMappings}}
   {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) }}
   {{- $version := ($versionName | lower | replace "." "-") }}
+  {{- $buildId := (default "" $mapping.buildId) | toString | trim }}
+  {{- $taskQueue := printf "%s-%s" $.Values.workerConfig.taskQueuePrefix $versionName }}
+  {{- $deploymentName := include "vlmWorkerVersioning.deploymentName" (list $ $taskQueue) | trim }}
+  {{- $versioningOn := and $.Values.vlmWorkerVersioning.enabled (ne $buildId "") }}
 
 apiVersion: v1
 kind: ConfigMap
@@ -11,11 +15,12 @@ metadata:
     "helm.sh/hook": pre-install,pre-upgrade
   labels:
     app: {{ $.Values.app.name }}-{{ $version }}
+    vlm.netapp.io/role: primary
 data:
   PROVIDER: {{ $.Values.workerConfig.provider | quote }}
   SERVER_IP: {{ $.Values.workerConfig.temporalHost | quote }}
   SERVER_PORT: {{ $.Values.workerConfig.temporalPort | quote }}
-  TASK_QUEUE: {{ printf "%s-%s" $.Values.workerConfig.taskQueuePrefix $versionName | quote }}
+  TASK_QUEUE: {{ $taskQueue | quote }}
   DEBUG: {{ $.Values.workerConfig.debug | quote }}
   MAX_CONCURRENT_ACTIVITIES: {{ $.Values.workerConfig.maxConcurrentActivities | quote }}
   MAX_CONCURRENT_WORKFLOWS: {{ $.Values.workerConfig.maxConcurrentWorkflows | quote }}
@@ -24,5 +29,47 @@ data:
   GCE_METADATA_HOST: {{ $.Values.workerConfig.gceMetadataHost | quote }}
   ENABLE_GLOBAL_GCP_CLIENTS: {{ $.Values.workerConfig.enableGlobalGcpClients | quote }}
   USE_VM_RESERVATIONS: {{ $.Values.workerConfig.useVmReservations | quote }}
+  {{- if $versioningOn }}
+  TEMPORAL_VERSIONING_ENABLED: "true"
+  {{- if $buildId }}
+  TEMPORAL_WORKER_BUILD_NUMBER: {{ $buildId | quote }}
+  {{- end }}
+  TEMPORAL_DEPLOYMENT_NAME: {{ $deploymentName | quote }}
+  {{- end }}
 ---
+{{- /* Drain ConfigMaps: same TASK_QUEUE, Build A */ -}}
+{{- if and $.Values.vlmWorkerVersioning.enabled $mapping.drainingBuilds }}
+{{- range $drain := $mapping.drainingBuilds }}
+  {{- $drainBuild := (default "" $drain.buildId) | toString | trim }}
+  {{- if $drainBuild }}
+  {{- $drainSuffix := printf "%s-drain-%s" $version $drainBuild }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vlm-worker.configMapName" (list $ $drainSuffix) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+    vlm.netapp.io/role: drain
+    vlm-build-id: {{ $drainBuild | quote }}
+data:
+  PROVIDER: {{ $.Values.workerConfig.provider | quote }}
+  SERVER_IP: {{ $.Values.workerConfig.temporalHost | quote }}
+  SERVER_PORT: {{ $.Values.workerConfig.temporalPort | quote }}
+  TASK_QUEUE: {{ $taskQueue | quote }}
+  DEBUG: {{ $.Values.workerConfig.debug | quote }}
+  MAX_CONCURRENT_ACTIVITIES: {{ $.Values.workerConfig.maxConcurrentActivities | quote }}
+  MAX_CONCURRENT_WORKFLOWS: {{ $.Values.workerConfig.maxConcurrentWorkflows | quote }}
+  MAX_CONCURRENT_WORKFLOW_TASK_POLLERS: {{ $.Values.workerConfig.maxConcurrentWorkflowTaskPollers | quote }}
+  MAX_CONCURRENT_ACTIVITY_TASK_POLLERS: {{ $.Values.workerConfig.maxConcurrentActivityTaskPollers | quote }}
+  GCE_METADATA_HOST: {{ $.Values.workerConfig.gceMetadataHost | quote }}
+  ENABLE_GLOBAL_GCP_CLIENTS: {{ $.Values.workerConfig.enableGlobalGcpClients | quote }}
+  USE_VM_RESERVATIONS: {{ $.Values.workerConfig.useVmReservations | quote }}
+  TEMPORAL_VERSIONING_ENABLED: "true"
+  TEMPORAL_WORKER_BUILD_NUMBER: {{ $drainBuild | quote }}
+  TEMPORAL_DEPLOYMENT_NAME: {{ $deploymentName | quote }}
+---
+  {{- end }}
+{{- end }}
+{{- end }}
 {{- end }}

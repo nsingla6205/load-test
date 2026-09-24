@@ -8,9 +8,9 @@ import (
 
 func TestParseVersion(t *testing.T) {
 	tests := []struct {
-		input   string
-		want    version
-		wantOK  bool
+		input  string
+		want   version
+		wantOK bool
 	}{
 		// Base versions
 		{"9.12.1", version{9, 12, 1, 0}, true},
@@ -49,9 +49,24 @@ func TestParseVersion(t *testing.T) {
 }
 
 func TestVersionString(t *testing.T) {
-	assert.Equal(t, "9.12.1", version{9, 12, 1, 0}.String())
-	assert.Equal(t, "9.12.1P2", version{9, 12, 1, 2}.String())
-	assert.Equal(t, "9.13.0P10", version{9, 13, 0, 10}.String())
+	tests := []struct {
+		v    version
+		want string
+	}{
+		{version{9, 12, 1, 0}, "9.12.1"},
+		{version{9, 12, 1, 2}, "9.12.1P2"},
+		{version{9, 13, 0, 10}, "9.13.0P10"},
+		{version{10, 0, 0, 0}, "10.0.0"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, tt.v.String())
+	}
+}
+
+func TestIsDrainRoleDeployment(t *testing.T) {
+	assert.True(t, isDrainRoleDeployment(map[string]string{drainRoleLabel: "drain"}))
+	assert.False(t, isDrainRoleDeployment(map[string]string{drainRoleLabel: "primary"}))
+	assert.False(t, isDrainRoleDeployment(nil))
 }
 
 func TestLineLessThan(t *testing.T) {
@@ -93,6 +108,8 @@ func TestDeployNameToVersion(t *testing.T) {
 		{"", version{}, false},
 		// vlm-worker prefix but wrong format
 		{"vlm-worker-abc", version{}, false},
+		// Drain Deployments are skipped by label before parse in reconcile.
+		{"vlm-worker-9-18-1p3-drain-8083481", version{}, false},
 	}
 
 	for _, tt := range tests {
@@ -142,9 +159,9 @@ func TestNormalizeVersions(t *testing.T) {
 
 func TestShouldKeep(t *testing.T) {
 	tests := []struct {
-		name    string
-		depVer  version
-		active  []version
+		name     string
+		depVer   version
+		active   []version
 		wantKeep bool
 	}{
 		// Rule 1: direct match

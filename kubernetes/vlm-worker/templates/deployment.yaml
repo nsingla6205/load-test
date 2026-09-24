@@ -1,6 +1,11 @@
+{{- /*
+  Primary VLM worker Deployments (one per ONTAP mapping).
+  When vlmWorkerVersioning.enabled and mapping.buildId is set, pods advertise that Build ID.
+*/ -}}
 {{- range $mapping := $.Values.ontapVersionVlmImageMappings }}
     {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) }}
     {{- $version := ($versionName | lower | replace "." "-") }}
+    {{- $buildId := (default "" $mapping.buildId) | toString | trim }}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -9,8 +14,20 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app: {{ $.Values.app.name }}-{{ $version }}
+    vlm.netapp.io/role: primary
+    vlm-ontap-version: {{ $versionName | quote }}
+    {{- if $buildId }}
+    vlm-build-id: {{ $buildId | quote }}
+    {{- end }}
 spec:
   replicas: {{ $.Values.app.replicas }}
+  {{- if $.Values.vlmWorkerVersioning.enabled }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
   selector:
     matchLabels:
       app: {{ $.Values.app.name }}-{{ $version }}
@@ -18,6 +35,11 @@ spec:
     metadata:
       labels:
         app: {{ $.Values.app.name }}-{{ $version }}
+        vlm.netapp.io/role: primary
+        vlm-ontap-version: {{ $versionName | quote }}
+        {{- if $buildId }}
+        vlm-build-id: {{ $buildId | quote }}
+        {{- end }}
       {{- with $.Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
