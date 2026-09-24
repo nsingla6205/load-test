@@ -230,6 +230,100 @@ func TestBreakVolumeReplication(t *testing.T) {
 		assert.Equal(tt, datamodel.OntapBrokenOff, snapmirror.MirrorState)
 		mockProvider.AssertExpectations(tt)
 	})
+	t.Run("BreakVolumeReplicationLooksUpByPathWhenExternalUUIDIsEmpty", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				ExternalUUID:          "",
+				SourceSvmName:         "source-svm",
+				SourceVolumeName:      "source-volume",
+				DestinationSvmName:    "destination-svm",
+				DestinationVolumeName: "destination-volume",
+			},
+		}
+		node := &models.Node{}
+		testReplication := &vsa.VolumeReplication{
+			MirrorState:        datamodel.OntapSnapmirrored,
+			RelationshipStatus: datamodel.SnapmirrorRelationshipIdle,
+		}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplicationFromSrcAndDstPath", mock.MatchedBy(func(v *vsa.VolumeReplication) bool {
+			return v.SourcePath() == "source-svm:source-volume" && v.DestinationPath() == "destination-svm:destination-volume"
+		})).Return(testReplication, nil)
+		mockProvider.On("BreakVolumeReplication", mock.Anything).Return(testReplication, nil)
+
+		snapmirror, err := activity.BreakVolumeReplication(ctx, replication, node, false)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
+		assert.Equal(tt, datamodel.OntapBrokenOff, snapmirror.MirrorState)
+		mockProvider.AssertExpectations(tt)
+	})
+	t.Run("BreakVolumeReplicationSkipsWhenSnapmirrorIsNil", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				ExternalUUID: "external-uuid",
+			},
+		}
+		node := &models.Node{}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplication", mock.Anything).Return(nil, nil)
+
+		snapmirror, err := activity.BreakVolumeReplication(ctx, replication, node, false)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
+		mockProvider.AssertExpectations(tt)
+	})
+	t.Run("BreakVolumeReplicationSkipsWhenSnapmirrorNotFound", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				SourceSvmName:         "source-svm",
+				SourceVolumeName:      "source-volume",
+				DestinationSvmName:    "destination-svm",
+				DestinationVolumeName: "destination-volume",
+			},
+		}
+		node := &models.Node{}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplicationFromSrcAndDstPath", mock.Anything).
+			Return(nil, errors.NewNotFoundErr("snapmirror", nil))
+
+		snapmirror, err := activity.BreakVolumeReplication(ctx, replication, node, false)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
+		mockProvider.AssertExpectations(tt)
+	})
 	t.Run("BreakVolumeReplicationSkipsWhenUninitialized", func(tt *testing.T) {
 		mockProvider := new(vsa.MockProvider)
 		mockStorage := database.NewMockStorage(tt)
@@ -430,6 +524,101 @@ func TestAbortVolumeReplication(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, snapmirror)
 		assert.Equal(tt, datamodel.SnapmirrorRelationshipAborted, snapmirror.RelationshipStatus)
+		mockProvider.AssertExpectations(tt)
+	})
+	t.Run("AbortVolumeReplicationLooksUpByPathWhenExternalUUIDIsEmpty", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				ExternalUUID:          "",
+				SourceSvmName:         "source-svm",
+				SourceVolumeName:      "source-volume",
+				DestinationSvmName:    "destination-svm",
+				DestinationVolumeName: "destination-volume",
+			},
+		}
+		node := &models.Node{}
+		testReplication := &vsa.VolumeReplication{
+			RelationshipStatus: datamodel.SnapmirrorRelationshipTransferring,
+			RelationshipID:     "relationship-id",
+			TransferUUID:       "transfer-uuid",
+		}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplicationFromSrcAndDstPath", mock.MatchedBy(func(v *vsa.VolumeReplication) bool {
+			return v.SourcePath() == "source-svm:source-volume" && v.DestinationPath() == "destination-svm:destination-volume"
+		})).Return(testReplication, nil)
+		mockProvider.On("AbortVolumeReplication", mock.Anything).Return(testReplication, nil)
+
+		snapmirror, err := activity.AbortVolumeReplication(ctx, replication, node, true)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
+		assert.Equal(tt, datamodel.SnapmirrorRelationshipAborted, snapmirror.RelationshipStatus)
+		mockProvider.AssertExpectations(tt)
+	})
+	t.Run("AbortVolumeReplicationSkipsWhenSnapmirrorIsNil", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				ExternalUUID: "external-uuid",
+			},
+		}
+		node := &models.Node{}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplication", mock.Anything).Return(nil, nil)
+
+		snapmirror, err := activity.AbortVolumeReplication(ctx, replication, node, true)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
+		mockProvider.AssertExpectations(tt)
+	})
+	t.Run("AbortVolumeReplicationSkipsWhenSnapmirrorNotFound", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(tt)
+		activity := InternalStopVolumeReplicationActivity{SE: mockStorage}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		replication := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				SourceSvmName:         "source-svm",
+				SourceVolumeName:      "source-volume",
+				DestinationSvmName:    "destination-svm",
+				DestinationVolumeName: "destination-volume",
+			},
+		}
+		node := &models.Node{}
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.On("GetVolumeReplicationFromSrcAndDstPath", mock.Anything).
+			Return(nil, errors.NewNotFoundErr("snapmirror", nil))
+
+		snapmirror, err := activity.AbortVolumeReplication(ctx, replication, node, true)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, snapmirror)
 		mockProvider.AssertExpectations(tt)
 	})
 	t.Run("AbortVolumeReplicationForceStopNotSet", func(tt *testing.T) {

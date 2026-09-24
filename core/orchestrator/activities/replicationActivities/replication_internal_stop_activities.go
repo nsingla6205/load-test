@@ -27,6 +27,33 @@ func (j *InternalStopVolumeReplicationActivity) GetReplicationFromDB(ctx context
 	return replication, nil
 }
 
+// buildSnapmirrorLookupParams builds the ONTAP lookup parameters for a replication record.
+func buildSnapmirrorLookupParams(replication *datamodel.VolumeReplication) *vsa.VolumeReplication {
+	attributes := replication.ReplicationAttributes
+	return &vsa.VolumeReplication{
+		ExternalUUID:          attributes.ExternalUUID,
+		SourceSVMName:         attributes.SourceSvmName,
+		SourceVolumeName:      attributes.SourceVolumeName,
+		DestinationSVMName:    attributes.DestinationSvmName,
+		DestinationVolumeName: attributes.DestinationVolumeName,
+	}
+}
+
+// getSnapmirrorForStop fetches the snapmirror relationship for vsaReplication.
+func getSnapmirrorForStop(provider vsa.Provider, vsaReplication *vsa.VolumeReplication) (*vsa.VolumeReplication, error) {
+	var snapmirror *vsa.VolumeReplication
+	var err error
+	if vsaReplication.ExternalUUID == "" {
+		snapmirror, err = provider.GetVolumeReplicationFromSrcAndDstPath(vsaReplication)
+	} else {
+		snapmirror, err = provider.GetVolumeReplication(vsaReplication)
+	}
+	if errors.IsNotFoundErr(err) {
+		return nil, nil
+	}
+	return snapmirror, err
+}
+
 func (j *InternalStopVolumeReplicationActivity) BreakVolumeReplication(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node, forceStop bool) (*vsa.VolumeReplication, error) {
 	logger := util.GetLogger(ctx)
 	provider, err := activitiesGetProviderByNode(ctx, node)
@@ -34,13 +61,16 @@ func (j *InternalStopVolumeReplicationActivity) BreakVolumeReplication(ctx conte
 		logger.Error("Failed to get provider by node", "error", err)
 		return nil, vsaerror.WrapAsTemporalApplicationError(err)
 	}
-	vsaReplication := &vsa.VolumeReplication{
-		ExternalUUID: replication.ReplicationAttributes.ExternalUUID,
-	}
-	snapmirror, err := provider.GetVolumeReplication(vsaReplication)
+	vsaReplication := buildSnapmirrorLookupParams(replication)
+	snapmirror, err := getSnapmirrorForStop(provider, vsaReplication)
 	if err != nil {
 		logger.Error("Failed to get volume replication details", "error", err)
 		return nil, vsaerror.WrapAsNonRetryableTemporalApplicationError(vsaerror.NewVCPError(vsaerror.ErrProviderGetVolumeReplication, err))
+	}
+	if snapmirror == nil {
+		logger.Info("Snapmirror relationship not found in ONTAP, skipping break volume replication",
+			"replicationUUID", replication.UUID)
+		return vsaReplication, nil
 	}
 	if snapmirror.RelationshipStatus == datamodel.SnapmirrorRelationshipTransferring {
 		if forceStop {
@@ -82,13 +112,17 @@ func (j *InternalStopVolumeReplicationActivity) AbortVolumeReplication(ctx conte
 		logger.Error("Failed to get provider by node", "error", err)
 		return nil, vsaerror.WrapAsNonRetryableTemporalApplicationError(vsaerror.NewVCPError(vsaerror.ErrGCPClientInitializationError, err))
 	}
-	vsaReplication := &vsa.VolumeReplication{
-		ExternalUUID: replication.ReplicationAttributes.ExternalUUID,
-	}
-	snapmirror, err := provider.GetVolumeReplication(vsaReplication)
+	vsaReplication := buildSnapmirrorLookupParams(replication)
+	snapmirror, err := getSnapmirrorForStop(provider, vsaReplication)
 	if err != nil {
 		logger.Error("Failed to get volume replication details", "error", err)
 		return nil, vsaerror.WrapAsNonRetryableTemporalApplicationError(vsaerror.NewVCPError(vsaerror.ErrProviderGetVolumeReplication, err))
+	}
+
+	if snapmirror == nil {
+		logger.Info("Snapmirror relationship not found in ONTAP, skipping abort volume replication",
+			"replicationUUID", replication.UUID)
+		return vsaReplication, nil
 	}
 
 	if snapmirror.RelationshipStatus != datamodel.SnapmirrorRelationshipTransferring {

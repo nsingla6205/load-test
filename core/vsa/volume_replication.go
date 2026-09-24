@@ -1109,6 +1109,9 @@ func (rc *OntapRestProvider) GetVolumeReplication(replication *VolumeReplication
 	if err != nil {
 		return nil, err
 	}
+	if snapmirror == nil {
+		return nil, errors.NewNotFoundErr("snapmirror", nillable.GetNilIfEmptyString(replication.ExternalUUID))
+	}
 	return convertSnapMirrorToVolumeReplication(*snapmirror, replication)
 }
 
@@ -1131,7 +1134,10 @@ func (provider *OntapRestProvider) GetVolumeReplicationFromSrcAndDstPath(replica
 		if err != nil {
 			return nil, err
 		}
+		if snapmirror == nil {
+			return nil, errors.NewNotFoundErr("snapmirror", nillable.GetNilIfEmptyString(replication.SourcePath()))
+		}
 		return convertSnapMirrorToVolumeReplication(*snapmirror, replication)
 	}
-	return nil, errors.NewNotFoundErr("snapmirror", nillable.GetStringPtr(replication.SourcePath()))
+	return nil, errors.NewNotFoundErr("snapmirror", nillable.GetNilIfEmptyString(replication.SourcePath()))
 }
