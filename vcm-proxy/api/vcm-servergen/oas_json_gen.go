@@ -14,103 +14,6 @@ import (
 )
 
 // Encode implements json.Marshaler.
-func (s *AttachedDiskV1) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *AttachedDiskV1) encodeFields(e *jx.Encoder) {
-	{
-		if s.DiskName.Set {
-			e.FieldStart("diskName")
-			s.DiskName.Encode(e)
-		}
-	}
-	{
-		if s.GceDiskId.Set {
-			e.FieldStart("gceDiskId")
-			s.GceDiskId.Encode(e)
-		}
-	}
-	{
-		if s.SizeBytes.Set {
-			e.FieldStart("sizeBytes")
-			s.SizeBytes.Encode(e)
-		}
-	}
-}
-
-var jsonFieldsNameOfAttachedDiskV1 = [3]string{
-	0: "diskName",
-	1: "gceDiskId",
-	2: "sizeBytes",
-}
-
-// Decode decodes AttachedDiskV1 from json.
-func (s *AttachedDiskV1) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode AttachedDiskV1 to nil")
-	}
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "diskName":
-			if err := func() error {
-				s.DiskName.Reset()
-				if err := s.DiskName.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"diskName\"")
-			}
-		case "gceDiskId":
-			if err := func() error {
-				s.GceDiskId.Reset()
-				if err := s.GceDiskId.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"gceDiskId\"")
-			}
-		case "sizeBytes":
-			if err := func() error {
-				s.SizeBytes.Reset()
-				if err := s.SizeBytes.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"sizeBytes\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode AttachedDiskV1")
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *AttachedDiskV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *AttachedDiskV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode implements json.Marshaler.
 func (s *AutoTieringConfigV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -685,9 +588,13 @@ func (s *ClusterLayoutV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.IpConfig.Set {
-			e.FieldStart("ipConfig")
-			s.IpConfig.Encode(e)
+		if s.Disks != nil {
+			e.FieldStart("disks")
+			e.ArrStart()
+			for _, elem := range s.Disks {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
 		}
 	}
 	{
@@ -702,20 +609,13 @@ func (s *ClusterLayoutV1) encodeFields(e *jx.Encoder) {
 			s.StandbyZone.Encode(e)
 		}
 	}
-	{
-		if s.ForwardingRuleIp.Set {
-			e.FieldStart("forwardingRuleIp")
-			s.ForwardingRuleIp.Encode(e)
-		}
-	}
 }
 
-var jsonFieldsNameOfClusterLayoutV1 = [5]string{
+var jsonFieldsNameOfClusterLayoutV1 = [4]string{
 	0: "nodes",
-	1: "ipConfig",
+	1: "disks",
 	2: "activeZone",
 	3: "standbyZone",
-	4: "forwardingRuleIp",
 }
 
 // Decode decodes ClusterLayoutV1 from json.
@@ -743,15 +643,22 @@ func (s *ClusterLayoutV1) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"nodes\"")
 			}
-		case "ipConfig":
+		case "disks":
 			if err := func() error {
-				s.IpConfig.Reset()
-				if err := s.IpConfig.Decode(d); err != nil {
+				s.Disks = make([]GceDiskV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem GceDiskV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Disks = append(s.Disks, elem)
+					return nil
+				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ipConfig\"")
+				return errors.Wrap(err, "decode field \"disks\"")
 			}
 		case "activeZone":
 			if err := func() error {
@@ -772,16 +679,6 @@ func (s *ClusterLayoutV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"standbyZone\"")
-			}
-		case "forwardingRuleIp":
-			if err := func() error {
-				s.ForwardingRuleIp.Reset()
-				if err := s.ForwardingRuleIp.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"forwardingRuleIp\"")
 			}
 		default:
 			return d.Skip()
@@ -1126,14 +1023,6 @@ func (s *ClusterV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *ClusterV1) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("requestId")
-		e.Str(s.RequestId)
-	}
-	{
-		e.FieldStart("deadline")
-		json.EncodeDateTime(e, s.Deadline)
-	}
-	{
 		e.FieldStart("clusterShape")
 		s.ClusterShape.Encode(e)
 	}
@@ -1145,11 +1034,9 @@ func (s *ClusterV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfClusterV1 = [4]string{
-	0: "requestId",
-	1: "deadline",
-	2: "clusterShape",
-	3: "clusterLayout",
+var jsonFieldsNameOfClusterV1 = [2]string{
+	0: "clusterShape",
+	1: "clusterLayout",
 }
 
 // Decode decodes ClusterV1 from json.
@@ -1161,32 +1048,8 @@ func (s *ClusterV1) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "requestId":
-			requiredBitSet[0] |= 1 << 0
-			if err := func() error {
-				v, err := d.Str()
-				s.RequestId = string(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"requestId\"")
-			}
-		case "deadline":
-			requiredBitSet[0] |= 1 << 1
-			if err := func() error {
-				v, err := json.DecodeDateTime(d)
-				s.Deadline = v
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"deadline\"")
-			}
 		case "clusterShape":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
 				if err := s.ClusterShape.Decode(d); err != nil {
 					return err
@@ -1215,7 +1078,7 @@ func (s *ClusterV1) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00000001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -1369,16 +1232,16 @@ func (s *DataLifV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *DataLifV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.Ilbnas.Set {
-			e.FieldStart("ilbnas")
-			s.Ilbnas.Encode(e)
+		if s.NasIlbIp.Set {
+			e.FieldStart("nasIlbIp")
+			s.NasIlbIp.Encode(e)
 		}
 	}
 	{
-		if s.San != nil {
-			e.FieldStart("san")
+		if s.SanIps != nil {
+			e.FieldStart("sanIps")
 			e.ArrStart()
-			for _, elem := range s.San {
+			for _, elem := range s.SanIps {
 				e.Str(elem)
 			}
 			e.ArrEnd()
@@ -1387,8 +1250,8 @@ func (s *DataLifV1) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfDataLifV1 = [2]string{
-	0: "ilbnas",
-	1: "san",
+	0: "nasIlbIp",
+	1: "sanIps",
 }
 
 // Decode decodes DataLifV1 from json.
@@ -1399,19 +1262,19 @@ func (s *DataLifV1) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "ilbnas":
+		case "nasIlbIp":
 			if err := func() error {
-				s.Ilbnas.Reset()
-				if err := s.Ilbnas.Decode(d); err != nil {
+				s.NasIlbIp.Reset()
+				if err := s.NasIlbIp.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ilbnas\"")
+				return errors.Wrap(err, "decode field \"nasIlbIp\"")
 			}
-		case "san":
+		case "sanIps":
 			if err := func() error {
-				s.San = make([]string, 0)
+				s.SanIps = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -1419,14 +1282,14 @@ func (s *DataLifV1) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.San = append(s.San, elem)
+					s.SanIps = append(s.SanIps, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"san\"")
+				return errors.Wrap(err, "decode field \"sanIps\"")
 			}
 		default:
 			return d.Skip()
@@ -1689,183 +1552,115 @@ func (s *ExportPolicyV1) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *GatewaysV1) Encode(e *jx.Encoder) {
+func (s *GceDiskV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *GatewaysV1) encodeFields(e *jx.Encoder) {
+func (s *GceDiskV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.Clus.Set {
-			e.FieldStart("clus")
-			s.Clus.Encode(e)
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
 		}
 	}
 	{
-		if s.Ic.Set {
-			e.FieldStart("ic")
-			s.Ic.Encode(e)
+		if s.GceDiskId.Set {
+			e.FieldStart("gceDiskId")
+			s.GceDiskId.Encode(e)
 		}
 	}
 	{
-		if s.Intercluster.Set {
-			e.FieldStart("intercluster")
-			s.Intercluster.Encode(e)
+		if s.SizeBytes.Set {
+			e.FieldStart("sizeBytes")
+			s.SizeBytes.Encode(e)
 		}
 	}
 	{
-		if s.Nodemgmt.Set {
-			e.FieldStart("nodemgmt")
-			s.Nodemgmt.Encode(e)
-		}
-	}
-	{
-		if s.Nodemgmtinternal.Set {
-			e.FieldStart("nodemgmtinternal")
-			s.Nodemgmtinternal.Encode(e)
-		}
-	}
-	{
-		if s.Rsm.Set {
-			e.FieldStart("rsm")
-			s.Rsm.Encode(e)
-		}
-	}
-	{
-		if s.Svm.Set {
-			e.FieldStart("svm")
-			s.Svm.Encode(e)
-		}
-	}
-	{
-		if s.ClusterMgmtGateway.Set {
-			e.FieldStart("clusterMgmtGateway")
-			s.ClusterMgmtGateway.Encode(e)
+		if s.Location.Set {
+			e.FieldStart("location")
+			s.Location.Encode(e)
 		}
 	}
 }
 
-var jsonFieldsNameOfGatewaysV1 = [8]string{
-	0: "clus",
-	1: "ic",
-	2: "intercluster",
-	3: "nodemgmt",
-	4: "nodemgmtinternal",
-	5: "rsm",
-	6: "svm",
-	7: "clusterMgmtGateway",
+var jsonFieldsNameOfGceDiskV1 = [4]string{
+	0: "name",
+	1: "gceDiskId",
+	2: "sizeBytes",
+	3: "location",
 }
 
-// Decode decodes GatewaysV1 from json.
-func (s *GatewaysV1) Decode(d *jx.Decoder) error {
+// Decode decodes GceDiskV1 from json.
+func (s *GceDiskV1) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode GatewaysV1 to nil")
+		return errors.New("invalid: unable to decode GceDiskV1 to nil")
 	}
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "clus":
+		case "name":
 			if err := func() error {
-				s.Clus.Reset()
-				if err := s.Clus.Decode(d); err != nil {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"clus\"")
+				return errors.Wrap(err, "decode field \"name\"")
 			}
-		case "ic":
+		case "gceDiskId":
 			if err := func() error {
-				s.Ic.Reset()
-				if err := s.Ic.Decode(d); err != nil {
+				s.GceDiskId.Reset()
+				if err := s.GceDiskId.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ic\"")
+				return errors.Wrap(err, "decode field \"gceDiskId\"")
 			}
-		case "intercluster":
+		case "sizeBytes":
 			if err := func() error {
-				s.Intercluster.Reset()
-				if err := s.Intercluster.Decode(d); err != nil {
+				s.SizeBytes.Reset()
+				if err := s.SizeBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"intercluster\"")
+				return errors.Wrap(err, "decode field \"sizeBytes\"")
 			}
-		case "nodemgmt":
+		case "location":
 			if err := func() error {
-				s.Nodemgmt.Reset()
-				if err := s.Nodemgmt.Decode(d); err != nil {
+				s.Location.Reset()
+				if err := s.Location.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"nodemgmt\"")
-			}
-		case "nodemgmtinternal":
-			if err := func() error {
-				s.Nodemgmtinternal.Reset()
-				if err := s.Nodemgmtinternal.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"nodemgmtinternal\"")
-			}
-		case "rsm":
-			if err := func() error {
-				s.Rsm.Reset()
-				if err := s.Rsm.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"rsm\"")
-			}
-		case "svm":
-			if err := func() error {
-				s.Svm.Reset()
-				if err := s.Svm.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"svm\"")
-			}
-		case "clusterMgmtGateway":
-			if err := func() error {
-				s.ClusterMgmtGateway.Reset()
-				if err := s.ClusterMgmtGateway.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"clusterMgmtGateway\"")
+				return errors.Wrap(err, "decode field \"location\"")
 			}
 		default:
 			return d.Skip()
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode GatewaysV1")
+		return errors.Wrap(err, "decode GceDiskV1")
 	}
 
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *GatewaysV1) MarshalJSON() ([]byte, error) {
+func (s *GceDiskV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *GatewaysV1) UnmarshalJSON(data []byte) error {
+func (s *GceDiskV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -2481,19 +2276,33 @@ func (s *IpConfigV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *IpConfigV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.Gateways.Set {
-			e.FieldStart("gateways")
-			s.Gateways.Encode(e)
+		if s.ClusterManagementLifIp.Set {
+			e.FieldStart("clusterManagementLifIp")
+			s.ClusterManagementLifIp.Encode(e)
 		}
 	}
 	{
-		if s.VmLifs != nil {
-			e.FieldStart("vmLifs")
-			e.ArrStart()
-			for _, elem := range s.VmLifs {
-				elem.Encode(e)
-			}
-			e.ArrEnd()
+		if s.HaInterconnectLifIp.Set {
+			e.FieldStart("haInterconnectLifIp")
+			s.HaInterconnectLifIp.Encode(e)
+		}
+	}
+	{
+		if s.InterclusterLifIp.Set {
+			e.FieldStart("interclusterLifIp")
+			s.InterclusterLifIp.Encode(e)
+		}
+	}
+	{
+		if s.NodemgmtLifIp.Set {
+			e.FieldStart("nodemgmtLifIp")
+			s.NodemgmtLifIp.Encode(e)
+		}
+	}
+	{
+		if s.RsmLifIp.Set {
+			e.FieldStart("rsmLifIp")
+			s.RsmLifIp.Encode(e)
 		}
 	}
 	{
@@ -2504,10 +2313,13 @@ func (s *IpConfigV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfIpConfigV1 = [3]string{
-	0: "gateways",
-	1: "vmLifs",
-	2: "dataLif",
+var jsonFieldsNameOfIpConfigV1 = [6]string{
+	0: "clusterManagementLifIp",
+	1: "haInterconnectLifIp",
+	2: "interclusterLifIp",
+	3: "nodemgmtLifIp",
+	4: "rsmLifIp",
+	5: "dataLif",
 }
 
 // Decode decodes IpConfigV1 from json.
@@ -2518,32 +2330,55 @@ func (s *IpConfigV1) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "gateways":
+		case "clusterManagementLifIp":
 			if err := func() error {
-				s.Gateways.Reset()
-				if err := s.Gateways.Decode(d); err != nil {
+				s.ClusterManagementLifIp.Reset()
+				if err := s.ClusterManagementLifIp.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"gateways\"")
+				return errors.Wrap(err, "decode field \"clusterManagementLifIp\"")
 			}
-		case "vmLifs":
+		case "haInterconnectLifIp":
 			if err := func() error {
-				s.VmLifs = make([]VmLifV1, 0)
-				if err := d.Arr(func(d *jx.Decoder) error {
-					var elem VmLifV1
-					if err := elem.Decode(d); err != nil {
-						return err
-					}
-					s.VmLifs = append(s.VmLifs, elem)
-					return nil
-				}); err != nil {
+				s.HaInterconnectLifIp.Reset()
+				if err := s.HaInterconnectLifIp.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"vmLifs\"")
+				return errors.Wrap(err, "decode field \"haInterconnectLifIp\"")
+			}
+		case "interclusterLifIp":
+			if err := func() error {
+				s.InterclusterLifIp.Reset()
+				if err := s.InterclusterLifIp.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"interclusterLifIp\"")
+			}
+		case "nodemgmtLifIp":
+			if err := func() error {
+				s.NodemgmtLifIp.Reset()
+				if err := s.NodemgmtLifIp.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nodemgmtLifIp\"")
+			}
+		case "rsmLifIp":
+			if err := func() error {
+				s.RsmLifIp.Reset()
+				if err := s.RsmLifIp.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rsmLifIp\"")
 			}
 		case "dataLif":
 			if err := func() error {
@@ -3420,9 +3255,9 @@ func (s *OntapModeRbacV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *OntapModeRbacV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.RbacFileURL.Set {
-			e.FieldStart("rbacFileURL")
-			s.RbacFileURL.Encode(e)
+		if s.RbacFileUrl.Set {
+			e.FieldStart("rbacFileUrl")
+			s.RbacFileUrl.Encode(e)
 		}
 	}
 	{
@@ -3434,7 +3269,7 @@ func (s *OntapModeRbacV1) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfOntapModeRbacV1 = [2]string{
-	0: "rbacFileURL",
+	0: "rbacFileUrl",
 	1: "rbacFileCheckSum",
 }
 
@@ -3446,15 +3281,15 @@ func (s *OntapModeRbacV1) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "rbacFileURL":
+		case "rbacFileUrl":
 			if err := func() error {
-				s.RbacFileURL.Reset()
-				if err := s.RbacFileURL.Decode(d); err != nil {
+				s.RbacFileUrl.Reset()
+				if err := s.RbacFileUrl.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"rbacFileURL\"")
+				return errors.Wrap(err, "decode field \"rbacFileUrl\"")
 			}
 		case "rbacFileCheckSum":
 			if err := func() error {
@@ -4358,39 +4193,6 @@ func (s *OptFloat64) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes GatewaysV1 as json.
-func (o OptGatewaysV1) Encode(e *jx.Encoder) {
-	if !o.Set {
-		return
-	}
-	o.Value.Encode(e)
-}
-
-// Decode decodes GatewaysV1 from json.
-func (o *OptGatewaysV1) Decode(d *jx.Decoder) error {
-	if o == nil {
-		return errors.New("invalid: unable to decode OptGatewaysV1 to nil")
-	}
-	o.Set = true
-	if err := o.Value.Decode(d); err != nil {
-		return err
-	}
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s OptGatewaysV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OptGatewaysV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
 // Encode encodes HourlyScheduleV1 as json.
 func (o OptHourlyScheduleV1) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -5245,6 +5047,41 @@ func (s *OptString) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes int64 as json.
+func (o OptStringInt64) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	json.EncodeStringInt64(e, o.Value)
+}
+
+// Decode decodes int64 from json.
+func (o *OptStringInt64) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptStringInt64 to nil")
+	}
+	o.Set = true
+	v, err := json.DecodeStringInt64(d)
+	if err != nil {
+		return err
+	}
+	o.Value = v
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptStringInt64) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptStringInt64) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes VolumeReadV1SecurityStyle as json.
 func (o OptVolumeReadV1SecurityStyle) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -5544,9 +5381,9 @@ func (s *SeedConfigV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.OntapLicenseSecretUri.Set {
-			e.FieldStart("ontapLicenseSecretUri")
-			s.OntapLicenseSecretUri.Encode(e)
+		if s.OntapLicenseSecret.Set {
+			e.FieldStart("ontapLicenseSecret")
+			s.OntapLicenseSecret.Encode(e)
 		}
 	}
 	{
@@ -5568,7 +5405,7 @@ var jsonFieldsNameOfSeedConfigV1 = [12]string{
 	7:  "netConfig",
 	8:  "ontapCredentials",
 	9:  "caUri",
-	10: "ontapLicenseSecretUri",
+	10: "ontapLicenseSecret",
 	11: "serviceAccountEmail",
 }
 
@@ -5687,15 +5524,15 @@ func (s *SeedConfigV1) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"caUri\"")
 			}
-		case "ontapLicenseSecretUri":
+		case "ontapLicenseSecret":
 			if err := func() error {
-				s.OntapLicenseSecretUri.Reset()
-				if err := s.OntapLicenseSecretUri.Decode(d); err != nil {
+				s.OntapLicenseSecret.Reset()
+				if err := s.OntapLicenseSecret.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ontapLicenseSecretUri\"")
+				return errors.Wrap(err, "decode field \"ontapLicenseSecret\"")
 			}
 		case "serviceAccountEmail":
 			if err := func() error {
@@ -8256,171 +8093,6 @@ func (s *V1UpdateVolumeUnauthorized) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *VmLifV1) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *VmLifV1) encodeFields(e *jx.Encoder) {
-	{
-		if s.Name.Set {
-			e.FieldStart("name")
-			s.Name.Encode(e)
-		}
-	}
-	{
-		if s.Clus.Set {
-			e.FieldStart("clus")
-			s.Clus.Encode(e)
-		}
-	}
-	{
-		if s.Ic.Set {
-			e.FieldStart("ic")
-			s.Ic.Encode(e)
-		}
-	}
-	{
-		if s.Intercluster.Set {
-			e.FieldStart("intercluster")
-			s.Intercluster.Encode(e)
-		}
-	}
-	{
-		if s.Nodemgmt.Set {
-			e.FieldStart("nodemgmt")
-			s.Nodemgmt.Encode(e)
-		}
-	}
-	{
-		if s.Nodemgmtinternal.Set {
-			e.FieldStart("nodemgmtinternal")
-			s.Nodemgmtinternal.Encode(e)
-		}
-	}
-	{
-		if s.Rsm.Set {
-			e.FieldStart("rsm")
-			s.Rsm.Encode(e)
-		}
-	}
-}
-
-var jsonFieldsNameOfVmLifV1 = [7]string{
-	0: "name",
-	1: "clus",
-	2: "ic",
-	3: "intercluster",
-	4: "nodemgmt",
-	5: "nodemgmtinternal",
-	6: "rsm",
-}
-
-// Decode decodes VmLifV1 from json.
-func (s *VmLifV1) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode VmLifV1 to nil")
-	}
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "name":
-			if err := func() error {
-				s.Name.Reset()
-				if err := s.Name.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"name\"")
-			}
-		case "clus":
-			if err := func() error {
-				s.Clus.Reset()
-				if err := s.Clus.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"clus\"")
-			}
-		case "ic":
-			if err := func() error {
-				s.Ic.Reset()
-				if err := s.Ic.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ic\"")
-			}
-		case "intercluster":
-			if err := func() error {
-				s.Intercluster.Reset()
-				if err := s.Intercluster.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"intercluster\"")
-			}
-		case "nodemgmt":
-			if err := func() error {
-				s.Nodemgmt.Reset()
-				if err := s.Nodemgmt.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"nodemgmt\"")
-			}
-		case "nodemgmtinternal":
-			if err := func() error {
-				s.Nodemgmtinternal.Reset()
-				if err := s.Nodemgmtinternal.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"nodemgmtinternal\"")
-			}
-		case "rsm":
-			if err := func() error {
-				s.Rsm.Reset()
-				if err := s.Rsm.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"rsm\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode VmLifV1")
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *VmLifV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *VmLifV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode implements json.Marshaler.
 func (s *VolumeReadV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -9099,9 +8771,9 @@ func (s *VsaNodeV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *VsaNodeV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.VmName.Set {
-			e.FieldStart("vmName")
-			s.VmName.Encode(e)
+		if s.GceVmName.Set {
+			e.FieldStart("gceVmName")
+			s.GceVmName.Encode(e)
 		}
 	}
 	{
@@ -9117,29 +8789,25 @@ func (s *VsaNodeV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.VmSerialNumber.Set {
-			e.FieldStart("vmSerialNumber")
-			s.VmSerialNumber.Encode(e)
+		if s.GceVmLocation.Set {
+			e.FieldStart("gceVmLocation")
+			s.GceVmLocation.Encode(e)
 		}
 	}
 	{
-		if s.Disks != nil {
-			e.FieldStart("disks")
-			e.ArrStart()
-			for _, elem := range s.Disks {
-				elem.Encode(e)
-			}
-			e.ArrEnd()
+		if s.IpConfig.Set {
+			e.FieldStart("ipConfig")
+			s.IpConfig.Encode(e)
 		}
 	}
 }
 
 var jsonFieldsNameOfVsaNodeV1 = [5]string{
-	0: "vmName",
+	0: "gceVmName",
 	1: "gceInstanceId",
 	2: "nodeManagementIp",
-	3: "vmSerialNumber",
-	4: "disks",
+	3: "gceVmLocation",
+	4: "ipConfig",
 }
 
 // Decode decodes VsaNodeV1 from json.
@@ -9150,15 +8818,15 @@ func (s *VsaNodeV1) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "vmName":
+		case "gceVmName":
 			if err := func() error {
-				s.VmName.Reset()
-				if err := s.VmName.Decode(d); err != nil {
+				s.GceVmName.Reset()
+				if err := s.GceVmName.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"vmName\"")
+				return errors.Wrap(err, "decode field \"gceVmName\"")
 			}
 		case "gceInstanceId":
 			if err := func() error {
@@ -9180,32 +8848,25 @@ func (s *VsaNodeV1) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"nodeManagementIp\"")
 			}
-		case "vmSerialNumber":
+		case "gceVmLocation":
 			if err := func() error {
-				s.VmSerialNumber.Reset()
-				if err := s.VmSerialNumber.Decode(d); err != nil {
+				s.GceVmLocation.Reset()
+				if err := s.GceVmLocation.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"vmSerialNumber\"")
+				return errors.Wrap(err, "decode field \"gceVmLocation\"")
 			}
-		case "disks":
+		case "ipConfig":
 			if err := func() error {
-				s.Disks = make([]AttachedDiskV1, 0)
-				if err := d.Arr(func(d *jx.Decoder) error {
-					var elem AttachedDiskV1
-					if err := elem.Decode(d); err != nil {
-						return err
-					}
-					s.Disks = append(s.Disks, elem)
-					return nil
-				}); err != nil {
+				s.IpConfig.Reset()
+				if err := s.IpConfig.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"disks\"")
+				return errors.Wrap(err, "decode field \"ipConfig\"")
 			}
 		default:
 			return d.Skip()

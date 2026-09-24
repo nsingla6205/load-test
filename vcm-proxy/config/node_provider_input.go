@@ -21,7 +21,7 @@ func (s *Store) NodeProviderInput() (vsa.NodeProviderInput, error) {
 	if err != nil {
 		return vsa.NodeProviderInput{}, fmt.Errorf("%w: %v", datamodel.ErrInvalidConfig, err)
 	}
-	nodes, err := clusterNodesFromIpConfig(layout.IpConfig)
+	nodes, err := clusterNodesFromLayout(layout)
 	if err != nil {
 		return vsa.NodeProviderInput{}, fmt.Errorf("%w: %v", datamodel.ErrInvalidConfig, err)
 	}
@@ -218,18 +218,23 @@ func selectOntapCredentials(creds []vcmserver.OntapCredentialV1) (vcmserver.Onta
 	return creds[0], nil
 }
 
-func clusterNodesFromIpConfig(opt vcmserver.OptIpConfigV1) ([]*datamodel.Node, error) {
-	if !opt.IsSet() {
-		return nil, fmt.Errorf("VCM runtime ipConfig is not set; cannot resolve ONTAP management endpoints")
+// mediatorNodeName is the layout node name reserved for the mediator VM.
+const mediatorNodeName = "mediator"
+
+// clusterNodesFromLayout resolves the ONTAP management endpoints from the
+// per-node layout. The mediator is skipped: it runs no ONTAP instance and so
+// serves no management API.
+func clusterNodesFromLayout(layout vcmserver.ClusterLayoutV1) ([]*datamodel.Node, error) {
+	if len(layout.Nodes) == 0 {
+		return nil, fmt.Errorf("VCM runtime layout has no nodes; cannot resolve ONTAP management endpoints")
 	}
-	ipConfig := opt.Value
-	nodes := make([]*datamodel.Node, 0, len(ipConfig.VmLifs))
-	for _, lif := range ipConfig.VmLifs {
-		name := lif.Name.Or("")
-		if name == "" || name == "mediator" {
+	nodes := make([]*datamodel.Node, 0, len(layout.Nodes))
+	for _, node := range layout.Nodes {
+		name := node.GceVmName.Or("")
+		if name == "" || name == mediatorNodeName {
 			continue
 		}
-		endpoint := lif.Nodemgmt.Or("")
+		endpoint := nodeManagementEndpoint(node)
 		if endpoint == "" {
 			continue
 		}
@@ -239,7 +244,19 @@ func clusterNodesFromIpConfig(opt vcmserver.OptIpConfigV1) ([]*datamodel.Node, e
 		})
 	}
 	if len(nodes) == 0 {
-		return nil, fmt.Errorf("VCM ipConfig has no nodemgmt LIF for cluster nodes")
+		return nil, fmt.Errorf("VCM runtime layout has no node management IP for cluster nodes")
 	}
 	return nodes, nil
+}
+
+// nodeManagementEndpoint prefers the node-level management IP and falls back to
+// the node-management LIF, which carries the same address.
+func nodeManagementEndpoint(node vcmserver.VsaNodeV1) string {
+	if ip := node.NodeManagementIp.Or(""); ip != "" {
+		return ip
+	}
+	if ipConfig, ok := node.IpConfig.Get(); ok {
+		return ipConfig.NodemgmtLifIp.Or("")
+	}
+	return ""
 }

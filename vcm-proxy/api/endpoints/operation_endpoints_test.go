@@ -35,33 +35,33 @@ func configuredOperationHandler(t *testing.T) (*Handler, *vcmconfig.Store) {
 
 func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 	tests := []struct {
-		name                 string
-		state                vcmdb.JobState
-		done                 bool
-		wantError            bool
-		wantResponse         bool
-		responsePayload      string
-		trackingID           int
-		wantCode             int
-		wantMessage          string
+		name                     string
+		state                    vcmdb.JobState
+		done                     bool
+		wantError                bool
+		wantResponse             bool
+		responsePayload          string
+		trackingID               int
+		wantCode                 int
+		wantMessage              string
 		wantResponseDeploymentID string
 	}{
 		{name: "new", state: vcmdb.JobStateNew, done: false},
 		{name: "processing", state: vcmdb.JobStateProcessing, done: false},
 		{
-			name:            "processing with response payload",
+			// A payload on a still-running job must stay hidden until the job
+			// is terminal, so callers cannot read a result while done is false.
+			name:            "processing with response payload omits response",
 			state:           vcmdb.JobStateProcessing,
 			done:            false,
-			wantResponse:    true,
 			responsePayload: `{"pool":{"deploymentId":"gcnv-test","ipConfig":{"dataLif":{"ilbnas":"10.33.182.243"}}}}`,
-			wantResponseDeploymentID: "gcnv-test",
 		},
 		{name: "done without response payload", state: vcmdb.JobStateDone, done: true},
 		{
-			name:                 "done with response payload",
-			state:                vcmdb.JobStateDone,
-			done:                 true,
-			wantResponse:         true,
+			name:                     "done with response payload",
+			state:                    vcmdb.JobStateDone,
+			done:                     true,
+			wantResponse:             true,
 			responsePayload:          `{"pool":{"deploymentId":"gcnv-test"}}`,
 			wantResponseDeploymentID: "gcnv-test",
 		},

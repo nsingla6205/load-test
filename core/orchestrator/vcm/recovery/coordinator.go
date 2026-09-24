@@ -10,6 +10,7 @@ import (
 	"time"
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
@@ -123,6 +124,7 @@ func (c *Coordinator) expireJob(ctx context.Context, job *vcmdb.Job) error {
 		JobID:        job.ID,
 		Step:         job.CurrentStep,
 		State:        vcmdb.JobStateError,
+		TrackingID:   vsaerrors.ErrOperationDeadlineExceeded,
 		ErrorMessage: message,
 		Retriable:    false,
 	})

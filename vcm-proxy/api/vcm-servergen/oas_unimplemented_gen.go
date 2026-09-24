@@ -16,15 +16,16 @@ var _ Handler = UnimplementedHandler{}
 // ClusterCreateV1 implements clusterCreate_v1 operation.
 //
 // Provisions a new ONTAP cluster (HA pair + mediator) via the VCM
-// provisioning workflow. The request carries only the CLH-computed cluster
-// shape plus request-level controls; cluster identity, zones, networking,
-// projects and ONTAP credentials are read from the configuration
-// previously pushed via POST /v1/config.
+// provisioning workflow. The body carries only the CLH-computed cluster
+// shape; requestId and timeout are request-level controls passed as query
+// parameters, and cluster identity, zones, networking, projects and ONTAP
+// credentials are read from the configuration previously pushed via
+// POST /v1/config.
 // Returns 202 Accepted; poll GET /v1/operations/{operationId}
 // where operationId equals requestId.
 //
-// POST /v1/clusters
-func (UnimplementedHandler) ClusterCreateV1(ctx context.Context, req *ClusterV1) (r ClusterCreateV1Res, _ error) {
+// POST /v1/cluster
+func (UnimplementedHandler) ClusterCreateV1(ctx context.Context, req *ClusterV1, params ClusterCreateV1Params) (r ClusterCreateV1Res, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

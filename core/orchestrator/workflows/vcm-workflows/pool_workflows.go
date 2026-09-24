@@ -5,6 +5,7 @@ package vcm_workflows
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	vcmclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm/vcm-client"
@@ -128,7 +129,7 @@ func PoolWorkflow(ctx *orchestrator.Context, params *commonparams.CreatePoolPara
 		return nil, err
 	}
 
-	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(wf.req.DeploymentID, wf.vlmCfg, wf.svmName)
+	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(wf.req, wf.vlmCfg, wf.svmName)
 	if marshalErr != nil {
 		logger.Warn("workflow: failed to marshal pool operation response; marking job DONE without response payload",
 			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", marshalErr)
@@ -339,26 +340,34 @@ func jobErrorFields(err error) (trackingID int, message string, retriable bool) 
 	return trackingID, message, retriable
 }
 
-// checkDeadline is temporarily disabled and always returns nil; callsites are
-// kept so enforcement can be restored later. It intentionally does not log
-// (and therefore needs no logger) while disabled.
-func (wf *createPoolWorkflow) checkDeadline(_ *orchestrator.Context, _ string) error {
-	return nil
-	// TODO(deadline): re-enable when deadline handling is implemented.
-	//
-	// logger := wfLogger(ctx)
-	// if wf.req.Deadline.IsZero() {
-	// 	return nil
-	// }
-	// now := orchestrator.Now(ctx).UTC()
-	// if !now.Before(wf.req.Deadline) {
-	// 	logger.Error("workflow: create-pool deadline exceeded",
-	// 		"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID,
-	// 		"step", step, "deadline", wf.req.Deadline, "now", now)
-	// 	return fmt.Errorf("create-pool deadline exceeded before %s: deadline=%s now=%s",
-	// 		step, wf.req.Deadline.Format(time.RFC3339), now.Format(time.RFC3339))
-	// }
-	// return nil
+// checkDeadline aborts the workflow before entering step when the request's
+// deadline has already passed, so a create-pool that can no longer finish in
+// time fails fast instead of provisioning further resources. The clock comes
+// from the workflow backend to stay deterministic across replays.
+//
+// The check only runs at step boundaries: a step that overruns the deadline
+// while in flight is not interrupted, it is caught at the next boundary.
+func (wf *createPoolWorkflow) checkDeadline(ctx *orchestrator.Context, step string) error {
+	now := orchestrator.Now(ctx).UTC()
+	err := deadlineExceeded(now, wf.req.Deadline, step)
+	if err != nil {
+		wfLogger(ctx).Error("workflow: create-pool deadline exceeded",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID,
+			"step", step, "deadline", wf.req.Deadline, "now", now)
+	}
+	return err
+}
+
+// deadlineExceeded reports a deadline-exceeded failure for step when deadline
+// has elapsed at now. A zero deadline means no deadline was requested and is
+// never enforced.
+func deadlineExceeded(now, deadline time.Time, step string) error {
+	if deadline.IsZero() || now.Before(deadline.UTC()) {
+		return nil
+	}
+	return vsaerrors.NewVCPError(vsaerrors.ErrOperationDeadlineExceeded,
+		fmt.Errorf("create-pool deadline exceeded before %s: deadline=%s now=%s",
+			step, deadline.UTC().Format(time.RFC3339), now.Format(time.RFC3339)))
 }
 
 // resolveOntapCredentials returns the ONTAP admin credentials for the VLM child

@@ -246,7 +246,7 @@ func overwriteSeedConfigIfSet(dst *vcmserver.OptSeedConfigV1, src vcmserver.OptS
 	overwriteOptStringIfSet(&stored.Zone2, incoming.Zone2)
 	overwriteOptStringIfSet(&stored.MediatorZone, incoming.MediatorZone)
 	overwriteOptStringIfSet(&stored.CaUri, incoming.CaUri)
-	overwriteOptStringIfSet(&stored.OntapLicenseSecretUri, incoming.OntapLicenseSecretUri)
+	overwriteOptStringIfSet(&stored.OntapLicenseSecret, incoming.OntapLicenseSecret)
 	overwriteOptStringIfSet(&stored.ServiceAccountEmail, incoming.ServiceAccountEmail)
 	overwriteOptInt64IfSet(&stored.ConsumerProjectNum, incoming.ConsumerProjectNum)
 	overwriteOptInt64IfSet(&stored.ServiceTenantProjectNum, incoming.ServiceTenantProjectNum)
@@ -270,10 +270,11 @@ func overwriteActualLayoutIfSet(dst *vcmserver.OptClusterLayoutV1, src vcmserver
 	if incoming.Nodes != nil {
 		stored.Nodes = cloneVSANodes(incoming.Nodes)
 	}
-	replaceOptIpConfig(&stored.IpConfig, incoming.IpConfig)
+	if incoming.Disks != nil {
+		stored.Disks = cloneGceDisks(incoming.Disks)
+	}
 	overwriteOptStringIfSet(&stored.ActiveZone, incoming.ActiveZone)
 	overwriteOptStringIfSet(&stored.StandbyZone, incoming.StandbyZone)
-	overwriteOptStringIfSet(&stored.ForwardingRuleIp, incoming.ForwardingRuleIp)
 	dst.SetTo(stored)
 }
 
@@ -297,13 +298,6 @@ func overwriteOptNetConfigIfSet(dst *vcmserver.OptNetConfigV1, src vcmserver.Opt
 	}
 }
 
-// replaceOptIpConfig overwrites runtime addressing when the caller supplies ipConfig
-func replaceOptIpConfig(dst *vcmserver.OptIpConfigV1, src vcmserver.OptIpConfigV1) {
-	if src.IsSet() {
-		dst.SetTo(src.Value)
-	}
-}
-
 func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
 	if !req.ClusterConfig.IsSet() {
 		return
@@ -316,7 +310,7 @@ func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
 		trimOptString(&seed.Zone2)
 		trimOptString(&seed.MediatorZone)
 		trimOptString(&seed.CaUri)
-		trimOptString(&seed.OntapLicenseSecretUri)
+		trimOptString(&seed.OntapLicenseSecret)
 		trimOptString(&seed.ServiceAccountEmail)
 		for i := range seed.OntapCredentials {
 			trimOntapCredential(&seed.OntapCredentials[i])
@@ -325,12 +319,11 @@ func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
 	}
 	if clusterConfig.ActualLayout.IsSet() {
 		layout := clusterConfig.ActualLayout.Value
-		if layout.IpConfig.IsSet() {
-			trimIpConfig(&layout.IpConfig.Value)
+		for i := range layout.Nodes {
+			trimVSANode(&layout.Nodes[i])
 		}
 		trimOptString(&layout.ActiveZone)
 		trimOptString(&layout.StandbyZone)
-		trimOptString(&layout.ForwardingRuleIp)
 		clusterConfig.ActualLayout.SetTo(layout)
 	}
 	req.ClusterConfig.SetTo(clusterConfig)
@@ -362,10 +355,14 @@ func trimOntapCredential(cred *vcmserver.OntapCredentialV1) {
 	}
 }
 
-func trimIpConfig(cfg *vcmserver.IpConfigV1) {
-	for i := range cfg.VmLifs {
-		trimOptString(&cfg.VmLifs[i].Name)
-		trimOptString(&cfg.VmLifs[i].Nodemgmt)
+// trimVSANode normalizes the node identity and management addressing used to
+// resolve ONTAP endpoints, so a blank-but-present value merges like an unset one.
+func trimVSANode(node *vcmserver.VsaNodeV1) {
+	trimOptString(&node.GceVmName)
+	trimOptString(&node.NodeManagementIp)
+	if ipConfig, ok := node.IpConfig.Get(); ok {
+		trimOptString(&ipConfig.NodemgmtLifIp)
+		node.IpConfig.SetTo(ipConfig)
 	}
 }
 
@@ -593,6 +590,7 @@ func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConf
 	if clusterConfig.ActualLayout.IsSet() {
 		layout := clusterConfig.ActualLayout.Value
 		layout.Nodes = cloneVSANodes(layout.Nodes)
+		layout.Disks = cloneGceDisks(layout.Disks)
 		clusterConfig.ActualLayout.SetTo(layout)
 	}
 	dst.ClusterConfig.SetTo(clusterConfig)
@@ -613,11 +611,28 @@ func cloneVSANodes(src []vcmserver.VsaNodeV1) []vcmserver.VsaNodeV1 {
 	nodes := make([]vcmserver.VsaNodeV1, len(src))
 	copy(nodes, src)
 	for i := range nodes {
-		if nodes[i].Disks != nil {
-			disks := make([]vcmserver.AttachedDiskV1, len(nodes[i].Disks))
-			copy(disks, nodes[i].Disks)
-			nodes[i].Disks = disks
+		ipConfig, ok := nodes[i].IpConfig.Get()
+		if !ok {
+			continue
 		}
+		if dataLif, ok := ipConfig.DataLif.Get(); ok && dataLif.SanIps != nil {
+			sanIPs := make([]string, len(dataLif.SanIps))
+			copy(sanIPs, dataLif.SanIps)
+			dataLif.SanIps = sanIPs
+			ipConfig.DataLif.SetTo(dataLif)
+		}
+		nodes[i].IpConfig.SetTo(ipConfig)
 	}
 	return nodes
+}
+
+// cloneGceDisks keeps an explicitly empty list distinct from an absent one, so
+// a caller can clear the stored disks by sending an empty array.
+func cloneGceDisks(src []vcmserver.GceDiskV1) []vcmserver.GceDiskV1 {
+	if src == nil {
+		return nil
+	}
+	disks := make([]vcmserver.GceDiskV1, len(src))
+	copy(disks, src)
+	return disks
 }

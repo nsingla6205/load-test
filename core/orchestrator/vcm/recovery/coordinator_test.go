@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 )
 
 type stubJobStore struct {
@@ -97,6 +98,7 @@ func TestCoordinatorResumeOngoingJobs_ExpiresJobWithoutDispatching(t *testing.T)
 		JobID:        "job-1",
 		Step:         "create-vm",
 		State:        vcmdb.JobStateError,
+		TrackingID:   vsaerrors.ErrOperationDeadlineExceeded,
 		ErrorMessage: "job deadline exceeded at 2026-08-24T11:59:00Z",
 		Retriable:    false,
 	}, store.progressCalls[0])

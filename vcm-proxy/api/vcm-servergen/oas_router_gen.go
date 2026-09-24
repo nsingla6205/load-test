@@ -125,9 +125,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					switch elem[0] {
-					case 'l': // Prefix: "lusters"
+					case 'l': // Prefix: "luster"
 
-						if l := len("lusters"); len(elem) >= l && elem[0:l] == "lusters" {
+						if l := len("luster"); len(elem) >= l && elem[0:l] == "luster" {
 							elem = elem[l:]
 						} else {
 							break
@@ -488,9 +488,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						break
 					}
 					switch elem[0] {
-					case 'l': // Prefix: "lusters"
+					case 'l': // Prefix: "luster"
 
-						if l := len("lusters"); len(elem) >= l && elem[0:l] == "lusters" {
+						if l := len("luster"); len(elem) >= l && elem[0:l] == "luster" {
 							elem = elem[l:]
 						} else {
 							break
@@ -503,7 +503,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								r.name = ClusterCreateV1Operation
 								r.summary = "Create a new ONTAP cluster"
 								r.operationID = "clusterCreate_v1"
-								r.pathPattern = "/v1/clusters"
+								r.pathPattern = "/v1/cluster"
 								r.args = args
 								r.count = 0
 								return r, true

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,11 +149,37 @@ func TestOntapNodeCredentials(t *testing.T) {
 	})
 }
 
-func TestCheckDeadline_DisabledAlwaysNil(t *testing.T) {
-	// Deadline enforcement is temporarily disabled; even a past/zero deadline
-	// must not abort the workflow. ctx is unused by the disabled implementation.
-	wf := &createPoolWorkflow{req: &commonparams.VCMCreatePoolParams{}}
-	assert.NoError(t, wf.checkDeadline(nil, "start"))
+func TestDeadlineExceeded(t *testing.T) {
+	now := time.Date(2026, 7, 29, 13, 30, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		name     string
+		deadline time.Time
+		wantErr  bool
+	}{
+		{name: "no deadline requested is never enforced", deadline: time.Time{}},
+		{name: "future deadline passes", deadline: now.Add(time.Minute)},
+		{name: "elapsed deadline fails", deadline: now.Add(-time.Minute), wantErr: true},
+		{name: "deadline exactly now fails", deadline: now, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := deadlineExceeded(now, tc.deadline, jobStepCreateSVM)
+			if !tc.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			var customErr *vsaerrors.CustomError
+			require.True(t, vsaerrors.As(err, &customErr), "expected a CustomError, got %T", err)
+			assert.Equal(t, vsaerrors.ErrOperationDeadlineExceeded, customErr.TrackingID)
+			// The step rides on the wrapped cause, which is what
+			// ExtractJobFailureDetails persists as the job's error message.
+			// CustomError.Error() itself is the catalog text CLH sees.
+			require.NotNil(t, customErr.OriginalErr)
+			assert.Contains(t, customErr.OriginalErr.Error(), jobStepCreateSVM)
+		})
+	}
 }
 
 func TestNodeMgmtIPFromVLMConfig(t *testing.T) {
@@ -206,10 +233,10 @@ func TestSvmUUIDFromVLMConfig(t *testing.T) {
 }
 
 func TestPoolCreateOperationResponsePayloadFn(t *testing.T) {
-	payload, err := poolCreateOperationResponsePayloadFn("gcnv-test", vlm.VLMConfig{}, "")
+	payload, err := poolCreateOperationResponsePayloadFn(nil, vlm.VLMConfig{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, payload)
-	assert.JSONEq(t, `{"pool":{"deploymentId":"gcnv-test"}}`, *payload)
+	assert.JSONEq(t, `{"clusterShape":{},"clusterLayout":{"nodes":[],"disks":[],"activeZone":"","standbyZone":""}}`, *payload)
 }
 
 func TestPoolWorkflow_MissingParams_ReturnsError(t *testing.T) {

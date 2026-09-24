@@ -11,15 +11,16 @@ type Handler interface {
 	// ClusterCreateV1 implements clusterCreate_v1 operation.
 	//
 	// Provisions a new ONTAP cluster (HA pair + mediator) via the VCM
-	// provisioning workflow. The request carries only the CLH-computed cluster
-	// shape plus request-level controls; cluster identity, zones, networking,
-	// projects and ONTAP credentials are read from the configuration
-	// previously pushed via POST /v1/config.
+	// provisioning workflow. The body carries only the CLH-computed cluster
+	// shape; requestId and timeout are request-level controls passed as query
+	// parameters, and cluster identity, zones, networking, projects and ONTAP
+	// credentials are read from the configuration previously pushed via
+	// POST /v1/config.
 	// Returns 202 Accepted; poll GET /v1/operations/{operationId}
 	// where operationId equals requestId.
 	//
-	// POST /v1/clusters
-	ClusterCreateV1(ctx context.Context, req *ClusterV1) (ClusterCreateV1Res, error)
+	// POST /v1/cluster
+	ClusterCreateV1(ctx context.Context, req *ClusterV1, params ClusterCreateV1Params) (ClusterCreateV1Res, error)
 	// GetHealth implements getHealth operation.
 	//
 	// Liveness check for the VCM process. Returns HTTP 200 while the process

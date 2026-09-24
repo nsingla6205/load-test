@@ -85,6 +85,12 @@ func (s *e2eJobStore) lastUpdate() (vcmdb.UpdateJobProgressParams, bool) {
 	return s.updates[len(s.updates)-1], true
 }
 
+func (s *e2eJobStore) allUpdates() []vcmdb.UpdateJobProgressParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]vcmdb.UpdateJobProgressParams(nil), s.updates...)
+}
+
 func (s *e2eJobStore) states() []vcmdb.JobState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -243,21 +249,99 @@ func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
 	assert.Equal(t, vcmdb.JobStateDone, last.State, "a successful provision must leave the job DONE")
 	assert.Equal(t, jobStepCompleted, last.Step)
 	assert.JSONEq(t, `{
-		"pool": {
-			"deploymentId": "gcnv-e2e",
-			"forwardingRuleIp": "10.0.0.10",
-			"ipConfig": {
-				"vmLifs": [
-					{"name":"vm1","nodemgmt":"10.0.0.10"},
-					{"name":"vm2","nodemgmt":"10.0.0.11"}
-				],
-				"dataLif": {
-					"san": ["10.33.182.252","10.33.182.249"],
-					"ilbnas": "10.33.182.243"
-				}
+		"clusterShape": {
+			"provisionedThroughputMibps": 0,
+			"provisionedIops": 0,
+			"provisionedSizeInBytes": 0,
+			"qosType": "",
+			"mode": "",
+			"regionIdentifier": "",
+			"autoTieringConfig": {
+				"autoTierBucketName": ""
 			}
+		},
+		"clusterLayout": {
+			"nodes": [
+				{
+					"gceVmName": "vm1",
+					"gceInstanceId": "",
+					"nodeManagementIp": "10.0.0.10",
+					"gceVmLocation": "",
+					"ipConfig": {
+						"clusterManagementLifIp": "",
+						"haInterconnectLifIp": "",
+						"interclusterLifIp": "",
+						"nodemgmtLifIp": "10.0.0.10",
+						"rsmLifIp": "",
+						"dataLif": {
+							"nasIlbIp": "10.33.182.243",
+							"sanIps": ["10.33.182.252","10.33.182.249"]
+						}
+					}
+				},
+				{
+					"gceVmName": "vm2",
+					"gceInstanceId": "",
+					"nodeManagementIp": "10.0.0.11",
+					"gceVmLocation": "",
+					"ipConfig": {
+						"clusterManagementLifIp": "",
+						"haInterconnectLifIp": "",
+						"interclusterLifIp": "",
+						"nodemgmtLifIp": "10.0.0.11",
+						"rsmLifIp": "",
+						"dataLif": {
+							"nasIlbIp": "10.33.182.243",
+							"sanIps": ["10.33.182.252","10.33.182.249"]
+						}
+					}
+				}
+			],
+			"disks": [],
+			"activeZone": "",
+			"standbyZone": ""
 		}
 	}`, last.ResponsePayload)
+}
+
+func TestPoolWorkflowE2E_ResponsePayloadOnlyWrittenOnDone(t *testing.T) {
+	// The operation response must not be readable while the operation is still
+	// running, so no intermediate job update may carry a response payload: the
+	// payload is written exactly once, on the terminal DONE transition, after
+	// every activity and child workflow has succeeded.
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+
+	err := runPoolWorkflowE2EWithReg(t, store, newPoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+	require.NoError(t, err)
+
+	updates := store.allUpdates()
+	require.Greater(t, len(updates), 1, "the run must record step updates before the terminal one")
+
+	payloadCarriers := 0
+	for i, update := range updates {
+		if update.State == vcmdb.JobStateDone {
+			payloadCarriers++
+			assert.NotEmpty(t, update.ResponsePayload,
+				"the DONE transition must carry the operation response")
+			continue
+		}
+		assert.Empty(t, update.ResponsePayload,
+			"update %d (state %s, step %q) must not carry a response payload before DONE",
+			i, update.State, update.Step)
+	}
+	assert.Equal(t, 1, payloadCarriers, "exactly one DONE transition must write the payload")
 }
 
 func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
@@ -268,7 +352,7 @@ func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
 	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
 
 	origPayloadFn := poolCreateOperationResponsePayloadFn
-	poolCreateOperationResponsePayloadFn = func(string, vlm.VLMConfig, string) (*string, error) {
+	poolCreateOperationResponsePayloadFn = func(*commonparams.VCMCreatePoolParams, vlm.VLMConfig, string) (*string, error) {
 		return nil, errors.New("marshal failed")
 	}
 	t.Cleanup(func() { poolCreateOperationResponsePayloadFn = origPayloadFn })

@@ -47,6 +47,7 @@ const (
 	ErrForbidden                  = 1020
 	ErrTooManyRequests            = 1021
 	ErrUnprocessableEntity        = 1022
+	ErrOperationDeadlineExceeded  = 1023
 
 	ErrDatabaseConnectionClosed                = 2001
 	ErrDatabaseTransactionError                = 2002

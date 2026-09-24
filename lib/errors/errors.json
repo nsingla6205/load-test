@@ -131,6 +131,12 @@
     "retriable": false,
     "http_code": 422
   },
+  "1023": {
+    "description": "Operation deadline exceeded",
+    "message": "The operation timed out before completing.",
+    "retriable": false,
+    "http_code": 504
+  },
   "2001": {
     "description": "Database Connection Closed",
     "message": "An internal error occurred.",

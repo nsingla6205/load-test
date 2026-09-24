@@ -14,22 +14,23 @@ import (
 // the VCM orchestrator, which owns the durable job lifecycle. Returns the
 // long-running Operation (AIP-151) with done=false; clients poll
 // GET /v1/operations/{operationId} using the operation ID (== requestId).
-func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1) (vcmserver.ClusterCreateV1Res, error) {
+func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, params vcmserver.ClusterCreateV1Params) (vcmserver.ClusterCreateV1Res, error) {
 	logger := weutil.GetLogger(ctx)
 
 	if req == nil {
-		return clusterCreateBadRequest("requestId is required", false), nil
+		return clusterCreateBadRequest("cluster body with clusterShape is required", false), nil
 	}
 
-	requestID := clusterCreateRequestID(req)
-	deadline := clusterCreateDeadline(req)
+	requestID := clusterCreateRequestID(params)
 
 	if requestID == "" {
 		return clusterCreateBadRequest("requestId is required", false), nil
 	}
-	if deadline.IsZero() || !deadline.UTC().After(time.Now().UTC()) {
-		return clusterCreateBadRequest("deadline must be a future UTC timestamp", false), nil
+	if params.Timeout <= 0 {
+		return clusterCreateBadRequest("timeout must be a positive duration", false), nil
 	}
+	deadline := clusterCreateDeadline(params)
+
 	if h.ConfigStore == nil {
 		logger.ErrorContext(ctx, "create-cluster rejected: VCM config store is not configured",
 			"requestId", requestID)
@@ -42,7 +43,7 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1) 
 	// Everything the workflow needs beyond the shape - cluster identity, zones,
 	// projects, networking and ONTAP credentials - comes from the configuration
 	// CLH pushed through POST /v1/config rather than from this request.
-	params, err := h.ConfigStore.CreatePoolParams(requestID, deadline, req.ClusterShape)
+	poolParams, err := h.ConfigStore.CreatePoolParams(requestID, deadline, req.ClusterShape)
 	if err != nil {
 		// Retriable: CLH can re-seed the missing configuration and try again
 		// with the same requestId.
@@ -50,12 +51,13 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1) 
 			"requestId", requestID, "error", err)
 		return clusterCreateBadRequest(err.Error(), true), nil
 	}
-	deploymentID := params.VCM.DeploymentID
+	deploymentID := poolParams.VCM.DeploymentID
 
 	logger.InfoContext(ctx, "received create-cluster request",
-		"deploymentId", deploymentID, "requestId", requestID, "deadline", deadline)
+		"deploymentId", deploymentID, "requestId", requestID,
+		"timeout", params.Timeout, "deadline", deadline)
 
-	_, operationID, err := h.Orchestrator.CreatePool(ctx, params)
+	_, operationID, err := h.Orchestrator.CreatePool(ctx, poolParams)
 	if err != nil {
 		// A duplicate requestId (an operation already exists for this
 		// idempotency key) is a client conflict, not a retriable server error:
@@ -92,22 +94,17 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1) 
 
 // clusterCreateRequestID resolves the idempotency key for a create-cluster
 // request. It is centralized in a getter because the strategy for sourcing the
-// request ID (request body today, header/context tomorrow) may change.
-func clusterCreateRequestID(req *vcmserver.ClusterV1) string {
-	if req == nil {
-		return ""
-	}
-	return req.RequestId
+// request ID (query parameter today, header/context tomorrow) may change.
+func clusterCreateRequestID(params vcmserver.ClusterCreateV1Params) string {
+	return params.RequestId
 }
 
-// clusterCreateDeadline resolves the create-cluster deadline. It is centralized
-// in a getter because the strategy for sourcing the deadline (request body
-// today, header/context tomorrow) may change.
-func clusterCreateDeadline(req *vcmserver.ClusterV1) time.Time {
-	if req == nil {
-		return time.Time{}
-	}
-	return req.Deadline
+// clusterCreateDeadline resolves the absolute UTC deadline for a create-cluster
+// request from the caller-supplied relative timeout. Job persistence, workflow
+// deadline checks and recovery all work in absolute time, so the conversion
+// happens once here at the API edge.
+func clusterCreateDeadline(params vcmserver.ClusterCreateV1Params) time.Time {
+	return time.Now().UTC().Add(params.Timeout)
 }
 
 func clusterCreateBadRequest(message string, retriable bool) *vcmserver.ClusterCreateV1BadRequest {

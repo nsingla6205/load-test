@@ -89,9 +89,6 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 	}
 	switch job.State {
 	case vcmdb.JobStateNew, vcmdb.JobStateProcessing:
-		if opResponse, ok := operationResponseFromJob(job); ok {
-			response.Response = vcmserver.NewOptOperationV1Response(opResponse)
-		}
 		return response, nil
 	case vcmdb.JobStateDone:
 		if opResponse, ok := operationResponseFromJob(job); ok {

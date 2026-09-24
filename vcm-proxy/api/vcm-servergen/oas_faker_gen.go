@@ -10,25 +10,6 @@ import (
 )
 
 // SetFake set fake values.
-func (s *AttachedDiskV1) SetFake() {
-	{
-		{
-			s.DiskName.SetFake()
-		}
-	}
-	{
-		{
-			s.GceDiskId.SetFake()
-		}
-	}
-	{
-		{
-			s.SizeBytes.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
 func (s *AutoTieringConfigV1) SetFake() {
 	{
 		{
@@ -149,7 +130,14 @@ func (s *ClusterLayoutV1) SetFake() {
 	}
 	{
 		{
-			s.IpConfig.SetFake()
+			s.Disks = nil
+			for i := 0; i < 0; i++ {
+				var elem GceDiskV1
+				{
+					elem.SetFake()
+				}
+				s.Disks = append(s.Disks, elem)
+			}
 		}
 	}
 	{
@@ -160,11 +148,6 @@ func (s *ClusterLayoutV1) SetFake() {
 	{
 		{
 			s.StandbyZone.SetFake()
-		}
-	}
-	{
-		{
-			s.ForwardingRuleIp.SetFake()
 		}
 	}
 }
@@ -247,16 +230,6 @@ func (s *ClusterShapeV1Mode) SetFake() {
 func (s *ClusterV1) SetFake() {
 	{
 		{
-			s.RequestId = "string"
-		}
-	}
-	{
-		{
-			s.Deadline = time.Now()
-		}
-	}
-	{
-		{
 			s.ClusterShape.SetFake()
 		}
 	}
@@ -290,18 +263,18 @@ func (s *DailyScheduleV1) SetFake() {
 func (s *DataLifV1) SetFake() {
 	{
 		{
-			s.Ilbnas.SetFake()
+			s.NasIlbIp.SetFake()
 		}
 	}
 	{
 		{
-			s.San = nil
+			s.SanIps = nil
 			for i := 0; i < 0; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.San = append(s.San, elem)
+				s.SanIps = append(s.SanIps, elem)
 			}
 		}
 	}
@@ -343,45 +316,25 @@ func (s *ExportPolicyV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *GatewaysV1) SetFake() {
+func (s *GceDiskV1) SetFake() {
 	{
 		{
-			s.Clus.SetFake()
+			s.Name.SetFake()
 		}
 	}
 	{
 		{
-			s.Ic.SetFake()
+			s.GceDiskId.SetFake()
 		}
 	}
 	{
 		{
-			s.Intercluster.SetFake()
+			s.SizeBytes.SetFake()
 		}
 	}
 	{
 		{
-			s.Nodemgmt.SetFake()
-		}
-	}
-	{
-		{
-			s.Nodemgmtinternal.SetFake()
-		}
-	}
-	{
-		{
-			s.Rsm.SetFake()
-		}
-	}
-	{
-		{
-			s.Svm.SetFake()
-		}
-	}
-	{
-		{
-			s.ClusterMgmtGateway.SetFake()
+			s.Location.SetFake()
 		}
 	}
 }
@@ -499,19 +452,27 @@ func (s *InfrastructureSpecV1) SetFake() {
 func (s *IpConfigV1) SetFake() {
 	{
 		{
-			s.Gateways.SetFake()
+			s.ClusterManagementLifIp.SetFake()
 		}
 	}
 	{
 		{
-			s.VmLifs = nil
-			for i := 0; i < 0; i++ {
-				var elem VmLifV1
-				{
-					elem.SetFake()
-				}
-				s.VmLifs = append(s.VmLifs, elem)
-			}
+			s.HaInterconnectLifIp.SetFake()
+		}
+	}
+	{
+		{
+			s.InterclusterLifIp.SetFake()
+		}
+	}
+	{
+		{
+			s.NodemgmtLifIp.SetFake()
+		}
+	}
+	{
+		{
+			s.RsmLifIp.SetFake()
 		}
 	}
 	{
@@ -679,7 +640,7 @@ func (s *OntapCredentialV1Role) SetFake() {
 func (s *OntapModeRbacV1) SetFake() {
 	{
 		{
-			s.RbacFileURL.SetFake()
+			s.RbacFileUrl.SetFake()
 		}
 	}
 	{
@@ -893,15 +854,6 @@ func (s *OptFloat64) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptGatewaysV1) SetFake() {
-	var elem GatewaysV1
-	{
-		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
 func (s *OptHourlyScheduleV1) SetFake() {
 	var elem HourlyScheduleV1
 	{
@@ -1094,6 +1046,15 @@ func (s *OptString) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptStringInt64) SetFake() {
+	var elem int64
+	{
+		elem = int64(0)
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptVolumeReadV1SecurityStyle) SetFake() {
 	var elem VolumeReadV1SecurityStyle
 	{
@@ -1200,7 +1161,7 @@ func (s *SeedConfigV1) SetFake() {
 	}
 	{
 		{
-			s.OntapLicenseSecretUri.SetFake()
+			s.OntapLicenseSecret.SetFake()
 		}
 	}
 	{
@@ -1769,45 +1730,6 @@ func (s *V1UpdateVolumeUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *VmLifV1) SetFake() {
-	{
-		{
-			s.Name.SetFake()
-		}
-	}
-	{
-		{
-			s.Clus.SetFake()
-		}
-	}
-	{
-		{
-			s.Ic.SetFake()
-		}
-	}
-	{
-		{
-			s.Intercluster.SetFake()
-		}
-	}
-	{
-		{
-			s.Nodemgmt.SetFake()
-		}
-	}
-	{
-		{
-			s.Nodemgmtinternal.SetFake()
-		}
-	}
-	{
-		{
-			s.Rsm.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
 func (s *VolumeReadV1) SetFake() {
 	{
 		{
@@ -1965,7 +1887,7 @@ func (s *VolumeV1SecurityStyle) SetFake() {
 func (s *VsaNodeV1) SetFake() {
 	{
 		{
-			s.VmName.SetFake()
+			s.GceVmName.SetFake()
 		}
 	}
 	{
@@ -1980,19 +1902,12 @@ func (s *VsaNodeV1) SetFake() {
 	}
 	{
 		{
-			s.VmSerialNumber.SetFake()
+			s.GceVmLocation.SetFake()
 		}
 	}
 	{
 		{
-			s.Disks = nil
-			for i := 0; i < 0; i++ {
-				var elem AttachedDiskV1
-				{
-					elem.SetFake()
-				}
-				s.Disks = append(s.Disks, elem)
-			}
+			s.IpConfig.SetFake()
 		}
 	}
 }

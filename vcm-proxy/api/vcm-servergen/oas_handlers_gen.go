@@ -32,21 +32,22 @@ func (c *codeRecorder) WriteHeader(status int) {
 // handleClusterCreateV1Request handles clusterCreate_v1 operation.
 //
 // Provisions a new ONTAP cluster (HA pair + mediator) via the VCM
-// provisioning workflow. The request carries only the CLH-computed cluster
-// shape plus request-level controls; cluster identity, zones, networking,
-// projects and ONTAP credentials are read from the configuration
-// previously pushed via POST /v1/config.
+// provisioning workflow. The body carries only the CLH-computed cluster
+// shape; requestId and timeout are request-level controls passed as query
+// parameters, and cluster identity, zones, networking, projects and ONTAP
+// credentials are read from the configuration previously pushed via
+// POST /v1/config.
 // Returns 202 Accepted; poll GET /v1/operations/{operationId}
 // where operationId equals requestId.
 //
-// POST /v1/clusters
+// POST /v1/cluster
 func (s *Server) handleClusterCreateV1Request(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("clusterCreate_v1"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/clusters"),
+		semconv.HTTPRouteKey.String("/v1/cluster"),
 	}
 
 	// Start a span for this request.
@@ -109,6 +110,16 @@ func (s *Server) handleClusterCreateV1Request(args [0]string, argsEscaped bool, 
 			ID:   "clusterCreate_v1",
 		}
 	)
+	params, err := decodeClusterCreateV1Params(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
 
 	var rawBody []byte
 	request, rawBody, close, err := s.decodeClusterCreateV1Request(r)
@@ -136,13 +147,22 @@ func (s *Server) handleClusterCreateV1Request(args [0]string, argsEscaped bool, 
 			OperationID:      "clusterCreate_v1",
 			Body:             request,
 			RawBody:          rawBody,
-			Params:           middleware.Parameters{},
-			Raw:              r,
+			Params: middleware.Parameters{
+				{
+					Name: "requestId",
+					In:   "query",
+				}: params.RequestId,
+				{
+					Name: "timeout",
+					In:   "query",
+				}: params.Timeout,
+			},
+			Raw: r,
 		}
 
 		type (
 			Request  = *ClusterV1
-			Params   = struct{}
+			Params   = ClusterCreateV1Params
 			Response = ClusterCreateV1Res
 		)
 		response, err = middleware.HookMiddleware[
@@ -152,14 +172,14 @@ func (s *Server) handleClusterCreateV1Request(args [0]string, argsEscaped bool, 
 		](
 			m,
 			mreq,
-			nil,
+			unpackClusterCreateV1Params,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.ClusterCreateV1(ctx, request)
+				response, err = s.h.ClusterCreateV1(ctx, request, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.ClusterCreateV1(ctx, request)
+		response, err = s.h.ClusterCreateV1(ctx, request, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {

@@ -15,18 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAttachedDiskV1_EncodeDecode(t *testing.T) {
-	var typ AttachedDiskV1
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 AttachedDiskV1
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestAutoTieringConfigV1_EncodeDecode(t *testing.T) {
 	var typ AutoTieringConfigV1
 	typ.SetFake()
@@ -206,7 +194,7 @@ func TestClusterV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"clusterShape\":{\"autoTieringConfig\":{\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"hotTierSizeInBytes\":1099511627776},\"infrastructureSpec\":{\"dataDiskCount\":8,\"dataDiskType\":\"hyperdisk-balanced\",\"haPairCount\":1,\"mediatorDiskType\":\"pd-ssd\",\"preferredVsaInstanceFamily\":\"c3-lssd\",\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"mode\":\"DEFAULT\",\"provisionedIops\":5000,\"provisionedSizeInBytes\":1099511627776,\"provisionedThroughputMibps\":1024,\"qosType\":\"auto\",\"regionIdentifier\":\"34\"},\"deadline\":\"2026-07-29T13:30:00Z\",\"requestId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
+		{Input: "{\"clusterShape\":{\"autoTieringConfig\":{\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"hotTierSizeInBytes\":1099511627776},\"infrastructureSpec\":{\"dataDiskCount\":8,\"dataDiskType\":\"hyperdisk-balanced\",\"haPairCount\":1,\"mediatorDiskType\":\"pd-ssd\",\"preferredVsaInstanceFamily\":\"c3-lssd\",\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"mode\":\"DEFAULT\",\"provisionedIops\":5000,\"provisionedSizeInBytes\":1099511627776,\"provisionedThroughputMibps\":1024,\"qosType\":\"auto\",\"regionIdentifier\":\"34\"}}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -314,8 +302,8 @@ func TestExportPolicyV1_EncodeDecode(t *testing.T) {
 	var typ2 ExportPolicyV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestGatewaysV1_EncodeDecode(t *testing.T) {
-	var typ GatewaysV1
+func TestGceDiskV1_EncodeDecode(t *testing.T) {
+	var typ GceDiskV1
 	typ.SetFake()
 
 	e := jx.Encoder{}
@@ -323,7 +311,7 @@ func TestGatewaysV1_EncodeDecode(t *testing.T) {
 	data := e.Bytes()
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
-	var typ2 GatewaysV1
+	var typ2 GceDiskV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestHealthResponse_EncodeDecode(t *testing.T) {
@@ -791,7 +779,7 @@ func TestSetConfigRequestV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"clusterConfig\":{\"actualLayout\":{\"activeZone\":\"zone-a\",\"forwardingRuleIp\":\"10.0.0.20\",\"ipConfig\":{\"vmLifs\":[{\"name\":\"node-1\",\"nodemgmt\":\"10.0.0.10\"}]},\"nodes\":[{\"disks\":[{\"diskName\":\"disk-1\",\"gceDiskId\":\"disk-id-1\",\"sizeBytes\":100}],\"gceInstanceId\":\"instance-1\",\"nodeManagementIp\":\"10.0.0.10\",\"vmName\":\"node-1\",\"vmSerialNumber\":\"serial-1\"}],\"standbyZone\":\"zone-b\"},\"requiredShape\":{\"infrastructureSpec\":{\"dataDiskCount\":1,\"dataDiskType\":\"example-data-disk\",\"haPairCount\":1,\"mediatorDiskType\":\"example-mediator-disk\",\"preferredVsaInstanceFamily\":\"example-family\",\"systemDiskType\":\"example-system-disk\",\"vsaInstanceType\":\"example-type\"},\"mode\":\"DEFAULT\",\"provisionedIops\":200,\"provisionedSizeInBytes\":300,\"provisionedThroughputMibps\":100,\"qosType\":\"example\",\"regionIdentifier\":\"example-region\"},\"seedConfig\":{\"caUri\":\"projects/example/secrets/ca\",\"consumerProjectNum\":111111111111,\"deploymentId\":\"example-deployment\",\"mediatorZone\":\"zone-m\",\"netConfig\":{\"data\":{\"subnet\":\"example-data-subnet\",\"vpc\":\"example-data-vpc\"},\"ic\":{\"subnet\":\"example-ic-subnet\",\"vpc\":\"example-ic-vpc\"},\"nodemgmt\":{\"subnet\":\"example-nodemgmt-subnet\",\"vpc\":\"example-nodemgmt-vpc\"},\"rsm\":{\"subnet\":\"example-rsm-subnet\",\"vpc\":\"example-rsm-vpc\"}},\"ontapCredentials\":[{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/admin-key\",\"certSecretId\":\"projects/example/secrets/admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/admin-password\",\"username\":\"admin\"},\"role\":\"ADMIN\"},{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/vcm-admin-key\",\"certSecretId\":\"projects/example/secrets/vcm-admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/vcm-admin-password\",\"username\":\"vcm-admin\"},\"role\":\"VCM_ADMIN\"}],\"ontapLicenseSecretUri\":\"projects/example/secrets/license\",\"serviceAccountEmail\":\"example@example.com\",\"serviceTenantProjectNum\":222222222222,\"snHostProjectNum\":333333333333,\"zone1\":\"zone-a\",\"zone2\":\"zone-b\"},\"version\":1},\"stateDbConfig\":{\"database\":\"example-database\",\"instance\":\"example-instance\",\"project\":\"example-project\",\"version\":1}}"},
+		{Input: "{\"clusterConfig\":{\"actualLayout\":{\"activeZone\":\"zone-a\",\"disks\":[{\"gceDiskId\":\"disk-id-1\",\"location\":\"zone-a\",\"name\":\"disk-1\",\"sizeBytes\":\"107374182400\"}],\"nodes\":[{\"gceInstanceId\":\"instance-1\",\"gceVmLocation\":\"zone-a\",\"gceVmName\":\"node-1\",\"ipConfig\":{\"clusterManagementLifIp\":\"198.18.0.10\",\"dataLif\":{\"nasIlbIp\":\"10.10.0.50\",\"sanIps\":[\"10.10.0.51\",\"10.10.0.52\"]},\"haInterconnectLifIp\":\"198.18.32.7\",\"interclusterLifIp\":\"10.10.0.40\",\"nodemgmtLifIp\":\"10.0.0.10\",\"rsmLifIp\":\"198.18.16.42\"},\"nodeManagementIp\":\"10.0.0.10\"}],\"standbyZone\":\"zone-b\"},\"requiredShape\":{\"infrastructureSpec\":{\"dataDiskCount\":1,\"dataDiskType\":\"example-data-disk\",\"haPairCount\":1,\"mediatorDiskType\":\"example-mediator-disk\",\"preferredVsaInstanceFamily\":\"example-family\",\"systemDiskType\":\"example-system-disk\",\"vsaInstanceType\":\"example-type\"},\"mode\":\"DEFAULT\",\"provisionedIops\":200,\"provisionedSizeInBytes\":300,\"provisionedThroughputMibps\":100,\"qosType\":\"example\",\"regionIdentifier\":\"example-region\"},\"seedConfig\":{\"caUri\":\"projects/example/secrets/ca\",\"consumerProjectNum\":111111111111,\"deploymentId\":\"example-deployment\",\"mediatorZone\":\"zone-m\",\"netConfig\":{\"data\":{\"subnet\":\"example-data-subnet\",\"vpc\":\"example-data-vpc\"},\"ic\":{\"subnet\":\"example-ic-subnet\",\"vpc\":\"example-ic-vpc\"},\"nodemgmt\":{\"subnet\":\"example-nodemgmt-subnet\",\"vpc\":\"example-nodemgmt-vpc\"},\"rsm\":{\"subnet\":\"example-rsm-subnet\",\"vpc\":\"example-rsm-vpc\"}},\"ontapCredentials\":[{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/admin-key\",\"certSecretId\":\"projects/example/secrets/admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/admin-password\",\"username\":\"admin\"},\"role\":\"ADMIN\"},{\"activeAuthType\":\"CERT\",\"certificateAuthCreds\":{\"certPrivateKeySecretId\":\"projects/example/secrets/vcm-admin-key\",\"certSecretId\":\"projects/example/secrets/vcm-admin-cert\"},\"passwordAuthCreds\":{\"passwordSecretId\":\"projects/example/secrets/vcm-admin-password\",\"username\":\"vcm-admin\"},\"role\":\"VCM_ADMIN\"}],\"ontapLicenseSecret\":\"projects/example/secrets/license\",\"serviceAccountEmail\":\"example@example.com\",\"serviceTenantProjectNum\":222222222222,\"snHostProjectNum\":333333333333,\"zone1\":\"zone-a\",\"zone2\":\"zone-b\"},\"version\":1},\"stateDbConfig\":{\"database\":\"example-database\",\"instance\":\"example-instance\",\"project\":\"example-project\",\"version\":1}}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -1499,18 +1487,6 @@ func TestV1UpdateVolumeUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateVolumeUnauthorized
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestVmLifV1_EncodeDecode(t *testing.T) {
-	var typ VmLifV1
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 VmLifV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestVolumeReadV1_EncodeDecode(t *testing.T) {

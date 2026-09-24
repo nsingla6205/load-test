@@ -431,14 +431,7 @@ func TestStore_NodeProviderInput(t *testing.T) {
 		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
 	})
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{
-					Name:     vcmserver.NewOptString("vm1"),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-				},
-			},
-		})
+		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")}
 	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
@@ -455,51 +448,38 @@ func TestStore_NodeProviderInput(t *testing.T) {
 	assert.Equal(t, "198.18.0.5", input.Nodes[0].EndpointAddress)
 }
 
-func TestStore_Apply_ReplacesIpConfigWhenPresent(t *testing.T) {
+func TestStore_Apply_ReplacesNodesWhenPresent(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
-			},
-		})
+		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")}
 	})
 
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
 	setConfig := store.CurrentSetConfig()
-	require.True(t, layoutOf(setConfig).IpConfig.IsSet())
-	require.Len(t, layoutOf(setConfig).IpConfig.Value.VmLifs, 1)
-	ip, ok := layoutOf(setConfig).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
+	require.Len(t, layoutOf(setConfig).Nodes, 1)
+	ip, ok := layoutOf(setConfig).Nodes[0].NodeManagementIp.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.5", ip)
 
-	// Runtime LIF IPs can change; later SetConfig replaces ipConfig when present.
+	// Runtime addressing can change; a later SetConfig replaces nodes when present.
 	req2 := testSetConfigRequest(testDBConfig(), "")
 	mutateLayout(req2, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.99")},
-			},
-		})
+		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.99")}
 	})
 	store.Apply(context.Background(), req2)
-	ip, ok = layoutOf(store.CurrentSetConfig()).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
+	ip, ok = layoutOf(store.CurrentSetConfig()).Nodes[0].NodeManagementIp.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.99", ip)
 }
 
-func TestStore_Apply_PreservesIpConfigWhenOmitted(t *testing.T) {
+func TestStore_Apply_PreservesNodesWhenOmitted(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
-			},
-		})
+		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")}
 	})
 
 	store.Apply(context.Background(), req)
@@ -507,9 +487,30 @@ func TestStore_Apply_PreservesIpConfigWhenOmitted(t *testing.T) {
 
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-a"))
 
-	ip, ok := layoutOf(store.CurrentSetConfig()).IpConfig.Value.VmLifs[0].Nodemgmt.Get()
+	ip, ok := layoutOf(store.CurrentSetConfig()).Nodes[0].NodeManagementIp.Get()
 	require.True(t, ok)
 	assert.Equal(t, "198.18.0.5", ip)
+}
+
+func TestStore_Apply_ReplacesDisksWhenPresent(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
+	req := testSetConfigRequest(testDBConfig(), "")
+	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.Disks = []vcmserver.GceDiskV1{{Name: vcmserver.NewOptString("disk-1")}}
+	})
+
+	store.Apply(context.Background(), req)
+	waitFor(t, func() bool { return store.Configured() })
+	require.Len(t, layoutOf(store.CurrentSetConfig()).Disks, 1)
+
+	// An explicitly empty list clears the stored disks, while omitting the field
+	// preserves them.
+	req2 := testSetConfigRequest(testDBConfig(), "")
+	mutateLayout(req2, func(layout *vcmserver.ClusterLayoutV1) {
+		layout.Disks = []vcmserver.GceDiskV1{}
+	})
+	store.Apply(context.Background(), req2)
+	assert.Empty(t, layoutOf(store.CurrentSetConfig()).Disks)
 }
 
 func TestStore_Apply_StaleValidationDoesNotUnsetConfigured(t *testing.T) {
@@ -798,18 +799,44 @@ func TestCloneVSANodes_PreservesEmptySlice(t *testing.T) {
 	require.NotNil(t, cloned)
 	assert.Empty(t, cloned)
 
-	src := []vcmserver.VsaNodeV1{{
-		VmName: vcmserver.NewOptString("vm1"),
-		Disks:  []vcmserver.AttachedDiskV1{},
-	}}
+	src := []vcmserver.VsaNodeV1{{GceVmName: vcmserver.NewOptString("vm1")}}
 	cloned = cloneVSANodes(src)
 	require.Len(t, cloned, 1)
-	require.NotNil(t, cloned[0].Disks)
-	assert.Empty(t, cloned[0].Disks)
-	cloned[0].VmName.SetTo("mutated")
-	name, ok := src[0].VmName.Get()
+	cloned[0].GceVmName.SetTo("mutated")
+	name, ok := src[0].GceVmName.Get()
 	require.True(t, ok)
 	assert.Equal(t, "vm1", name)
+}
+
+func TestCloneVSANodes_DeepCopiesSanIps(t *testing.T) {
+	node := vcmserver.VsaNodeV1{GceVmName: vcmserver.NewOptString("vm1")}
+	node.IpConfig.SetTo(vcmserver.IpConfigV1{
+		DataLif: vcmserver.NewOptDataLifV1(vcmserver.DataLifV1{
+			SanIps: []string{"10.10.0.51"},
+		}),
+	})
+
+	cloned := cloneVSANodes([]vcmserver.VsaNodeV1{node})
+	require.Len(t, cloned, 1)
+	cloned[0].IpConfig.Value.DataLif.Value.SanIps[0] = "mutated"
+	assert.Equal(t, "10.10.0.51", node.IpConfig.Value.DataLif.Value.SanIps[0])
+}
+
+func TestCloneGceDisks_PreservesEmptySlice(t *testing.T) {
+	assert.Nil(t, cloneGceDisks(nil))
+
+	empty := []vcmserver.GceDiskV1{}
+	cloned := cloneGceDisks(empty)
+	require.NotNil(t, cloned)
+	assert.Empty(t, cloned)
+
+	src := []vcmserver.GceDiskV1{{Name: vcmserver.NewOptString("disk-1")}}
+	cloned = cloneGceDisks(src)
+	require.Len(t, cloned, 1)
+	cloned[0].Name.SetTo("mutated")
+	name, ok := src[0].Name.Get()
+	require.True(t, ok)
+	assert.Equal(t, "disk-1", name)
 }
 
 func TestToVCMOntapCredentials_PasswordAuthUsesPasswordSecret(t *testing.T) {
@@ -891,7 +918,7 @@ func TestStore_Apply_EmptyNodesClearsStoredNodes(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.Nodes = []vcmserver.VsaNodeV1{{VmName: vcmserver.NewOptString("vm1")}}
+		layout.Nodes = []vcmserver.VsaNodeV1{{GceVmName: vcmserver.NewOptString("vm1")}}
 	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })

@@ -14,43 +14,6 @@ func (s *ErrorResponseV1StatusCode) Error() string {
 	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
 }
 
-// Ref: #/components/schemas/AttachedDisk_v1
-type AttachedDiskV1 struct {
-	DiskName  OptString `json:"diskName"`
-	GceDiskId OptString `json:"gceDiskId"`
-	SizeBytes OptInt64  `json:"sizeBytes"`
-}
-
-// GetDiskName returns the value of DiskName.
-func (s *AttachedDiskV1) GetDiskName() OptString {
-	return s.DiskName
-}
-
-// GetGceDiskId returns the value of GceDiskId.
-func (s *AttachedDiskV1) GetGceDiskId() OptString {
-	return s.GceDiskId
-}
-
-// GetSizeBytes returns the value of SizeBytes.
-func (s *AttachedDiskV1) GetSizeBytes() OptInt64 {
-	return s.SizeBytes
-}
-
-// SetDiskName sets the value of DiskName.
-func (s *AttachedDiskV1) SetDiskName(val OptString) {
-	s.DiskName = val
-}
-
-// SetGceDiskId sets the value of GceDiskId.
-func (s *AttachedDiskV1) SetGceDiskId(val OptString) {
-	s.GceDiskId = val
-}
-
-// SetSizeBytes sets the value of SizeBytes.
-func (s *AttachedDiskV1) SetSizeBytes(val OptInt64) {
-	s.SizeBytes = val
-}
-
 // Ref: #/components/schemas/AutoTieringConfig_v1
 type AutoTieringConfigV1 struct {
 	AutoTierBucketName OptString `json:"autoTierBucketName"`
@@ -250,13 +213,23 @@ type ClusterCreateV1InternalServerError ErrorResponseV1
 func (*ClusterCreateV1InternalServerError) clusterCreateV1Res() {}
 
 // Volatile physical and operational cluster topology.
+// Every field is optional here because this schema is shared with
+// clusterConfig.actualLayout, where CLH pushes the layout incrementally
+// and a partial config must still be accepted. On output VCM always
+// populates each field, substituting an empty value when it is not yet
+// known, so consumers can rely on every key being present.
 // Ref: #/components/schemas/ClusterLayout_v1
 type ClusterLayoutV1 struct {
-	Nodes            []VsaNodeV1   `json:"nodes"`
-	IpConfig         OptIpConfigV1 `json:"ipConfig"`
-	ActiveZone       OptString     `json:"activeZone"`
-	StandbyZone      OptString     `json:"standbyZone"`
-	ForwardingRuleIp OptString     `json:"forwardingRuleIp"`
+	// The nodes that make up the cluster.
+	Nodes []VsaNodeV1 `json:"nodes"`
+	// Every disk used in the VSA cluster, of all types (boot, data, ...).
+	// Flat across the cluster rather than per node; each entry carries its
+	// own location.
+	Disks []GceDiskV1 `json:"disks"`
+	// Which of the seed zones currently holds the active node.
+	ActiveZone OptString `json:"activeZone"`
+	// The seed zone currently holding the standby node.
+	StandbyZone OptString `json:"standbyZone"`
 }
 
 // GetNodes returns the value of Nodes.
@@ -264,9 +237,9 @@ func (s *ClusterLayoutV1) GetNodes() []VsaNodeV1 {
 	return s.Nodes
 }
 
-// GetIpConfig returns the value of IpConfig.
-func (s *ClusterLayoutV1) GetIpConfig() OptIpConfigV1 {
-	return s.IpConfig
+// GetDisks returns the value of Disks.
+func (s *ClusterLayoutV1) GetDisks() []GceDiskV1 {
+	return s.Disks
 }
 
 // GetActiveZone returns the value of ActiveZone.
@@ -279,19 +252,14 @@ func (s *ClusterLayoutV1) GetStandbyZone() OptString {
 	return s.StandbyZone
 }
 
-// GetForwardingRuleIp returns the value of ForwardingRuleIp.
-func (s *ClusterLayoutV1) GetForwardingRuleIp() OptString {
-	return s.ForwardingRuleIp
-}
-
 // SetNodes sets the value of Nodes.
 func (s *ClusterLayoutV1) SetNodes(val []VsaNodeV1) {
 	s.Nodes = val
 }
 
-// SetIpConfig sets the value of IpConfig.
-func (s *ClusterLayoutV1) SetIpConfig(val OptIpConfigV1) {
-	s.IpConfig = val
+// SetDisks sets the value of Disks.
+func (s *ClusterLayoutV1) SetDisks(val []GceDiskV1) {
+	s.Disks = val
 }
 
 // SetActiveZone sets the value of ActiveZone.
@@ -302,11 +270,6 @@ func (s *ClusterLayoutV1) SetActiveZone(val OptString) {
 // SetStandbyZone sets the value of StandbyZone.
 func (s *ClusterLayoutV1) SetStandbyZone(val OptString) {
 	s.StandbyZone = val
-}
-
-// SetForwardingRuleIp sets the value of ForwardingRuleIp.
-func (s *ClusterLayoutV1) SetForwardingRuleIp(val OptString) {
-	s.ForwardingRuleIp = val
 }
 
 // CLH-computed technical blueprint stored for future VCM use.
@@ -505,38 +468,19 @@ func (s *ClusterShapeV1Mode) UnmarshalText(data []byte) error {
 	}
 }
 
-// Create-cluster request. The cluster resource carries only the
-// CLH-computed shape; identity, zones, networking, projects and ONTAP
+// ONTAP cluster resource, and the create-cluster request body.
+// clusterShape is the CLH-computed technical blueprint for the cluster to
+// provision; clusterLayout is the resulting topology, which VCM owns once
+// the cluster exists. Identity, zones, networking, projects and ONTAP
 // credentials are resolved from the configuration previously pushed via
-// POST /v1/config. requestId and deadline are request-level controls that
-// are not part of the cluster resource itself.
+// POST /v1/config, and requestId and timeout are request-level controls
+// passed as query parameters rather than fields of this resource.
 // Ref: #/components/schemas/Cluster_v1
 type ClusterV1 struct {
-	// Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
-	// Generated by CLH before the first attempt and reused for every retry
-	// of the same logical create-cluster request. Returned as the
-	// operationId in the 202 response; poll
-	// GET /v1/operations/{operationId}.
-	RequestId string `json:"requestId"`
-	// Absolute UTC (RFC 3339) time by which this create-cluster request
-	// must complete. VCM rejects a request whose deadline is already in
-	// the past and stops work with a deadline-exceeded error once it
-	// elapses.
-	Deadline     time.Time      `json:"deadline"`
 	ClusterShape ClusterShapeV1 `json:"clusterShape"`
 	// Volatile physical and operational topology. Read-only: VCM owns this
 	// once the cluster exists, and it is ignored on input.
 	ClusterLayout OptClusterLayoutV1 `json:"clusterLayout"`
-}
-
-// GetRequestId returns the value of RequestId.
-func (s *ClusterV1) GetRequestId() string {
-	return s.RequestId
-}
-
-// GetDeadline returns the value of Deadline.
-func (s *ClusterV1) GetDeadline() time.Time {
-	return s.Deadline
 }
 
 // GetClusterShape returns the value of ClusterShape.
@@ -547,16 +491,6 @@ func (s *ClusterV1) GetClusterShape() ClusterShapeV1 {
 // GetClusterLayout returns the value of ClusterLayout.
 func (s *ClusterV1) GetClusterLayout() OptClusterLayoutV1 {
 	return s.ClusterLayout
-}
-
-// SetRequestId sets the value of RequestId.
-func (s *ClusterV1) SetRequestId(val string) {
-	s.RequestId = val
-}
-
-// SetDeadline sets the value of Deadline.
-func (s *ClusterV1) SetDeadline(val time.Time) {
-	s.Deadline = val
 }
 
 // SetClusterShape sets the value of ClusterShape.
@@ -610,33 +544,35 @@ func (s *DailyScheduleV1) SetMinute(val OptFloat64) {
 	s.Minute = val
 }
 
-// SVM data-serving LIF IPs.
+// SVM data-serving LIF IPs. These are SVM-scoped rather than node-scoped,
+// so every node reports the same set.
 // Ref: #/components/schemas/DataLif_v1
 type DataLifV1 struct {
-	// Internal load-balancer NAS LIF IP.
-	Ilbnas OptString `json:"ilbnas"`
-	// SAN LIF IPs (two entries).
-	San []string `json:"san"`
+	// Internal load-balancer NAS LIF IP, used for serving NAS data traffic (NFS/SMB) through a Google
+	// Cloud ILB.
+	NasIlbIp OptString `json:"nasIlbIp"`
+	// SAN LIF IPs, used for serving block-level (iSCSI) traffic.
+	SanIps []string `json:"sanIps"`
 }
 
-// GetIlbnas returns the value of Ilbnas.
-func (s *DataLifV1) GetIlbnas() OptString {
-	return s.Ilbnas
+// GetNasIlbIp returns the value of NasIlbIp.
+func (s *DataLifV1) GetNasIlbIp() OptString {
+	return s.NasIlbIp
 }
 
-// GetSan returns the value of San.
-func (s *DataLifV1) GetSan() []string {
-	return s.San
+// GetSanIps returns the value of SanIps.
+func (s *DataLifV1) GetSanIps() []string {
+	return s.SanIps
 }
 
-// SetIlbnas sets the value of Ilbnas.
-func (s *DataLifV1) SetIlbnas(val OptString) {
-	s.Ilbnas = val
+// SetNasIlbIp sets the value of NasIlbIp.
+func (s *DataLifV1) SetNasIlbIp(val OptString) {
+	s.NasIlbIp = val
 }
 
-// SetSan sets the value of San.
-func (s *DataLifV1) SetSan(val []string) {
-	s.San = val
+// SetSanIps sets the value of SanIps.
+func (s *DataLifV1) SetSanIps(val []string) {
+	s.SanIps = val
 }
 
 // Ref: #/components/schemas/ErrorResponse_v1
@@ -721,98 +657,59 @@ func (s *ExportPolicyV1) SetRules(val []SimpleExportPolicyRuleV1) {
 	s.Rules = val
 }
 
-// Per-interface gateway IPs for the pool network.
-// Ref: #/components/schemas/Gateways_v1
-type GatewaysV1 struct {
-	Clus             OptString `json:"clus"`
-	Ic               OptString `json:"ic"`
-	Intercluster     OptString `json:"intercluster"`
-	Nodemgmt         OptString `json:"nodemgmt"`
-	Nodemgmtinternal OptString `json:"nodemgmtinternal"`
-	Rsm              OptString `json:"rsm"`
-	Svm              OptString `json:"svm"`
-	// Gateway for the cluster management network (empty when unused).
-	ClusterMgmtGateway OptString `json:"clusterMgmtGateway"`
+// Ref: #/components/schemas/GceDisk_v1
+type GceDiskV1 struct {
+	Name OptString `json:"name"`
+	// Server-assigned GCE disk ID, distinct from name which is the
+	// caller-chosen disk name.
+	// Reserved: reported as an empty string until the disk ID is
+	// available for provisioned disks.
+	GceDiskId OptString `json:"gceDiskId"`
+	// Disk size in bytes, string-encoded per the proto3 JSON mapping for
+	// 64-bit integers.
+	SizeBytes OptStringInt64 `json:"sizeBytes"`
+	// Zone the disk lives in, used for asset location reporting.
+	Location OptString `json:"location"`
 }
 
-// GetClus returns the value of Clus.
-func (s *GatewaysV1) GetClus() OptString {
-	return s.Clus
+// GetName returns the value of Name.
+func (s *GceDiskV1) GetName() OptString {
+	return s.Name
 }
 
-// GetIc returns the value of Ic.
-func (s *GatewaysV1) GetIc() OptString {
-	return s.Ic
+// GetGceDiskId returns the value of GceDiskId.
+func (s *GceDiskV1) GetGceDiskId() OptString {
+	return s.GceDiskId
 }
 
-// GetIntercluster returns the value of Intercluster.
-func (s *GatewaysV1) GetIntercluster() OptString {
-	return s.Intercluster
+// GetSizeBytes returns the value of SizeBytes.
+func (s *GceDiskV1) GetSizeBytes() OptStringInt64 {
+	return s.SizeBytes
 }
 
-// GetNodemgmt returns the value of Nodemgmt.
-func (s *GatewaysV1) GetNodemgmt() OptString {
-	return s.Nodemgmt
+// GetLocation returns the value of Location.
+func (s *GceDiskV1) GetLocation() OptString {
+	return s.Location
 }
 
-// GetNodemgmtinternal returns the value of Nodemgmtinternal.
-func (s *GatewaysV1) GetNodemgmtinternal() OptString {
-	return s.Nodemgmtinternal
+// SetName sets the value of Name.
+func (s *GceDiskV1) SetName(val OptString) {
+	s.Name = val
 }
 
-// GetRsm returns the value of Rsm.
-func (s *GatewaysV1) GetRsm() OptString {
-	return s.Rsm
+// SetGceDiskId sets the value of GceDiskId.
+func (s *GceDiskV1) SetGceDiskId(val OptString) {
+	s.GceDiskId = val
 }
 
-// GetSvm returns the value of Svm.
-func (s *GatewaysV1) GetSvm() OptString {
-	return s.Svm
+// SetSizeBytes sets the value of SizeBytes.
+func (s *GceDiskV1) SetSizeBytes(val OptStringInt64) {
+	s.SizeBytes = val
 }
 
-// GetClusterMgmtGateway returns the value of ClusterMgmtGateway.
-func (s *GatewaysV1) GetClusterMgmtGateway() OptString {
-	return s.ClusterMgmtGateway
-}
-
-// SetClus sets the value of Clus.
-func (s *GatewaysV1) SetClus(val OptString) {
-	s.Clus = val
-}
-
-// SetIc sets the value of Ic.
-func (s *GatewaysV1) SetIc(val OptString) {
-	s.Ic = val
-}
-
-// SetIntercluster sets the value of Intercluster.
-func (s *GatewaysV1) SetIntercluster(val OptString) {
-	s.Intercluster = val
-}
-
-// SetNodemgmt sets the value of Nodemgmt.
-func (s *GatewaysV1) SetNodemgmt(val OptString) {
-	s.Nodemgmt = val
-}
-
-// SetNodemgmtinternal sets the value of Nodemgmtinternal.
-func (s *GatewaysV1) SetNodemgmtinternal(val OptString) {
-	s.Nodemgmtinternal = val
-}
-
-// SetRsm sets the value of Rsm.
-func (s *GatewaysV1) SetRsm(val OptString) {
-	s.Rsm = val
-}
-
-// SetSvm sets the value of Svm.
-func (s *GatewaysV1) SetSvm(val OptString) {
-	s.Svm = val
-}
-
-// SetClusterMgmtGateway sets the value of ClusterMgmtGateway.
-func (s *GatewaysV1) SetClusterMgmtGateway(val OptString) {
-	s.ClusterMgmtGateway = val
+// SetLocation sets the value of Location.
+func (s *GceDiskV1) SetLocation(val OptString) {
+	s.Location = val
 }
 
 // GetReadyOK is response for GetReady operation.
@@ -1060,26 +957,46 @@ func (s *InfrastructureSpecV1) SetDataDiskCount(val OptInt32) {
 	s.DataDiskCount = val
 }
 
-// Read-only runtime network addressing for the pool - per-interface gateway IPs and LIF IPs.
+// Runtime LIF addressing for a single node.
 // Ref: #/components/schemas/IpConfig_v1
 type IpConfigV1 struct {
-	// Per-interface gateway IPs.
-	Gateways OptGatewaysV1 `json:"gateways"`
-	// Per-VM LIF IPs (distinct from the gateway IPs). One entry per VSA VM - vm1, vm2, ... up to vm6 for
-	// large deployments.
-	VmLifs []VmLifV1 `json:"vmLifs"`
+	// Cluster LIF IP address for this node.
+	ClusterManagementLifIp OptString `json:"clusterManagementLifIp"`
+	// HA interconnect LIF IP address for this node.
+	HaInterconnectLifIp OptString `json:"haInterconnectLifIp"`
+	// Intercluster LIF IP address for this node, used for SnapMirror traffic such as replication.
+	InterclusterLifIp OptString `json:"interclusterLifIp"`
+	// Node management LIF IP address for this node.
+	NodemgmtLifIp OptString `json:"nodemgmtLifIp"`
+	// RAID SyncMirror (RSM) LIF IP. For the mediator node this is its only LIF.
+	RsmLifIp OptString `json:"rsmLifIp"`
 	// SVM data-serving LIF IPs (ILB NAS IP and SAN IPs).
 	DataLif OptDataLifV1 `json:"dataLif"`
 }
 
-// GetGateways returns the value of Gateways.
-func (s *IpConfigV1) GetGateways() OptGatewaysV1 {
-	return s.Gateways
+// GetClusterManagementLifIp returns the value of ClusterManagementLifIp.
+func (s *IpConfigV1) GetClusterManagementLifIp() OptString {
+	return s.ClusterManagementLifIp
 }
 
-// GetVmLifs returns the value of VmLifs.
-func (s *IpConfigV1) GetVmLifs() []VmLifV1 {
-	return s.VmLifs
+// GetHaInterconnectLifIp returns the value of HaInterconnectLifIp.
+func (s *IpConfigV1) GetHaInterconnectLifIp() OptString {
+	return s.HaInterconnectLifIp
+}
+
+// GetInterclusterLifIp returns the value of InterclusterLifIp.
+func (s *IpConfigV1) GetInterclusterLifIp() OptString {
+	return s.InterclusterLifIp
+}
+
+// GetNodemgmtLifIp returns the value of NodemgmtLifIp.
+func (s *IpConfigV1) GetNodemgmtLifIp() OptString {
+	return s.NodemgmtLifIp
+}
+
+// GetRsmLifIp returns the value of RsmLifIp.
+func (s *IpConfigV1) GetRsmLifIp() OptString {
+	return s.RsmLifIp
 }
 
 // GetDataLif returns the value of DataLif.
@@ -1087,14 +1004,29 @@ func (s *IpConfigV1) GetDataLif() OptDataLifV1 {
 	return s.DataLif
 }
 
-// SetGateways sets the value of Gateways.
-func (s *IpConfigV1) SetGateways(val OptGatewaysV1) {
-	s.Gateways = val
+// SetClusterManagementLifIp sets the value of ClusterManagementLifIp.
+func (s *IpConfigV1) SetClusterManagementLifIp(val OptString) {
+	s.ClusterManagementLifIp = val
 }
 
-// SetVmLifs sets the value of VmLifs.
-func (s *IpConfigV1) SetVmLifs(val []VmLifV1) {
-	s.VmLifs = val
+// SetHaInterconnectLifIp sets the value of HaInterconnectLifIp.
+func (s *IpConfigV1) SetHaInterconnectLifIp(val OptString) {
+	s.HaInterconnectLifIp = val
+}
+
+// SetInterclusterLifIp sets the value of InterclusterLifIp.
+func (s *IpConfigV1) SetInterclusterLifIp(val OptString) {
+	s.InterclusterLifIp = val
+}
+
+// SetNodemgmtLifIp sets the value of NodemgmtLifIp.
+func (s *IpConfigV1) SetNodemgmtLifIp(val OptString) {
+	s.NodemgmtLifIp = val
+}
+
+// SetRsmLifIp sets the value of RsmLifIp.
+func (s *IpConfigV1) SetRsmLifIp(val OptString) {
+	s.RsmLifIp = val
 }
 
 // SetDataLif sets the value of DataLif.
@@ -1507,14 +1439,14 @@ func (s *OntapCredentialV1Role) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/OntapModeRbac_v1
 type OntapModeRbacV1 struct {
 	// GCS URL of the RBAC bootstrap file.
-	RbacFileURL OptString `json:"rbacFileURL"`
+	RbacFileUrl OptString `json:"rbacFileUrl"`
 	// SHA-256 checksum of the RBAC bootstrap file.
 	RbacFileCheckSum OptString `json:"rbacFileCheckSum"`
 }
 
-// GetRbacFileURL returns the value of RbacFileURL.
-func (s *OntapModeRbacV1) GetRbacFileURL() OptString {
-	return s.RbacFileURL
+// GetRbacFileUrl returns the value of RbacFileUrl.
+func (s *OntapModeRbacV1) GetRbacFileUrl() OptString {
+	return s.RbacFileUrl
 }
 
 // GetRbacFileCheckSum returns the value of RbacFileCheckSum.
@@ -1522,9 +1454,9 @@ func (s *OntapModeRbacV1) GetRbacFileCheckSum() OptString {
 	return s.RbacFileCheckSum
 }
 
-// SetRbacFileURL sets the value of RbacFileURL.
-func (s *OntapModeRbacV1) SetRbacFileURL(val OptString) {
-	s.RbacFileURL = val
+// SetRbacFileUrl sets the value of RbacFileUrl.
+func (s *OntapModeRbacV1) SetRbacFileUrl(val OptString) {
+	s.RbacFileUrl = val
 }
 
 // SetRbacFileCheckSum sets the value of RbacFileCheckSum.
@@ -2266,52 +2198,6 @@ func (o OptFloat64) Get() (v float64, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFloat64) Or(d float64) float64 {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
-// NewOptGatewaysV1 returns new OptGatewaysV1 with value set to v.
-func NewOptGatewaysV1(v GatewaysV1) OptGatewaysV1 {
-	return OptGatewaysV1{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptGatewaysV1 is optional GatewaysV1.
-type OptGatewaysV1 struct {
-	Value GatewaysV1
-	Set   bool
-}
-
-// IsSet returns true if OptGatewaysV1 was set.
-func (o OptGatewaysV1) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptGatewaysV1) Reset() {
-	var v GatewaysV1
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptGatewaysV1) SetTo(v GatewaysV1) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptGatewaysV1) Get() (v GatewaysV1, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptGatewaysV1) Or(d GatewaysV1) GatewaysV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -3461,6 +3347,52 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
+// NewOptStringInt64 returns new OptStringInt64 with value set to v.
+func NewOptStringInt64(v int64) OptStringInt64 {
+	return OptStringInt64{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptStringInt64 is optional int64.
+type OptStringInt64 struct {
+	Value int64
+	Set   bool
+}
+
+// IsSet returns true if OptStringInt64 was set.
+func (o OptStringInt64) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptStringInt64) Reset() {
+	var v int64
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptStringInt64) SetTo(v int64) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptStringInt64) Get() (v int64, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptStringInt64) Or(d int64) int64 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptVolumeReadV1SecurityStyle returns new OptVolumeReadV1SecurityStyle with value set to v.
 func NewOptVolumeReadV1SecurityStyle(v VolumeReadV1SecurityStyle) OptVolumeReadV1SecurityStyle {
 	return OptVolumeReadV1SecurityStyle{
@@ -3704,7 +3636,7 @@ type SeedConfigV1 struct {
 	NetConfig               OptNetConfigV1      `json:"netConfig"`
 	OntapCredentials        []OntapCredentialV1 `json:"ontapCredentials"`
 	CaUri                   OptString           `json:"caUri"`
-	OntapLicenseSecretUri   OptString           `json:"ontapLicenseSecretUri"`
+	OntapLicenseSecret      OptString           `json:"ontapLicenseSecret"`
 	ServiceAccountEmail     OptString           `json:"serviceAccountEmail"`
 }
 
@@ -3758,9 +3690,9 @@ func (s *SeedConfigV1) GetCaUri() OptString {
 	return s.CaUri
 }
 
-// GetOntapLicenseSecretUri returns the value of OntapLicenseSecretUri.
-func (s *SeedConfigV1) GetOntapLicenseSecretUri() OptString {
-	return s.OntapLicenseSecretUri
+// GetOntapLicenseSecret returns the value of OntapLicenseSecret.
+func (s *SeedConfigV1) GetOntapLicenseSecret() OptString {
+	return s.OntapLicenseSecret
 }
 
 // GetServiceAccountEmail returns the value of ServiceAccountEmail.
@@ -3818,9 +3750,9 @@ func (s *SeedConfigV1) SetCaUri(val OptString) {
 	s.CaUri = val
 }
 
-// SetOntapLicenseSecretUri sets the value of OntapLicenseSecretUri.
-func (s *SeedConfigV1) SetOntapLicenseSecretUri(val OptString) {
-	s.OntapLicenseSecretUri = val
+// SetOntapLicenseSecret sets the value of OntapLicenseSecret.
+func (s *SeedConfigV1) SetOntapLicenseSecret(val OptString) {
+	s.OntapLicenseSecret = val
 }
 
 // SetServiceAccountEmail sets the value of ServiceAccountEmail.
@@ -4463,90 +4395,6 @@ type V1UpdateVolumeUnauthorized ErrorResponseV1
 
 func (*V1UpdateVolumeUnauthorized) v1UpdateVolumeRes() {}
 
-// Per-interface LIF IPs for a single node - a VSA VM (vm1, vm2, ...) or the mediator.
-// Ref: #/components/schemas/VmLif_v1
-type VmLifV1 struct {
-	// Node identifier - vm1, vm2, ... up to vm6, or mediator.
-	Name             OptString `json:"name"`
-	Clus             OptString `json:"clus"`
-	Ic               OptString `json:"ic"`
-	Intercluster     OptString `json:"intercluster"`
-	Nodemgmt         OptString `json:"nodemgmt"`
-	Nodemgmtinternal OptString `json:"nodemgmtinternal"`
-	// RSM LIF IP. For the mediator node this is its only LIF.
-	Rsm OptString `json:"rsm"`
-}
-
-// GetName returns the value of Name.
-func (s *VmLifV1) GetName() OptString {
-	return s.Name
-}
-
-// GetClus returns the value of Clus.
-func (s *VmLifV1) GetClus() OptString {
-	return s.Clus
-}
-
-// GetIc returns the value of Ic.
-func (s *VmLifV1) GetIc() OptString {
-	return s.Ic
-}
-
-// GetIntercluster returns the value of Intercluster.
-func (s *VmLifV1) GetIntercluster() OptString {
-	return s.Intercluster
-}
-
-// GetNodemgmt returns the value of Nodemgmt.
-func (s *VmLifV1) GetNodemgmt() OptString {
-	return s.Nodemgmt
-}
-
-// GetNodemgmtinternal returns the value of Nodemgmtinternal.
-func (s *VmLifV1) GetNodemgmtinternal() OptString {
-	return s.Nodemgmtinternal
-}
-
-// GetRsm returns the value of Rsm.
-func (s *VmLifV1) GetRsm() OptString {
-	return s.Rsm
-}
-
-// SetName sets the value of Name.
-func (s *VmLifV1) SetName(val OptString) {
-	s.Name = val
-}
-
-// SetClus sets the value of Clus.
-func (s *VmLifV1) SetClus(val OptString) {
-	s.Clus = val
-}
-
-// SetIc sets the value of Ic.
-func (s *VmLifV1) SetIc(val OptString) {
-	s.Ic = val
-}
-
-// SetIntercluster sets the value of Intercluster.
-func (s *VmLifV1) SetIntercluster(val OptString) {
-	s.Intercluster = val
-}
-
-// SetNodemgmt sets the value of Nodemgmt.
-func (s *VmLifV1) SetNodemgmt(val OptString) {
-	s.Nodemgmt = val
-}
-
-// SetNodemgmtinternal sets the value of Nodemgmtinternal.
-func (s *VmLifV1) SetNodemgmtinternal(val OptString) {
-	s.Nodemgmtinternal = val
-}
-
-// SetRsm sets the value of Rsm.
-func (s *VmLifV1) SetRsm(val OptString) {
-	s.Rsm = val
-}
-
 // Subset of volume fields returned by GET /v1/volumes/{name} and aligned with the
 // create-operation done payload. Values are sourced from a single ONTAP volume GET.
 // Ref: #/components/schemas/VolumeRead_v1
@@ -4943,16 +4791,21 @@ func (s *VolumeV1SecurityStyle) UnmarshalText(data []byte) error {
 
 // Ref: #/components/schemas/VsaNode_v1
 type VsaNodeV1 struct {
-	VmName           OptString        `json:"vmName"`
-	GceInstanceId    OptString        `json:"gceInstanceId"`
-	NodeManagementIp OptString        `json:"nodeManagementIp"`
-	VmSerialNumber   OptString        `json:"vmSerialNumber"`
-	Disks            []AttachedDiskV1 `json:"disks"`
+	GceVmName OptString `json:"gceVmName"`
+	// Numeric, server-assigned GCE instance ID, distinct from gceVmName
+	// which is the caller-chosen instance name.
+	// Reserved: reported as an empty string until the instance ID is
+	// available for provisioned nodes.
+	GceInstanceId    OptString `json:"gceInstanceId"`
+	NodeManagementIp OptString `json:"nodeManagementIp"`
+	// Zone the VM runs in, used for asset location reporting.
+	GceVmLocation OptString     `json:"gceVmLocation"`
+	IpConfig      OptIpConfigV1 `json:"ipConfig"`
 }
 
-// GetVmName returns the value of VmName.
-func (s *VsaNodeV1) GetVmName() OptString {
-	return s.VmName
+// GetGceVmName returns the value of GceVmName.
+func (s *VsaNodeV1) GetGceVmName() OptString {
+	return s.GceVmName
 }
 
 // GetGceInstanceId returns the value of GceInstanceId.
@@ -4965,19 +4818,19 @@ func (s *VsaNodeV1) GetNodeManagementIp() OptString {
 	return s.NodeManagementIp
 }
 
-// GetVmSerialNumber returns the value of VmSerialNumber.
-func (s *VsaNodeV1) GetVmSerialNumber() OptString {
-	return s.VmSerialNumber
+// GetGceVmLocation returns the value of GceVmLocation.
+func (s *VsaNodeV1) GetGceVmLocation() OptString {
+	return s.GceVmLocation
 }
 
-// GetDisks returns the value of Disks.
-func (s *VsaNodeV1) GetDisks() []AttachedDiskV1 {
-	return s.Disks
+// GetIpConfig returns the value of IpConfig.
+func (s *VsaNodeV1) GetIpConfig() OptIpConfigV1 {
+	return s.IpConfig
 }
 
-// SetVmName sets the value of VmName.
-func (s *VsaNodeV1) SetVmName(val OptString) {
-	s.VmName = val
+// SetGceVmName sets the value of GceVmName.
+func (s *VsaNodeV1) SetGceVmName(val OptString) {
+	s.GceVmName = val
 }
 
 // SetGceInstanceId sets the value of GceInstanceId.
@@ -4990,14 +4843,14 @@ func (s *VsaNodeV1) SetNodeManagementIp(val OptString) {
 	s.NodeManagementIp = val
 }
 
-// SetVmSerialNumber sets the value of VmSerialNumber.
-func (s *VsaNodeV1) SetVmSerialNumber(val OptString) {
-	s.VmSerialNumber = val
+// SetGceVmLocation sets the value of GceVmLocation.
+func (s *VsaNodeV1) SetGceVmLocation(val OptString) {
+	s.GceVmLocation = val
 }
 
-// SetDisks sets the value of Disks.
-func (s *VsaNodeV1) SetDisks(val []AttachedDiskV1) {
-	s.Disks = val
+// SetIpConfig sets the value of IpConfig.
+func (s *VsaNodeV1) SetIpConfig(val OptIpConfigV1) {
+	s.IpConfig = val
 }
 
 // If enabled (snapshotsToKeep > 0), make a snapshot every week at a specific day or days, defaults

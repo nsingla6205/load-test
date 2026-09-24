@@ -52,6 +52,16 @@ func defaultOntapCredentials(passwordSecretID string) []vcmserver.OntapCredentia
 	}
 }
 
+// layoutNode builds a layout node carrying the identity and management
+// addressing NodeProviderInput resolves ONTAP endpoints from.
+func layoutNode(name, nodeManagementIP string) vcmserver.VsaNodeV1 {
+	node := vcmserver.VsaNodeV1{GceVmName: vcmserver.NewOptString(name)}
+	if nodeManagementIP != "" {
+		node.NodeManagementIp = vcmserver.NewOptString(nodeManagementIP)
+	}
+	return node
+}
+
 func configuredStore(t *testing.T, mutate func(*vcmserver.SetConfigRequestV1)) *Store {
 	t.Helper()
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
@@ -61,14 +71,7 @@ func configuredStore(t *testing.T, mutate func(*vcmserver.SetConfigRequestV1)) *
 		seed.OntapCredentials = defaultOntapCredentials("secret-1")
 	})
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-		layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{
-					Name:     vcmserver.NewOptString("vm1"),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-				},
-			},
-		})
+		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")}
 	})
 	if mutate != nil {
 		mutate(req)
@@ -163,24 +166,17 @@ func TestNodeProviderInput_DefaultsToCertificateWhenAuthTypeUnset(t *testing.T) 
 func TestNodeProviderInput_SkipsMediatorAndEmptyLifs(t *testing.T) {
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
 		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-				VmLifs: []vcmserver.VmLifV1{
-					{
-						Name:     vcmserver.NewOptString("vm1"),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-					},
-					{
-						Name:     vcmserver.NewOptString("vm2"),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.6"),
-					},
-					{
-						Name: vcmserver.NewOptString("mediator"),
-						Rsm:  vcmserver.NewOptString("198.18.16.41"),
-					},
-					{Name: vcmserver.NewOptString("")},
-					{Name: vcmserver.NewOptString("vm3")},
-				},
+			mediator := layoutNode("mediator", "")
+			mediator.IpConfig.SetTo(vcmserver.IpConfigV1{
+				RsmLifIp: vcmserver.NewOptString("198.18.16.41"),
 			})
+			layout.Nodes = []vcmserver.VsaNodeV1{
+				layoutNode("vm1", "198.18.0.5"),
+				layoutNode("vm2", "198.18.0.6"),
+				mediator,
+				layoutNode("", ""),
+				layoutNode("vm3", ""),
+			}
 		})
 	})
 
@@ -194,22 +190,11 @@ func TestNodeProviderInput_SkipsMediatorAndEmptyLifs(t *testing.T) {
 func TestNodeProviderInput_TrimsLifNames(t *testing.T) {
 	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
 		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-				VmLifs: []vcmserver.VmLifV1{
-					{
-						Name:     vcmserver.NewOptString("  vm1  "),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-					},
-					{
-						Name:     vcmserver.NewOptString("  mediator  "),
-						Nodemgmt: vcmserver.NewOptString("198.18.16.41"),
-					},
-					{
-						Name:     vcmserver.NewOptString("   "),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.7"),
-					},
-				},
-			})
+			layout.Nodes = []vcmserver.VsaNodeV1{
+				layoutNode("  vm1  ", "198.18.0.5"),
+				layoutNode("  mediator  ", "198.18.16.41"),
+				layoutNode("   ", "198.18.0.7"),
+			}
 		})
 	})
 
@@ -274,7 +259,7 @@ func TestNodeProviderInput_EmptyDeploymentId(t *testing.T) {
 	assert.Contains(t, err.Error(), "deploymentId")
 }
 
-func TestNodeProviderInput_MissingIpConfig(t *testing.T) {
+func TestNodeProviderInput_MissingLayoutNodes(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
 	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
@@ -287,7 +272,7 @@ func TestNodeProviderInput_MissingIpConfig(t *testing.T) {
 	_, err := store.NodeProviderInput()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
-	assert.Contains(t, err.Error(), "ipConfig")
+	assert.Contains(t, err.Error(), "no nodes")
 }
 
 func TestNodeProviderInput_CertificateRequiresCertSecretId(t *testing.T) {
@@ -328,18 +313,10 @@ func TestNodeProviderInput_CertificateAuth_AppliesDialWorkaround(t *testing.T) {
 			}
 		})
 		mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
-			layout.IpConfig.SetTo(vcmserver.IpConfigV1{
-				VmLifs: []vcmserver.VmLifV1{
-					{
-						Name:     vcmserver.NewOptString("vm1"),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-					},
-					{
-						Name:     vcmserver.NewOptString("vm2"),
-						Nodemgmt: vcmserver.NewOptString("198.18.0.6"),
-					},
-				},
-			})
+			layout.Nodes = []vcmserver.VsaNodeV1{
+				layoutNode("vm1", "198.18.0.5"),
+				layoutNode("vm2", "198.18.0.6"),
+			}
 		})
 	})
 
@@ -462,43 +439,48 @@ func TestPoolCredentialsFromSetConfig(t *testing.T) {
 	})
 }
 
-func TestClusterNodesFromIpConfig(t *testing.T) {
-	t.Run("unset ipConfig returns error", func(t *testing.T) {
-		_, err := clusterNodesFromIpConfig(vcmserver.OptIpConfigV1{})
+func TestClusterNodesFromLayout(t *testing.T) {
+	t.Run("layout without nodes returns error", func(t *testing.T) {
+		_, err := clusterNodesFromLayout(vcmserver.ClusterLayoutV1{})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "ipConfig")
+		assert.Contains(t, err.Error(), "no nodes")
 	})
 
-	t.Run("no nodemgmt LIFs returns error", func(t *testing.T) {
-		opt := vcmserver.OptIpConfigV1{}
-		opt.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{Name: vcmserver.NewOptString("mediator"), Rsm: vcmserver.NewOptString("198.18.16.41")},
-				{Name: vcmserver.NewOptString("vm1")},
-			},
+	t.Run("no management addresses returns error", func(t *testing.T) {
+		mediator := layoutNode("mediator", "")
+		mediator.IpConfig.SetTo(vcmserver.IpConfigV1{
+			RsmLifIp: vcmserver.NewOptString("198.18.16.41"),
 		})
 
-		_, err := clusterNodesFromIpConfig(opt)
+		_, err := clusterNodesFromLayout(vcmserver.ClusterLayoutV1{
+			Nodes: []vcmserver.VsaNodeV1{mediator, layoutNode("vm1", "")},
+		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "nodemgmt LIF")
+		assert.Contains(t, err.Error(), "node management IP")
 	})
 
-	t.Run("builds nodes from nodemgmt addresses", func(t *testing.T) {
-		opt := vcmserver.OptIpConfigV1{}
-		opt.SetTo(vcmserver.IpConfigV1{
-			VmLifs: []vcmserver.VmLifV1{
-				{
-					Name:     vcmserver.NewOptString("vm1"),
-					Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
-				},
-			},
+	t.Run("builds nodes from node management addresses", func(t *testing.T) {
+		nodes, err := clusterNodesFromLayout(vcmserver.ClusterLayoutV1{
+			Nodes: []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")},
 		})
-
-		nodes, err := clusterNodesFromIpConfig(opt)
 		require.NoError(t, err)
 		require.Len(t, nodes, 1)
 		assert.Equal(t, "vm1", nodes[0].Name)
 		assert.Equal(t, "198.18.0.5", nodes[0].EndpointAddress)
+	})
+
+	t.Run("falls back to the nodemgmt LIF", func(t *testing.T) {
+		node := layoutNode("vm1", "")
+		node.IpConfig.SetTo(vcmserver.IpConfigV1{
+			NodemgmtLifIp: vcmserver.NewOptString("198.18.0.9"),
+		})
+
+		nodes, err := clusterNodesFromLayout(vcmserver.ClusterLayoutV1{
+			Nodes: []vcmserver.VsaNodeV1{node},
+		})
+		require.NoError(t, err)
+		require.Len(t, nodes, 1)
+		assert.Equal(t, "198.18.0.9", nodes[0].EndpointAddress)
 	})
 }
 
