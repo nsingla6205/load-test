@@ -529,12 +529,15 @@ func (d *DataStoreRepository) ListVolumesWithPagination(ctx context.Context, con
 	return _listVolumesWithDetailsPagination(d.db.ApplyFilter(conditions).Unscoped().GORM().WithContext(ctx), pagination)
 }
 
+// _listVolumesWithDetailsPagination paginates volumes with deterministic order by id
+// so OFFSET/LIMIT pages do not overlap when the planner changes row order between queries.
 func _listVolumesWithDetailsPagination(db *gorm.DB, pagination *dbutils.Pagination) ([]*datamodel.Volume, error) {
 	var volumes []*datamodel.Volume
 	err := db.Preload("Account").
 		Preload("Pool").
 		Preload("Pool.ActiveDirectory").
 		Preload("Svm").
+		Order("id").
 		Scopes(dbutils.Paginate(pagination)).
 		Find(&volumes).Error
 	if err != nil {

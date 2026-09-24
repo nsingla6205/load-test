@@ -3525,6 +3525,87 @@ func TestListVolumesWithPagination(t *testing.T) {
 		assert.Equal(tt, 5, len(resultVolumes), "Expected 5 volumes with large limit, got %v", len(resultVolumes))
 	})
 
+	t.Run("WhenVolumesExistPagesAreOrderedByIDWithoutOverlap", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		assert.NoError(tt, err, "Failed to create account")
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			Account:   account,
+		}
+		err = store.db.Create(pool).Error()
+		assert.NoError(tt, err, "Failed to create pool")
+
+		// Deliberately unsorted UUIDs so insertion/id order differs from uuid lexicographic order.
+		uuids := []string{"vol-uuid-c", "vol-uuid-a", "vol-uuid-e", "vol-uuid-b", "vol-uuid-d"}
+		createdIDs := make([]int64, 0, len(uuids))
+		for i, uuid := range uuids {
+			volume := &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{UUID: uuid},
+				Name:      fmt.Sprintf("test_volume_%d", i+1),
+				AccountID: account.ID,
+				Account:   account,
+				Pool:      pool,
+				PoolID:    pool.ID,
+			}
+			err = store.db.Create(volume).Error()
+			assert.NoError(tt, err, "Failed to create volume %s", uuid)
+			createdIDs = append(createdIDs, volume.ID)
+		}
+
+		conditions := [][]interface{}{
+			{"account_id = ?", account.ID},
+		}
+
+		page1, err := store.ListVolumesWithPagination(context.Background(), conditions, &dbutils.Pagination{Limit: 2, Offset: 0})
+		assert.NoError(tt, err)
+		require.Len(tt, page1, 2)
+		assert.Equal(tt, []int64{createdIDs[0], createdIDs[1]}, []int64{page1[0].ID, page1[1].ID})
+		assert.Equal(tt, []string{"vol-uuid-c", "vol-uuid-a"}, []string{page1[0].UUID, page1[1].UUID})
+
+		page2, err := store.ListVolumesWithPagination(context.Background(), conditions, &dbutils.Pagination{Limit: 2, Offset: 2})
+		assert.NoError(tt, err)
+		require.Len(tt, page2, 2)
+		assert.Equal(tt, []int64{createdIDs[2], createdIDs[3]}, []int64{page2[0].ID, page2[1].ID})
+		assert.Equal(tt, []string{"vol-uuid-e", "vol-uuid-b"}, []string{page2[0].UUID, page2[1].UUID})
+
+		page3, err := store.ListVolumesWithPagination(context.Background(), conditions, &dbutils.Pagination{Limit: 2, Offset: 4})
+		assert.NoError(tt, err)
+		require.Len(tt, page3, 1)
+		assert.Equal(tt, createdIDs[4], page3[0].ID)
+		assert.Equal(tt, "vol-uuid-d", page3[0].UUID)
+
+		// Consecutive pages are strictly increasing by id (pageN[last] < pageN+1[first]).
+		assert.Less(tt, page1[len(page1)-1].ID, page2[0].ID)
+		assert.Less(tt, page2[len(page2)-1].ID, page3[0].ID)
+
+		seen := map[string]bool{}
+		for _, page := range [][]*datamodel.Volume{page1, page2, page3} {
+			for _, volume := range page {
+				assert.False(tt, seen[volume.UUID], "volume %s appeared on more than one page", volume.UUID)
+				seen[volume.UUID] = true
+			}
+		}
+		assert.Equal(tt, 5, len(seen))
+	})
+
 	t.Run("WhenPaginationIsNil", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		assert.NoError(tt, err, "Failed to set up test database")

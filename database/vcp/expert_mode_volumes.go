@@ -338,7 +338,8 @@ func _getMultipleVolumesWithExpertMode(db *gorm.DB) ([]*datamodel.ExpertModeVolu
 	return expertModeVolumes, nil
 }
 
-// ListExpertModeVolumesWithPagination retrieves expert mode volumes matching the given conditions with pagination support
+// ListExpertModeVolumesWithPagination retrieves expert mode volumes matching the given conditions with pagination support.
+// Results are ordered by id so OFFSET/LIMIT pages remain stable across queries.
 func (d *DataStoreRepository) ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error) {
 	var volumes []*datamodel.ExpertModeVolumes
 
@@ -346,6 +347,7 @@ func (d *DataStoreRepository) ListExpertModeVolumesWithPagination(ctx context.Co
 		Preload("Account").
 		Preload("Pool").
 		Preload("Svm").
+		Order("id").
 		Scopes(dbutils.Paginate(pagination)).
 		Find(&volumes).Error
 	if err != nil {

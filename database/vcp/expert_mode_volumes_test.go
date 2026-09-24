@@ -2425,6 +2425,68 @@ func TestListExpertModeVolumesWithPagination_Success(t *testing.T) {
 	assert.True(t, found)
 }
 
+func TestListExpertModeVolumesWithPagination_OrderedByIDWithoutOverlap(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+	account, pool := createTestAccountAndPoolForExpertMode(t, store)
+	svmName := fmt.Sprintf("test-svm-%s", utils.GenerateRandomAlphanumeric(8))
+	svm := createTestSVMForExpertMode(t, store, pool.ID, account.ID, svmName, utils.RandomUUID())
+
+	// Deliberately unsorted UUIDs so insertion/id order differs from uuid lexicographic order.
+	uuids := []string{"em-vol-c", "em-vol-a", "em-vol-e", "em-vol-b", "em-vol-d"}
+	createdIDs := make([]int64, 0, len(uuids))
+	for _, uuid := range uuids {
+		vol := &datamodel.ExpertModeVolumes{
+			BaseModel:    datamodel.BaseModel{UUID: uuid},
+			Name:         fmt.Sprintf("pag-vol-%s", uuid),
+			SizeInBytes:  1099511627776,
+			PoolID:       pool.ID,
+			AccountID:    account.ID,
+			SvmID:        svm.ID,
+			Style:        "flexvol",
+			ExternalUUID: utils.RandomUUID(),
+			State:        datamodel.LifeCycleStateREADY,
+		}
+		created, err := store.CreateExpertModeVolume(ctx, vol)
+		assert.NoError(t, err)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	conditions := [][]interface{}{
+		{"account_id = ?", account.ID},
+	}
+	page1, err := store.ListExpertModeVolumesWithPagination(ctx, conditions, &dbutils.Pagination{Offset: 0, Limit: 2})
+	assert.NoError(t, err)
+	require.Len(t, page1, 2)
+	assert.Equal(t, []int64{createdIDs[0], createdIDs[1]}, []int64{page1[0].ID, page1[1].ID})
+	assert.Equal(t, []string{"em-vol-c", "em-vol-a"}, []string{page1[0].UUID, page1[1].UUID})
+
+	page2, err := store.ListExpertModeVolumesWithPagination(ctx, conditions, &dbutils.Pagination{Offset: 2, Limit: 2})
+	assert.NoError(t, err)
+	require.Len(t, page2, 2)
+	assert.Equal(t, []int64{createdIDs[2], createdIDs[3]}, []int64{page2[0].ID, page2[1].ID})
+	assert.Equal(t, []string{"em-vol-e", "em-vol-b"}, []string{page2[0].UUID, page2[1].UUID})
+
+	page3, err := store.ListExpertModeVolumesWithPagination(ctx, conditions, &dbutils.Pagination{Offset: 4, Limit: 2})
+	assert.NoError(t, err)
+	require.Len(t, page3, 1)
+	assert.Equal(t, createdIDs[4], page3[0].ID)
+	assert.Equal(t, "em-vol-d", page3[0].UUID)
+
+	// Consecutive pages are strictly increasing by id (pageN[last] < pageN+1[first]).
+	assert.Less(t, page1[len(page1)-1].ID, page2[0].ID)
+	assert.Less(t, page2[len(page2)-1].ID, page3[0].ID)
+
+	seen := map[string]bool{}
+	for _, page := range [][]*datamodel.ExpertModeVolumes{page1, page2, page3} {
+		for _, volume := range page {
+			assert.False(t, seen[volume.UUID], "volume %s appeared on more than one page", volume.UUID)
+			seen[volume.UUID] = true
+		}
+	}
+	assert.Equal(t, 5, len(seen))
+}
+
 func TestListExpertModeVolumesWithPagination_DBError(t *testing.T) {
 	db, err := SetupTestDB()
 	assert.NoError(t, err)
