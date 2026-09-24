@@ -123,7 +123,7 @@ spec:
             - name: PUSH_BATCH_SIZE
               value: "1000"
             - name: TELEMETRY_JOB_MAX_RETRY_PERFORMANCE
-              value: "5"
+              value: "0"
             - name: TELEMETRY_JOB_MAX_RETRY_USAGE
               value: "5"
             - name: TELEMETRY_JOB_MAX_RETRY_COLLECTION

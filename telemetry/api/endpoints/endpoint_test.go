@@ -2,6 +2,7 @@ package api
 
 import (
 	context "context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -9,9 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	metricsdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	vcpdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/api/telemetry-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/jobs"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
 	procMock "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/processor"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
@@ -21,6 +24,11 @@ import (
 // MockVCPProcessor is a mock implementation that satisfies the VCPProcessor interface
 type MockVCPProcessor struct {
 	*procMock.MockProcessor
+}
+
+func (m *MockVCPProcessor) ProcessPerformanceMetrics(ctx context.Context, timestamp time.Time) error {
+	args := m.Called(ctx, timestamp)
+	return args.Error(0)
 }
 
 // ProcessUsageMetrics implements the missing interface method
@@ -73,9 +81,23 @@ func Test_ReturnsAcceptedResponseForPerformanceEndpoint(t *testing.T) {
 		metricsProcessor:   procMock.MetricsProcessor{VCPProcessor: mockVCPProc},
 		jobQueue:           queue,
 	}
-	response, err := handler.V1Performance(context.Background(), oasgenserver.V1PerformanceParams{})
+	scheduleTime := time.Date(2026, time.July, 29, 5, 15, 37, 123, time.FixedZone("scheduler", 2*60*60))
+	response, err := handler.V1Performance(context.Background(), oasgenserver.V1PerformanceParams{
+		XCloudSchedulerScheduleTime: oasgenserver.NewOptDateTime(scheduleTime),
+	})
 	assert.NoError(t, err)
 	assert.IsType(t, &oasgenserver.V1PerformanceAccepted{}, response)
+
+	var queuedJobData string
+	require.NoError(t, telemetryStore.SQLDB().QueryRow(
+		"SELECT data FROM jobs WHERE queue = ?",
+		utils.PerformanceQueue,
+	).Scan(&queuedJobData))
+	var queuedJob jobs.ProcessPerformanceMetrics
+	require.NoError(t, json.Unmarshal([]byte(queuedJobData), &queuedJob))
+	var payload jobs.PerformanceMetricsPayload
+	require.NoError(t, json.Unmarshal([]byte(queuedJob.Data), &payload))
+	assert.Equal(t, scheduleTime.UTC().Truncate(time.Minute), payload.Timestamp)
 }
 
 // Test_ReturnsAcceptedResponseForUsageEndpoint is removed since the usage endpoint

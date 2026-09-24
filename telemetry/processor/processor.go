@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -49,78 +50,84 @@ func NewMetricsProcessor(
 	}
 }
 
-func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context) error {
+func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context, timestamp time.Time) error {
 	logger := util.GetLogger(ctx)
 	telemetryConfig := common.LoadConfig()
+	runStartedAt := time.Now()
+	runStatus := "success"
+	if mp.metricsRecorder != nil {
+		defer func() {
+			mp.metricsRecorder.RecordPerformanceRunDuration(&monitoring.MetricRecorderParams{
+				JobStatus:       runStatus,
+				LatencyDuration: time.Since(runStartedAt).Seconds(),
+			})
+		}()
+	}
+
 	logger.Infof("Process %s!\n", "Performance Metrics")
-	currentTimestamp := time.Now().Truncate(time.Minute)
-	// The hydration/delivery work is intentionally fire-and-forget (it outlives
-	// the job's Perform), so detach it from the job context's cancellation but
-	// keep the same absolute deadline when the job context has one.
-	// Run metrics collection and processing in a goroutine
-	go func() {
-		asyncCtx, cancel := asyncJobContext(ctx)
-		defer cancel()
-		asyncLogger := util.GetLogger(asyncCtx)
-
-		// Collect and process all metrics
-		allHydratedMetricsDataModel, allHydratedMetrics, err := mp.collectAndProcessMetrics(asyncCtx, telemetryConfig, currentTimestamp)
-		if err != nil {
-			asyncLogger.Errorf("Failed to collect and process metrics: %v", err)
-			return
-		}
-
-		// Store metrics in database. Invalid records are filtered out and logged
-		// so a single bad metric cannot drop the whole batch, and a persist
-		// failure must not block sink delivery below.
-		if mp.telemetryDatastore != nil {
-			validMetrics, invalidMetrics := filterValidHydratedMetrics(allHydratedMetricsDataModel)
-			if len(invalidMetrics) > 0 {
-				asyncLogger.Errorf("Dropping %d invalid hydrated metrics before persist", len(invalidMetrics))
-			}
-			if len(validMetrics) > 0 {
-				if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(asyncCtx, validMetrics, int(telemetryConfig.PushBatchSize)); err != nil {
-					asyncLogger.Errorf("Failed to insert hydrated metrics batch: %v", err)
-				}
-			}
-		} else {
-			asyncLogger.Error("TelemetryDatastore is nil, cannot store metrics")
-		}
-
-		// Deliver metrics to sink independently of the persist outcome above.
-		asyncLogger.Infof("Starting to deliver %d metrics to sink", len(allHydratedMetrics))
-		if mp.sink != nil {
-			mp.sink.DeliverMetrics(asyncCtx, allHydratedMetrics)
-		} else {
-			asyncLogger.Error("Sink is nil, cannot deliver metrics")
-		}
-	}()
-
-	// Process raw metrics asynchronously if enabled
+	var processingErr error
 	if telemetryConfig.EnableVolumeMetrics {
-		go func(ctx context.Context) {
-			metricClient := mp.googleMetricProvider.GetClient()
-			if metricClient == nil {
-				logger.Error("Metric client is nil")
-				return
+		var fanoutErr error
+		if mp.googleMetricProvider == nil {
+			logger.Error("Volume metrics provider is nil")
+			fanoutErr = errors.New("volume metrics provider is nil")
+		} else if err := mp.processRawMetrics(ctx, timestamp); err != nil {
+			fanoutErr = err
+		}
+		processingErr = errors.Join(processingErr, fanoutErr)
+	}
+
+	allHydratedMetricsDataModel, allHydratedMetrics, err := mp.collectAndProcessMetrics(ctx, telemetryConfig, timestamp)
+	if err != nil {
+		runStatus = "failure"
+		return errors.Join(processingErr, fmt.Errorf("failed to collect and process metrics: %w", err))
+	}
+
+	// Store metrics in database. Invalid records are filtered out and logged so
+	// a single bad metric cannot drop the whole batch. Sink delivery remains
+	// independent, but a persist failure is returned after all synchronous work.
+	var persistErr error
+	if mp.telemetryDatastore != nil {
+		validMetrics, invalidMetrics := filterValidHydratedMetrics(allHydratedMetricsDataModel)
+		if len(invalidMetrics) > 0 {
+			logger.Errorf("Dropping %d invalid hydrated metrics before persist", len(invalidMetrics))
+		}
+		if len(validMetrics) > 0 {
+			if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(ctx, validMetrics, int(telemetryConfig.PushBatchSize)); err != nil {
+				logger.Errorf("Failed to insert hydrated metrics batch: %v", err)
+				persistErr = fmt.Errorf("failed to insert hydrated metrics batch: %w", err)
+				processingErr = errors.Join(processingErr, persistErr)
 			}
-
-			asyncCtx, cancel := asyncJobContext(ctx)
-			defer cancel()
-			mp.processRawMetrics(asyncCtx, currentTimestamp)
-		}(ctx)
+		}
+	} else {
+		logger.Error("TelemetryDatastore is nil, cannot store metrics")
+		persistErr = errors.New("telemetry datastore is nil")
+		processingErr = errors.Join(processingErr, persistErr)
 	}
-	return nil
-}
 
-// asyncJobContext detaches from job cancellation but keeps ctx values and its
-// absolute deadline (JOB_MAX_RUNTIME from job start) when present.
-func asyncJobContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	base := context.WithoutCancel(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		return context.WithDeadline(base, deadline)
+	logger.Infof("Starting to deliver %d metrics to sink", len(allHydratedMetrics))
+	var deliveryErr error
+	var sinkFailedCount int
+	if mp.sink != nil {
+		var err error
+		sinkFailedCount, err = mp.sink.DeliverMetrics(ctx, allHydratedMetrics)
+		if err != nil {
+			deliveryErr = fmt.Errorf("failed to deliver performance metrics: %w", err)
+			processingErr = errors.Join(processingErr, deliveryErr)
+		} else if sinkFailedCount > 0 {
+			runStatus = "partial"
+			logger.Warnf("Performance metrics sink reported %d delivery failures without hard error", sinkFailedCount)
+		}
+	} else {
+		logger.Error("Sink is nil, cannot deliver metrics")
+		deliveryErr = fmt.Errorf("performance metrics sink is nil")
+		processingErr = errors.Join(processingErr, deliveryErr)
 	}
-	return base, func() {}
+
+	if processingErr != nil {
+		runStatus = "failure"
+	}
+	return processingErr
 }
 
 // collectAndProcessMetrics collects metrics from all sources and aggregates them
@@ -209,15 +216,13 @@ func (mp *MetricsProcessor) collectAndProcessMetrics(ctx context.Context, teleme
 	return allHydratedMetricsDataModel, allHydratedMetrics, nil
 }
 
-func (mp *MetricsProcessor) processRawMetrics(ctx context.Context, timestamp time.Time) {
+func (mp *MetricsProcessor) processRawMetrics(ctx context.Context, timestamp time.Time) error {
 	logger := util.GetLogger(ctx)
 	logger.Infof("Processing Raw Metrics")
-	mp.googleMetricProvider.RefreshTimeWindow()
-	err := collector.CollectVolumeMetrics(ctx, logger, mp.googleMetricProvider, timestamp)
-	if err != nil {
-		logger.Errorf("CollectRawMetrics failed: %v", err)
-		return
+	if err := collector.CollectVolumeMetrics(ctx, logger, mp.googleMetricProvider, timestamp); err != nil {
+		return fmt.Errorf("collect raw metrics failed: %w", err)
 	}
+	return nil
 }
 
 func (mp *MetricsProcessor) ProcessUsageMetrics(ctx context.Context, timestamp time.Time) error {
@@ -246,11 +251,7 @@ func (mp *MetricsProcessor) ProcessUsageMetrics(ctx context.Context, timestamp t
 func (mp *MetricsProcessor) CollectMetrics(ctx context.Context, projectId string, timestamp time.Time) error {
 	telemetryConfig := common.LoadConfig()
 	logger := util.GetLogger(ctx)
-	results, err := mp.googleMetricProvider.CollectProjectMetrics(ctx, logger, projectId, timestamp)
-	if err != nil {
-		logger.Error("Failed to get project metrics", "error", err.Error())
-		return err
-	}
+	results, collectErr := mp.googleMetricProvider.CollectProjectMetrics(ctx, logger, projectId, timestamp)
 	validResults, invalidResults := filterValidHydratedMetrics(results)
 	if len(invalidResults) > 0 {
 		logger.Errorf("Dropping %d invalid hydrated metrics before persist for project %v", len(invalidResults), projectId)
@@ -260,6 +261,10 @@ func (mp *MetricsProcessor) CollectMetrics(ctx context.Context, projectId string
 			logger.Errorf("Failed to insert hydrated metrics batch: %v", err)
 			return err
 		}
+	}
+	if collectErr != nil {
+		logger.Error("Failed to get project metrics", "error", collectErr.Error())
+		return nil
 	}
 	logger.Debugf("Successfully collected %d metrics %v", len(validResults), projectId)
 	return nil

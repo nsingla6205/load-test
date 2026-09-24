@@ -26,6 +26,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const monitoringCollectionWindow = 5 * time.Minute
+
 var CollectVolumeMetrics = collectVolumeMetrics
 
 func (g *GoogleTenantProjectProvider) GetTenantProjects(ctx context.Context, logger log.Logger) ([]string, error) {
@@ -92,8 +94,8 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 			Name:   projectName,
 			Filter: filter,
 			Interval: &monitoringpb.TimeInterval{
-				StartTime: timestamppb.New(g.startTime),
-				EndTime:   timestamppb.New(g.endTime),
+				StartTime: timestamppb.New(timestamp.Add(-monitoringCollectionWindow)),
+				EndTime:   timestamppb.New(timestamp),
 			},
 			View:     monitoringpb.ListTimeSeriesRequest_FULL,
 			PageSize: telemetryConfig.PageSize,
@@ -187,7 +189,9 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 		}
 	}
 	if g.googleSink != nil {
-		g.googleSink.DeliverMetrics(ctx, perfMetrics)
+		if _, err := g.googleSink.DeliverMetrics(ctx, perfMetrics); err != nil {
+			return projectResults, err
+		}
 	}
 	return projectResults, nil
 }

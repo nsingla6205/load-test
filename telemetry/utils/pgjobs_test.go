@@ -3614,8 +3614,9 @@ func TestJobQueue_Dequeue_ExhaustedJob_RecordsRetriesExhaustedMetric(t *testing.
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	_, err = queue.dequeue(ctx, ctx, queues)
+	claimed, err := queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
+	assert.True(t, claimed)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertExpectations(t)
 }
@@ -3645,8 +3646,9 @@ func TestJobQueue_Dequeue_FailedJobBelowRetryCap_DoesNotRecordExhausted(t *testi
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	_, err = queue.dequeue(ctx, ctx, queues)
+	claimed, err := queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
+	assert.True(t, claimed)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertNotCalled(t, "RecordJobRetriesExhausted", mock.Anything)
 }

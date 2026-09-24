@@ -23,7 +23,7 @@ func (_m *MockSink) EXPECT() *MockSink_Expecter {
 }
 
 // DeliverMetrics provides a mock function with given fields: ctx, metrics
-func (_m *MockSink) DeliverMetrics(ctx context.Context, metrics []entity.HydratedMetric) int {
+func (_m *MockSink) DeliverMetrics(ctx context.Context, metrics []entity.HydratedMetric) (int, error) {
 	ret := _m.Called(ctx, metrics)
 
 	if len(ret) == 0 {
@@ -31,13 +31,23 @@ func (_m *MockSink) DeliverMetrics(ctx context.Context, metrics []entity.Hydrate
 	}
 
 	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []entity.HydratedMetric) (int, error)); ok {
+		return rf(ctx, metrics)
+	}
 	if rf, ok := ret.Get(0).(func(context.Context, []entity.HydratedMetric) int); ok {
 		r0 = rf(ctx, metrics)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, []entity.HydratedMetric) error); ok {
+		r1 = rf(ctx, metrics)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockSink_DeliverMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeliverMetrics'
@@ -59,12 +69,12 @@ func (_c *MockSink_DeliverMetrics_Call) Run(run func(ctx context.Context, metric
 	return _c
 }
 
-func (_c *MockSink_DeliverMetrics_Call) Return(_a0 int) *MockSink_DeliverMetrics_Call {
-	_c.Call.Return(_a0)
+func (_c *MockSink_DeliverMetrics_Call) Return(_a0 int, _a1 error) *MockSink_DeliverMetrics_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockSink_DeliverMetrics_Call) RunAndReturn(run func(context.Context, []entity.HydratedMetric) int) *MockSink_DeliverMetrics_Call {
+func (_c *MockSink_DeliverMetrics_Call) RunAndReturn(run func(context.Context, []entity.HydratedMetric) (int, error)) *MockSink_DeliverMetrics_Call {
 	_c.Call.Return(run)
 	return _c
 }

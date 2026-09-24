@@ -29,14 +29,22 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
-// waitForAsyncOperations waits for async operations to complete by checking mock calls
-func waitForAsyncOperations(t *testing.T, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		// Simple sleep to allow goroutines to complete
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Logf("Waited for async operations for %v", timeout)
+var testPerformanceTimestamp = time.Date(2026, time.July, 28, 12, 0, 0, 0, time.UTC)
+
+func TestMetricsProcessor_ProcessPerformanceMetrics_RecordsFailureObservability(t *testing.T) {
+	vcpStore := &database.MockStorage{}
+	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return(nil, errors.New("collect failed"))
+
+	metricsRecorder := &monitoring.MockMetricsRecorder{}
+	metricsRecorder.On("RecordPerformanceRunDuration", mock.MatchedBy(func(params *monitoring.MetricRecorderParams) bool {
+		return params.JobStatus == "failure" && params.LatencyDuration >= 0
+	})).Return().Once()
+
+	mp := &MetricsProcessor{vcpDatastore: vcpStore, metricsRecorder: metricsRecorder}
+	err := mp.ProcessPerformanceMetrics(context.Background(), testPerformanceTimestamp)
+
+	assert.ErrorContains(t, err, "collect failed")
+	metricsRecorder.AssertExpectations(t)
 }
 
 // createTestPoolMetricsData returns a standard pool metrics data for testing
@@ -148,47 +156,12 @@ func (m *MockUsageSink) DeliverMetrics(ctx context.Context, records []metricsdm.
 	return args.Int(0), args.Error(1)
 }
 
-func TestMetricsProcessor_ProcessPerformanceMetrics_MetricClientWrapperIsNil(t *testing.T) {
-	ctx := context.Background()
-	vcpStore := &database.MockStorage{}
-	telemetryStore := &metricdb.MockStorage{}
-	sink := &performance.MockSink{}
-	mockProvider := &collector.MockVolumeMetricsProvider{}
-	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: mockProvider}
-	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
-		createTestPoolMetricsData("dummy-pool", "test-account"),
-	}, nil)
-	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
-
-	// Mock ListVolumesForTelemetryMetrics to return empty list since we expect early return
-	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
-	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-	mockProvider.On("GetClient").Return(nil)
-
-	t.Setenv("ENABLE_VOLUME_METRICS", "true")
-
-	// Since the method is now asynchronous, it should return nil immediately
-	err := mp.ProcessPerformanceMetrics(ctx)
-	assert.NoError(t, err) // Method returns nil immediately for async operations
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
-
-	// Verify that the main processing still happened (pool metrics collection)
-	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
-	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
-	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
-}
-
 func TestMetricsProcessor_ProcessPerformanceMetrics_Success(t *testing.T) {
 	ctx := context.Background()
 	vcpStore := &database.MockStorage{}
 	telemetryStore := &metricdb.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	// Mock ListPoolsForMetrics to return a non-empty pool data
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
 		createTestPoolMetricsData("dummy-pool", "success-account"),
@@ -201,12 +174,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_Success(t *testing.T) {
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that the expected calls were made
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -218,23 +187,50 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_GetPoolMetricsError(t *testi
 	ctx := context.Background()
 	vcpStore := &database.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	// Mock ListPools to return error
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return(nil, context.DeadlineExceeded)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 
 	// Since ListPools will return error, CreateHydratedMetricsBatch won't be reached, so nil is OK
-	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: nil, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	assert.NoError(t, err)
+	provider := &collector.MockVolumeMetricsProvider{}
+	fanoutCalled := false
+	originalCollectVolumeMetrics := collector.CollectVolumeMetrics
+	collector.CollectVolumeMetrics = func(ctx context.Context, logger log.Logger, provider collector.VolumeMetricsProvider, timestamp time.Time) error {
+		fanoutCalled = true
+		return nil
+	}
+	defer func() {
+		collector.CollectVolumeMetrics = originalCollectVolumeMetrics
+	}()
 
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	t.Setenv("ENABLE_VOLUME_METRICS", "true")
+	mp := &MetricsProcessor{
+		vcpDatastore:         vcpStore,
+		telemetryDatastore:   nil,
+		sink:                 sink,
+		googleMetricProvider: provider,
+	}
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.True(t, fanoutCalled, "collection fan-out should run before hydration")
 
 	// Verify that ListPools was called but DeliverMetrics was not called due to error
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
 	sink.AssertNotCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
+}
+
+func TestMetricsProcessor_ProcessPerformanceMetrics_NilVolumeMetricsProvider(t *testing.T) {
+	vcpStore := &database.MockStorage{}
+	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return(nil, context.DeadlineExceeded)
+
+	t.Setenv("ENABLE_VOLUME_METRICS", "true")
+	mp := &MetricsProcessor{vcpDatastore: vcpStore}
+
+	err := mp.ProcessPerformanceMetrics(context.Background(), testPerformanceTimestamp)
+
+	assert.ErrorContains(t, err, "volume metrics provider is nil")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsReturnsZero(t *testing.T) {
@@ -242,7 +238,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsReturnsZero(t 
 	vcpStore := &database.MockStorage{}
 	telemetryStore := &metricdb.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
 		createTestPoolMetricsData("dummy-pool", "zero-account"),
 	}, nil)
@@ -254,12 +250,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsReturnsZero(t 
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that DeliverMetrics was called even though it returns 0
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -276,12 +268,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_EmptyPools(t *testing.T) {
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: nil, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "no pools found from DB")
 
 	// Verify that ListPools was called but DeliverMetrics was not called due to empty pools
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
@@ -297,12 +285,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_ListPoolsNilSlice(t *testing
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: nil, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "no pools found from DB")
 
 	// Verify that ListPools was called but DeliverMetrics was not called due to nil pools
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
@@ -318,24 +302,20 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_ListPoolsPanics(t *testing.T
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: nil, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "database connection failed")
 
 	// Verify that ListPools was called but DeliverMetrics was not called due to error
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
 	sink.AssertNotCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
 }
 
-func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsPanics(t *testing.T) {
+func TestMetricsProcessor_ProcessPerformanceMetrics_DeliveryError(t *testing.T) {
 	ctx := context.Background()
 	vcpStore := &database.MockStorage{}
 	telemetryStore := &metricdb.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(-1) // Return error instead of panic
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, errors.New("sink delivery failed"))
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
 		createTestPoolMetricsData("dummy-pool", "panic-account"),
 	}, nil)
@@ -345,14 +325,10 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsPanics(t *test
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	assert.NoError(t, err)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "failed to deliver performance metrics")
+	assert.ErrorContains(t, err, "sink delivery failed")
 
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
-
-	// Verify that DeliverMetrics was called (even though it returns an error)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
 	vcpStore.AssertCalled(t, "ListVolumesForTelemetryMetrics", mock.Anything)
@@ -364,7 +340,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePools(t *testing.T) 
 	vcpStore := &database.MockStorage{}
 	telemetryStore := &metricdb.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(2)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
 		createTestPoolMetricsData("pool1", "account-1"),
 		{
@@ -386,12 +362,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePools(t *testing.T) 
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that DeliverMetrics was called
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -400,35 +372,34 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePools(t *testing.T) 
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestMetricsProcessor_ProcessPerformanceMetrics_DeliverMetricsReturnsNegative(t *testing.T) {
+func TestMetricsProcessor_ProcessPerformanceMetrics_PartialDeliveryDoesNotFailJob(t *testing.T) {
 	ctx := context.Background()
 	vcpStore := &database.MockStorage{}
 	telemetryStore := &metricdb.MockStorage{}
 	sink := &performance.MockSink{}
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(-1)
+	metricsRecorder := &monitoring.MockMetricsRecorder{}
+	metricsRecorder.On("RecordPerformanceRunDuration", mock.MatchedBy(func(params *monitoring.MetricRecorderParams) bool {
+		return params.JobStatus == "partial"
+	})).Return()
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(2, nil)
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{
-		createTestPoolMetricsData("dummy-pool", "negative-account"),
+		createTestPoolMetricsData("dummy-pool", "partial-account"),
 	}, nil)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
-
-	// Mock ListVolumesForTelemetryMetrics for volume metrics collection
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	mp := &MetricsProcessor{
+		vcpDatastore:       vcpStore,
+		telemetryDatastore: telemetryStore,
+		sink:               sink,
+		metricsRecorder:    metricsRecorder,
+	}
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
 
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
-
-	// Verify that DeliverMetrics was called (even though it returns negative)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
-	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
-	vcpStore.AssertCalled(t, "ListVolumesForTelemetryMetrics", mock.Anything)
-	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
+	metricsRecorder.AssertCalled(t, "RecordPerformanceRunDuration", mock.Anything)
 }
 
 func TestMetricsProcessor_ProcessPerformanceMetrics_NilSink(t *testing.T) {
@@ -448,13 +419,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_NilSink(t *testing.T) {
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: nil}
 
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	// The nil sink is handled gracefully with error logging
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "performance metrics sink is nil")
 
 	// Verify that CreateHydratedMetricsBatch was called successfully
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
@@ -475,18 +441,14 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_VolumeMetricsDisabled(t *tes
 	// Mock ListVolumesForTelemetryMetrics even when volume metrics disabled - throughput still needs it
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	t.Setenv("ENABLE_VOLUME_METRICS", "false")
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that the expected calls were made
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -522,7 +484,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_VolumeMetricsEnabledValidCli
 	// Mock ListVolumesForTelemetryMetrics for volume metrics collection
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	rawMetricsDone := make(chan struct{}, 1)
@@ -546,8 +508,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_VolumeMetricsEnabledValidCli
 
 	t.Setenv("ENABLE_VOLUME_METRICS", "true")
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
 }
 
@@ -577,7 +538,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsError(t 
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
 
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	rawMetricsDone := make(chan struct{}, 1)
 	originalFunc := collector.CollectVolumeMetrics
 	collector.CollectVolumeMetrics = func(ctx context.Context, logger log.Logger, provider collector.VolumeMetricsProvider, timestamp time.Time) error {
@@ -600,11 +561,9 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsError(t 
 	t.Setenv("ENABLE_VOLUME_METRICS", "true")
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	waitForAsyncOperations(t, 200*time.Millisecond)
-	if err != nil {
-		telemetryStore.AssertNotCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
-	}
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "collect volume metrics error")
+	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsError(t *testing.T) {
@@ -632,7 +591,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsError(t
 	// Mock ListVolumesForTelemetryMetrics for volume metrics collection
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("database error"))
 
 	rawMetricsDone := make(chan struct{}, 1)
@@ -657,8 +616,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsError(t
 	t.Setenv("ENABLE_VOLUME_METRICS", "true")
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	if err != nil {
 		assert.Contains(t, err.Error(), "database error")
 	}
@@ -683,7 +641,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_ProcessesAllMetricTypes(t *t
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.MatchedBy(func(ctx context.Context) bool {
 		return true
 	}), mock.MatchedBy(func(metrics []metricsdm.HydratedMetrics) bool {
@@ -731,8 +689,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_ProcessesAllMetricTypes(t *t
 	}()
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
 }
 
@@ -769,7 +726,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsReturnsE
 		default:
 		}
 	})
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	rawMetricsDone := make(chan struct{}, 1)
 	originalFunc := collector.CollectVolumeMetrics
@@ -792,9 +749,9 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsReturnsE
 
 	t.Setenv("ENABLE_VOLUME_METRICS", "true")
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	assert.NoError(t, err)
+	assert.ErrorContains(t, err, "collection failed")
 	select {
 	case <-hydratedDone:
 	case <-time.After(2 * time.Second):
@@ -835,7 +792,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsReturnsE
 		default:
 		}
 	})
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	rawMetricsDone := make(chan struct{}, 1)
 	originalFunc := collector.CollectVolumeMetrics
@@ -858,7 +815,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CollectVolumeMetricsReturnsE
 
 	t.Setenv("ENABLE_VOLUME_METRICS", "true")
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink, googleMetricProvider: provider}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
 	assert.NoError(t, err)
 	select {
@@ -891,7 +848,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_S
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{testPoolData}, nil)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(4) // 4 metrics: PoolAllocatedSize, AllocatedUsed, PoolTotalThroughputMiBps, PoolTotalIOPS
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	// Mock successful CreateHydratedMetricsBatch call
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.MatchedBy(func(metrics []metricsdm.HydratedMetrics) bool {
@@ -925,13 +882,9 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_S
 	}), mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	// Since the method is now asynchronous, it should return nil immediately
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 500*time.Millisecond) // Increased timeout for robustness
 
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -960,19 +913,14 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_D
 
 	// Mock database error on CreateHydratedMetricsBatch
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("database connection failed"))
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	// Since the method is now asynchronous, it should return nil immediately
-	// The database error happens in the goroutine and doesn't propagate to the main thread
-	assert.NoError(t, err)
+	assert.ErrorContains(t, err, "database connection failed")
 
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
-
-	// Verify that CreateHydratedMetricsBatch was called (and failed in goroutine)
+	// Verify that CreateHydratedMetricsBatch was called.
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 	// Sink delivery is now decoupled from persist: a DB failure must not block it.
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -1011,7 +959,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePoolsHydratedMetrics
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return(testPools, nil)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(4) // 2 pools * 2 metrics each
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	// Mock successful CreateHydratedMetricsBatch call for multiple pools
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.MatchedBy(func(metrics []metricsdm.HydratedMetrics) bool {
@@ -1056,12 +1004,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePoolsHydratedMetrics
 	}), mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that the expected calls were made
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
@@ -1070,7 +1014,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePoolsHydratedMetrics
 	vcpStore.AssertCalled(t, "ListVolumesForTelemetryMetrics", mock.Anything)
 }
 
-func TestMetricsProcessor_ProcessPerformanceMetrics_HydratedMetricsWithNilTelemetryStore(t *testing.T) {
+func TestMetricsProcessor_ProcessPerformanceMetrics_NilTelemetryStoreReturnsError(t *testing.T) {
 	ctx := context.Background()
 	vcpStore := &database.MockStorage{}
 	sink := &performance.MockSink{}
@@ -1089,22 +1033,17 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_HydratedMetricsWithNilTeleme
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{testPoolData}, nil)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(2)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
-	// With nil telemetryDatastore, should handle gracefully with error logging
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: nil, sink: sink}
 
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	// The nil telemetryDatastore is handled gracefully with error logging
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "telemetry datastore is nil")
 
 	// Verify that ListPools was called but CreateHydratedMetricsBatch was not called due to nil datastore
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
 	vcpStore.AssertCalled(t, "ListVolumesForTelemetryMetrics", mock.Anything)
+	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
 }
 
 func TestMetricsProcessor_ProcessPerformanceMetrics_HydratedMetricsValidation(t *testing.T) {
@@ -1133,19 +1072,15 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_HydratedMetricsValidation(t 
 	vcpStore.On("ListPoolsForMetrics", mock.Anything).Return([]*database.PoolMetricsData{testPoolData}, nil)
 	vcpStore.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{}, nil)
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(2)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 
 	// Detailed validation of hydrated metrics structure
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.MatchedBy(validateHydratedMetrics), mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	// Since the method is now asynchronous, it should return nil immediately
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1242,7 +1177,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_GetPoolMetricsDualReturn(t *
 	sink.On("DeliverMetrics", mock.Anything, mock.MatchedBy(func(metrics []entity.HydratedMetric) bool {
 		// Should receive 4 metrics based on the log output
 		return len(metrics) == 4
-	})).Return(4)
+	})).Return(4, nil)
 
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.MatchedBy(func(metrics []metricsdm.HydratedMetrics) bool {
 		// Should receive 4 hydrated metrics based on the log output
@@ -1269,13 +1204,9 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_GetPoolMetricsDualReturn(t *
 	}), mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	// Since the method is now asynchronous, it should return nil immediately
 	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify both operations were called correctly
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -1311,13 +1242,18 @@ func TestCollectMetrics_CollectProjectMetricsError(t *testing.T) {
 	ctx := context.Background()
 	telemetryStore := &metricdb.MockStorage{}
 	mockProvider := &collector.MockVolumeMetricsProvider{}
-	mockProvider.On("CollectProjectMetrics", ctx, mock.Anything, "project-err", mock.AnythingOfType("time.Time")).Return(nil, errors.New("collect error"))
+	metrics := []metricsdm.HydratedMetrics{{
+		MeasuredType: string(metadata.AllocatedSize),
+		ResourceType: string(metadata.Volume),
+		ResourceName: "test-volume-1",
+	}}
+	mockProvider.On("CollectProjectMetrics", ctx, mock.Anything, "project-err", mock.AnythingOfType("time.Time")).Return(metrics, errors.New("collect error"))
+	telemetryStore.On("CreateHydratedMetricsBatch", ctx, metrics, mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{telemetryDatastore: telemetryStore, googleMetricProvider: mockProvider}
 	err := mp.CollectMetrics(ctx, "project-err", time.Now())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "collect error")
-	telemetryStore.AssertNotCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
+	assert.NoError(t, err)
+	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", ctx, metrics, mock.AnythingOfType("int"))
 }
 
 func TestCollectMetrics_CreateHydratedMetricsBatchError(t *testing.T) {
@@ -1475,13 +1411,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupMetricsError(t *testin
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
 
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	// The backup metrics error happens in the goroutine and doesn't propagate to the main thread
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "backup metrics collection failed")
 
 	// Verify that ListPools was called and backup metrics collection was attempted
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
@@ -1518,13 +1449,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_VolumeMetricsError(t *testin
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
 
-	err := mp.ProcessPerformanceMetrics(ctx)
-	// Since the method is now asynchronous, it should return nil immediately
-	// The volume metrics error happens in the goroutine and doesn't propagate to the main thread
-	assert.NoError(t, err)
-
-	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "volume metrics collection failed")
 
 	// Verify that ListPools was called but CreateHydratedMetricsBatch was not called due to volume metrics error
 	vcpStore.AssertCalled(t, "ListPoolsForMetrics", mock.Anything)
@@ -1735,18 +1661,16 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_SFRMetricsEnabled(t *testing
 			}
 		}
 		return hasSFRSizeMetric && hasSFRCountMetric
-	})).Return(1)
+	})).Return(1, nil)
 
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 
-	// Since the method is now asynchronous, it should return nil immediately
 	assert.NoError(t, err)
 
 	// Wait for async operations to complete
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	// Verify that SFR metrics were included in the delivered metrics
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -1981,14 +1905,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupVaultMetricsCollection
 		return offset > 0
 	})).Return([]*database.CmekRotationJobStatus{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	vcpStore.AssertCalled(t, "GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -2029,10 +1951,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupVaultMetricsError(t *t
 	vcpStore.On("GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("backup vault metrics collection failed"))
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
-	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 200*time.Millisecond)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
+	assert.ErrorContains(t, err, "backup vault metrics collection failed")
 
 	vcpStore.AssertCalled(t, "GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	telemetryStore.AssertNotCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
@@ -2071,14 +1991,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupVaultMetricsEmptyResul
 	vcpStore.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{}, nil)
 	vcpStore.On("GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database.CmekRotationJobStatus{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	vcpStore.AssertCalled(t, "GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -2154,14 +2072,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupVaultMetricsAggregatio
 			}
 		}
 		return backupVaultMetricsCount == 2
-	})).Return(1)
+	})).Return(1, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	vcpStore.AssertCalled(t, "GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -2200,14 +2116,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_BackupVaultMetricsDisabled(t
 	vcpStore.On("ListVolumesForTelemetryMetrics", mock.Anything).Return([]*database.VolumeMetricsData{}, nil)
 	vcpStore.On("GetMultipleBackupVaults", mock.Anything, mock.Anything).Return([]*datamodel.BackupVault{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 200*time.Millisecond)
 
 	vcpStore.AssertNotCalled(t, "GetCmekRotationJobStatuses", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -2241,14 +2155,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CrossRegionRestoreBillingEna
 	telemetryStore.On("UpdateRestoreTimestamp", mock.Anything, mock.Anything).Return(nil)
 	vcpStore.On("GetJobsWithCondition", mock.Anything, mock.Anything).Return([]*datamodel.Job{}, nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 300*time.Millisecond)
 
 	vcpStore.AssertCalled(t, "GetJobsWithCondition", mock.Anything, mock.Anything)
 	telemetryStore.AssertCalled(t, "GetRestoreTimestamp", mock.Anything)
@@ -2282,14 +2194,12 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CrossRegionRestoreBillingErr
 
 	telemetryStore.On("GetRestoreTimestamp", mock.Anything).Return(nil, errors.New("restore timestamp db error"))
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 300*time.Millisecond)
 
 	telemetryStore.AssertCalled(t, "GetRestoreTimestamp", mock.Anything)
 	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
@@ -2371,7 +2281,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CrossRegionRestoreBillingWit
 
 	telemetryStore.On("UpdateRestoreTimestamp", mock.Anything, mock.Anything).Return(nil)
 
-	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(1)
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0, nil)
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.MatchedBy(func(metrics []metricsdm.HydratedMetrics) bool {
 		for _, m := range metrics {
 			if m.MeasuredType == "CBS_CROSS_REGION_VOLUME_RESTORE_TRANSFER_BYTES" {
@@ -2382,10 +2292,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CrossRegionRestoreBillingWit
 	}), mock.Anything).Return(nil)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
-	err := mp.ProcessPerformanceMetrics(ctx)
+	err := mp.ProcessPerformanceMetrics(ctx, testPerformanceTimestamp)
 	assert.NoError(t, err)
-
-	waitForAsyncOperations(t, 500*time.Millisecond)
 
 	vcpStore.AssertCalled(t, "GetJobsWithCondition", mock.Anything, mock.Anything)
 	telemetryStore.AssertCalled(t, "GetRestoreTimestamp", mock.Anything)

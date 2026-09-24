@@ -65,9 +65,20 @@ func (h Handler) V1Performance(ctx context.Context, params oasgenserver.V1Perfor
 	ctxWithCorrelation = context.WithValue(ctxWithCorrelation, middleware.ContextSLoggerKey, loggerWithFields)
 	backgroundContext := context.WithoutCancel(ctxWithCorrelation)
 
-	j := jobs.NewProcessPerformanceMetrics("{}")
+	windowEnd := time.Now().UTC().Truncate(time.Minute)
+	if scheduleTime, ok := params.XCloudSchedulerScheduleTime.Get(); ok {
+		windowEnd = scheduleTime.UTC().Truncate(time.Minute)
+		logger.Infof("Using Cloud Scheduler time %s as performance metrics window end", windowEnd.Format(time.RFC3339Nano))
+	} else {
+		logger.Infof("Cloud Scheduler time not provided; using request time %s as performance metrics window end", windowEnd.Format(time.RFC3339))
+	}
+	j, err := jobs.NewProcessPerformanceMetrics(windowEnd)
+	if err != nil {
+		logger.Errorf("Failed to create ProcessPerformanceMetrics job with correlation ID %s: %v", correlationID, err)
+		return &oasgenserver.V1PerformanceInternalServerError{}, fmt.Errorf("failed to create ProcessPerformanceMetrics job: %w", err)
+	}
 	j.CorrelationID = correlationID
-	err := h.jobQueue.Enqueue(backgroundContext, j, utils.PerformanceQueue)
+	err = h.jobQueue.Enqueue(backgroundContext, j, utils.PerformanceQueue)
 	if err != nil {
 		logger.Errorf("Failed to enqueue ProcessPerformanceMetrics job with correlation ID %s: %v", correlationID, err)
 		return &oasgenserver.V1PerformanceInternalServerError{}, fmt.Errorf("failed to enqueue ProcessPerformanceMetrics job: %v", err)

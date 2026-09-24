@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
@@ -17,10 +19,24 @@ type ProcessPerformanceMetrics struct {
 	CorrelationID string `json:"correlation_id,omitempty"`
 }
 
-func NewProcessPerformanceMetrics(data string) *ProcessPerformanceMetrics {
-	return &ProcessPerformanceMetrics{
-		Data: data,
+// PerformanceMetricsPayload contains the immutable end of a collection window.
+type PerformanceMetricsPayload struct {
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// NewProcessPerformanceMetrics creates a job for a stable collection window.
+func NewProcessPerformanceMetrics(timestamp time.Time) (*ProcessPerformanceMetrics, error) {
+	payload := PerformanceMetricsPayload{
+		Timestamp: timestamp.UTC(),
 	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal performance metrics payload: %w", err)
+	}
+
+	return &ProcessPerformanceMetrics{
+		Data: string(jsonData),
+	}, nil
 }
 
 func (e ProcessPerformanceMetrics) Perform(ctx context.Context, p interface{}, attempt int32) error {
@@ -45,7 +61,22 @@ func (e ProcessPerformanceMetrics) Perform(ctx context.Context, p interface{}, a
 	logger := util.GetLogger(ctx)
 	logger.Infof("Processing performance metrics job with correlation ID: %s, attempt: %d", e.CorrelationID, attempt)
 
-	err := proc.ProcessPerformanceMetrics(ctx)
+	var payload PerformanceMetricsPayload
+	if err := json.Unmarshal([]byte(e.Data), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal performance metrics payload: %w", err)
+	}
+	if payload.Timestamp.IsZero() {
+		if strings.TrimSpace(e.Data) != "{}" {
+			return fmt.Errorf("performance metrics payload timestamp is required")
+		}
+		payload.Timestamp = time.Now().UTC().Truncate(time.Minute)
+		logger.Warnf(
+			"Legacy performance metrics payload has no timestamp; using execution time %s as window end",
+			payload.Timestamp.Format(time.RFC3339),
+		)
+	}
+
+	err := proc.ProcessPerformanceMetrics(ctx, payload.Timestamp)
 	if err != nil {
 		if e.CorrelationID != "" {
 			logger := util.GetLogger(ctx)

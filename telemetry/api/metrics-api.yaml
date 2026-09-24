@@ -25,6 +25,13 @@ paths:
           required: false
           schema:
             type: string
+        - name: X-CloudScheduler-ScheduleTime
+          in: header
+          description: Retry-stable RFC3339 scheduled execution time from Cloud Scheduler
+          required: false
+          schema:
+            type: string
+            format: date-time
       responses:
         "202":
           description: Metrics collection triggered

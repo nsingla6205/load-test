@@ -105,7 +105,8 @@ func NewGoogleMetricsClient(ctx context.Context, rootURL string, config *common.
 	}
 }
 
-func (client *GoogleMetricsClient) ReportMetrics(ctx context.Context, metrics []common.GoogleMetric, operationStartTime, operationEndTime int64, wg *sync.WaitGroup, resultChan chan []common.MetricsResult) {
+// ReportMetrics reports metrics and returns how many were dropped before a Service Control operation was built.
+func (client *GoogleMetricsClient) ReportMetrics(ctx context.Context, metrics []common.GoogleMetric, operationStartTime, operationEndTime int64, wg *sync.WaitGroup, resultChan chan []common.MetricsResult) (dropped int) {
 	defer wg.Done()
 	defer close(resultChan)
 
@@ -122,13 +123,13 @@ func (client *GoogleMetricsClient) ReportMetrics(ctx context.Context, metrics []
 
 	if len(metrics) == 0 {
 		logger.Info("No metrics to report")
-		return
+		return 0
 	}
-	operationsToPush := client.createOperationsForMetrics(metrics, operationStartTime, operationEndTime)
+	operationsToPush, dropped := client.createOperationsForMetrics(metrics, operationStartTime, operationEndTime)
 
 	if len(operationsToPush) == 0 {
 		logger.Debugf("No operations to push for metrics")
-		return
+		return dropped
 	}
 
 	var operationBatchList [][]*Operation
@@ -155,6 +156,7 @@ func (client *GoogleMetricsClient) ReportMetrics(ctx context.Context, metrics []
 		operationBatchList = append(operationBatchList, tempOperationList)
 	}
 	client.reportOperationList(ctx, operationBatchList, operationsToPush, operationMap, resultChan)
+	return dropped
 }
 
 func appendExceptionResults(
@@ -276,7 +278,7 @@ func (client *GoogleMetricsClient) reportOperationList(ctx context.Context, oper
 	}
 }
 
-func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.GoogleMetric, opStart, opEnd int64) map[*Operation][]common.GoogleMetric {
+func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.GoogleMetric, opStart, opEnd int64) (map[*Operation][]common.GoogleMetric, int) {
 	metricsByVolume := make(map[ResourceInfo][]common.GoogleMetric)
 	for _, metric := range metrics {
 		customerId, err := metric.GetCustomerId()
@@ -306,6 +308,7 @@ func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.G
 	}
 
 	operationAndMetrics := make(map[*Operation][]common.GoogleMetric)
+	submitted := 0
 
 	for info, googleMetrics := range metricsByVolume {
 		if len(googleMetrics) == 0 {
@@ -329,6 +332,7 @@ func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.G
 
 				if operation != nil && len(operation.MetricValueSets) > 0 {
 					operationAndMetrics[operation] = []common.GoogleMetric{metric}
+					submitted++
 				} else {
 					client.logger.Warn("Operation creation method succeeded, but no operation returned. ResourceId", info.ResourceId)
 				}
@@ -339,7 +343,7 @@ func (client *GoogleMetricsClient) createOperationsForMetrics(metrics []common.G
 			client.logger.Infof("Dropped %d ignored or invalid metrics from operations this run.", totalDropCount)
 		}
 	}
-	return operationAndMetrics
+	return operationAndMetrics, len(metrics) - submitted
 }
 
 // generateOperationId creates a consistent UUIDv5-based operation ID from metric properties

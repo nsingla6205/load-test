@@ -40,7 +40,6 @@ type VolumeMetricsProvider interface {
 	CollectProjectMetrics(ctx context.Context, logger log.Logger, projectID string, timestamp time.Time) ([]datamodel.HydratedMetrics, error)
 	GetClient() MonitoringClient
 	SetJobQueue(q *utils.JobQueue)
-	RefreshTimeWindow()
 }
 type TenantProjectProvider interface {
 	GetTenantProjects(ctx context.Context, logger log.Logger) ([]string, error)
@@ -63,16 +62,9 @@ func (g *GoogleVolumeMetricsProvider) SetJobQueue(q *utils.JobQueue) {
 	g.jobQueue = q
 }
 
-func (p *GoogleVolumeMetricsProvider) RefreshTimeWindow() {
-	p.startTime = time.Now().Add(-5 * time.Minute)
-	p.endTime = time.Now()
-}
-
 type GoogleVolumeMetricsProvider struct {
 	tenantProjectProvider TenantProjectProvider
 	client                MonitoringClient
-	startTime             time.Time
-	endTime               time.Time
 	metrics               []common.MetricItem
 	jobQueue              *utils.JobQueue
 	MetricList            []datamodel.HydratedMetrics
@@ -83,8 +75,6 @@ func NewGoogleVolumeMetricsProvider(tenantProjectProvider TenantProjectProvider,
 	return &GoogleVolumeMetricsProvider{
 		tenantProjectProvider: tenantProjectProvider,
 		client:                client,
-		startTime:             time.Now().Add(-5 * time.Minute),
-		endTime:               time.Now(),
 		metrics:               VolumeMetrics,
 		googleSink:            googleSink,
 	}

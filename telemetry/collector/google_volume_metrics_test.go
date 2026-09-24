@@ -72,9 +72,7 @@ func TestCollectProjectMetrics_QuotaProjectHeaderFlag(t *testing.T) {
 
 	newProvider := func(mockClient *MockMonitoringClient) *GoogleVolumeMetricsProvider {
 		return &GoogleVolumeMetricsProvider{
-			client:    mockClient,
-			startTime: timestamp.Add(-time.Hour),
-			endTime:   timestamp,
+			client: mockClient,
 			metrics: []common.MetricItem{
 				{Metric: "volume_space_logical_used", ResourceType: "custom.googleapis.com"},
 			},
@@ -466,6 +464,7 @@ func TestCollectVolumeMetrics_ProviderReturnsEmpty(t *testing.T) {
 func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_Success(t *testing.T) {
 	ctx := context.Background()
 	logger := log.NewLogger()
+	timestamp := time.Date(2026, time.July, 28, 12, 35, 0, 0, time.UTC)
 
 	// Mock iterator
 	mockIterator := new(MockTimeSeriesIterator)
@@ -498,12 +497,17 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_Success(t *testing.T) {
 
 	// Mock client
 	mockClient := new(MockMonitoringClient)
-	mockClient.On("ListTimeSeries", contextWithQuotaProject("project1"), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
+	mockClient.On(
+		"ListTimeSeries",
+		contextWithQuotaProject("project1"),
+		mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+			return req.Interval.GetStartTime().AsTime().Equal(timestamp.Add(-monitoringCollectionWindow)) &&
+				req.Interval.GetEndTime().AsTime().Equal(timestamp)
+		}),
+	).Return(mockIterator)
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
-		startTime:  time.Now().Add(-time.Hour),
-		endTime:    time.Now(),
 		googleSink: nil, // Set to nil for test
 		metrics: []common.MetricItem{
 			{
@@ -513,7 +517,7 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_Success(t *testing.T) {
 		},
 	}
 
-	results, err := provider.CollectProjectMetrics(ctx, logger, "project1", time.Now())
+	results, err := provider.CollectProjectMetrics(ctx, logger, "project1", timestamp)
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, string(metadata.LogicalSize), results[0].MeasuredType)
@@ -545,9 +549,7 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_EmptyPoints(t *testing.T) 
 	mockClient.On("ListTimeSeries", contextWithQuotaProject("project1"), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
 
 	provider := &GoogleVolumeMetricsProvider{
-		client:    mockClient,
-		startTime: time.Now().Add(-time.Hour),
-		endTime:   time.Now(),
+		client: mockClient,
 		metrics: []common.MetricItem{
 			{
 				Metric:       "volume_read_ops",
@@ -879,17 +881,11 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_PerformanceFlow(t *te
 		{Metric: "operations_total", ResourceType: "netapp.com/volume", MetricType: "performance"},
 	}
 
-	// Create GoogleSink for the provider
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordJobBatchEnqueued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
 		metrics:    testMetrics,
-		startTime:  timestamp.Add(-5 * time.Minute),
-		endTime:    timestamp,
 		googleSink: googleSink,
 	}
 
@@ -945,6 +941,54 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_PerformanceFlow(t *te
 	// Note: We expect googleSink.DeliverMetrics to be called (covers lines 161-163)
 }
 
+func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_SinkError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	logger := log.NewLogger()
+	projectID := "test-project-123"
+	timestamp := time.Date(2026, time.July, 29, 5, 15, 0, 0, time.UTC)
+	mockClient := new(MockMonitoringClient)
+	mockIterator := new(MockTimeSeriesIterator)
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return().Once()
+
+	provider := &GoogleVolumeMetricsProvider{
+		client: mockClient,
+		metrics: []common.MetricItem{
+			{Metric: "volume_read_latency", ResourceType: "netapp.com/volume", MetricType: "performance"},
+		},
+		googleSink: performance.NewSink(context.Background(), common.LoadConfig(), mockMetricRecorder),
+	}
+
+	mockIterator.On("Next").Return(&monitoringpb.TimeSeries{
+		Metric: &metric.Metric{
+			Type: "netapp.com/volume/volume_read_latency",
+			Labels: map[string]string{
+				"metric":     "volume_read_latency",
+				"volume":     "test-volume",
+				"project":    projectID,
+				"datacenter": "us-central1",
+			},
+		},
+		Points: []*monitoringpb.Point{{
+			Value: &monitoringpb.TypedValue{
+				Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 100.5},
+			},
+		}},
+	}, nil).Once()
+	mockIterator.On("Next").Return(nil, iterator.Done).Once()
+	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+
+	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, result)
+	mockClient.AssertExpectations(t)
+	mockIterator.AssertExpectations(t)
+	mockMetricRecorder.AssertExpectations(t)
+}
+
 // TestGoogleVolumeMetricsProvider_CollectProjectMetrics_VolumePoolResourceType tests volume pool metrics
 func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_VolumePoolResourceType(t *testing.T) {
 	ctx := context.Background()
@@ -993,17 +1037,11 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_VolumePoolResourceTyp
 				{Metric: tc.labels["metric"], ResourceType: "netapp.com/" + strings.ToLower(tc.resourceType), MetricType: tc.metricType},
 			}
 
-			// Create GoogleSink for the provider
-			config := common.LoadConfig()
-			mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-			mockMetricRecorder.On("RecordJobBatchEnqueued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-			googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+			var googleSink *performance.GoogleSink
 
 			provider := &GoogleVolumeMetricsProvider{
 				client:     mockClient,
 				metrics:    testMetrics,
-				startTime:  timestamp.Add(-5 * time.Minute),
-				endTime:    timestamp,
 				googleSink: googleSink,
 			}
 
@@ -1057,17 +1095,11 @@ func TestGoogleVolumeMetricsProvider_PerformanceMetricEdgeCases(t *testing.T) {
 		{Metric: "pool_client_protocol_reads", ResourceType: "netapp.com/pool", MetricType: "performance"},
 	}
 
-	// Create GoogleSink for the provider
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
 		metrics:    testMetrics,
-		startTime:  timestamp.Add(-5 * time.Minute),
-		endTime:    timestamp,
 		googleSink: googleSink,
 	}
 
@@ -1155,17 +1187,11 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_PerformanceMetricsSpe
 		{Metric: "pool_cloud_bin_operation_size", ResourceType: "netapp.com/pool", MetricType: "performance"},
 	}
 
-	// Create GoogleSink for the provider
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
 		metrics:    testMetrics,
-		startTime:  timestamp.Add(-5 * time.Minute),
-		endTime:    timestamp,
 		googleSink: googleSink,
 	}
 
@@ -1255,10 +1281,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering(t *testing.T) {
 	projectID := "test-project-filtering"
 	timestamp := time.Now()
 
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	testCases := []struct {
 		name               string
@@ -1344,8 +1367,6 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering(t *testing.T) {
 			provider := &GoogleVolumeMetricsProvider{
 				client:     mockClient,
 				metrics:    testMetrics,
-				startTime:  timestamp.Add(-5 * time.Minute),
-				endTime:    timestamp,
 				googleSink: googleSink,
 			}
 
@@ -1391,10 +1412,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_MultipleSeries(t
 	projectID := "test-project-multi-filtering"
 	timestamp := time.Now()
 
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	mockClient := new(MockMonitoringClient)
 	mockIterator := new(MockTimeSeriesIterator)
@@ -1406,8 +1424,6 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_MultipleSeries(t
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
 		metrics:    testMetrics,
-		startTime:  timestamp.Add(-5 * time.Minute),
-		endTime:    timestamp,
 		googleSink: googleSink,
 	}
 
@@ -1499,10 +1515,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_PoolMetrics(t *t
 	projectID := "test-project-pool-filtering"
 	timestamp := time.Now()
 
-	config := common.LoadConfig()
-	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-	googleSink := performance.NewSink(ctx, config, mockMetricRecorder)
+	var googleSink *performance.GoogleSink
 
 	mockClient := new(MockMonitoringClient)
 	mockIterator := new(MockTimeSeriesIterator)
@@ -1514,8 +1527,6 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_PoolMetrics(t *t
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
 		metrics:    testMetrics,
-		startTime:  timestamp.Add(-5 * time.Minute),
-		endTime:    timestamp,
 		googleSink: googleSink,
 	}
 
@@ -1601,10 +1612,8 @@ func TestGoogleVolumeMetricsProvider_PoolCloudBinOperationSizeRawFiltering(t *te
 	}
 
 	provider := &GoogleVolumeMetricsProvider{
-		client:    mockClient,
-		metrics:   testMetrics,
-		startTime: timestamp.Add(-5 * time.Minute),
-		endTime:   timestamp,
+		client:  mockClient,
+		metrics: testMetrics,
 	}
 
 	// Create time series with "put" operation - should be included
@@ -1676,10 +1685,8 @@ func TestGoogleVolumeMetricsProvider_WaflVolumeCloudBinOperationSizeRawFiltering
 	}
 
 	provider := &GoogleVolumeMetricsProvider{
-		client:    mockClient,
-		metrics:   testMetrics,
-		startTime: timestamp.Add(-5 * time.Minute),
-		endTime:   timestamp,
+		client:  mockClient,
+		metrics: testMetrics,
 	}
 
 	putTimeSeries := &monitoringpb.TimeSeries{
@@ -1748,10 +1755,8 @@ func TestGoogleVolumeMetricsProvider_PoolClientProtocolReadsRaw(t *testing.T) {
 	}
 
 	provider := &GoogleVolumeMetricsProvider{
-		client:    mockClient,
-		metrics:   testMetrics,
-		startTime: timestamp.Add(-5 * time.Minute),
-		endTime:   timestamp,
+		client:  mockClient,
+		metrics: testMetrics,
 	}
 
 	// Create time series - should be collected without any filtering

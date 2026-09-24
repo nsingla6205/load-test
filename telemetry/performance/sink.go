@@ -23,9 +23,11 @@ const (
 	HTTPNotFoundError  = "404"
 )
 
-// Sink is any destination for the metrics
+// Sink is any destination for the metrics.
+// failedCount is the number of metrics that failed validation or Google delivery.
+// err is set only for hard failures (total delivery failure, missing all results, context abort).
 type Sink interface {
-	DeliverMetrics(ctx context.Context, metrics []entity.HydratedMetric) int
+	DeliverMetrics(ctx context.Context, metrics []entity.HydratedMetric) (failedCount int, err error)
 }
 
 // GoogleSink is responsible for delivering metrics to Google.
@@ -47,16 +49,21 @@ func NewSink(ctx context.Context, config *common.TelemetryConfig, metricsRecorde
 	}
 }
 
-func (s *GoogleSink) DeliverMetrics(ctx context.Context, hydratedMetrics []entity.HydratedMetric) (validMetricsCount int) {
+func (s *GoogleSink) DeliverMetrics(ctx context.Context, hydratedMetrics []entity.HydratedMetric) (failedCount int, err error) {
 	validMetrics := s.FilterAndConvertToGoogleMetrics(hydratedMetrics)
 	invalidMetricCount := len(hydratedMetrics) - len(validMetrics)
 	if invalidMetricCount > 0 {
-		s.logger.Infof("Skipped invalid metrics. Invalid Metric Count %d", invalidMetricCount)
+		s.logger.Warnf("Skipped %d invalid performance metrics before delivery", invalidMetricCount)
+		s.metricsRecorder.RecordSinkDelivered(&monitoring.MetricRecorderParams{
+			SinkType:       "performance",
+			FailedQuantity: float64(invalidMetricCount),
+		})
+		failedCount += invalidMetricCount
 	}
 
-	s.push(ctx, validMetrics)
-	validMetricsCount = len(validMetrics)
-	return validMetricsCount
+	pushFailedCount, pushErr := s.push(ctx, validMetrics)
+	failedCount += pushFailedCount
+	return failedCount, pushErr
 }
 
 // FilterAndConvertToGoogleMetrics filters out invalid metrics from the provided list and convert to google metrics.
@@ -163,35 +170,72 @@ func formatMetricForLogging(metric common.GoogleMetric) string {
 	}
 }
 
-// push sends the given lists of first-party and third-party Google metrics.
-// Parameters:
-// - googleMetricList: The list of Google metrics to send.
-func (s *GoogleSink) push(ctx context.Context, googleMetricList []common.GoogleMetric) {
-	wg := sync.WaitGroup{}
-	resultChan := make(chan []common.MetricsResult, 200)
-
-	if len(googleMetricList) > 0 {
-		wg.Add(3)
-		go func() {
-			defer wg.Done()
-			s.logger.Debugf("Reporting First Party Google Metrics, Google Metric First Party list count: %d", len(googleMetricList))
-			go s.metricClient.ReportMetrics(ctx, googleMetricList, time.Now().Unix(), time.Now().Unix(), &wg, resultChan)
-			go s.processResponse(ctx, &wg, resultChan)
-		}()
-	} else {
+// push sends the given Google metrics and returns failedCount plus err for hard failures only.
+// Partial Google rejections are counted but do not fail the whole job because replaying the
+// window is not idempotent. They remain observable and require targeted remediation.
+func (s *GoogleSink) push(ctx context.Context, googleMetricList []common.GoogleMetric) (failedCount int, err error) {
+	if len(googleMetricList) == 0 {
 		s.logger.Warn("google metrics not found, hence not reporting anything.")
+		return 0, nil
 	}
 
-	wg.Wait()
+	s.logger.Debugf("Reporting First Party Google Metrics, Google Metric First Party list count: %d", len(googleMetricList))
+	resultChan := make(chan []common.MetricsResult, 200)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	operationTime := time.Now().Unix()
+	droppedCh := make(chan int, 1)
+	go func() {
+		droppedCh <- s.metricClient.ReportMetrics(ctx, googleMetricList, operationTime, operationTime, &wg, resultChan)
+	}()
+
+	summary := s.processResponse(ctx, resultChan)
+	dropped := <-droppedCh
+
+	failedCount = s.pushFailedCount(summary, len(googleMetricList))
+	submitted := len(googleMetricList) - dropped
+	if ctx.Err() != nil && summary.total < submitted {
+		return failedCount, ctx.Err()
+	}
+	if submitted == 0 {
+		return failedCount, nil
+	}
+	if summary.total == 0 {
+		return failedCount, fmt.Errorf("received delivery results for 0 of %d performance metrics", submitted)
+	}
+	if summary.succeeded == 0 {
+		return failedCount, fmt.Errorf("all %d reported performance metrics failed delivery", summary.total)
+	}
+	if failedCount > 0 {
+		s.logger.Warnf(
+			"Performance sink partial delivery: %d failed, %d succeeded of %d metrics",
+			failedCount,
+			summary.succeeded,
+			len(googleMetricList),
+		)
+	}
+	return failedCount, nil
 }
 
-// processResponse checks if the required fields are present in the GoogleMetric.
-// Parameters:
-// - wg: WaitGroup to wait for the goroutines to finish.
-// - resultChan: The channel to receive the results.
-func (s *GoogleSink) processResponse(ctx context.Context, wg *sync.WaitGroup, resultChan chan []common.MetricsResult) {
-	defer wg.Done()
+func (s *GoogleSink) pushFailedCount(summary deliverySummary, expected int) int {
+	missingResultCount := expected - summary.total
+	if missingResultCount > 0 {
+		s.metricsRecorder.RecordSinkDelivered(&monitoring.MetricRecorderParams{
+			SinkType:       "performance",
+			FailedQuantity: float64(missingResultCount),
+		})
+	}
+	return summary.failed + missingResultCount
+}
 
+type deliverySummary struct {
+	total     int
+	succeeded int
+	failed    int
+}
+
+// processResponse consumes all Google delivery results and returns their aggregate outcome.
+func (s *GoogleSink) processResponse(ctx context.Context, resultChan chan []common.MetricsResult) deliverySummary {
 	// Extract correlation ID from context for logging
 	logger := util.GetLogger(ctx)
 	correlationID := "unknown"
@@ -203,17 +247,22 @@ func (s *GoogleSink) processResponse(ctx context.Context, wg *sync.WaitGroup, re
 
 	logger.Infof("Processing performance metrics results with correlation ID: %s", correlationID)
 
+	var summary deliverySummary
 	for result := range resultChan {
-		s.processAndFilterMetricsResults(result)
+		batchSummary := s.processAndFilterMetricsResults(result)
+		summary.total += batchSummary.total
+		summary.succeeded += batchSummary.succeeded
+		summary.failed += batchSummary.failed
 	}
 
 	logger.Info("Finished processing Google Performance Metrics Results")
+	return summary
 }
 
 // processAndFilterMetricsResults - Process and Filter Metrics Result
 // Parameters:
 // - results: List of Metrics Result
-func (s *GoogleSink) processAndFilterMetricsResults(results []common.MetricsResult) {
+func (s *GoogleSink) processAndFilterMetricsResults(results []common.MetricsResult) deliverySummary {
 	var goodResults []common.MetricsResult
 
 	s.logger.Infof("Reporting %d metrics.", len(results))
@@ -234,12 +283,12 @@ func (s *GoogleSink) processAndFilterMetricsResults(results []common.MetricsResu
 				s.logger.Debugf("Performance metrics delivery failed with %s error - %s, OperationId: %s, OperationName: %s, ProjectId: %s, Exception: %v",
 					resultCode, metricInfo, result.OperationID, result.OperationName, id, getCodeResponse(result.ReportResponse))
 			default:
-				s.logger.Debugf("Performance metrics delivery failed with exception - %s, OperationId: %s, OperationName: %s, ProjectId: %s, Exception: %v",
+				s.logger.Warnf("Performance metrics delivery failed with exception - %s, OperationId: %s, OperationName: %s, ProjectId: %s, Exception: %v",
 					metricInfo, result.OperationID, result.OperationName, id, result.GetException().Error())
 			}
 		} else if result.ReportResponse != nil && result.ReportResponse.ReportErrors != nil && len(result.ReportResponse.ReportErrors) > 0 {
 			metricInfo := formatMetricForLogging(result.GoogleMetric)
-			s.logger.Debugf("Performance metrics delivery failed with report errors - %s, OperationId: %s, OperationName: %s, ProjectId: %s, ReportErrors: %v",
+			s.logger.Warnf("Performance metrics delivery failed with report errors - %s, OperationId: %s, OperationName: %s, ProjectId: %s, ReportErrors: %v",
 				metricInfo, result.OperationID, result.OperationName, id, getCodeResponse(result.ReportResponse))
 		} else {
 			goodResults = append(goodResults, result)
@@ -252,6 +301,11 @@ func (s *GoogleSink) processAndFilterMetricsResults(results []common.MetricsResu
 	}
 	s.metricsRecorder.RecordSinkDelivered(metricRecorderParams)
 	s.logger.Infof("%d metrics were successfully reported.", len(goodResults))
+	return deliverySummary{
+		total:     len(results),
+		succeeded: len(goodResults),
+		failed:    len(results) - len(goodResults),
+	}
 }
 
 func getCodeResponse(response *common.ReportResponse) string {

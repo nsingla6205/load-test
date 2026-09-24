@@ -4,6 +4,7 @@ package coreapiserver
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/ogen-go/ogen/conv"
 	"github.com/ogen-go/ogen/middleware"
@@ -15,6 +16,8 @@ import (
 type V1PerformanceParams struct {
 	// Correlation ID for request tracing.
 	XCorrelationID OptString
+	// Retry-stable RFC3339 scheduled execution time from Cloud Scheduler.
+	XCloudSchedulerScheduleTime OptDateTime
 }
 
 func unpackV1PerformanceParams(packed middleware.Parameters) (params V1PerformanceParams) {
@@ -25,6 +28,15 @@ func unpackV1PerformanceParams(packed middleware.Parameters) (params V1Performan
 		}
 		if v, ok := packed[key]; ok {
 			params.XCorrelationID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-CloudScheduler-ScheduleTime",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCloudSchedulerScheduleTime = v.(OptDateTime)
 		}
 	}
 	return params
@@ -67,6 +79,45 @@ func decodeV1PerformanceParams(args [0]string, argsEscaped bool, r *http.Request
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "X-Correlation-Id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: X-CloudScheduler-ScheduleTime.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-CloudScheduler-ScheduleTime",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCloudSchedulerScheduleTimeVal time.Time
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToDateTime(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCloudSchedulerScheduleTimeVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCloudSchedulerScheduleTime.SetTo(paramsDotXCloudSchedulerScheduleTimeVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-CloudScheduler-ScheduleTime",
 			In:   "header",
 			Err:  err,
 		}

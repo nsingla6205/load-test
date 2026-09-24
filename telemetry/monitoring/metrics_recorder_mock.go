@@ -419,6 +419,39 @@ func (_c *MockMetricsRecorder_RecordReportSuccess_Call) RunAndReturn(run func(st
 	return _c
 }
 
+// RecordPerformanceRunDuration provides a mock function with given fields: params
+func (_m *MockMetricsRecorder) RecordPerformanceRunDuration(params *MetricRecorderParams) {
+	_m.Called(params)
+}
+
+// MockMetricsRecorder_RecordPerformanceRunDuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordPerformanceRunDuration'
+type MockMetricsRecorder_RecordPerformanceRunDuration_Call struct {
+	*mock.Call
+}
+
+// RecordPerformanceRunDuration is a helper method to define mock.On call
+//   - params *MetricRecorderParams
+func (_e *MockMetricsRecorder_Expecter) RecordPerformanceRunDuration(params interface{}) *MockMetricsRecorder_RecordPerformanceRunDuration_Call {
+	return &MockMetricsRecorder_RecordPerformanceRunDuration_Call{Call: _e.mock.On("RecordPerformanceRunDuration", params)}
+}
+
+func (_c *MockMetricsRecorder_RecordPerformanceRunDuration_Call) Run(run func(params *MetricRecorderParams)) *MockMetricsRecorder_RecordPerformanceRunDuration_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*MetricRecorderParams))
+	})
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordPerformanceRunDuration_Call) Return() *MockMetricsRecorder_RecordPerformanceRunDuration_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordPerformanceRunDuration_Call) RunAndReturn(run func(*MetricRecorderParams)) *MockMetricsRecorder_RecordPerformanceRunDuration_Call {
+	_c.Run(run)
+	return _c
+}
+
 // RecordSinkDelivered provides a mock function with given fields: params
 func (_m *MockMetricsRecorder) RecordSinkDelivered(params *MetricRecorderParams) {
 	_m.Called(params)

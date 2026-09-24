@@ -18,8 +18,8 @@ type MockVCPProcessor struct {
 	mock.Mock
 }
 
-func (m *MockVCPProcessor) ProcessPerformanceMetrics(ctx context.Context) error {
-	args := m.Called(ctx)
+func (m *MockVCPProcessor) ProcessPerformanceMetrics(ctx context.Context, timestamp time.Time) error {
+	args := m.Called(ctx, timestamp)
 	return args.Error(0)
 }
 

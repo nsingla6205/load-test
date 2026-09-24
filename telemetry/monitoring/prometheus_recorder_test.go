@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,6 +13,23 @@ import (
 func TestNewPrometheusRecorder(t *testing.T) {
 	recorder := NewPrometheusRecorder()
 	assert.NotNil(t, recorder)
+}
+
+func TestPrometheusRecorder_RecordPerformanceRunDuration(t *testing.T) {
+	performanceRunDuration.Reset()
+	recorder := NewPrometheusRecorder()
+
+	recorder.RecordPerformanceRunDuration(&MetricRecorderParams{
+		JobStatus:       "success",
+		LatencyDuration: 12.5,
+	})
+
+	runMetric := &dto.Metric{}
+	require.NoError(t, performanceRunDuration.WithLabelValues("success").(interface {
+		Write(*dto.Metric) error
+	}).Write(runMetric))
+	assert.Equal(t, uint64(1), runMetric.GetHistogram().GetSampleCount())
+	assert.Equal(t, 12.5, runMetric.GetHistogram().GetSampleSum())
 }
 
 func TestPrometheusRecorder_RecordAPIRequest(t *testing.T) {

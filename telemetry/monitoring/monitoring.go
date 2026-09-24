@@ -74,4 +74,7 @@ type MetricsRecorder interface {
 	RecordSinkDelivered(params *MetricRecorderParams)
 	RecordBillingMetricsSubmission(params *MetricRecorderParams)
 	RecordReportSuccess(report, sinkType string, completedAt time.Time)
+
+	// Performance processing operations
+	RecordPerformanceRunDuration(params *MetricRecorderParams)
 }

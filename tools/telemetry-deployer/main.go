@@ -531,7 +531,7 @@ func getDefaultEnvVars() map[string]string {
 		"ENABLE_TENANT_QUOTA_PROJECT":                      getEnvOrDefault("ENABLE_TENANT_QUOTA_PROJECT", "true"),
 		"ENABLE_BATCH_USAGE_UPDATES":                       getEnvOrDefault("ENABLE_BATCH_USAGE_UPDATES", "false"),
 		"PUSH_BATCH_SIZE":                                  getEnvOrDefault("PUSH_BATCH_SIZE", "1000"),
-		"TELEMETRY_JOB_MAX_RETRY_PERFORMANCE":              getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_PERFORMANCE", "5"),
+		"TELEMETRY_JOB_MAX_RETRY_PERFORMANCE":              getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_PERFORMANCE", "0"),
 		"TELEMETRY_JOB_MAX_RETRY_USAGE":                    getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_USAGE", "5"),
 		"TELEMETRY_JOB_MAX_RETRY_COLLECTION":               getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_COLLECTION", "5"),
 		"TELEMETRY_JOB_MAX_RETRY_BIZOPS":                   getEnvOrDefault("TELEMETRY_JOB_MAX_RETRY_BIZOPS", "5"),

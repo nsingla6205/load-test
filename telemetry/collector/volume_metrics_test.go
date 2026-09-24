@@ -2,7 +2,6 @@ package collector
 
 import (
 	"testing"
-	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +29,6 @@ func TestNewGoogleProvider_ReturnsGoogleVolumeMetricsProvider(t *testing.T) {
 	assert.NotNil(t, gProvider, "GoogleVolumeMetricsProvider should not be nil")
 	assert.Equal(t, mockTenantProvider, gProvider.tenantProjectProvider)
 	assert.Equal(t, mockClient, gProvider.client)
-	assert.WithinDuration(t, time.Now().Add(-5*time.Minute), gProvider.startTime, time.Minute)
-	assert.WithinDuration(t, time.Now(), gProvider.endTime, time.Minute)
 }
 
 func TestNewGoogleVolumeMetricsProvider_InitializesFields(t *testing.T) {
@@ -48,8 +45,6 @@ func TestNewGoogleVolumeMetricsProvider_InitializesFields(t *testing.T) {
 
 	assert.Equal(t, mockTenantProvider, provider.tenantProjectProvider)
 	assert.Equal(t, mockClient, provider.client)
-	assert.WithinDuration(t, time.Now().Add(-5*time.Minute), provider.startTime, time.Minute)
-	assert.WithinDuration(t, time.Now(), provider.endTime, time.Minute)
 }
 func TestMetricClientWrapper_IsNil(t *testing.T) {
 	// Case 1: client is nil
@@ -91,8 +86,6 @@ func TestNewGoogleVolumeMetricsProviderInitializesFields(t *testing.T) {
 	provider := NewGoogleVolumeMetricsProvider(mockTenantProvider, mockClient, testMetrics, sink)
 	assert.Equal(t, mockTenantProvider, provider.tenantProjectProvider)
 	assert.Equal(t, mockClient, provider.client)
-	assert.WithinDuration(t, time.Now().Add(-5*time.Minute), provider.startTime, time.Minute)
-	assert.WithinDuration(t, time.Now(), provider.endTime, time.Minute)
 }
 
 func TestNewGoogleProviderReturnsGoogleVolumeMetricsProvider(t *testing.T) {

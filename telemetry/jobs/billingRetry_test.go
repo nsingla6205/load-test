@@ -17,8 +17,8 @@ type MockVCPProcessorForRetry struct {
 	mock.Mock
 }
 
-func (m *MockVCPProcessorForRetry) ProcessPerformanceMetrics(ctx context.Context) error {
-	args := m.Called(ctx)
+func (m *MockVCPProcessorForRetry) ProcessPerformanceMetrics(ctx context.Context, timestamp time.Time) error {
+	args := m.Called(ctx, timestamp)
 	return args.Error(0)
 }
 

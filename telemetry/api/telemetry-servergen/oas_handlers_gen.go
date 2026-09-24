@@ -277,6 +277,10 @@ func (s *Server) handleV1PerformanceRequest(args [0]string, argsEscaped bool, w 
 					Name: "X-Correlation-Id",
 					In:   "header",
 				}: params.XCorrelationID,
+				{
+					Name: "X-CloudScheduler-ScheduleTime",
+					In:   "header",
+				}: params.XCloudSchedulerScheduleTime,
 			},
 			Raw: r,
 		}

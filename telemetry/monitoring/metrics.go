@@ -19,6 +19,7 @@ const (
 	vcpTelemetrySinkDeliveredTotal           = "vcp_telemetry_metrics_delivered_total"
 	vcpTelemetryBillingMetricsSubmittedTotal = "vcp_telemetry_billing_metrics_submission_total"
 	vcpTelemetryReportLastSuccess            = "vcp_telemetry_report_last_success_timestamp_seconds"
+	vcpTelemetryPerformanceRunDuration       = "vcp_telemetry_performance_run_duration_seconds"
 )
 
 var (
@@ -150,6 +151,15 @@ var (
 		},
 		[]string{"report", "sink_type"},
 	)
+
+	performanceRunDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    vcpTelemetryPerformanceRunDuration,
+			Help:    "End-to-end duration of synchronous performance metrics processing",
+			Buckets: prometheus.ExponentialBuckets(1, 2, 13),
+		},
+		[]string{"status"},
+	)
 )
 
 func init() {
@@ -168,5 +178,6 @@ func init() {
 		sinkDeliveredTotal,
 		billingMetricsSubmissionTotal,
 		reportLastSuccess,
+		performanceRunDuration,
 	)
 }

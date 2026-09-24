@@ -103,3 +103,7 @@ func isSupportedReportSink(report, sinkType string) bool {
 	return (report == ReportBizOps && sinkType == SinkTypeGCS) ||
 		(report == ReportUsageAggregation && sinkType == SinkTypeDatabase)
 }
+
+func (p *PrometheusRecorder) RecordPerformanceRunDuration(params *MetricRecorderParams) {
+	performanceRunDuration.WithLabelValues(params.JobStatus).Observe(params.LatencyDuration)
+}

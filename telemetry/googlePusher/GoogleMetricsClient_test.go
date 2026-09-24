@@ -1783,7 +1783,7 @@ func Test_createOperationsForMetrics_EdgeCases(t *testing.T) {
 		operationStartTime := time.Now().Unix()
 		operationEndTime := time.Now().Add(time.Hour).Unix()
 
-		operationsMap := client.createOperationsForMetrics(metrics, operationStartTime, operationEndTime)
+		operationsMap, _ := client.createOperationsForMetrics(metrics, operationStartTime, operationEndTime)
 
 		// Should have some operations despite invalid metrics
 		assert.NotNil(t, operationsMap)
@@ -2012,18 +2012,18 @@ func Test_createOperationsForMetrics_ErrorPaths(t *testing.T) {
 
 	t.Run("error getting customer ID", func(t *testing.T) {
 		invalidMetric := createInvalidCustomerIDMetric()
-		operations := client.createOperationsForMetrics([]common.GoogleMetric{invalidMetric}, time.Now().Unix(), time.Now().Unix())
+		operations, _ := client.createOperationsForMetrics([]common.GoogleMetric{invalidMetric}, time.Now().Unix(), time.Now().Unix())
 		assert.Empty(t, operations)
 	})
 
 	t.Run("error getting resource name", func(t *testing.T) {
 		invalidMetric := createInvalidResourceNameMetric()
-		operations := client.createOperationsForMetrics([]common.GoogleMetric{invalidMetric}, time.Now().Unix(), time.Now().Unix())
+		operations, _ := client.createOperationsForMetrics([]common.GoogleMetric{invalidMetric}, time.Now().Unix(), time.Now().Unix())
 		assert.Empty(t, operations)
 	})
 
 	t.Run("zero google metrics for resource", func(t *testing.T) {
-		operations := client.createOperationsForMetrics([]common.GoogleMetric{}, time.Now().Unix(), time.Now().Unix())
+		operations, _ := client.createOperationsForMetrics([]common.GoogleMetric{}, time.Now().Unix(), time.Now().Unix())
 		assert.Empty(t, operations)
 	})
 }
@@ -2319,7 +2319,7 @@ func Test_createOperationsForMetrics_OperationFailure(t *testing.T) {
 		}
 
 		metrics := []common.GoogleMetric{*common.NewGoogleMetric(hydratedM)}
-		operations := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+		operations, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 
 		// Should handle the failure gracefully and return empty map
 		assert.Empty(t, operations)
@@ -2328,7 +2328,7 @@ func Test_createOperationsForMetrics_OperationFailure(t *testing.T) {
 	t.Run("resource with zero metrics after partitioning", func(t *testing.T) {
 		// Test the case where the resource info results in zero metrics
 		// This is difficult to trigger directly but we can at least test the function doesn't panic
-		operations := client.createOperationsForMetrics([]common.GoogleMetric{}, time.Now().Unix(), time.Now().Unix())
+		operations, _ := client.createOperationsForMetrics([]common.GoogleMetric{}, time.Now().Unix(), time.Now().Unix())
 		assert.Empty(t, operations)
 	})
 }
@@ -2431,7 +2431,7 @@ func Test_reportOperationList_AdditionalCoverage(t *testing.T) {
 	t.Run("operations with metrics that have valid structure", func(t *testing.T) {
 		// Create real operations with metrics to test more code paths
 		metrics := createDummyGoogleMetrics(2)
-		operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+		operationsToPush, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 
 		if len(operationsToPush) == 0 {
 			// Skip if no operations were created (due to endpoint mapping issues)
@@ -3011,7 +3011,7 @@ func Test_reportOperationList_ServiceControlClientError(t *testing.T) {
 
 	// Create operations
 	metrics := createDummyGoogleMetrics(1)
-	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	operationsToPush, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 
 	if len(operationsToPush) == 0 {
 		t.Skip("No operations created - skipping test")
@@ -3062,7 +3062,7 @@ func Test_appendExceptionResults(t *testing.T) {
 	config := common.LoadConfig()
 	ctx := context.Background()
 	client := NewGoogleMetricsClient(ctx, "", config)
-	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	operationsToPush, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 	require.NotEmpty(t, operationsToPush)
 
 	var operationList []*Operation
@@ -3089,7 +3089,7 @@ func Test_reportOperationList_ContextCanceled_NoExceptionResults(t *testing.T) {
 	client.mockMode = true
 
 	metrics := createDummyGoogleMetrics(1)
-	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	operationsToPush, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 	require.NotEmpty(t, operationsToPush)
 
 	var operationBatchList [][]*Operation
@@ -3132,7 +3132,7 @@ func Test_reportOperationList_NilResponse(t *testing.T) {
 	// Let's test with operations that might result in edge cases
 
 	metrics := createDummyGoogleMetrics(1)
-	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	operationsToPush, _ := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
 
 	if len(operationsToPush) == 0 {
 		t.Skip("No operations created - skipping test")

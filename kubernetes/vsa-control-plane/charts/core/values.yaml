@@ -345,7 +345,7 @@ telemetryDeployer:
   intervalBackfillLimitMinutes: 60
   counterBackfillLimitMinutes: 60
   pushBatchSize: 1000
-  telemetryJobMaxRetryPerformance: 5
+  telemetryJobMaxRetryPerformance: 0
   telemetryJobMaxRetryUsage: 5
   telemetryJobMaxRetryCollection: 5
   telemetryJobMaxRetryBizops: 5

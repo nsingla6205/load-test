@@ -3,7 +3,6 @@ package performance
 import (
 	"context"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -41,9 +40,6 @@ func TestDeliverMetrics_ValidMetrics(t *testing.T) {
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 
-	// Set up mock expectation for RecordSinkDelivered
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
-
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
 	rm := metadata.ResourceMetadata{
@@ -62,8 +58,7 @@ func TestDeliverMetrics_ValidMetrics(t *testing.T) {
 		Timestamp:    entity.UnixNano(time.Now().UnixNano()),
 	})
 
-	count := sink.DeliverMetrics(ctx, hydratedM)
-	assert.Equal(t, 1, count)
+	assert.Len(t, sink.FilterAndConvertToGoogleMetrics(hydratedM), 1)
 }
 
 // TestDeliverMetrics_InvalidMetrics tests the DeliverMetrics function with valid metrics.
@@ -71,6 +66,7 @@ func TestDeliverMetrics_InvalidMetrics(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
@@ -90,8 +86,9 @@ func TestDeliverMetrics_InvalidMetrics(t *testing.T) {
 		Timestamp:    entity.UnixNano(time.Now().UnixNano()),
 	})
 
-	count := sink.DeliverMetrics(ctx, hydratedM)
-	assert.Equal(t, 0, count)
+	failedCount, err := sink.DeliverMetrics(ctx, hydratedM)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, failedCount)
 }
 
 // TestFilterAcceptedMetrics_ValidMetrics tests the FilterAcceptedMetrics function with valid metrics.
@@ -159,6 +156,7 @@ func TestFilterAcceptedMetrics_EmptyInput(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
 	validMetrics := filterAcceptedMetricsHelper(sink, hydratedM)
@@ -172,8 +170,9 @@ func TestDeliverMetrics_EmptyInput(t *testing.T) {
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
-	count := sink.DeliverMetrics(ctx, hydratedM)
-	assert.Equal(t, 0, count)
+	failedCount, err := sink.DeliverMetrics(ctx, hydratedM)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, failedCount)
 }
 
 // TestDeliverMetrics_AllInvalid tests DeliverMetrics with all invalid metrics.
@@ -181,6 +180,7 @@ func TestDeliverMetrics_AllInvalid(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
 	for i := 0; i < 3; i++ {
@@ -199,11 +199,10 @@ func TestDeliverMetrics_AllInvalid(t *testing.T) {
 			Timestamp:    entity.UnixNano(time.Now().UnixNano()),
 		})
 	}
-	count := sink.DeliverMetrics(ctx, hydratedM)
-	assert.Equal(t, 0, count)
+	failedCount, err := sink.DeliverMetrics(ctx, hydratedM)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, failedCount)
 }
-
-// TestFilterAcceptedMetrics_Mixed tests FilterAcceptedMetrics with a mix of valid and invalid metrics.
 func TestFilterAcceptedMetrics_Mixed(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
@@ -381,9 +380,6 @@ func TestDeliverMetrics_MultipleValid(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-
-	// Set up mock expectation for RecordSinkDelivered
-	mockMetricRecorder.On("RecordSinkDelivered", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 	sink := NewSink(ctx, config, mockMetricRecorder)
 	var hydratedM []entity.HydratedMetric
 	for i := 0; i < 4; i++ {
@@ -402,8 +398,7 @@ func TestDeliverMetrics_MultipleValid(t *testing.T) {
 			Timestamp:    entity.UnixNano(time.Now().UnixNano()),
 		})
 	}
-	count := sink.DeliverMetrics(ctx, hydratedM)
-	assert.Equal(t, 4, count)
+	assert.Len(t, sink.FilterAndConvertToGoogleMetrics(hydratedM), 4)
 }
 
 func TestGoogleSink_processMetricsResults_LogsNotImplemented(t *testing.T) {
@@ -453,7 +448,8 @@ func TestGoogleSink_processAndFilterMetricsResults_ErrorHandling(t *testing.T) {
 			},
 		}
 
-		sink.processAndFilterMetricsResults(results)
+		summary := sink.processAndFilterMetricsResults(results)
+		assert.Equal(t, deliverySummary{total: 1, succeeded: 1}, summary)
 		ml.AssertExpectations(t)
 	})
 
@@ -473,7 +469,8 @@ func TestGoogleSink_processAndFilterMetricsResults_ErrorHandling(t *testing.T) {
 			},
 		}
 
-		sink.processAndFilterMetricsResults(results)
+		summary := sink.processAndFilterMetricsResults(results)
+		assert.Equal(t, deliverySummary{total: 1, failed: 1}, summary)
 		ml.AssertExpectations(t)
 	})
 
@@ -531,7 +528,7 @@ func TestGoogleSink_processAndFilterMetricsResults_ErrorHandling(t *testing.T) {
 			Code:    500,
 			Message: "Internal Server Error",
 		}
-		ml.On("Debugf", "Performance metrics delivery failed with exception - %s, OperationId: %s, OperationName: %s, ProjectId: %s, Exception: %v",
+		ml.On("Warnf", "Performance metrics delivery failed with exception - %s, OperationId: %s, OperationName: %s, ProjectId: %s, Exception: %v",
 			mock.AnythingOfType("string"), "op1", "operation1", customerID, "googleapi: Error 500: Internal Server Error").Once()
 		ml.On("Infof", "%d metrics were successfully reported.", 0).Once()
 
@@ -562,7 +559,7 @@ func TestGoogleSink_processAndFilterMetricsResults_ErrorHandling(t *testing.T) {
 				},
 			},
 		}
-		ml.On("Debugf", "Performance metrics delivery failed with report errors - %s, OperationId: %s, OperationName: %s, ProjectId: %s, ReportErrors: %v",
+		ml.On("Warnf", "Performance metrics delivery failed with report errors - %s, OperationId: %s, OperationName: %s, ProjectId: %s, ReportErrors: %v",
 			mock.AnythingOfType("string"), "op1", "operation1", customerID, "400").Once()
 		ml.On("Infof", "%d metrics were successfully reported.", 0).Once()
 
@@ -590,7 +587,9 @@ func TestGoogleSink_push_EmptyMetrics(t *testing.T) {
 		logger: ml,
 	}
 
-	sink.push(context.Background(), []common.GoogleMetric{})
+	count, err := sink.push(context.Background(), []common.GoogleMetric{})
+	assert.NoError(t, err)
+	assert.Zero(t, count)
 	ml.AssertExpectations(t)
 }
 
@@ -773,12 +772,9 @@ func TestProcessResponse(t *testing.T) {
 		resultChan := make(chan []common.MetricsResult)
 		close(resultChan)
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-
 		// This test verifies the function executes without panicking
 		// and properly extracts the correlation ID from context
-		sink.processResponse(ctx, &wg, resultChan)
+		sink.processResponse(ctx, resultChan)
 	})
 
 	t.Run("processResponse without correlation ID", func(t *testing.T) {
@@ -793,12 +789,9 @@ func TestProcessResponse(t *testing.T) {
 		resultChan := make(chan []common.MetricsResult)
 		close(resultChan)
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-
 		// This test verifies the function executes without panicking
 		// and uses "unknown" as default correlation ID
-		sink.processResponse(ctx, &wg, resultChan)
+		sink.processResponse(ctx, resultChan)
 	})
 
 	t.Run("processResponse with invalid context value", func(t *testing.T) {
@@ -814,11 +807,8 @@ func TestProcessResponse(t *testing.T) {
 		resultChan := make(chan []common.MetricsResult)
 		close(resultChan)
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-
 		// This test verifies the function handles invalid context values gracefully
-		sink.processResponse(ctx, &wg, resultChan)
+		sink.processResponse(ctx, resultChan)
 	})
 
 	t.Run("processResponse with logger fields but no correlation ID", func(t *testing.T) {
@@ -837,11 +827,8 @@ func TestProcessResponse(t *testing.T) {
 		resultChan := make(chan []common.MetricsResult)
 		close(resultChan)
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-
 		// This test verifies the function handles missing correlation ID gracefully
-		sink.processResponse(ctx, &wg, resultChan)
+		sink.processResponse(ctx, resultChan)
 	})
 }
 
@@ -891,11 +878,13 @@ func TestNewSink(t *testing.T) {
 	assert.NotNil(t, sink.logger)
 }
 
-// TestPush_WithNonEmptyMetrics tests push method with non-empty metrics (integration test)
-func TestPush_WithNonEmptyMetrics(t *testing.T) {
+func TestPush_LocallyDroppedMetric(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.MatchedBy(func(params *monitoring.MetricRecorderParams) bool {
+		return params.SinkType == "performance" && params.FailedQuantity == 1
+	})).Return().Once()
 	sink := NewSink(ctx, config, mockMetricRecorder)
 
 	// Create a valid HydratedMetric with all required fields
@@ -918,10 +907,81 @@ func TestPush_WithNonEmptyMetrics(t *testing.T) {
 	googleMetric := common.NewGoogleMetric(hydratedMetric)
 	metrics := []common.GoogleMetric{*googleMetric}
 
-	// This will test the push method with actual metrics but will likely fail due to authentication
-	// The test validates that the code path is executed correctly
-	// We expect this to fail with authentication error, not panic
-	sink.push(ctx, metrics)
+	failedCount, err := sink.push(ctx, metrics)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, failedCount)
+}
+
+func TestPush_NoDeliveryResults(t *testing.T) {
+	ctx := context.Background()
+	config := common.LoadConfig()
+	config.OperationBatchSize = 0
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.MatchedBy(func(params *monitoring.MetricRecorderParams) bool {
+		return params.SinkType == "performance" && params.FailedQuantity == 1
+	})).Return().Once()
+	sink := NewSink(ctx, config, mockMetricRecorder)
+
+	resourceUUID := uuid.New().String()
+	metric := common.NewGoogleMetric(&entity.HydratedMetric{
+		Metadata: metadata.ResourceMetadata{
+			ResourceUUID:        &resourceUUID,
+			ResourceName:        nillable.ToPointer("dummy-resource"),
+			ResourceDisplayName: nillable.ToPointer("Dummy"),
+			AccountName:         nillable.ToPointer("netapp-au-se1-autopush-sde-tst"),
+			RegionName:          nillable.ToPointer("us-central1"),
+			ResourceType:        metadata.VolumePool,
+		},
+		MeasuredType: metadata.PoolAllocatedSize,
+		Quantity:     1234,
+		Timestamp:    entity.UnixNano(time.Now().UnixNano()),
+	})
+
+	failedCount, err := sink.push(ctx, []common.GoogleMetric{*metric})
+
+	assert.ErrorContains(t, err, "received delivery results for 0 of 1 performance metrics")
+	assert.Equal(t, 1, failedCount)
+}
+
+func TestPush_CanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	config := common.LoadConfig()
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.Anything).Return().Maybe()
+	sink := NewSink(ctx, config, mockMetricRecorder)
+
+	resourceUUID := uuid.New().String()
+	metric := common.NewGoogleMetric(&entity.HydratedMetric{
+		Metadata: metadata.ResourceMetadata{
+			ResourceUUID:        &resourceUUID,
+			ResourceName:        nillable.ToPointer("dummy-resource"),
+			ResourceDisplayName: nillable.ToPointer("Dummy"),
+			AccountName:         nillable.ToPointer("netapp-au-se1-autopush-sde-tst"),
+			RegionName:          nillable.ToPointer("us-central1"),
+			ResourceType:        metadata.VolumePool,
+		},
+		MeasuredType: metadata.PoolAllocatedSize,
+		Quantity:     1234,
+		Timestamp:    entity.UnixNano(time.Now().UnixNano()),
+	})
+
+	_, err := sink.push(ctx, []common.GoogleMetric{*metric})
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestProcessResponse_AggregatesResultBatches(t *testing.T) {
+	ctx := context.Background()
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.Anything).Return().Twice()
+	sink := NewSink(ctx, common.LoadConfig(), mockMetricRecorder)
+
+	resultChan := make(chan []common.MetricsResult, 2)
+	resultChan <- []common.MetricsResult{}
+	resultChan <- []common.MetricsResult{}
+	close(resultChan)
+
+	assert.Equal(t, deliverySummary{}, sink.processResponse(ctx, resultChan))
 }
 
 // Test to cover missing lines 111 and 137: formatMetricForLogging error paths
