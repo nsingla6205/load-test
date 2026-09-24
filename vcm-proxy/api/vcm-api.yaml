@@ -1464,22 +1464,18 @@ components:
                 vpc: example-data-vpc
                 subnet: example-data-subnet
             ontapCredentials:
-              - role: ADMIN
-                activeAuthType: CERT
-                certificateAuthCreds:
-                  certSecretId: projects/example/secrets/admin-cert
-                  certPrivateKeySecretId: projects/example/secrets/admin-key
-                passwordAuthCreds:
-                  username: admin
-                  passwordSecretId: projects/example/secrets/admin-password
-              - role: VCM_ADMIN
-                activeAuthType: CERT
-                certificateAuthCreds:
-                  certSecretId: projects/example/secrets/vcm-admin-cert
-                  certPrivateKeySecretId: projects/example/secrets/vcm-admin-key
-                passwordAuthCreds:
-                  username: vcm-admin
-                  passwordSecretId: projects/example/secrets/vcm-admin-password
+              adminPassSecretId: projects/example/secrets/admin-password
+              defaultModeUserCredentials:
+                userPurpose: PURPOSE_VCM_ADMIN
+                username: vcm-admin
+                activeAuthMode: AUTHMODE_CERT
+                certId: projects/example/locations/us-central1/caPools/example-pool/certificates/vcm-admin-cert
+                certPrivateKeySecret: projects/example/secrets/vcm-admin-key
+              ontapModeUserCredentials:
+                userPurpose: PURPOSE_ONTAP_MODE
+                username: ontap-mode
+                activeAuthMode: AUTHMODE_PASSWORD
+                passwordSecret: projects/example/secrets/ontap-mode-password
             caUri: projects/example/secrets/ca
             ontapLicenseSecret: projects/example/secrets/license
             serviceAccountEmail: example@example.com
@@ -1562,9 +1558,7 @@ components:
         netConfig:
           $ref: "#/components/schemas/NetConfig_v1"
         ontapCredentials:
-          type: array
-          items:
-            $ref: "#/components/schemas/OntapCredential_v1"
+          $ref: "#/components/schemas/OntapCredentials_v1"
         caUri:
           type: string
         ontapLicenseSecret:
@@ -1572,45 +1566,66 @@ components:
         serviceAccountEmail:
           type: string
 
-    OntapCredential_v1:
+    OntapCredentials_v1:
       type: object
-      required: [role]
+      description: |
+        ONTAP credentials for the cluster's users. adminPassSecretId is the
+        built-in "admin" user's password (ADMIN purpose). The default-mode user
+        (PURPOSE_VCM_ADMIN) is the identity VCM uses to talk to ONTAP; the
+        ontap-mode user (PURPOSE_ONTAP_MODE) is provisioned for ONTAP mode.
       properties:
-        passwordAuthCreds:
-          $ref: "#/components/schemas/PasswordAuthCreds_v1"
-        certificateAuthCreds:
-          $ref: "#/components/schemas/CertificateAuthCreds_v1"
-        activeAuthType:
+        adminPassSecretId:
           type: string
-          enum: [CERT, PWD]
           description: |
-            Active auth type for this credential set. CERT uses
-            certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
-            when unset.
-        role:
-          type: string
-          enum: [ONTAP_MODE, ADMIN, VCM_ADMIN]
-          description: ONTAP role this credential set is provisioned for.
+            Secret Manager resource path of the built-in ONTAP "admin" user's
+            password. This user is built-in; its username cannot be changed.
+        defaultModeUserCredentials:
+          $ref: "#/components/schemas/UserCredentials_v1"
+        ontapModeUserCredentials:
+          $ref: "#/components/schemas/UserCredentials_v1"
 
-    PasswordAuthCreds_v1:
+    UserCredentials_v1:
       type: object
+      description: |
+        Credentials for a single ONTAP user, resolved by activeAuthMode. For
+        AUTHMODE_CERT (or AUTHMODE_UNSPECIFIED) certId and certPrivateKeySecret
+        are required; for AUTHMODE_PASSWORD passwordSecret is required.
       properties:
+        userPurpose:
+          type: string
+          enum: [PURPOSE_UNSPECIFIED, PURPOSE_VCM_ADMIN, PURPOSE_ONTAP_MODE]
+          description: Purpose/role of this ONTAP user.
         username:
           type: string
-          description: ONTAP username (e.g. root).
-        passwordSecretId:
+          description: ONTAP username for this user.
+        certId:
           type: string
-          description: Secret Manager secret ID containing the password.
-
-    CertificateAuthCreds_v1:
-      type: object
-      properties:
-        certSecretId:
+          description: |
+            Full CAS (Certificate Authority Service) resource name of the
+            certificate, e.g.
+            projects/{project}/locations/{region}/caPools/{caPool}/certificates/{certificate}.
+            The certificate PEM is fetched from CAS (same source as the VCP
+            self-managed path). Required when activeAuthMode is AUTHMODE_CERT (or
+            AUTHMODE_UNSPECIFIED).
+        certPrivateKeySecret:
           type: string
-          description: Secret Manager secret ID containing the CA certificate path.
-        certPrivateKeySecretId:
+          description: |
+            Secret Manager resource path of the certificate's private key, e.g.
+            projects/{project}/secrets/{secret}. Required when activeAuthMode is
+            AUTHMODE_CERT (or AUTHMODE_UNSPECIFIED).
+        passwordSecret:
           type: string
-          description: Secret Manager secret ID containing the certificate's private key.
+          description: |
+            Secret Manager resource path of the user's password. Required when
+            activeAuthMode is AUTHMODE_PASSWORD.
+        activeAuthMode:
+          type: string
+          enum: [AUTHMODE_UNSPECIFIED, AUTHMODE_CERT, AUTHMODE_PASSWORD]
+          description: |
+            Active auth mechanism for this user. AUTHMODE_UNSPECIFIED and
+            AUTHMODE_CERT select certificate-based auth (certId +
+            certPrivateKeySecret); AUTHMODE_PASSWORD selects password-based auth
+            (passwordSecret).
 
     ClusterShape_v1:
       type: object

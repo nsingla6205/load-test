@@ -86,12 +86,19 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 			}
 
 		case common.ProviderGCP:
-			poolCredentials := &datamodel.PoolCredentials{
-				CaURI:         node.GetCaURIWithFallback(),
-				CertificateID: node.CertificateID,
+			// VCM path: CLH provides the certificate in CAS (CertificateID is the
+			// full CAS resource name) and the matching private key in Secret
+			// Manager (CertPrivateKeySecretID). Load from both instead of
+			// deriving the key from the certificate id (the VCP self-managed path).
+			if node.CertPrivateKeySecretID != "" {
+				certificate, err = GetProvidedCertificate(ctx, node.CertificateID, node.CertPrivateKeySecretID)
+			} else {
+				poolCredentials := &datamodel.PoolCredentials{
+					CaURI:         node.GetCaURIWithFallback(),
+					CertificateID: node.CertificateID,
+				}
+				certificate, err = GetCertificateFromCacheOrSecretManager(ctx, poolCredentials)
 			}
-
-			certificate, err = GetCertificateFromCacheOrSecretManager(ctx, poolCredentials)
 			if err != nil {
 				util.GetLogger(ctx).Errorf("Failed to get certificate for node %s: %v", node.Name, err)
 				return nil, errors.NewVCPError(errors.ErrGCPResourceFetchError, err)
@@ -143,18 +150,10 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 			rootCAs = certificate.InterMediateCertificates
 		}
 
-		// OCI SNI override: derive the synthetic SNI from cluster identity so
-		// the REST client can connect by IP and still pass hostname
-		// verification against the wildcard SAN baked into the cert. Mirrors
-		// the write-path synthesis in _saveNodeDetails. GCP and password-auth
-		// paths leave serverName empty and behave exactly as before.
-		var serverName string
-		if env.GetHyperscaler() == common.ProviderOCI &&
-			env.OCIUseTLSSNIOverride &&
-			node.DeploymentName != "" &&
-			env.VsaDeployedDnsName != "" {
-			serverName = fmt.Sprintf("mgmt.%s.%s", node.DeploymentName, env.VsaDeployedDnsName)
-		}
+		// SNI override: connect by IP and still pass hostname verification
+		// against the wildcard SAN baked into the cert, so no per-node Cloud DNS
+		// record is required. See resolveNodeServerName for the precedence.
+		serverName := resolveNodeServerName(node)
 
 		return NewProvider(ctx, ProviderDetails{
 			IPAddress: ipAddress,
@@ -166,12 +165,10 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 				CommonName:               commonName,
 				PrivateKey:               privateKey,
 			},
-			// TODO(vcm-dns): honor node.InsecureSkipVerify as a temporary workaround.
-			// GCP/OCI callers never set it, so this stays false (full mTLS, unchanged).
-			// The VCM create-pool flow sets it true because VCM has no Cloud DNS
-			// records to dial a per-node FQDN whose SNI matches the cert wildcard SAN.
-			// Revert to a hard false once DNS handling / SNI-override for VCM lands.
-			InsecureSkipVerify: node.InsecureSkipVerify,
+			// Full mTLS with server-cert verification is always on for cert
+			// auth; hostname verification uses serverName (SNI override) when
+			// set, else the dialed host. Never skip verification here.
+			InsecureSkipVerify: false,
 			AuthType:           node.AuthType, // Set authentication type
 			ServerName:         serverName,
 		}), nil
@@ -229,18 +226,32 @@ var GetProviderByNodeWithFastConnection = _getProviderByNodeWithFastConnection
 
 func _getProviderByNodeWithFastConnection(ctx context.Context, node *models.Node) (Provider, error) {
 	if node.AuthType == env.USER_CERTIFICATE {
-		// Create PoolCredentials from Node's CA URI for certificate retrieval
-		poolCredentials := &datamodel.PoolCredentials{
-			CaURI:         node.GetCaURIWithFallback(),
-			CertificateID: node.CertificateID,
+		var certificate *models.Certificate
+		var err error
+		// VCM path: cert is provided in CAS (CertificateID = full CAS resource
+		// name) and its private key in Secret Manager (CertPrivateKeySecretID).
+		if node.CertPrivateKeySecretID != "" {
+			certificate, err = GetProvidedCertificate(ctx, node.CertificateID, node.CertPrivateKeySecretID)
+		} else {
+			// Create PoolCredentials from Node's CA URI for certificate retrieval
+			poolCredentials := &datamodel.PoolCredentials{
+				CaURI:         node.GetCaURIWithFallback(),
+				CertificateID: node.CertificateID,
+			}
+			certificate, err = GetCertificateFromCacheOrSecretManager(ctx, poolCredentials)
 		}
-
-		certificate, err := GetCertificateFromCacheOrSecretManager(ctx, poolCredentials)
-
 		if err != nil {
 			util.GetLogger(ctx).Errorf("Failed to get certificate for node %s: %v", node.Name, err)
 			return nil, errors.NewVCPError(errors.ErrGCPResourceFetchError, err)
 		}
+
+		// Mirror the SNI override from the regular cert-auth path: without a
+		// serverName, NewClient dials the (now-empty) HostDNSName values and
+		// never sets tls.Config.ServerName, so VCM nodes (which dial by IP with
+		// no Cloud DNS record) would fail the fast health check before TLS
+		// verification. resolveNodeServerName keeps this in sync with
+		// _getProviderByNode.
+		serverName := resolveNodeServerName(node)
 
 		return NewProvider(ctx, ProviderDetails{
 			Hosts: node.EndpointAddressesToHostNameMap,
@@ -252,6 +263,7 @@ func _getProviderByNodeWithFastConnection(ctx context.Context, node *models.Node
 			},
 			InsecureSkipVerify: false,
 			FastConnection:     true, // Enable fast connection for quick health checks
+			ServerName:         serverName,
 		}), nil
 	}
 
@@ -1270,6 +1282,102 @@ func _getCertificateFromCacheOrSecretManager(ctx context.Context, poolCredential
 	return certCache.Certificate, nil
 }
 
+// GetProvidedCertificate loads a caller-provided certificate from CAS and its
+// private key from Secret Manager.
+//
+//   - certResourceName is the full CAS certificate resource name:
+//     projects/{project}/locations/{region}/caPools/{caPool}/certificates/{cert}
+//   - keySecretRef is the full Secret Manager resource name of the private key:
+//     projects/{project}/secrets/{secret}[/versions/{v}]
+//
+// This backs the VCM path where CLH provisions the certificate in CAS (exactly
+// as VCP does) and stores the matching private key in Secret Manager, then
+// hands VCM both references. Unlike VCP, VCM does not mint the key or derive its
+// location from the certificate id: the two references are independent and
+// supplied by the caller. The common name is taken from the CAS certificate so
+// downstream (VLM) can map it to an ONTAP user. The resolved material is cached
+// under the certificate resource name.
+var GetProvidedCertificate = _getProvidedCertificate
+
+func _getProvidedCertificate(ctx context.Context, certResourceName, keySecretRef string) (*models.Certificate, error) {
+	if certResourceName == "" || keySecretRef == "" {
+		return nil, fmt.Errorf("provided certificate requires both certificate (CAS) and private-key (Secret Manager) references")
+	}
+	if cached, ok := common.GetCertAuthCache(certResourceName); ok && cached.Certificate != nil {
+		return cached.Certificate, nil
+	}
+
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Certificate PEM + chain + common name come from CAS (same source as VCP).
+	projectID, region, caPoolName, certificateID, err := parseCertificateResourceName(certResourceName)
+	if err != nil {
+		return nil, err
+	}
+	certificate, err := cloudService.GetCertificate(projectID, region, caPoolName, certificateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read certificate %q from CAS: %w", certResourceName, err)
+	}
+	if certificate == nil || certificate.PemCertificate == "" {
+		return nil, fmt.Errorf("certificate %q not found in CAS or has no PEM body", certResourceName)
+	}
+
+	// Private key comes from Secret Manager (caller-provided, tenant project).
+	keyPEM, err := getSecretValueByResourceName(cloudService, keySecretRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read certificate private-key secret %q: %w", keySecretRef, err)
+	}
+
+	cert := &models.Certificate{
+		SignedCertificate:        certificate.PemCertificate,
+		PrivateKey:               keyPEM,
+		CommonName:               certificate.SubjectCommonName,
+		InterMediateCertificates: certificate.PemCertificateChain,
+	}
+	common.AddToCertAuthCache(certResourceName, cert)
+	return cert, nil
+}
+
+// getSecretValueByResourceName reads the latest version of a Secret Manager
+// secret addressed by its full resource name. VCM credentials live in the
+// tenant project, so the project is taken from the resource name rather than
+// env.SecretManagerProjectID.
+func getSecretValueByResourceName(cloudService hyperscaler.Services, resourceName string) (string, error) {
+	projectID, secretID, err := utils.ParseSecretResourceName(resourceName)
+	if err != nil {
+		return "", err
+	}
+	secret, err := cloudService.GetSecretWithLatestVersion(projectID, secretID)
+	if err != nil {
+		return "", err
+	}
+	if secret == nil || secret.SecretVersion == nil || secret.SecretVersion.Value == "" {
+		return "", fmt.Errorf("secret %q in project %q has no accessible latest version", secretID, projectID)
+	}
+	return secret.SecretVersion.Value, nil
+}
+
+// parseCertificateResourceName parses a full CAS certificate resource name of
+// the form:
+//
+//	projects/{project}/locations/{region}/caPools/{caPool}/certificates/{cert}
+//
+// It returns the components GcpServices.GetCertificate needs. Leading/trailing
+// slashes and surrounding whitespace are tolerated.
+func parseCertificateResourceName(name string) (projectID, region, caPoolName, certificateID string, err error) {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(name), "/"), "/")
+	if len(parts) != 8 ||
+		parts[0] != "projects" || parts[2] != "locations" || parts[4] != "caPools" || parts[6] != "certificates" ||
+		parts[1] == "" || parts[3] == "" || parts[5] == "" || parts[7] == "" {
+		return "", "", "", "", fmt.Errorf(
+			"invalid certificate resource name %q; expected projects/{project}/locations/{region}/caPools/{caPool}/certificates/{certificate}", name)
+	}
+	return parts[1], parts[3], parts[5], parts[7], nil
+}
+
 // _getCertificateFromCacheOrCAS retrieves an OCI-managed certificate (signed
 // cert, private key, chain) from the in-memory cert-auth cache, falling back
 // to an OCI Certificates Service round-trip on a miss.
@@ -1668,13 +1776,15 @@ func _createNodeForProvider(inp NodeProviderInput) *models.Node {
 		}
 		return &models.Node{
 			EndpointAddressesToHostNameMap: endpointAddressToHostNameMap,
+			Username:                       inp.OntapCredentials.Username, // ONTAP user (SSH fallback on the cert-auth path)
 			Password:                       inp.OntapCredentials.Password, // Include password for SSH authentication
 			DeploymentName:                 inp.DeploymentName,
 			CertificateID:                  inp.OntapCredentials.CertificateID,
+			CertPrivateKeySecretID:         inp.OntapCredentials.CertPrivateKeySecretID,
 			SecretID:                       inp.OntapCredentials.SecretID,
 			AuthType:                       inp.OntapCredentials.AuthType,
 			CaURI:                          caURI,
-			InsecureSkipVerify:             inp.InsecureSkipVerify, // TODO(vcm-dns): temporary VCM workaround
+			ServerName:                     inp.ServerName,
 		}
 	}
 
@@ -1686,6 +1796,7 @@ func _createNodeForProvider(inp NodeProviderInput) *models.Node {
 
 	return &models.Node{
 		EndpointAddressesToHostNameMap: endpointAddressToHostNameMap,
+		Username:                       inp.OntapCredentials.Username, // ONTAP user for password-auth (e.g. non-admin default user)
 		Password:                       inp.OntapCredentials.Password,
 		DeploymentName:                 inp.DeploymentName,
 		SecretID:                       inp.OntapCredentials.SecretID,
@@ -1699,10 +1810,44 @@ type NodeProviderInput struct {
 	DeploymentName string
 	// Required: OntapCredentials from database (contains Password, SecretID, CertificateID, AuthType, and CA fields with env var fallback)
 	OntapCredentials *datamodel.PoolCredentials
-	// InsecureSkipVerify propagates onto the built node so the cert-auth REST
-	// client skips TLS server verification. TODO(vcm-dns): temporary — only the
-	// VCM create-pool flow sets this while VCM has no Cloud DNS records.
-	InsecureSkipVerify bool
+	// ServerName, when set, propagates onto the built node as the TLS SNI /
+	// hostname-verification value so the cert-auth REST client can dial by IP
+	// and still verify the server cert against its wildcard SAN (no Cloud DNS
+	// record needed). Set by the VCM flows via OntapSNIServerName.
+	ServerName string
+}
+
+// OntapSNIServerName builds the TLS SNI / hostname-verification value that
+// matches the pool certificate's wildcard SAN ("*.<deploymentName>.<VsaDeployedDnsName>").
+// It lets cert-auth ONTAP REST clients dial a node by IP and still verify the
+// server certificate without a per-node Cloud DNS record (the VCM no-DNS path,
+// mirroring OCI's SNI override). Returns "" when the deployment name or
+// VSA_DEPLOYED_DNS_NAME is unset, so callers fall back to the default
+// dial/verify behaviour instead of using a malformed SNI.
+func OntapSNIServerName(deploymentName string) string {
+	if deploymentName == "" || env.VsaDeployedDnsName == "" {
+		return ""
+	}
+	return fmt.Sprintf("mgmt.%s.%s", deploymentName, env.VsaDeployedDnsName)
+}
+
+// resolveNodeServerName derives the TLS SNI / hostname-verification value for a
+// cert-auth ONTAP REST client so it can dial by IP and still verify the server
+// cert against its wildcard SAN (no per-node Cloud DNS record). An explicit
+// node.ServerName (set by the VCM flows) takes precedence; otherwise OCI derives
+// the synthetic SNI from cluster identity, mirroring the write-path synthesis in
+// _saveNodeDetails. The GCP DNS path and password auth leave it empty and keep
+// their existing dial/verify behaviour. It is shared by _getProviderByNode and
+// _getProviderByNodeWithFastConnection so both connect paths stay in sync.
+func resolveNodeServerName(node *models.Node) string {
+	switch {
+	case node.ServerName != "":
+		return node.ServerName
+	case env.GetHyperscaler() == common.ProviderOCI && env.OCIUseTLSSNIOverride:
+		return OntapSNIServerName(node.DeploymentName)
+	default:
+		return ""
+	}
 }
 
 // GetOntapNode resolves an ONTAP provider node from pool DB nodes, matching workflow usage:

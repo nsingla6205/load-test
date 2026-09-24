@@ -32,9 +32,7 @@ func poolSeedStore(t *testing.T, mutate func(*vcmserver.SeedConfigV1)) *Store {
 			Nodemgmt: vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "mgmt-vpc", Subnet: "mgmt-subnet"}),
 			Data:     vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "data-vpc", Subnet: "data-subnet"}),
 		})
-		seed.OntapCredentials = []vcmserver.OntapCredentialV1{
-			passwordOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "root", "admin-secret"),
-		}
+		seed.OntapCredentials = defaultOntapCredentials("admin-secret")
 		if mutate != nil {
 			mutate(seed)
 		}
@@ -73,9 +71,17 @@ func TestStore_SeedPoolParams_MapsConfiguredInputs(t *testing.T) {
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "mgmt-vpc", Subnet: "mgmt-subnet"}, params.NodeMgmt)
 	require.NotNil(t, params.Data)
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "data-vpc", Subnet: "data-subnet"}, *params.Data)
-	require.Len(t, params.OntapCredentials, 1)
-	assert.Equal(t, "admin-secret", params.OntapCredentials[0].SecretID, "ADMIN must resolve the password secret")
-	assert.Empty(t, params.OntapCredentials[0].CertificateID, "ADMIN must not resolve certificate material")
+	// admin (adminPassSecretId) + default (VCM_ADMIN) entries.
+	require.Len(t, params.OntapCredentials, 2)
+	assert.Equal(t, "admin-pass", commonparams.AdminPasswordSecret(params.OntapCredentials))
+	var def commonparams.VCMOntapCredential
+	for _, c := range params.OntapCredentials {
+		if c.Type == "default" {
+			def = c
+		}
+	}
+	assert.Equal(t, "admin-secret", def.SecretID, "default user resolves its password secret")
+	assert.Empty(t, def.CertificateID, "password auth must not resolve certificate material")
 
 	// Request-owned fields stay zero until the shape is overlaid.
 	assert.Empty(t, params.Mode)
@@ -125,39 +131,53 @@ func TestStore_SeedPoolParams_RejectsIncompleteConfig(t *testing.T) {
 		},
 		{
 			name:    "missing ontapCredentials",
-			mutate:  func(seed *vcmserver.SeedConfigV1) { seed.OntapCredentials = nil },
+			mutate:  func(seed *vcmserver.SeedConfigV1) { seed.OntapCredentials.Reset() },
 			wantMsg: "ontapCredentials are not configured",
 		},
 		{
-			// A CERT credential without certSecretId would otherwise leave only
-			// the private-key secret set and be dereferenced as a password.
-			name: "cert credential without certSecretId",
+			name: "missing adminPassSecretId",
 			mutate: func(seed *vcmserver.SeedConfigV1) {
-				seed.OntapCredentials = []vcmserver.OntapCredentialV1{
-					certOntapCredential(vcmserver.OntapCredentialV1RoleVCMADMIN, "", "key-1"),
-				}
+				seed.OntapCredentials = ontapCredentials("",
+					passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "secret-1"))
 			},
-			wantMsg: "certificateAuthCreds.certSecretId is required when activeAuthType is CERT",
+			wantMsg: "adminPassSecretId is required",
 		},
 		{
-			name: "password credential without passwordSecretId",
+			// A CERT user without certId would otherwise leave only the
+			// private-key secret set and be dereferenced as a password.
+			name: "cert user without certId",
 			mutate: func(seed *vcmserver.SeedConfigV1) {
-				seed.OntapCredentials = []vcmserver.OntapCredentialV1{
-					passwordOntapCredential(vcmserver.OntapCredentialV1RoleVCMADMIN, "root", ""),
-				}
+				seed.OntapCredentials = ontapCredentials("admin-pass",
+					certUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "vcm-admin", "", "key-1"))
 			},
-			wantMsg: "passwordAuthCreds.passwordSecretId is required",
+			wantMsg: "certId is required when activeAuthMode is AUTHMODE_CERT",
 		},
 		{
-			// ADMIN is password-only, so it is rejected for a missing password
-			// secret even though it declares CERT and carries cert material.
-			name: "admin credential declaring cert has no password secret",
+			name: "cert user without certPrivateKeySecret",
 			mutate: func(seed *vcmserver.SeedConfigV1) {
-				seed.OntapCredentials = []vcmserver.OntapCredentialV1{
-					certOntapCredential(vcmserver.OntapCredentialV1RoleADMIN, "cert-1", "key-1"),
-				}
+				seed.OntapCredentials = ontapCredentials("admin-pass",
+					certUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "vcm-admin", "cert-1", ""))
 			},
-			wantMsg: "passwordAuthCreds.passwordSecretId is required",
+			wantMsg: "certPrivateKeySecret is required when activeAuthMode is AUTHMODE_CERT",
+		},
+		{
+			name: "password user without passwordSecret",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				seed.OntapCredentials = ontapCredentials("admin-pass",
+					passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", ""))
+			},
+			wantMsg: "passwordSecret is required when activeAuthMode is AUTHMODE_PASSWORD",
+		},
+		{
+			name: "ontap-mode user with mismatched purpose",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				oc := vcmserver.OntapCredentialsV1{}
+				oc.AdminPassSecretId.SetTo("admin-pass")
+				oc.DefaultModeUserCredentials.SetTo(passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "secret-1"))
+				oc.OntapModeUserCredentials.SetTo(passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "om", "om-secret"))
+				seed.OntapCredentials = vcmserver.NewOptOntapCredentialsV1(oc)
+			},
+			wantMsg: "ontapModeUserCredentials.userPurpose must be PURPOSE_ONTAP_MODE",
 		},
 	}
 

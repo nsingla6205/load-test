@@ -249,60 +249,105 @@ const (
 	vcmOntapCredentialTypeDefault = "default"
 )
 
-// SelectOntapCredential picks a credential set, preferring admin, then default,
-// then the first entry.
-func SelectOntapCredential(creds []VCMOntapCredential) VCMOntapCredential {
-	var first, admin, def *VCMOntapCredential
+// AdminPasswordSecret returns the built-in ONTAP admin user's password secret
+// id (adminPassSecretId) from the flattened credential list, or "" when absent.
+func AdminPasswordSecret(creds []VCMOntapCredential) string {
 	for i := range creds {
-		if first == nil {
-			first = &creds[i]
-		}
-		switch strings.ToLower(creds[i].Type) {
-		case vcmOntapCredentialTypeAdmin:
-			admin = &creds[i]
-		case vcmOntapCredentialTypeDefault:
-			def = &creds[i]
+		if strings.ToLower(creds[i].Type) == vcmOntapCredentialTypeAdmin {
+			return creds[i].SecretID
 		}
 	}
-	switch {
-	case admin != nil:
-		return *admin
-	case def != nil:
-		return *def
-	case first != nil:
-		return *first
-	default:
-		return VCMOntapCredential{}
-	}
+	return ""
 }
 
-// DeriveOntapCredentials maps ONTAP credentials into datamodel.PoolCredentials
-// (identifiers only), selecting the auth type from the material present.
+// DeriveOntapCredentials maps the flattened ONTAP credential list into
+// datamodel.PoolCredentials (identifiers only).
+//
+// The default-mode user (PURPOSE_VCM_ADMIN) is the identity VCM authenticates
+// as; the admin entry supplies the built-in admin password (adminPassSecretId)
+// used to bootstrap the cluster. On the cert path both the certificate and its
+// private key are provided as Secret Manager secrets (certId +
+// certPrivateKeySecret) and carried through - VCM does not mint them.
 func DeriveOntapCredentials(creds []VCMOntapCredential, caURI string) *datamodel.PoolCredentials {
-	cred := SelectOntapCredential(creds)
-	poolCreds := &datamodel.PoolCredentials{
-		SecretID:      cred.SecretID,
-		CertificateID: cred.CertificateID,
-		Username:      cred.Username,
-		CaURI:         caURI,
+	var adminPass string
+	var primary, firstNonAdmin *VCMOntapCredential
+	primaryIsDefault := false
+	for i := range creds {
+		switch strings.ToLower(creds[i].Type) {
+		case vcmOntapCredentialTypeAdmin:
+			adminPass = creds[i].SecretID
+		case vcmOntapCredentialTypeDefault:
+			primary = &creds[i]
+			primaryIsDefault = true
+		default: // ontap-mode or unlabeled
+			if firstNonAdmin == nil {
+				firstNonAdmin = &creds[i]
+			}
+		}
 	}
-	switch {
-	case poolCreds.CertificateID != "":
+	if primary == nil {
+		primary = firstNonAdmin
+		primaryIsDefault = false
+	}
+
+	poolCreds := &datamodel.PoolCredentials{CaURI: caURI}
+	if primary == nil {
+		// Only the admin (password) credential is present.
+		poolCreds.SecretID = adminPass
+		if adminPass != "" {
+			poolCreds.AuthType = env.USERNAME_PWD_SEC_MGR
+		} else {
+			poolCreds.AuthType = env.USERNAME_PWD
+		}
+		return poolCreds
+	}
+
+	poolCreds.Username = primary.Username
+	if primary.IsCertAuth && primary.CertificateID != "" {
+		poolCreds.CertificateID = primary.CertificateID
+		poolCreds.CertPrivateKeySecretID = primary.CertPrivateKeySecretID
+		// Bootstrap admin password for the cert-enable flow.
+		poolCreds.SecretID = adminPass
 		poolCreds.AuthType = env.USER_CERTIFICATE
-	case poolCreds.SecretID != "":
+		return poolCreds
+	}
+
+	// Password auth for the primary user.
+	//
+	// The PURPOSE_VCM_ADMIN (default-mode) user is not provisioned as a
+	// password-authenticatable ONTAP account: on the password path VLM only
+	// sets a password on the built-in "admin" during bootstrap, and the
+	// configured default-mode username (e.g. "<hash>_admin") is created solely
+	// as a certificate user by the cert-enable flow. Authenticating as that
+	// username with a password yields HTTP 401 (seen at the create-QoS-policy
+	// step), so use the built-in admin for the default-mode password path.
+	// Named password users (e.g. PURPOSE_ONTAP_MODE) are left untouched.
+	if primaryIsDefault {
+		poolCreds.Username = env.Admin
+	}
+	poolCreds.SecretID = primary.SecretID
+	if poolCreds.SecretID == "" {
+		poolCreds.SecretID = adminPass
+	}
+	if poolCreds.SecretID != "" {
 		poolCreds.AuthType = env.USERNAME_PWD_SEC_MGR
-	default:
+	} else {
 		poolCreds.AuthType = env.USERNAME_PWD
 	}
 	return poolCreds
 }
 
-// VCMOntapCredential is a VCM ONTAP credential entry (type is admin/default).
+// VCMOntapCredential is a flattened VCM ONTAP credential entry. Type is one of
+// "admin", "default" (PURPOSE_VCM_ADMIN), or "ontap-mode" (PURPOSE_ONTAP_MODE).
+// For cert auth CertificateID + CertPrivateKeySecretID are set (IsCertAuth
+// true); for password auth SecretID holds the password secret.
 type VCMOntapCredential struct {
-	Type          string
-	SecretID      string
-	CertificateID string
-	Username      string
+	Type                   string
+	SecretID               string
+	CertificateID          string
+	CertPrivateKeySecretID string
+	Username               string
+	IsCertAuth             bool
 }
 
 // VCMPoolWorkflowResult is the terminal result of the VCM pool-create workflow.

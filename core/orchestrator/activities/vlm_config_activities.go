@@ -47,8 +47,7 @@ func (a *VLMConfigActivity) ValidateGetVLMConfigInputs(ctx context.Context, para
 				fmt.Errorf("VLM config rebuild: missing required inputs: %v", missing)), true)
 	}
 
-	cred := commonparams.SelectOntapCredential(params.OntapCredentials)
-	if cred.SecretID == "" {
+	if commonparams.AdminPasswordSecret(params.OntapCredentials) == "" {
 		return apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
 				fmt.Errorf("VLM config rebuild: no ONTAP admin credential with a password secret id")), true)

@@ -1,6 +1,9 @@
 package utils
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // BareSecretName reduces a Secret Manager resource name to the bare secret id
 // that vsa.GetProviderByNode expects, leaving an already-bare name untouched:
@@ -23,4 +26,20 @@ func BareSecretName(name string) string {
 		}
 	}
 	return trimmed
+}
+
+// ParseSecretResourceName extracts the project and secret identifiers from a
+// Secret Manager resource name. It accepts both the bare secret form and the
+// versioned form:
+//
+//	projects/{project}/secrets/{secret}
+//	projects/{project}/secrets/{secret}/versions/{version}
+//
+// The version segment is ignored; the latest version is always used.
+func ParseSecretResourceName(name string) (projectID, secretID string, err error) {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(name), "/"), "/")
+	if len(parts) < 4 || parts[0] != "projects" || parts[2] != "secrets" || parts[1] == "" || parts[3] == "" {
+		return "", "", fmt.Errorf("invalid secret resource name %q; expected projects/{project}/secrets/{secret}", name)
+	}
+	return parts[1], parts[3], nil
 }

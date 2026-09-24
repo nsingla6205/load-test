@@ -261,86 +261,6 @@ func (s *BlockDeviceV1OsType) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *CertificateAuthCredsV1) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *CertificateAuthCredsV1) encodeFields(e *jx.Encoder) {
-	{
-		if s.CertSecretId.Set {
-			e.FieldStart("certSecretId")
-			s.CertSecretId.Encode(e)
-		}
-	}
-	{
-		if s.CertPrivateKeySecretId.Set {
-			e.FieldStart("certPrivateKeySecretId")
-			s.CertPrivateKeySecretId.Encode(e)
-		}
-	}
-}
-
-var jsonFieldsNameOfCertificateAuthCredsV1 = [2]string{
-	0: "certSecretId",
-	1: "certPrivateKeySecretId",
-}
-
-// Decode decodes CertificateAuthCredsV1 from json.
-func (s *CertificateAuthCredsV1) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode CertificateAuthCredsV1 to nil")
-	}
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "certSecretId":
-			if err := func() error {
-				s.CertSecretId.Reset()
-				if err := s.CertSecretId.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"certSecretId\"")
-			}
-		case "certPrivateKeySecretId":
-			if err := func() error {
-				s.CertPrivateKeySecretId.Reset()
-				if err := s.CertPrivateKeySecretId.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"certPrivateKeySecretId\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode CertificateAuthCredsV1")
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *CertificateAuthCredsV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *CertificateAuthCredsV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode implements json.Marshaler.
 func (s *ClusterConfigV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -3019,228 +2939,98 @@ func (s *NetInterfaceConfigV1) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *OntapCredentialV1) Encode(e *jx.Encoder) {
+func (s *OntapCredentialsV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *OntapCredentialV1) encodeFields(e *jx.Encoder) {
+func (s *OntapCredentialsV1) encodeFields(e *jx.Encoder) {
 	{
-		if s.PasswordAuthCreds.Set {
-			e.FieldStart("passwordAuthCreds")
-			s.PasswordAuthCreds.Encode(e)
+		if s.AdminPassSecretId.Set {
+			e.FieldStart("adminPassSecretId")
+			s.AdminPassSecretId.Encode(e)
 		}
 	}
 	{
-		if s.CertificateAuthCreds.Set {
-			e.FieldStart("certificateAuthCreds")
-			s.CertificateAuthCreds.Encode(e)
+		if s.DefaultModeUserCredentials.Set {
+			e.FieldStart("defaultModeUserCredentials")
+			s.DefaultModeUserCredentials.Encode(e)
 		}
 	}
 	{
-		if s.ActiveAuthType.Set {
-			e.FieldStart("activeAuthType")
-			s.ActiveAuthType.Encode(e)
+		if s.OntapModeUserCredentials.Set {
+			e.FieldStart("ontapModeUserCredentials")
+			s.OntapModeUserCredentials.Encode(e)
 		}
-	}
-	{
-		e.FieldStart("role")
-		s.Role.Encode(e)
 	}
 }
 
-var jsonFieldsNameOfOntapCredentialV1 = [4]string{
-	0: "passwordAuthCreds",
-	1: "certificateAuthCreds",
-	2: "activeAuthType",
-	3: "role",
+var jsonFieldsNameOfOntapCredentialsV1 = [3]string{
+	0: "adminPassSecretId",
+	1: "defaultModeUserCredentials",
+	2: "ontapModeUserCredentials",
 }
 
-// Decode decodes OntapCredentialV1 from json.
-func (s *OntapCredentialV1) Decode(d *jx.Decoder) error {
+// Decode decodes OntapCredentialsV1 from json.
+func (s *OntapCredentialsV1) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode OntapCredentialV1 to nil")
+		return errors.New("invalid: unable to decode OntapCredentialsV1 to nil")
 	}
-	var requiredBitSet [1]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "passwordAuthCreds":
+		case "adminPassSecretId":
 			if err := func() error {
-				s.PasswordAuthCreds.Reset()
-				if err := s.PasswordAuthCreds.Decode(d); err != nil {
+				s.AdminPassSecretId.Reset()
+				if err := s.AdminPassSecretId.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"passwordAuthCreds\"")
+				return errors.Wrap(err, "decode field \"adminPassSecretId\"")
 			}
-		case "certificateAuthCreds":
+		case "defaultModeUserCredentials":
 			if err := func() error {
-				s.CertificateAuthCreds.Reset()
-				if err := s.CertificateAuthCreds.Decode(d); err != nil {
+				s.DefaultModeUserCredentials.Reset()
+				if err := s.DefaultModeUserCredentials.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"certificateAuthCreds\"")
+				return errors.Wrap(err, "decode field \"defaultModeUserCredentials\"")
 			}
-		case "activeAuthType":
+		case "ontapModeUserCredentials":
 			if err := func() error {
-				s.ActiveAuthType.Reset()
-				if err := s.ActiveAuthType.Decode(d); err != nil {
+				s.OntapModeUserCredentials.Reset()
+				if err := s.OntapModeUserCredentials.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"activeAuthType\"")
-			}
-		case "role":
-			requiredBitSet[0] |= 1 << 3
-			if err := func() error {
-				if err := s.Role.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"role\"")
+				return errors.Wrap(err, "decode field \"ontapModeUserCredentials\"")
 			}
 		default:
 			return d.Skip()
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode OntapCredentialV1")
-	}
-	// Validate required fields.
-	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
-		0b00001000,
-	} {
-		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
-			// Mask only required fields and check equality to mask using XOR.
-			//
-			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
-			// Bits of fields which would be set are actually bits of missed fields.
-			missed := bits.OnesCount8(result)
-			for bitN := 0; bitN < missed; bitN++ {
-				bitIdx := bits.TrailingZeros8(result)
-				fieldIdx := i*8 + bitIdx
-				var name string
-				if fieldIdx < len(jsonFieldsNameOfOntapCredentialV1) {
-					name = jsonFieldsNameOfOntapCredentialV1[fieldIdx]
-				} else {
-					name = strconv.Itoa(fieldIdx)
-				}
-				failures = append(failures, validate.FieldError{
-					Name:  name,
-					Error: validate.ErrFieldRequired,
-				})
-				// Reset bit.
-				result &^= 1 << bitIdx
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
+		return errors.Wrap(err, "decode OntapCredentialsV1")
 	}
 
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *OntapCredentialV1) MarshalJSON() ([]byte, error) {
+func (s *OntapCredentialsV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OntapCredentialV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes OntapCredentialV1ActiveAuthType as json.
-func (s OntapCredentialV1ActiveAuthType) Encode(e *jx.Encoder) {
-	e.Str(string(s))
-}
-
-// Decode decodes OntapCredentialV1ActiveAuthType from json.
-func (s *OntapCredentialV1ActiveAuthType) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode OntapCredentialV1ActiveAuthType to nil")
-	}
-	v, err := d.StrBytes()
-	if err != nil {
-		return err
-	}
-	// Try to use constant string.
-	switch OntapCredentialV1ActiveAuthType(v) {
-	case OntapCredentialV1ActiveAuthTypeCERT:
-		*s = OntapCredentialV1ActiveAuthTypeCERT
-	case OntapCredentialV1ActiveAuthTypePWD:
-		*s = OntapCredentialV1ActiveAuthTypePWD
-	default:
-		*s = OntapCredentialV1ActiveAuthType(v)
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s OntapCredentialV1ActiveAuthType) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OntapCredentialV1ActiveAuthType) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes OntapCredentialV1Role as json.
-func (s OntapCredentialV1Role) Encode(e *jx.Encoder) {
-	e.Str(string(s))
-}
-
-// Decode decodes OntapCredentialV1Role from json.
-func (s *OntapCredentialV1Role) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode OntapCredentialV1Role to nil")
-	}
-	v, err := d.StrBytes()
-	if err != nil {
-		return err
-	}
-	// Try to use constant string.
-	switch OntapCredentialV1Role(v) {
-	case OntapCredentialV1RoleONTAPMODE:
-		*s = OntapCredentialV1RoleONTAPMODE
-	case OntapCredentialV1RoleADMIN:
-		*s = OntapCredentialV1RoleADMIN
-	case OntapCredentialV1RoleVCMADMIN:
-		*s = OntapCredentialV1RoleVCMADMIN
-	default:
-		*s = OntapCredentialV1Role(v)
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s OntapCredentialV1Role) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OntapCredentialV1Role) UnmarshalJSON(data []byte) error {
+func (s *OntapCredentialsV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -3822,39 +3612,6 @@ func (s OptBool) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptBool) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes CertificateAuthCredsV1 as json.
-func (o OptCertificateAuthCredsV1) Encode(e *jx.Encoder) {
-	if !o.Set {
-		return
-	}
-	o.Value.Encode(e)
-}
-
-// Decode decodes CertificateAuthCredsV1 from json.
-func (o *OptCertificateAuthCredsV1) Decode(d *jx.Decoder) error {
-	if o == nil {
-		return errors.New("invalid: unable to decode OptCertificateAuthCredsV1 to nil")
-	}
-	o.Set = true
-	if err := o.Value.Decode(d); err != nil {
-		return err
-	}
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s OptCertificateAuthCredsV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OptCertificateAuthCredsV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -4747,18 +4504,18 @@ func (s *OptNilString) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes OntapCredentialV1ActiveAuthType as json.
-func (o OptOntapCredentialV1ActiveAuthType) Encode(e *jx.Encoder) {
+// Encode encodes OntapCredentialsV1 as json.
+func (o OptOntapCredentialsV1) Encode(e *jx.Encoder) {
 	if !o.Set {
 		return
 	}
-	e.Str(string(o.Value))
+	o.Value.Encode(e)
 }
 
-// Decode decodes OntapCredentialV1ActiveAuthType from json.
-func (o *OptOntapCredentialV1ActiveAuthType) Decode(d *jx.Decoder) error {
+// Decode decodes OntapCredentialsV1 from json.
+func (o *OptOntapCredentialsV1) Decode(d *jx.Decoder) error {
 	if o == nil {
-		return errors.New("invalid: unable to decode OptOntapCredentialV1ActiveAuthType to nil")
+		return errors.New("invalid: unable to decode OptOntapCredentialsV1 to nil")
 	}
 	o.Set = true
 	if err := o.Value.Decode(d); err != nil {
@@ -4768,14 +4525,14 @@ func (o *OptOntapCredentialV1ActiveAuthType) Decode(d *jx.Decoder) error {
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s OptOntapCredentialV1ActiveAuthType) MarshalJSON() ([]byte, error) {
+func (s OptOntapCredentialsV1) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OptOntapCredentialV1ActiveAuthType) UnmarshalJSON(data []byte) error {
+func (s *OptOntapCredentialsV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -4876,39 +4633,6 @@ func (s OptOperationV1Response) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptOperationV1Response) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes PasswordAuthCredsV1 as json.
-func (o OptPasswordAuthCredsV1) Encode(e *jx.Encoder) {
-	if !o.Set {
-		return
-	}
-	o.Value.Encode(e)
-}
-
-// Decode decodes PasswordAuthCredsV1 from json.
-func (o *OptPasswordAuthCredsV1) Decode(d *jx.Decoder) error {
-	if o == nil {
-		return errors.New("invalid: unable to decode OptPasswordAuthCredsV1 to nil")
-	}
-	o.Set = true
-	if err := o.Value.Decode(d); err != nil {
-		return err
-	}
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s OptPasswordAuthCredsV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *OptPasswordAuthCredsV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -5082,6 +4806,105 @@ func (s *OptStringInt64) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes UserCredentialsV1 as json.
+func (o OptUserCredentialsV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes UserCredentialsV1 from json.
+func (o *OptUserCredentialsV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptUserCredentialsV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptUserCredentialsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptUserCredentialsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UserCredentialsV1ActiveAuthMode as json.
+func (o OptUserCredentialsV1ActiveAuthMode) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes UserCredentialsV1ActiveAuthMode from json.
+func (o *OptUserCredentialsV1ActiveAuthMode) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptUserCredentialsV1ActiveAuthMode to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptUserCredentialsV1ActiveAuthMode) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptUserCredentialsV1ActiveAuthMode) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UserCredentialsV1UserPurpose as json.
+func (o OptUserCredentialsV1UserPurpose) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes UserCredentialsV1UserPurpose from json.
+func (o *OptUserCredentialsV1UserPurpose) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptUserCredentialsV1UserPurpose to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptUserCredentialsV1UserPurpose) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptUserCredentialsV1UserPurpose) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes VolumeReadV1SecurityStyle as json.
 func (o OptVolumeReadV1SecurityStyle) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -5177,86 +5000,6 @@ func (s OptWeeklyScheduleV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptWeeklyScheduleV1) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode implements json.Marshaler.
-func (s *PasswordAuthCredsV1) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *PasswordAuthCredsV1) encodeFields(e *jx.Encoder) {
-	{
-		if s.Username.Set {
-			e.FieldStart("username")
-			s.Username.Encode(e)
-		}
-	}
-	{
-		if s.PasswordSecretId.Set {
-			e.FieldStart("passwordSecretId")
-			s.PasswordSecretId.Encode(e)
-		}
-	}
-}
-
-var jsonFieldsNameOfPasswordAuthCredsV1 = [2]string{
-	0: "username",
-	1: "passwordSecretId",
-}
-
-// Decode decodes PasswordAuthCredsV1 from json.
-func (s *PasswordAuthCredsV1) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode PasswordAuthCredsV1 to nil")
-	}
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "username":
-			if err := func() error {
-				s.Username.Reset()
-				if err := s.Username.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"username\"")
-			}
-		case "passwordSecretId":
-			if err := func() error {
-				s.PasswordSecretId.Reset()
-				if err := s.PasswordSecretId.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"passwordSecretId\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode PasswordAuthCredsV1")
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *PasswordAuthCredsV1) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *PasswordAuthCredsV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -5365,13 +5108,9 @@ func (s *SeedConfigV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.OntapCredentials != nil {
+		if s.OntapCredentials.Set {
 			e.FieldStart("ontapCredentials")
-			e.ArrStart()
-			for _, elem := range s.OntapCredentials {
-				elem.Encode(e)
-			}
-			e.ArrEnd()
+			s.OntapCredentials.Encode(e)
 		}
 	}
 	{
@@ -5499,15 +5238,8 @@ func (s *SeedConfigV1) Decode(d *jx.Decoder) error {
 			}
 		case "ontapCredentials":
 			if err := func() error {
-				s.OntapCredentials = make([]OntapCredentialV1, 0)
-				if err := d.Arr(func(d *jx.Decoder) error {
-					var elem OntapCredentialV1
-					if err := elem.Decode(d); err != nil {
-						return err
-					}
-					s.OntapCredentials = append(s.OntapCredentials, elem)
-					return nil
-				}); err != nil {
+				s.OntapCredentials.Reset()
+				if err := s.OntapCredentials.Decode(d); err != nil {
 					return err
 				}
 				return nil
@@ -6342,6 +6074,238 @@ func (s *StateDbConfigV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *StateDbConfigV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UserCredentialsV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UserCredentialsV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.UserPurpose.Set {
+			e.FieldStart("userPurpose")
+			s.UserPurpose.Encode(e)
+		}
+	}
+	{
+		if s.Username.Set {
+			e.FieldStart("username")
+			s.Username.Encode(e)
+		}
+	}
+	{
+		if s.CertId.Set {
+			e.FieldStart("certId")
+			s.CertId.Encode(e)
+		}
+	}
+	{
+		if s.CertPrivateKeySecret.Set {
+			e.FieldStart("certPrivateKeySecret")
+			s.CertPrivateKeySecret.Encode(e)
+		}
+	}
+	{
+		if s.PasswordSecret.Set {
+			e.FieldStart("passwordSecret")
+			s.PasswordSecret.Encode(e)
+		}
+	}
+	{
+		if s.ActiveAuthMode.Set {
+			e.FieldStart("activeAuthMode")
+			s.ActiveAuthMode.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfUserCredentialsV1 = [6]string{
+	0: "userPurpose",
+	1: "username",
+	2: "certId",
+	3: "certPrivateKeySecret",
+	4: "passwordSecret",
+	5: "activeAuthMode",
+}
+
+// Decode decodes UserCredentialsV1 from json.
+func (s *UserCredentialsV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UserCredentialsV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "userPurpose":
+			if err := func() error {
+				s.UserPurpose.Reset()
+				if err := s.UserPurpose.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"userPurpose\"")
+			}
+		case "username":
+			if err := func() error {
+				s.Username.Reset()
+				if err := s.Username.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"username\"")
+			}
+		case "certId":
+			if err := func() error {
+				s.CertId.Reset()
+				if err := s.CertId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"certId\"")
+			}
+		case "certPrivateKeySecret":
+			if err := func() error {
+				s.CertPrivateKeySecret.Reset()
+				if err := s.CertPrivateKeySecret.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"certPrivateKeySecret\"")
+			}
+		case "passwordSecret":
+			if err := func() error {
+				s.PasswordSecret.Reset()
+				if err := s.PasswordSecret.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"passwordSecret\"")
+			}
+		case "activeAuthMode":
+			if err := func() error {
+				s.ActiveAuthMode.Reset()
+				if err := s.ActiveAuthMode.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"activeAuthMode\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UserCredentialsV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UserCredentialsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UserCredentialsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UserCredentialsV1ActiveAuthMode as json.
+func (s UserCredentialsV1ActiveAuthMode) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes UserCredentialsV1ActiveAuthMode from json.
+func (s *UserCredentialsV1ActiveAuthMode) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UserCredentialsV1ActiveAuthMode to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch UserCredentialsV1ActiveAuthMode(v) {
+	case UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED
+	case UserCredentialsV1ActiveAuthModeAUTHMODECERT:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODECERT
+	case UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD
+	default:
+		*s = UserCredentialsV1ActiveAuthMode(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s UserCredentialsV1ActiveAuthMode) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UserCredentialsV1ActiveAuthMode) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UserCredentialsV1UserPurpose as json.
+func (s UserCredentialsV1UserPurpose) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes UserCredentialsV1UserPurpose from json.
+func (s *UserCredentialsV1UserPurpose) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UserCredentialsV1UserPurpose to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch UserCredentialsV1UserPurpose(v) {
+	case UserCredentialsV1UserPurposePURPOSEUNSPECIFIED:
+		*s = UserCredentialsV1UserPurposePURPOSEUNSPECIFIED
+	case UserCredentialsV1UserPurposePURPOSEVCMADMIN:
+		*s = UserCredentialsV1UserPurposePURPOSEVCMADMIN
+	case UserCredentialsV1UserPurposePURPOSEONTAPMODE:
+		*s = UserCredentialsV1UserPurposePURPOSEONTAPMODE
+	default:
+		*s = UserCredentialsV1UserPurpose(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s UserCredentialsV1UserPurpose) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UserCredentialsV1UserPurpose) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

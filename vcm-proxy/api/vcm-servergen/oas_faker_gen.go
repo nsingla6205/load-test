@@ -50,20 +50,6 @@ func (s *BlockDeviceV1OsType) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *CertificateAuthCredsV1) SetFake() {
-	{
-		{
-			s.CertSecretId.SetFake()
-		}
-	}
-	{
-		{
-			s.CertPrivateKeySecretId.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
 func (s *ClusterConfigV1) SetFake() {
 	{
 		{
@@ -603,37 +589,22 @@ func (s *NetInterfaceConfigV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OntapCredentialV1) SetFake() {
+func (s *OntapCredentialsV1) SetFake() {
 	{
 		{
-			s.PasswordAuthCreds.SetFake()
+			s.AdminPassSecretId.SetFake()
 		}
 	}
 	{
 		{
-			s.CertificateAuthCreds.SetFake()
+			s.DefaultModeUserCredentials.SetFake()
 		}
 	}
 	{
 		{
-			s.ActiveAuthType.SetFake()
+			s.OntapModeUserCredentials.SetFake()
 		}
 	}
-	{
-		{
-			s.Role.SetFake()
-		}
-	}
-}
-
-// SetFake set fake values.
-func (s *OntapCredentialV1ActiveAuthType) SetFake() {
-	*s = OntapCredentialV1ActiveAuthTypeCERT
-}
-
-// SetFake set fake values.
-func (s *OntapCredentialV1Role) SetFake() {
-	*s = OntapCredentialV1RoleONTAPMODE
 }
 
 // SetFake set fake values.
@@ -750,15 +721,6 @@ func (s *OptBool) SetFake() {
 	var elem bool
 	{
 		elem = true
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
-func (s *OptCertificateAuthCredsV1) SetFake() {
-	var elem CertificateAuthCredsV1
-	{
-		elem.SetFake()
 	}
 	s.SetTo(elem)
 }
@@ -965,8 +927,8 @@ func (s *OptNilString) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptOntapCredentialV1ActiveAuthType) SetFake() {
-	var elem OntapCredentialV1ActiveAuthType
+func (s *OptOntapCredentialsV1) SetFake() {
+	var elem OntapCredentialsV1
 	{
 		elem.SetFake()
 	}
@@ -994,15 +956,6 @@ func (s *OptOperationMetadataV1) SetFake() {
 // SetFake set fake values.
 func (s *OptOperationV1Response) SetFake() {
 	var elem OperationV1Response
-	{
-		elem.SetFake()
-	}
-	s.SetTo(elem)
-}
-
-// SetFake set fake values.
-func (s *OptPasswordAuthCredsV1) SetFake() {
-	var elem PasswordAuthCredsV1
 	{
 		elem.SetFake()
 	}
@@ -1055,6 +1008,33 @@ func (s *OptStringInt64) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptUserCredentialsV1) SetFake() {
+	var elem UserCredentialsV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptUserCredentialsV1ActiveAuthMode) SetFake() {
+	var elem UserCredentialsV1ActiveAuthMode
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptUserCredentialsV1UserPurpose) SetFake() {
+	var elem UserCredentialsV1UserPurpose
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptVolumeReadV1SecurityStyle) SetFake() {
 	var elem VolumeReadV1SecurityStyle
 	{
@@ -1079,20 +1059,6 @@ func (s *OptWeeklyScheduleV1) SetFake() {
 		elem.SetFake()
 	}
 	s.SetTo(elem)
-}
-
-// SetFake set fake values.
-func (s *PasswordAuthCredsV1) SetFake() {
-	{
-		{
-			s.Username.SetFake()
-		}
-	}
-	{
-		{
-			s.PasswordSecretId.SetFake()
-		}
-	}
 }
 
 // SetFake set fake values.
@@ -1144,14 +1110,7 @@ func (s *SeedConfigV1) SetFake() {
 	}
 	{
 		{
-			s.OntapCredentials = nil
-			for i := 0; i < 0; i++ {
-				var elem OntapCredentialV1
-				{
-					elem.SetFake()
-				}
-				s.OntapCredentials = append(s.OntapCredentials, elem)
-			}
+			s.OntapCredentials.SetFake()
 		}
 	}
 	{
@@ -1315,6 +1274,50 @@ func (s *StateDbConfigV1) SetFake() {
 			s.Database = "string"
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *UserCredentialsV1) SetFake() {
+	{
+		{
+			s.UserPurpose.SetFake()
+		}
+	}
+	{
+		{
+			s.Username.SetFake()
+		}
+	}
+	{
+		{
+			s.CertId.SetFake()
+		}
+	}
+	{
+		{
+			s.CertPrivateKeySecret.SetFake()
+		}
+	}
+	{
+		{
+			s.PasswordSecret.SetFake()
+		}
+	}
+	{
+		{
+			s.ActiveAuthMode.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UserCredentialsV1ActiveAuthMode) SetFake() {
+	*s = UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *UserCredentialsV1UserPurpose) SetFake() {
+	*s = UserCredentialsV1UserPurposePURPOSEUNSPECIFIED
 }
 
 // SetFake set fake values.

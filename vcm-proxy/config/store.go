@@ -252,8 +252,8 @@ func overwriteSeedConfigIfSet(dst *vcmserver.OptSeedConfigV1, src vcmserver.OptS
 	overwriteOptInt64IfSet(&stored.ServiceTenantProjectNum, incoming.ServiceTenantProjectNum)
 	overwriteOptInt64IfSet(&stored.SnHostProjectNum, incoming.SnHostProjectNum)
 	overwriteOptNetConfigIfSet(&stored.NetConfig, incoming.NetConfig)
-	if len(incoming.OntapCredentials) > 0 {
-		stored.OntapCredentials = cloneOntapCredentials(incoming.OntapCredentials)
+	if incoming.OntapCredentials.IsSet() {
+		stored.OntapCredentials.SetTo(cloneOntapCredentials(incoming.OntapCredentials.Value))
 	}
 	dst.SetTo(stored)
 }
@@ -312,8 +312,9 @@ func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
 		trimOptString(&seed.CaUri)
 		trimOptString(&seed.OntapLicenseSecret)
 		trimOptString(&seed.ServiceAccountEmail)
-		for i := range seed.OntapCredentials {
-			trimOntapCredential(&seed.OntapCredentials[i])
+		if oc, ok := seed.OntapCredentials.Get(); ok {
+			trimOntapCredentials(&oc)
+			seed.OntapCredentials.SetTo(oc)
 		}
 		clusterConfig.SeedConfig.SetTo(seed)
 	}
@@ -342,17 +343,23 @@ func trimOptString(opt *vcmserver.OptString) {
 	opt.SetTo(trimmed)
 }
 
-func trimOntapCredential(cred *vcmserver.OntapCredentialV1) {
-	if cert, ok := cred.CertificateAuthCreds.Get(); ok {
-		trimOptString(&cert.CertSecretId)
-		trimOptString(&cert.CertPrivateKeySecretId)
-		cred.CertificateAuthCreds.SetTo(cert)
+func trimOntapCredentials(creds *vcmserver.OntapCredentialsV1) {
+	trimOptString(&creds.AdminPassSecretId)
+	if u, ok := creds.DefaultModeUserCredentials.Get(); ok {
+		trimUserCredentials(&u)
+		creds.DefaultModeUserCredentials.SetTo(u)
 	}
-	if pwd, ok := cred.PasswordAuthCreds.Get(); ok {
-		trimOptString(&pwd.Username)
-		trimOptString(&pwd.PasswordSecretId)
-		cred.PasswordAuthCreds.SetTo(pwd)
+	if u, ok := creds.OntapModeUserCredentials.Get(); ok {
+		trimUserCredentials(&u)
+		creds.OntapModeUserCredentials.SetTo(u)
 	}
+}
+
+func trimUserCredentials(u *vcmserver.UserCredentialsV1) {
+	trimOptString(&u.Username)
+	trimOptString(&u.CertId)
+	trimOptString(&u.CertPrivateKeySecret)
+	trimOptString(&u.PasswordSecret)
 }
 
 // trimVSANode normalizes the node identity and management addressing used to
@@ -490,17 +497,10 @@ func (s *Store) rebuildSignatureLocked() string {
 		seed.Zone2.Value,
 		seed.MediatorZone.Value,
 	}
-	for _, credential := range seed.OntapCredentials {
-		cert := credential.CertificateAuthCreds.Value
-		pwd := credential.PasswordAuthCreds.Value
-		parts = append(parts,
-			string(credential.Role),
-			string(credential.ActiveAuthType.Value),
-			cert.CertSecretId.Value,
-			cert.CertPrivateKeySecretId.Value,
-			pwd.Username.Value,
-			pwd.PasswordSecretId.Value,
-		)
+	if oc, ok := seed.OntapCredentials.Get(); ok {
+		parts = append(parts, oc.AdminPassSecretId.Value)
+		parts = append(parts, userCredentialSignature(oc.DefaultModeUserCredentials)...)
+		parts = append(parts, userCredentialSignature(oc.OntapModeUserCredentials)...)
 	}
 	return strings.Join(parts, "\x00")
 }
@@ -584,7 +584,9 @@ func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConf
 	clusterConfig := src.ClusterConfig.Value
 	if clusterConfig.SeedConfig.IsSet() {
 		seed := clusterConfig.SeedConfig.Value
-		seed.OntapCredentials = cloneOntapCredentials(seed.OntapCredentials)
+		if oc, ok := seed.OntapCredentials.Get(); ok {
+			seed.OntapCredentials.SetTo(cloneOntapCredentials(oc))
+		}
 		clusterConfig.SeedConfig.SetTo(seed)
 	}
 	if clusterConfig.ActualLayout.IsSet() {
@@ -597,11 +599,25 @@ func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConf
 	return dst
 }
 
-func cloneOntapCredentials(src []vcmserver.OntapCredentialV1) []vcmserver.OntapCredentialV1 {
-	if len(src) == 0 {
-		return nil
+// cloneOntapCredentials deep-copies the ONTAP credentials. Every field is a
+// value type (OptString and enum wrappers), so a value copy is already a deep
+// copy; the function exists to document intent at the call sites.
+func cloneOntapCredentials(src vcmserver.OntapCredentialsV1) vcmserver.OntapCredentialsV1 {
+	return src
+}
+
+// userCredentialSignature returns the deterministic fingerprint fragments for a
+// single user credential, used by rebuildSignatureLocked to detect changes.
+func userCredentialSignature(opt vcmserver.OptUserCredentialsV1) []string {
+	u := opt.Value
+	return []string{
+		string(u.UserPurpose.Value),
+		string(u.ActiveAuthMode.Value),
+		u.Username.Value,
+		u.CertId.Value,
+		u.CertPrivateKeySecret.Value,
+		u.PasswordSecret.Value,
 	}
-	return append([]vcmserver.OntapCredentialV1(nil), src...)
 }
 
 func cloneVSANodes(src []vcmserver.VsaNodeV1) []vcmserver.VsaNodeV1 {

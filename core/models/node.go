@@ -14,19 +14,24 @@ type Node struct {
 	Password                       string
 	SecretID                       string
 	CertificateID                  string
-	InstanceType                   string
+	// CertPrivateKeySecretID is the Secret Manager resource path of a
+	// caller-provided certificate private key (VCM path). When set, the cert
+	// and key are loaded directly from Secret Manager (CertificateID + this
+	// field) instead of being derived from CAS. Empty on the VCP path.
+	CertPrivateKeySecretID string
+	InstanceType           string
 	ExternalUUID                   string
 	Zone                           string
 	State                          string
 	DeploymentName                 string
 	AuthType                       int
-	// InsecureSkipVerify, when true, disables TLS server-certificate
-	// verification for the ONTAP REST client on the cert-auth path (client
-	// mTLS is unaffected). Defaults false so GCP/OCI keep full verification.
-	// TODO(vcm-dns): temporary — set only by the VCM create-pool flow while VCM
-	// has no Cloud DNS records. Remove once DNS handling / SNI-override for VCM
-	// is finalized.
-	InsecureSkipVerify bool
+	// ServerName, when non-empty, is used as the TLS SNI value AND for
+	// hostname verification of the cert-auth ONTAP REST client. It lets the
+	// client dial the node by IP while still verifying the server certificate
+	// against its wildcard SAN, so no Cloud DNS record is required. Used by the
+	// VCM flows (mirrors the OCI SNI-override path). Empty for the GCP DNS path
+	// and password auth, which keep their existing behaviour.
+	ServerName string
 	// Certificate-related configuration (from database with env var fallback)
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
 	CaURI string `json:"ca_uri,omitempty"`

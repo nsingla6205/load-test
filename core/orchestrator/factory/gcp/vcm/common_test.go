@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 func TestCreateJobOrGet_CreatesNewJob(t *testing.T) {
@@ -69,6 +71,54 @@ func TestCreateJobOrGet_GetJobError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get existing job")
+}
+
+func TestNodeAndSvmFromStore_ProvidedCertPreservesFullCASName(t *testing.T) {
+	const casName = "projects/tenant-proj/locations/us-central1/caPools/vcm-pool/certificates/cert-1"
+	store := &stubStore{input: vsa.NodeProviderInput{
+		DeploymentName: "gcnv-test",
+		OntapCredentials: &datamodel.PoolCredentials{
+			CertificateID:          casName,
+			CertPrivateKeySecretID: "projects/tenant-proj/secrets/cert-key",
+			SecretID:               "projects/tenant-proj/secrets/admin-pass",
+			Username:               "vcm-admin",
+			AuthType:               env.USER_CERTIFICATE,
+		},
+		Nodes: []*datamodel.Node{
+			{Name: "vm1", EndpointAddress: "198.18.0.5", HostDNSName: "vm1.gcnv-test.internal"},
+		},
+	}}
+
+	node, _, err := nodeAndSvmFromStore(store)
+
+	require.NoError(t, err)
+	// Full CAS resource name must be preserved so vsa.GetProvidedCertificate can
+	// parse the 8-segment name; only the bare admin secret id is reduced.
+	assert.Equal(t, casName, node.CertificateID)
+	assert.Equal(t, "projects/tenant-proj/secrets/cert-key", node.CertPrivateKeySecretID)
+	assert.Equal(t, "admin-pass", node.SecretID)
+	assert.Equal(t, "vcm-admin", node.Username)
+}
+
+func TestNodeAndSvmFromStore_SelfManagedCertIsBareNamed(t *testing.T) {
+	store := &stubStore{input: vsa.NodeProviderInput{
+		DeploymentName: "gcnv-test",
+		OntapCredentials: &datamodel.PoolCredentials{
+			CertificateID: "projects/p/secrets/cert-1",
+			SecretID:      "projects/p/secrets/admin-pass",
+			AuthType:      env.USER_CERTIFICATE,
+		},
+		Nodes: []*datamodel.Node{
+			{Name: "vm1", EndpointAddress: "198.18.0.5", HostDNSName: "vm1.gcnv-test.internal"},
+		},
+	}}
+
+	node, _, err := nodeAndSvmFromStore(store)
+
+	require.NoError(t, err)
+	// No provided private key -> legacy self-managed path -> bare-name the id.
+	assert.Equal(t, "cert-1", node.CertificateID)
+	assert.Equal(t, "admin-pass", node.SecretID)
 }
 
 type jobTestStore struct {

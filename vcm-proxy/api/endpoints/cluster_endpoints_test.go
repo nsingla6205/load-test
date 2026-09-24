@@ -56,16 +56,17 @@ func seededSetConfig() *vcmserver.SetConfigRequestV1 {
 			Nodemgmt: vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "mgmt-vpc", Subnet: "mgmt-subnet"}),
 			Data:     vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "data-vpc", Subnet: "data-subnet"}),
 		}),
-		OntapCredentials: []vcmserver.OntapCredentialV1{
-			{
-				Role:           vcmserver.OntapCredentialV1RoleADMIN,
-				ActiveAuthType: vcmserver.NewOptOntapCredentialV1ActiveAuthType(vcmserver.OntapCredentialV1ActiveAuthTypePWD),
-				PasswordAuthCreds: vcmserver.NewOptPasswordAuthCredsV1(vcmserver.PasswordAuthCredsV1{
-					Username:         vcmserver.NewOptString("root"),
-					PasswordSecretId: vcmserver.NewOptString("admin-secret"),
-				}),
-			},
-		},
+		OntapCredentials: func() vcmserver.OptOntapCredentialsV1 {
+			def := vcmserver.UserCredentialsV1{}
+			def.UserPurpose.SetTo(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN)
+			def.Username.SetTo("root")
+			def.ActiveAuthMode.SetTo(vcmserver.UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD)
+			def.PasswordSecret.SetTo("vcm-secret")
+			oc := vcmserver.OntapCredentialsV1{}
+			oc.AdminPassSecretId.SetTo("admin-secret")
+			oc.DefaultModeUserCredentials.SetTo(def)
+			return vcmserver.NewOptOntapCredentialsV1(oc)
+		}(),
 	}
 
 	req := &vcmserver.SetConfigRequestV1{
@@ -163,10 +164,17 @@ func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 	assert.Equal(t, "mgmt-subnet", vcm.NodeMgmt.Subnet)
 	require.NotNil(t, vcm.Data)
 	assert.Equal(t, "data-vpc", vcm.Data.VPC)
-	require.Len(t, vcm.OntapCredentials, 1)
-	assert.Equal(t, "admin", vcm.OntapCredentials[0].Type)
-	assert.Equal(t, "admin-secret", vcm.OntapCredentials[0].SecretID)
-	assert.Empty(t, vcm.OntapCredentials[0].CertificateID, "ADMIN resolves via password, not certificate")
+	// admin (adminPassSecretId) + default (VCM_ADMIN) entries.
+	require.Len(t, vcm.OntapCredentials, 2)
+	assert.Equal(t, "admin-secret", common.AdminPasswordSecret(vcm.OntapCredentials))
+	var def common.VCMOntapCredential
+	for _, c := range vcm.OntapCredentials {
+		if c.Type == "default" {
+			def = c
+		}
+	}
+	assert.Equal(t, "vcm-secret", def.SecretID)
+	assert.Empty(t, def.CertificateID, "password auth resolves via password, not certificate")
 
 	mockOrch.AssertExpectations(t)
 }

@@ -44,53 +44,6 @@ func (f *fakeCloudService) GetSecretWithLatestVersion(projectID, secretID string
 	return f.secret, f.secretErr
 }
 
-func TestParseSecretResourceName(t *testing.T) {
-	tests := []struct {
-		name        string
-		in          string
-		wantProject string
-		wantSecret  string
-		wantErr     bool
-	}{
-		{
-			name:        "bare secret form",
-			in:          "projects/237071556299/secrets/ontap-admin-password",
-			wantProject: "237071556299",
-			wantSecret:  "ontap-admin-password",
-		},
-		{
-			name:        "versioned form ignores version",
-			in:          "projects/proj-1/secrets/sec-1/versions/5",
-			wantProject: "proj-1",
-			wantSecret:  "sec-1",
-		},
-		{
-			name:        "leading and trailing slashes trimmed",
-			in:          "/projects/proj-1/secrets/sec-1/",
-			wantProject: "proj-1",
-			wantSecret:  "sec-1",
-		},
-		{name: "empty", in: "", wantErr: true},
-		{name: "wrong prefix", in: "foo/proj/secrets/sec", wantErr: true},
-		{name: "missing secrets segment", in: "projects/proj/bar/sec", wantErr: true},
-		{name: "empty project", in: "projects//secrets/sec", wantErr: true},
-		{name: "empty secret", in: "projects/proj/secrets/", wantErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			project, secret, err := parseSecretResourceName(tc.in)
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantProject, project)
-			assert.Equal(t, tc.wantSecret, secret)
-		})
-	}
-}
-
 func TestCloudServiceResolver_DefaultsToPackageResolver(t *testing.T) {
 	// With no injected resolver the activity must fall back to the package
 	// default (hyperscaler.ResolveCloudService). We only assert the resolver is
@@ -100,16 +53,12 @@ func TestCloudServiceResolver_DefaultsToPackageResolver(t *testing.T) {
 }
 
 func TestResolveOntapCertificate_Success_WithPassword(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	origPwd := vsa.GetPasswordFromCacheOrSecretManager
-	t.Cleanup(func() {
-		vsa.GetCertificateFromCacheOrSecretManager = origCert
-		vsa.GetPasswordFromCacheOrSecretManager = origPwd
-	})
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
 
-	var gotCredsPtr *datamodel.PoolCredentials
-	vsa.GetCertificateFromCacheOrSecretManager = func(_ context.Context, pc *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
-		gotCredsPtr = pc
+	var gotCertRef, gotKeyRef string
+	vsa.GetProvidedCertificate = func(_ context.Context, certRef, keyRef string) (*coremodels.Certificate, error) {
+		gotCertRef, gotKeyRef = certRef, keyRef
 		return &coremodels.Certificate{
 			SignedCertificate:        "signed-cert",
 			PrivateKey:               "private-key",
@@ -117,18 +66,19 @@ func TestResolveOntapCertificate_Success_WithPassword(t *testing.T) {
 			CommonName:               "cn.example.com",
 		}, nil
 	}
-	var gotSecretID string
-	vsa.GetPasswordFromCacheOrSecretManager = func(_ context.Context, secretID string) (string, error) {
-		gotSecretID = secretID
-		return "AdminPass1", nil
-	}
 
-	act := &VCMCredentialActivity{}
+	// The admin password is read from Secret Manager via the cloud service.
+	fake := &fakeCloudService{
+		secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: "AdminPass1"}},
+	}
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
+	}
 	creds, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
 		PoolCredentials: &datamodel.PoolCredentials{
-			CertificateID: "cert-1",
-			CaURI:         "ca-uri",
-			SecretID:      "admin-secret",
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			SecretID:               "projects/p/secrets/admin-secret",
 		},
 	})
 
@@ -139,28 +89,33 @@ func TestResolveOntapCertificate_Success_WithPassword(t *testing.T) {
 	assert.Equal(t, "cn.example.com", creds.Certificate.CommonName)
 	assert.Equal(t, []string{"intermediate"}, creds.Certificate.InterMediateCertificate)
 	assert.Equal(t, "AdminPass1", creds.AdminPassword)
-	assert.Equal(t, "admin-secret", gotSecretID)
-	assert.Equal(t, "cert-1", gotCredsPtr.CertificateID)
+	assert.Equal(t, "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1", gotCertRef)
+	assert.Equal(t, "projects/p/secrets/key-1", gotKeyRef)
+	// The admin password secret's project/secret must be parsed and forwarded.
+	assert.Equal(t, "p", fake.gotProject)
+	assert.Equal(t, "admin-secret", fake.gotSecret)
 }
 
 func TestResolveOntapCertificate_Success_NoPassword(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	t.Cleanup(func() { vsa.GetCertificateFromCacheOrSecretManager = origCert })
-	vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
+	vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
 		return &coremodels.Certificate{SignedCertificate: "signed", PrivateKey: "key"}, nil
 	}
-	// A missing admin-password secret means no password lookup; the password
-	// resolver must not be reached in that case.
-	origPwd := vsa.GetPasswordFromCacheOrSecretManager
-	t.Cleanup(func() { vsa.GetPasswordFromCacheOrSecretManager = origPwd })
-	vsa.GetPasswordFromCacheOrSecretManager = func(context.Context, string) (string, error) {
-		t.Fatal("password resolver must not be called when no admin-password secret id is present")
-		return "", nil
-	}
 
-	act := &VCMCredentialActivity{}
+	// A missing admin-password secret means no password lookup; the cloud
+	// service must not be reached in that case.
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) {
+			t.Fatal("cloud service must not be resolved when no admin-password secret id is present")
+			return nil, nil
+		},
+	}
 	creds, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
-		PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+		},
 	})
 
 	require.NoError(t, err)
@@ -169,14 +124,16 @@ func TestResolveOntapCertificate_Success_NoPassword(t *testing.T) {
 	assert.Empty(t, creds.AdminPassword)
 }
 
-func TestResolveOntapCertificate_MissingCertificateID(t *testing.T) {
+func TestResolveOntapCertificate_MissingCertOrKeyReference(t *testing.T) {
 	act := &VCMCredentialActivity{}
 	tests := []struct {
 		name string
 		req  ResolveOntapCertificateRequest
 	}{
 		{name: "nil pool credentials", req: ResolveOntapCertificateRequest{}},
-		{name: "empty certificate id", req: ResolveOntapCertificateRequest{PoolCredentials: &datamodel.PoolCredentials{}}},
+		{name: "empty references", req: ResolveOntapCertificateRequest{PoolCredentials: &datamodel.PoolCredentials{}}},
+		{name: "missing private key ref", req: ResolveOntapCertificateRequest{PoolCredentials: &datamodel.PoolCredentials{CertificateID: "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1"}}},
+		{name: "missing cert ref", req: ResolveOntapCertificateRequest{PoolCredentials: &datamodel.PoolCredentials{CertPrivateKeySecretID: "projects/p/secrets/key-1"}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,15 +146,18 @@ func TestResolveOntapCertificate_MissingCertificateID(t *testing.T) {
 }
 
 func TestResolveOntapCertificate_CertFetchError(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	t.Cleanup(func() { vsa.GetCertificateFromCacheOrSecretManager = origCert })
-	vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
+	vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
 		return nil, errors.New("secret manager unavailable")
 	}
 
 	act := &VCMCredentialActivity{}
 	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
-		PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+		},
 	})
 
 	require.Error(t, err)
@@ -206,8 +166,8 @@ func TestResolveOntapCertificate_CertFetchError(t *testing.T) {
 }
 
 func TestResolveOntapCertificate_IncompleteCertMaterial(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	t.Cleanup(func() { vsa.GetCertificateFromCacheOrSecretManager = origCert })
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
 
 	tests := []struct {
 		name string
@@ -219,12 +179,15 @@ func TestResolveOntapCertificate_IncompleteCertMaterial(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+			vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
 				return tc.cert, nil
 			}
 			act := &VCMCredentialActivity{}
 			_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
-				PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1"},
+				PoolCredentials: &datamodel.PoolCredentials{
+					CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+					CertPrivateKeySecretID: "projects/p/secrets/key-1",
+				},
 			})
 			require.Error(t, err)
 			// Incomplete material won't complete on retry, so non-retryable.
@@ -234,27 +197,117 @@ func TestResolveOntapCertificate_IncompleteCertMaterial(t *testing.T) {
 }
 
 func TestResolveOntapCertificate_PasswordFetchError(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	origPwd := vsa.GetPasswordFromCacheOrSecretManager
-	t.Cleanup(func() {
-		vsa.GetCertificateFromCacheOrSecretManager = origCert
-		vsa.GetPasswordFromCacheOrSecretManager = origPwd
-	})
-	vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
+	vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
 		return &coremodels.Certificate{SignedCertificate: "signed", PrivateKey: "key"}, nil
 	}
-	vsa.GetPasswordFromCacheOrSecretManager = func(context.Context, string) (string, error) {
-		return "", errors.New("permission denied on password secret")
-	}
+	fake := &fakeCloudService{secretErr: errors.New("permission denied on password secret")}
 
-	act := &VCMCredentialActivity{}
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
+	}
 	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
-		PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1", SecretID: "admin-secret"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			SecretID:               "projects/p/secrets/admin-secret",
+		},
 	})
 
 	require.Error(t, err)
 	// A transient password fetch failure must remain retryable.
 	assertNonRetryable(t, err, false)
+}
+
+// stubProvidedCertificate makes the cert lookup succeed so the admin-password
+// leg of ResolveOntapCertificate is the only thing under test.
+func stubProvidedCertificate(t *testing.T) {
+	t.Helper()
+	orig := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = orig })
+	vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
+		return &coremodels.Certificate{SignedCertificate: "signed", PrivateKey: "key"}, nil
+	}
+}
+
+func TestResolveOntapCertificate_InvalidPasswordSecretResourceName(t *testing.T) {
+	stubProvidedCertificate(t)
+
+	// The cloud service must never be reached when the secret resource name
+	// cannot be parsed.
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) {
+			t.Fatal("cloud service should not be resolved for an invalid secret resource name")
+			return nil, nil
+		},
+	}
+	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			SecretID:               "not-a-valid-secret-name",
+		},
+	})
+
+	require.Error(t, err)
+	// A malformed reference can never succeed on retry.
+	assertNonRetryable(t, err, true)
+}
+
+func TestResolveOntapCertificate_PasswordCloudResolveError(t *testing.T) {
+	stubProvidedCertificate(t)
+
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) {
+			return nil, errors.New("no credentials")
+		},
+	}
+	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			SecretID:               "projects/p/secrets/admin-secret",
+		},
+	})
+
+	// Resolver failures are environmental; they propagate unchanged and stay
+	// retryable (WrapAsAppError leaves a plain error alone when retryable).
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no credentials")
+}
+
+func TestResolveOntapCertificate_EmptyPasswordSecretValue(t *testing.T) {
+	stubProvidedCertificate(t)
+
+	tests := []struct {
+		name   string
+		secret *hmodels.CustomSecret
+	}{
+		{name: "nil secret", secret: nil},
+		{name: "nil version", secret: &hmodels.CustomSecret{}},
+		{name: "empty value", secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: ""}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeCloudService{secret: tc.secret}
+			act := &VCMCredentialActivity{
+				ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
+			}
+
+			_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
+				PoolCredentials: &datamodel.PoolCredentials{
+					CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+					CertPrivateKeySecretID: "projects/p/secrets/key-1",
+					SecretID:               "projects/p/secrets/admin-secret",
+				},
+			})
+
+			require.Error(t, err)
+			// An absent secret version will not appear on retry.
+			assertNonRetryable(t, err, true)
+		})
+	}
 }
 
 func TestResolveOntapAdminPassword_Success(t *testing.T) {
@@ -294,22 +347,24 @@ func TestResolveOntapAdminPassword_InvalidPasswordComplexity(t *testing.T) {
 }
 
 func TestResolveOntapCertificate_InvalidPasswordComplexity(t *testing.T) {
-	origCert := vsa.GetCertificateFromCacheOrSecretManager
-	origPwd := vsa.GetPasswordFromCacheOrSecretManager
-	t.Cleanup(func() {
-		vsa.GetCertificateFromCacheOrSecretManager = origCert
-		vsa.GetPasswordFromCacheOrSecretManager = origPwd
-	})
-	vsa.GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*coremodels.Certificate, error) {
+	origCert := vsa.GetProvidedCertificate
+	t.Cleanup(func() { vsa.GetProvidedCertificate = origCert })
+	vsa.GetProvidedCertificate = func(context.Context, string, string) (*coremodels.Certificate, error) {
 		return &coremodels.Certificate{SignedCertificate: "signed", PrivateKey: "key"}, nil
 	}
-	vsa.GetPasswordFromCacheOrSecretManager = func(context.Context, string) (string, error) {
-		return "invalid", nil
+	fake := &fakeCloudService{
+		secret: &hmodels.CustomSecret{SecretVersion: &hmodels.CustomSecretVersion{Value: "invalid"}},
 	}
 
-	act := &VCMCredentialActivity{}
+	act := &VCMCredentialActivity{
+		ResolveCloudService: func(context.Context) (hyperscaler.Services, error) { return fake, nil },
+	}
 	_, err := act.ResolveOntapCertificate(context.Background(), ResolveOntapCertificateRequest{
-		PoolCredentials: &datamodel.PoolCredentials{CertificateID: "cert-1", SecretID: "admin-secret"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			SecretID:               "projects/p/secrets/admin-secret",
+		},
 	})
 
 	require.Error(t, err)

@@ -3,7 +3,6 @@ package activities
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	vlm "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
@@ -53,7 +52,7 @@ type ResolveOntapAdminPasswordRequest struct {
 func (a *VCMCredentialActivity) ResolveOntapAdminPassword(ctx context.Context, req ResolveOntapAdminPasswordRequest) (*vlm.OntapCredentials, error) {
 	logger := util.GetLogger(ctx)
 
-	projectID, secretID, err := parseSecretResourceName(req.SecretResourceName)
+	projectID, secretID, err := utils.ParseSecretResourceName(req.SecretResourceName)
 	if err != nil {
 		return nil, apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err), true)
@@ -88,10 +87,11 @@ func (a *VCMCredentialActivity) ResolveOntapAdminPassword(ctx context.Context, r
 
 // ResolveOntapCertificateRequest carries the cert-auth credential identifiers
 // for a pool. The material itself is never in the request: PoolCredentials holds
-// only the certificate id, the CA URI, and the admin-password secret id. The
-// certificate lives in the tenant project's CA Service and its private key in
-// Secret Manager; the admin password lives in Secret Manager. The VCM runtime
-// service account is expected to already hold access (granted by CLH/Google).
+// only the resource paths of the certificate (CertificateID, a full CAS
+// certificate resource name), its private key (CertPrivateKeySecretID, a Secret
+// Manager resource name), and the built-in admin password (SecretID, a Secret
+// Manager resource name). The VCM runtime service account is expected to already
+// hold access to all three (granted by CLH/Google).
 type ResolveOntapCertificateRequest struct {
 	PoolCredentials *datamodel.PoolCredentials
 }
@@ -118,17 +118,21 @@ type ResolveOntapCertificateRequest struct {
 func (a *VCMCredentialActivity) ResolveOntapCertificate(ctx context.Context, req ResolveOntapCertificateRequest) (*vlm.OntapCredentials, error) {
 	logger := util.GetLogger(ctx)
 
-	if req.PoolCredentials == nil || req.PoolCredentials.CertificateID == "" {
+	pc := req.PoolCredentials
+	if pc == nil || pc.CertificateID == "" || pc.CertPrivateKeySecretID == "" {
 		return nil, apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-				fmt.Errorf("resolve ONTAP certificate: request has no certificate id")), true)
+				fmt.Errorf("resolve ONTAP certificate: request is missing certificate or private-key secret reference")), true)
 	}
 
-	// Log the identifiers, never the resolved material.
+	// Log the identifiers, never the resolved material. CLH provisions the
+	// certificate in CAS and its private key in Secret Manager; VCM loads the
+	// cert from CAS and the key from Secret Manager (it does not mint them like
+	// VCP).
 	logger.Info("resolving ONTAP certificate material",
-		"certificateId", req.PoolCredentials.CertificateID, "caUri", req.PoolCredentials.CaURI)
+		"certId", pc.CertificateID, "certPrivateKeySecret", pc.CertPrivateKeySecretID)
 
-	cert, err := vsa.GetCertificateFromCacheOrSecretManager(ctx, req.PoolCredentials)
+	cert, err := vsa.GetProvidedCertificate(ctx, pc.CertificateID, pc.CertPrivateKeySecretID)
 	if err != nil {
 		return nil, apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err), false)
@@ -136,7 +140,7 @@ func (a *VCMCredentialActivity) ResolveOntapCertificate(ctx context.Context, req
 	if cert == nil || cert.SignedCertificate == "" || cert.PrivateKey == "" {
 		return nil, apperror.WrapAsAppError(
 			vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
-				fmt.Errorf("resolved certificate material is incomplete for certificate id %q", req.PoolCredentials.CertificateID)), true)
+				fmt.Errorf("resolved certificate material is incomplete for certId %q", pc.CertificateID)), true)
 	}
 
 	creds := &vlm.OntapCredentials{}
@@ -145,17 +149,16 @@ func (a *VCMCredentialActivity) ResolveOntapCertificate(ctx context.Context, req
 	creds.Certificate.PrivateKey = cert.PrivateKey
 	creds.Certificate.InterMediateCertificate = cert.InterMediateCertificates
 
-	// The ONTAP-side cert bootstrap authenticates with the admin password, so
-	// resolve it too when an admin-password secret is present on the credential.
-	if req.PoolCredentials.SecretID != "" {
-		password, err := vsa.GetPasswordFromCacheOrSecretManager(ctx, req.PoolCredentials.SecretID)
+	// The ONTAP-side cert bootstrap authenticates with the built-in admin
+	// password (adminPassSecretId), so resolve it too when present.
+	if pc.SecretID != "" {
+		password, err := a.resolveSecretValue(ctx, pc.SecretID)
 		if err != nil {
-			return nil, apperror.WrapAsAppError(
-				vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err), false)
+			return nil, err
 		}
 		if err := utils.ValidateStrongPassword(password); err != nil {
 			return nil, apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-				fmt.Errorf("ONTAP admin password in secret %q is invalid: %w", req.PoolCredentials.SecretID, err)), true)
+				fmt.Errorf("ONTAP admin password in secret %q is invalid: %w", pc.SecretID, err)), true)
 		}
 		creds.AdminPassword = password
 	}
@@ -163,18 +166,27 @@ func (a *VCMCredentialActivity) ResolveOntapCertificate(ctx context.Context, req
 	return creds, nil
 }
 
-// parseSecretResourceName extracts the project and secret identifiers from a
-// Secret Manager resource name. It accepts both the bare secret form and the
-// versioned form:
-//
-//	projects/{project}/secrets/{secret}
-//	projects/{project}/secrets/{secret}/versions/{version}
-//
-// The version segment is ignored; the latest version is always used.
-func parseSecretResourceName(name string) (projectID, secretID string, err error) {
-	parts := strings.Split(strings.Trim(strings.TrimSpace(name), "/"), "/")
-	if len(parts) < 4 || parts[0] != "projects" || parts[2] != "secrets" || parts[1] == "" || parts[3] == "" {
-		return "", "", fmt.Errorf("invalid secret resource name %q; expected projects/{project}/secrets/{secret}", name)
+// resolveSecretValue reads the latest version of a tenant Secret Manager secret
+// addressed by its full resource name (projects/{project}/secrets/{secret}).
+func (a *VCMCredentialActivity) resolveSecretValue(ctx context.Context, resourceName string) (string, error) {
+	projectID, secretID, err := utils.ParseSecretResourceName(resourceName)
+	if err != nil {
+		return "", apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err), true)
 	}
-	return parts[1], parts[3], nil
+	cloudService, err := a.cloudServiceResolver()(ctx)
+	if err != nil {
+		return "", apperror.WrapAsAppError(err, false)
+	}
+	secret, err := cloudService.GetSecretWithLatestVersion(projectID, secretID)
+	if err != nil {
+		return "", apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err), false)
+	}
+	if secret == nil || secret.SecretVersion == nil || secret.SecretVersion.Value == "" {
+		return "", apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
+				fmt.Errorf("secret %q in project %q has no accessible latest version", secretID, projectID)), true)
+	}
+	return secret.SecretVersion.Value, nil
 }

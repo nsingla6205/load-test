@@ -122,34 +122,6 @@ func (s *BlockDeviceV1OsType) UnmarshalText(data []byte) error {
 	}
 }
 
-// Ref: #/components/schemas/CertificateAuthCreds_v1
-type CertificateAuthCredsV1 struct {
-	// Secret Manager secret ID containing the CA certificate path.
-	CertSecretId OptString `json:"certSecretId"`
-	// Secret Manager secret ID containing the certificate's private key.
-	CertPrivateKeySecretId OptString `json:"certPrivateKeySecretId"`
-}
-
-// GetCertSecretId returns the value of CertSecretId.
-func (s *CertificateAuthCredsV1) GetCertSecretId() OptString {
-	return s.CertSecretId
-}
-
-// GetCertPrivateKeySecretId returns the value of CertPrivateKeySecretId.
-func (s *CertificateAuthCredsV1) GetCertPrivateKeySecretId() OptString {
-	return s.CertPrivateKeySecretId
-}
-
-// SetCertSecretId sets the value of CertSecretId.
-func (s *CertificateAuthCredsV1) SetCertSecretId(val OptString) {
-	s.CertSecretId = val
-}
-
-// SetCertPrivateKeySecretId sets the value of CertPrivateKeySecretId.
-func (s *CertificateAuthCredsV1) SetCertPrivateKeySecretId(val OptString) {
-	s.CertPrivateKeySecretId = val
-}
-
 // Cluster configuration segmented by seed, required shape, and actual layout.
 // Ref: #/components/schemas/ClusterConfig_v1
 type ClusterConfigV1 struct {
@@ -1291,149 +1263,47 @@ func (s *NetInterfaceConfigV1) SetSubnet(val string) {
 	s.Subnet = val
 }
 
-// Ref: #/components/schemas/OntapCredential_v1
-type OntapCredentialV1 struct {
-	PasswordAuthCreds    OptPasswordAuthCredsV1    `json:"passwordAuthCreds"`
-	CertificateAuthCreds OptCertificateAuthCredsV1 `json:"certificateAuthCreds"`
-	// Active auth type for this credential set. CERT uses
-	// certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
-	// when unset.
-	ActiveAuthType OptOntapCredentialV1ActiveAuthType `json:"activeAuthType"`
-	// ONTAP role this credential set is provisioned for.
-	Role OntapCredentialV1Role `json:"role"`
+// ONTAP credentials for the cluster's users. adminPassSecretId is the
+// built-in "admin" user's password (ADMIN purpose). The default-mode user
+// (PURPOSE_VCM_ADMIN) is the identity VCM uses to talk to ONTAP; the
+// ontap-mode user (PURPOSE_ONTAP_MODE) is provisioned for ONTAP mode.
+// Ref: #/components/schemas/OntapCredentials_v1
+type OntapCredentialsV1 struct {
+	// Secret Manager resource path of the built-in ONTAP "admin" user's
+	// password. This user is built-in; its username cannot be changed.
+	AdminPassSecretId          OptString            `json:"adminPassSecretId"`
+	DefaultModeUserCredentials OptUserCredentialsV1 `json:"defaultModeUserCredentials"`
+	OntapModeUserCredentials   OptUserCredentialsV1 `json:"ontapModeUserCredentials"`
 }
 
-// GetPasswordAuthCreds returns the value of PasswordAuthCreds.
-func (s *OntapCredentialV1) GetPasswordAuthCreds() OptPasswordAuthCredsV1 {
-	return s.PasswordAuthCreds
+// GetAdminPassSecretId returns the value of AdminPassSecretId.
+func (s *OntapCredentialsV1) GetAdminPassSecretId() OptString {
+	return s.AdminPassSecretId
 }
 
-// GetCertificateAuthCreds returns the value of CertificateAuthCreds.
-func (s *OntapCredentialV1) GetCertificateAuthCreds() OptCertificateAuthCredsV1 {
-	return s.CertificateAuthCreds
+// GetDefaultModeUserCredentials returns the value of DefaultModeUserCredentials.
+func (s *OntapCredentialsV1) GetDefaultModeUserCredentials() OptUserCredentialsV1 {
+	return s.DefaultModeUserCredentials
 }
 
-// GetActiveAuthType returns the value of ActiveAuthType.
-func (s *OntapCredentialV1) GetActiveAuthType() OptOntapCredentialV1ActiveAuthType {
-	return s.ActiveAuthType
+// GetOntapModeUserCredentials returns the value of OntapModeUserCredentials.
+func (s *OntapCredentialsV1) GetOntapModeUserCredentials() OptUserCredentialsV1 {
+	return s.OntapModeUserCredentials
 }
 
-// GetRole returns the value of Role.
-func (s *OntapCredentialV1) GetRole() OntapCredentialV1Role {
-	return s.Role
+// SetAdminPassSecretId sets the value of AdminPassSecretId.
+func (s *OntapCredentialsV1) SetAdminPassSecretId(val OptString) {
+	s.AdminPassSecretId = val
 }
 
-// SetPasswordAuthCreds sets the value of PasswordAuthCreds.
-func (s *OntapCredentialV1) SetPasswordAuthCreds(val OptPasswordAuthCredsV1) {
-	s.PasswordAuthCreds = val
+// SetDefaultModeUserCredentials sets the value of DefaultModeUserCredentials.
+func (s *OntapCredentialsV1) SetDefaultModeUserCredentials(val OptUserCredentialsV1) {
+	s.DefaultModeUserCredentials = val
 }
 
-// SetCertificateAuthCreds sets the value of CertificateAuthCreds.
-func (s *OntapCredentialV1) SetCertificateAuthCreds(val OptCertificateAuthCredsV1) {
-	s.CertificateAuthCreds = val
-}
-
-// SetActiveAuthType sets the value of ActiveAuthType.
-func (s *OntapCredentialV1) SetActiveAuthType(val OptOntapCredentialV1ActiveAuthType) {
-	s.ActiveAuthType = val
-}
-
-// SetRole sets the value of Role.
-func (s *OntapCredentialV1) SetRole(val OntapCredentialV1Role) {
-	s.Role = val
-}
-
-// Active auth type for this credential set. CERT uses
-// certificateAuthCreds; PWD uses passwordAuthCreds. Defaults to CERT
-// when unset.
-type OntapCredentialV1ActiveAuthType string
-
-const (
-	OntapCredentialV1ActiveAuthTypeCERT OntapCredentialV1ActiveAuthType = "CERT"
-	OntapCredentialV1ActiveAuthTypePWD  OntapCredentialV1ActiveAuthType = "PWD"
-)
-
-// AllValues returns all OntapCredentialV1ActiveAuthType values.
-func (OntapCredentialV1ActiveAuthType) AllValues() []OntapCredentialV1ActiveAuthType {
-	return []OntapCredentialV1ActiveAuthType{
-		OntapCredentialV1ActiveAuthTypeCERT,
-		OntapCredentialV1ActiveAuthTypePWD,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s OntapCredentialV1ActiveAuthType) MarshalText() ([]byte, error) {
-	switch s {
-	case OntapCredentialV1ActiveAuthTypeCERT:
-		return []byte(s), nil
-	case OntapCredentialV1ActiveAuthTypePWD:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *OntapCredentialV1ActiveAuthType) UnmarshalText(data []byte) error {
-	switch OntapCredentialV1ActiveAuthType(data) {
-	case OntapCredentialV1ActiveAuthTypeCERT:
-		*s = OntapCredentialV1ActiveAuthTypeCERT
-		return nil
-	case OntapCredentialV1ActiveAuthTypePWD:
-		*s = OntapCredentialV1ActiveAuthTypePWD
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
-// ONTAP role this credential set is provisioned for.
-type OntapCredentialV1Role string
-
-const (
-	OntapCredentialV1RoleONTAPMODE OntapCredentialV1Role = "ONTAP_MODE"
-	OntapCredentialV1RoleADMIN     OntapCredentialV1Role = "ADMIN"
-	OntapCredentialV1RoleVCMADMIN  OntapCredentialV1Role = "VCM_ADMIN"
-)
-
-// AllValues returns all OntapCredentialV1Role values.
-func (OntapCredentialV1Role) AllValues() []OntapCredentialV1Role {
-	return []OntapCredentialV1Role{
-		OntapCredentialV1RoleONTAPMODE,
-		OntapCredentialV1RoleADMIN,
-		OntapCredentialV1RoleVCMADMIN,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s OntapCredentialV1Role) MarshalText() ([]byte, error) {
-	switch s {
-	case OntapCredentialV1RoleONTAPMODE:
-		return []byte(s), nil
-	case OntapCredentialV1RoleADMIN:
-		return []byte(s), nil
-	case OntapCredentialV1RoleVCMADMIN:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *OntapCredentialV1Role) UnmarshalText(data []byte) error {
-	switch OntapCredentialV1Role(data) {
-	case OntapCredentialV1RoleONTAPMODE:
-		*s = OntapCredentialV1RoleONTAPMODE
-		return nil
-	case OntapCredentialV1RoleADMIN:
-		*s = OntapCredentialV1RoleADMIN
-		return nil
-	case OntapCredentialV1RoleVCMADMIN:
-		*s = OntapCredentialV1RoleVCMADMIN
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
+// SetOntapModeUserCredentials sets the value of OntapModeUserCredentials.
+func (s *OntapCredentialsV1) SetOntapModeUserCredentials(val OptUserCredentialsV1) {
+	s.OntapModeUserCredentials = val
 }
 
 // Ref: #/components/schemas/OntapModeRbac_v1
@@ -1692,52 +1562,6 @@ func (o OptBool) Get() (v bool, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptBool) Or(d bool) bool {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
-// NewOptCertificateAuthCredsV1 returns new OptCertificateAuthCredsV1 with value set to v.
-func NewOptCertificateAuthCredsV1(v CertificateAuthCredsV1) OptCertificateAuthCredsV1 {
-	return OptCertificateAuthCredsV1{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptCertificateAuthCredsV1 is optional CertificateAuthCredsV1.
-type OptCertificateAuthCredsV1 struct {
-	Value CertificateAuthCredsV1
-	Set   bool
-}
-
-// IsSet returns true if OptCertificateAuthCredsV1 was set.
-func (o OptCertificateAuthCredsV1) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptCertificateAuthCredsV1) Reset() {
-	var v CertificateAuthCredsV1
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptCertificateAuthCredsV1) SetTo(v CertificateAuthCredsV1) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptCertificateAuthCredsV1) Get() (v CertificateAuthCredsV1, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptCertificateAuthCredsV1) Or(d CertificateAuthCredsV1) CertificateAuthCredsV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2933,38 +2757,38 @@ func (o OptNilString) Or(d string) string {
 	return d
 }
 
-// NewOptOntapCredentialV1ActiveAuthType returns new OptOntapCredentialV1ActiveAuthType with value set to v.
-func NewOptOntapCredentialV1ActiveAuthType(v OntapCredentialV1ActiveAuthType) OptOntapCredentialV1ActiveAuthType {
-	return OptOntapCredentialV1ActiveAuthType{
+// NewOptOntapCredentialsV1 returns new OptOntapCredentialsV1 with value set to v.
+func NewOptOntapCredentialsV1(v OntapCredentialsV1) OptOntapCredentialsV1 {
+	return OptOntapCredentialsV1{
 		Value: v,
 		Set:   true,
 	}
 }
 
-// OptOntapCredentialV1ActiveAuthType is optional OntapCredentialV1ActiveAuthType.
-type OptOntapCredentialV1ActiveAuthType struct {
-	Value OntapCredentialV1ActiveAuthType
+// OptOntapCredentialsV1 is optional OntapCredentialsV1.
+type OptOntapCredentialsV1 struct {
+	Value OntapCredentialsV1
 	Set   bool
 }
 
-// IsSet returns true if OptOntapCredentialV1ActiveAuthType was set.
-func (o OptOntapCredentialV1ActiveAuthType) IsSet() bool { return o.Set }
+// IsSet returns true if OptOntapCredentialsV1 was set.
+func (o OptOntapCredentialsV1) IsSet() bool { return o.Set }
 
 // Reset unsets value.
-func (o *OptOntapCredentialV1ActiveAuthType) Reset() {
-	var v OntapCredentialV1ActiveAuthType
+func (o *OptOntapCredentialsV1) Reset() {
+	var v OntapCredentialsV1
 	o.Value = v
 	o.Set = false
 }
 
 // SetTo sets value to v.
-func (o *OptOntapCredentialV1ActiveAuthType) SetTo(v OntapCredentialV1ActiveAuthType) {
+func (o *OptOntapCredentialsV1) SetTo(v OntapCredentialsV1) {
 	o.Set = true
 	o.Value = v
 }
 
 // Get returns value and boolean that denotes whether value was set.
-func (o OptOntapCredentialV1ActiveAuthType) Get() (v OntapCredentialV1ActiveAuthType, ok bool) {
+func (o OptOntapCredentialsV1) Get() (v OntapCredentialsV1, ok bool) {
 	if !o.Set {
 		return v, false
 	}
@@ -2972,7 +2796,7 @@ func (o OptOntapCredentialV1ActiveAuthType) Get() (v OntapCredentialV1ActiveAuth
 }
 
 // Or returns value if set, or given parameter if does not.
-func (o OptOntapCredentialV1ActiveAuthType) Or(d OntapCredentialV1ActiveAuthType) OntapCredentialV1ActiveAuthType {
+func (o OptOntapCredentialsV1) Or(d OntapCredentialsV1) OntapCredentialsV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -3111,52 +2935,6 @@ func (o OptOperationV1Response) Get() (v OperationV1Response, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptOperationV1Response) Or(d OperationV1Response) OperationV1Response {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
-// NewOptPasswordAuthCredsV1 returns new OptPasswordAuthCredsV1 with value set to v.
-func NewOptPasswordAuthCredsV1(v PasswordAuthCredsV1) OptPasswordAuthCredsV1 {
-	return OptPasswordAuthCredsV1{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptPasswordAuthCredsV1 is optional PasswordAuthCredsV1.
-type OptPasswordAuthCredsV1 struct {
-	Value PasswordAuthCredsV1
-	Set   bool
-}
-
-// IsSet returns true if OptPasswordAuthCredsV1 was set.
-func (o OptPasswordAuthCredsV1) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptPasswordAuthCredsV1) Reset() {
-	var v PasswordAuthCredsV1
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptPasswordAuthCredsV1) SetTo(v PasswordAuthCredsV1) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptPasswordAuthCredsV1) Get() (v PasswordAuthCredsV1, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptPasswordAuthCredsV1) Or(d PasswordAuthCredsV1) PasswordAuthCredsV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -3393,6 +3171,144 @@ func (o OptStringInt64) Or(d int64) int64 {
 	return d
 }
 
+// NewOptUserCredentialsV1 returns new OptUserCredentialsV1 with value set to v.
+func NewOptUserCredentialsV1(v UserCredentialsV1) OptUserCredentialsV1 {
+	return OptUserCredentialsV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUserCredentialsV1 is optional UserCredentialsV1.
+type OptUserCredentialsV1 struct {
+	Value UserCredentialsV1
+	Set   bool
+}
+
+// IsSet returns true if OptUserCredentialsV1 was set.
+func (o OptUserCredentialsV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUserCredentialsV1) Reset() {
+	var v UserCredentialsV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUserCredentialsV1) SetTo(v UserCredentialsV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUserCredentialsV1) Get() (v UserCredentialsV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUserCredentialsV1) Or(d UserCredentialsV1) UserCredentialsV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptUserCredentialsV1ActiveAuthMode returns new OptUserCredentialsV1ActiveAuthMode with value set to v.
+func NewOptUserCredentialsV1ActiveAuthMode(v UserCredentialsV1ActiveAuthMode) OptUserCredentialsV1ActiveAuthMode {
+	return OptUserCredentialsV1ActiveAuthMode{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUserCredentialsV1ActiveAuthMode is optional UserCredentialsV1ActiveAuthMode.
+type OptUserCredentialsV1ActiveAuthMode struct {
+	Value UserCredentialsV1ActiveAuthMode
+	Set   bool
+}
+
+// IsSet returns true if OptUserCredentialsV1ActiveAuthMode was set.
+func (o OptUserCredentialsV1ActiveAuthMode) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUserCredentialsV1ActiveAuthMode) Reset() {
+	var v UserCredentialsV1ActiveAuthMode
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUserCredentialsV1ActiveAuthMode) SetTo(v UserCredentialsV1ActiveAuthMode) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUserCredentialsV1ActiveAuthMode) Get() (v UserCredentialsV1ActiveAuthMode, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUserCredentialsV1ActiveAuthMode) Or(d UserCredentialsV1ActiveAuthMode) UserCredentialsV1ActiveAuthMode {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptUserCredentialsV1UserPurpose returns new OptUserCredentialsV1UserPurpose with value set to v.
+func NewOptUserCredentialsV1UserPurpose(v UserCredentialsV1UserPurpose) OptUserCredentialsV1UserPurpose {
+	return OptUserCredentialsV1UserPurpose{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUserCredentialsV1UserPurpose is optional UserCredentialsV1UserPurpose.
+type OptUserCredentialsV1UserPurpose struct {
+	Value UserCredentialsV1UserPurpose
+	Set   bool
+}
+
+// IsSet returns true if OptUserCredentialsV1UserPurpose was set.
+func (o OptUserCredentialsV1UserPurpose) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUserCredentialsV1UserPurpose) Reset() {
+	var v UserCredentialsV1UserPurpose
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUserCredentialsV1UserPurpose) SetTo(v UserCredentialsV1UserPurpose) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUserCredentialsV1UserPurpose) Get() (v UserCredentialsV1UserPurpose, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUserCredentialsV1UserPurpose) Or(d UserCredentialsV1UserPurpose) UserCredentialsV1UserPurpose {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptVolumeReadV1SecurityStyle returns new OptVolumeReadV1SecurityStyle with value set to v.
 func NewOptVolumeReadV1SecurityStyle(v VolumeReadV1SecurityStyle) OptVolumeReadV1SecurityStyle {
 	return OptVolumeReadV1SecurityStyle{
@@ -3531,34 +3447,6 @@ func (o OptWeeklyScheduleV1) Or(d WeeklyScheduleV1) WeeklyScheduleV1 {
 	return d
 }
 
-// Ref: #/components/schemas/PasswordAuthCreds_v1
-type PasswordAuthCredsV1 struct {
-	// ONTAP username (e.g. root).
-	Username OptString `json:"username"`
-	// Secret Manager secret ID containing the password.
-	PasswordSecretId OptString `json:"passwordSecretId"`
-}
-
-// GetUsername returns the value of Username.
-func (s *PasswordAuthCredsV1) GetUsername() OptString {
-	return s.Username
-}
-
-// GetPasswordSecretId returns the value of PasswordSecretId.
-func (s *PasswordAuthCredsV1) GetPasswordSecretId() OptString {
-	return s.PasswordSecretId
-}
-
-// SetUsername sets the value of Username.
-func (s *PasswordAuthCredsV1) SetUsername(val OptString) {
-	s.Username = val
-}
-
-// SetPasswordSecretId sets the value of PasswordSecretId.
-func (s *PasswordAuthCredsV1) SetPasswordSecretId(val OptString) {
-	s.PasswordSecretId = val
-}
-
 // Protocol type through which volume can be accessed.
 // Ref: #/components/schemas/Protocols_v1
 type ProtocolsV1 string
@@ -3626,18 +3514,18 @@ func (s *ProtocolsV1) UnmarshalText(data []byte) error {
 // Immutable cluster identity and static bindings.
 // Ref: #/components/schemas/SeedConfig_v1
 type SeedConfigV1 struct {
-	DeploymentId            OptString           `json:"deploymentId"`
-	Zone1                   OptString           `json:"zone1"`
-	Zone2                   OptString           `json:"zone2"`
-	MediatorZone            OptString           `json:"mediatorZone"`
-	ConsumerProjectNum      OptInt64            `json:"consumerProjectNum"`
-	ServiceTenantProjectNum OptInt64            `json:"serviceTenantProjectNum"`
-	SnHostProjectNum        OptInt64            `json:"snHostProjectNum"`
-	NetConfig               OptNetConfigV1      `json:"netConfig"`
-	OntapCredentials        []OntapCredentialV1 `json:"ontapCredentials"`
-	CaUri                   OptString           `json:"caUri"`
-	OntapLicenseSecret      OptString           `json:"ontapLicenseSecret"`
-	ServiceAccountEmail     OptString           `json:"serviceAccountEmail"`
+	DeploymentId            OptString             `json:"deploymentId"`
+	Zone1                   OptString             `json:"zone1"`
+	Zone2                   OptString             `json:"zone2"`
+	MediatorZone            OptString             `json:"mediatorZone"`
+	ConsumerProjectNum      OptInt64              `json:"consumerProjectNum"`
+	ServiceTenantProjectNum OptInt64              `json:"serviceTenantProjectNum"`
+	SnHostProjectNum        OptInt64              `json:"snHostProjectNum"`
+	NetConfig               OptNetConfigV1        `json:"netConfig"`
+	OntapCredentials        OptOntapCredentialsV1 `json:"ontapCredentials"`
+	CaUri                   OptString             `json:"caUri"`
+	OntapLicenseSecret      OptString             `json:"ontapLicenseSecret"`
+	ServiceAccountEmail     OptString             `json:"serviceAccountEmail"`
 }
 
 // GetDeploymentId returns the value of DeploymentId.
@@ -3681,7 +3569,7 @@ func (s *SeedConfigV1) GetNetConfig() OptNetConfigV1 {
 }
 
 // GetOntapCredentials returns the value of OntapCredentials.
-func (s *SeedConfigV1) GetOntapCredentials() []OntapCredentialV1 {
+func (s *SeedConfigV1) GetOntapCredentials() OptOntapCredentialsV1 {
 	return s.OntapCredentials
 }
 
@@ -3741,7 +3629,7 @@ func (s *SeedConfigV1) SetNetConfig(val OptNetConfigV1) {
 }
 
 // SetOntapCredentials sets the value of OntapCredentials.
-func (s *SeedConfigV1) SetOntapCredentials(val []OntapCredentialV1) {
+func (s *SeedConfigV1) SetOntapCredentials(val OptOntapCredentialsV1) {
 	s.OntapCredentials = val
 }
 
@@ -4201,6 +4089,197 @@ func (s *StateDbConfigV1) SetInstance(val string) {
 // SetDatabase sets the value of Database.
 func (s *StateDbConfigV1) SetDatabase(val string) {
 	s.Database = val
+}
+
+// Credentials for a single ONTAP user, resolved by activeAuthMode. For
+// AUTHMODE_CERT (or AUTHMODE_UNSPECIFIED) certId and certPrivateKeySecret
+// are required; for AUTHMODE_PASSWORD passwordSecret is required.
+// Ref: #/components/schemas/UserCredentials_v1
+type UserCredentialsV1 struct {
+	// Purpose/role of this ONTAP user.
+	UserPurpose OptUserCredentialsV1UserPurpose `json:"userPurpose"`
+	// ONTAP username for this user.
+	Username OptString `json:"username"`
+	// Full CAS (Certificate Authority Service) resource name of the
+	// certificate, e.g.
+	// projects/{project}/locations/{region}/caPools/{caPool}/certificates/{certificate}.
+	// The certificate PEM is fetched from CAS (same source as the VCP
+	// self-managed path). Required when activeAuthMode is AUTHMODE_CERT (or
+	// AUTHMODE_UNSPECIFIED).
+	CertId OptString `json:"certId"`
+	// Secret Manager resource path of the certificate's private key, e.g.
+	// projects/{project}/secrets/{secret}. Required when activeAuthMode is
+	// AUTHMODE_CERT (or AUTHMODE_UNSPECIFIED).
+	CertPrivateKeySecret OptString `json:"certPrivateKeySecret"`
+	// Secret Manager resource path of the user's password. Required when
+	// activeAuthMode is AUTHMODE_PASSWORD.
+	PasswordSecret OptString `json:"passwordSecret"`
+	// Active auth mechanism for this user. AUTHMODE_UNSPECIFIED and
+	// AUTHMODE_CERT select certificate-based auth (certId +
+	// certPrivateKeySecret); AUTHMODE_PASSWORD selects password-based auth
+	// (passwordSecret).
+	ActiveAuthMode OptUserCredentialsV1ActiveAuthMode `json:"activeAuthMode"`
+}
+
+// GetUserPurpose returns the value of UserPurpose.
+func (s *UserCredentialsV1) GetUserPurpose() OptUserCredentialsV1UserPurpose {
+	return s.UserPurpose
+}
+
+// GetUsername returns the value of Username.
+func (s *UserCredentialsV1) GetUsername() OptString {
+	return s.Username
+}
+
+// GetCertId returns the value of CertId.
+func (s *UserCredentialsV1) GetCertId() OptString {
+	return s.CertId
+}
+
+// GetCertPrivateKeySecret returns the value of CertPrivateKeySecret.
+func (s *UserCredentialsV1) GetCertPrivateKeySecret() OptString {
+	return s.CertPrivateKeySecret
+}
+
+// GetPasswordSecret returns the value of PasswordSecret.
+func (s *UserCredentialsV1) GetPasswordSecret() OptString {
+	return s.PasswordSecret
+}
+
+// GetActiveAuthMode returns the value of ActiveAuthMode.
+func (s *UserCredentialsV1) GetActiveAuthMode() OptUserCredentialsV1ActiveAuthMode {
+	return s.ActiveAuthMode
+}
+
+// SetUserPurpose sets the value of UserPurpose.
+func (s *UserCredentialsV1) SetUserPurpose(val OptUserCredentialsV1UserPurpose) {
+	s.UserPurpose = val
+}
+
+// SetUsername sets the value of Username.
+func (s *UserCredentialsV1) SetUsername(val OptString) {
+	s.Username = val
+}
+
+// SetCertId sets the value of CertId.
+func (s *UserCredentialsV1) SetCertId(val OptString) {
+	s.CertId = val
+}
+
+// SetCertPrivateKeySecret sets the value of CertPrivateKeySecret.
+func (s *UserCredentialsV1) SetCertPrivateKeySecret(val OptString) {
+	s.CertPrivateKeySecret = val
+}
+
+// SetPasswordSecret sets the value of PasswordSecret.
+func (s *UserCredentialsV1) SetPasswordSecret(val OptString) {
+	s.PasswordSecret = val
+}
+
+// SetActiveAuthMode sets the value of ActiveAuthMode.
+func (s *UserCredentialsV1) SetActiveAuthMode(val OptUserCredentialsV1ActiveAuthMode) {
+	s.ActiveAuthMode = val
+}
+
+// Active auth mechanism for this user. AUTHMODE_UNSPECIFIED and
+// AUTHMODE_CERT select certificate-based auth (certId +
+// certPrivateKeySecret); AUTHMODE_PASSWORD selects password-based auth
+// (passwordSecret).
+type UserCredentialsV1ActiveAuthMode string
+
+const (
+	UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED UserCredentialsV1ActiveAuthMode = "AUTHMODE_UNSPECIFIED"
+	UserCredentialsV1ActiveAuthModeAUTHMODECERT        UserCredentialsV1ActiveAuthMode = "AUTHMODE_CERT"
+	UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD    UserCredentialsV1ActiveAuthMode = "AUTHMODE_PASSWORD"
+)
+
+// AllValues returns all UserCredentialsV1ActiveAuthMode values.
+func (UserCredentialsV1ActiveAuthMode) AllValues() []UserCredentialsV1ActiveAuthMode {
+	return []UserCredentialsV1ActiveAuthMode{
+		UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED,
+		UserCredentialsV1ActiveAuthModeAUTHMODECERT,
+		UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s UserCredentialsV1ActiveAuthMode) MarshalText() ([]byte, error) {
+	switch s {
+	case UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED:
+		return []byte(s), nil
+	case UserCredentialsV1ActiveAuthModeAUTHMODECERT:
+		return []byte(s), nil
+	case UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *UserCredentialsV1ActiveAuthMode) UnmarshalText(data []byte) error {
+	switch UserCredentialsV1ActiveAuthMode(data) {
+	case UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED
+		return nil
+	case UserCredentialsV1ActiveAuthModeAUTHMODECERT:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODECERT
+		return nil
+	case UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD:
+		*s = UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Purpose/role of this ONTAP user.
+type UserCredentialsV1UserPurpose string
+
+const (
+	UserCredentialsV1UserPurposePURPOSEUNSPECIFIED UserCredentialsV1UserPurpose = "PURPOSE_UNSPECIFIED"
+	UserCredentialsV1UserPurposePURPOSEVCMADMIN    UserCredentialsV1UserPurpose = "PURPOSE_VCM_ADMIN"
+	UserCredentialsV1UserPurposePURPOSEONTAPMODE   UserCredentialsV1UserPurpose = "PURPOSE_ONTAP_MODE"
+)
+
+// AllValues returns all UserCredentialsV1UserPurpose values.
+func (UserCredentialsV1UserPurpose) AllValues() []UserCredentialsV1UserPurpose {
+	return []UserCredentialsV1UserPurpose{
+		UserCredentialsV1UserPurposePURPOSEUNSPECIFIED,
+		UserCredentialsV1UserPurposePURPOSEVCMADMIN,
+		UserCredentialsV1UserPurposePURPOSEONTAPMODE,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s UserCredentialsV1UserPurpose) MarshalText() ([]byte, error) {
+	switch s {
+	case UserCredentialsV1UserPurposePURPOSEUNSPECIFIED:
+		return []byte(s), nil
+	case UserCredentialsV1UserPurposePURPOSEVCMADMIN:
+		return []byte(s), nil
+	case UserCredentialsV1UserPurposePURPOSEONTAPMODE:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *UserCredentialsV1UserPurpose) UnmarshalText(data []byte) error {
+	switch UserCredentialsV1UserPurpose(data) {
+	case UserCredentialsV1UserPurposePURPOSEUNSPECIFIED:
+		*s = UserCredentialsV1UserPurposePURPOSEUNSPECIFIED
+		return nil
+	case UserCredentialsV1UserPurposePURPOSEVCMADMIN:
+		*s = UserCredentialsV1UserPurposePURPOSEVCMADMIN
+		return nil
+	case UserCredentialsV1UserPurposePURPOSEONTAPMODE:
+		*s = UserCredentialsV1UserPurposePURPOSEONTAPMODE
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 type V1CreateIgroupBadRequest ErrorResponseV1

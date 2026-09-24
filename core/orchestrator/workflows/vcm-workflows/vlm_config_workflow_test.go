@@ -162,8 +162,19 @@ func TestRebuildVLMConfigWorkflowE2E_CertCredPath(t *testing.T) {
 
 	params := rebuildWFParams("dep-cert")
 	params.CaURI = "123456789012/pool/intermediate"
+	// Cert path: the default-mode user authenticates with a provided certificate
+	// (certId + certPrivateKeySecret); the admin entry supplies the bootstrap
+	// admin password. This makes DeriveOntapCredentials select USER_CERTIFICATE,
+	// which routes the workflow through ResolveOntapCertificate.
 	params.OntapCredentials = []commonparams.VCMOntapCredential{
-		{Type: "admin", CertificateID: "cert-1", SecretID: "projects/p/secrets/s"},
+		{Type: "admin", SecretID: "projects/p/secrets/admin"},
+		{
+			Type:                   "default",
+			IsCertAuth:             true,
+			CertificateID:          "projects/p/locations/us-central1/caPools/pool-1/certificates/cert-1",
+			CertPrivateKeySecretID: "projects/p/secrets/key-1",
+			Username:               "vsaadmin",
+		},
 	}
 
 	store := &fakeRebuildStore{}

@@ -154,6 +154,13 @@ type PoolCredentials struct {
 	AuthType         int    `json:"auth_type"`
 	Username         string `json:"username"`
 
+	// CertPrivateKeySecretID is the Secret Manager resource path of a
+	// caller-provided certificate private key. It is set on the VCM path where
+	// CLH supplies both the certificate (CertificateID) and its private key as
+	// distinct Secret Manager secrets, rather than VCP minting the key and
+	// storing it under the certificate id. Empty on the VCP self-managed path.
+	CertPrivateKeySecretID string `json:"cert_private_key_secret_id,omitempty"`
+
 	StagedCaURI        string `json:"staged_ca_uri,omitempty"`
 	UsernamePreCertFix string `json:"username_pre_cert_fix,omitempty"`
 

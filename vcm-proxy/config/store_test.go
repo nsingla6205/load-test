@@ -392,26 +392,26 @@ func TestStore_CurrentSetConfig_DeepCopyIsolatedFromStore(t *testing.T) {
 
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
 	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
-		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
-		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
-		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-			PasswordSecretId: vcmserver.NewOptString("secret-a"),
-		})
-		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+		seed.OntapCredentials = ontapCredentials("admin-pass",
+			passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "secret-a"))
 	})
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
 	setConfig := store.CurrentSetConfig()
-	require.Len(t, seedOf(setConfig).OntapCredentials, 1)
+	require.True(t, seedOf(setConfig).OntapCredentials.IsSet())
 
-	setConfig.ClusterConfig.Value.SeedConfig.Value.OntapCredentials[0].PasswordAuthCreds.Value.PasswordSecretId.SetTo("mutated-secret")
+	mutated := setConfig.ClusterConfig.Value.SeedConfig.Value.OntapCredentials.Value
+	def := mutated.DefaultModeUserCredentials.Value
+	def.PasswordSecret.SetTo("mutated-secret")
+	mutated.DefaultModeUserCredentials.SetTo(def)
+	setConfig.ClusterConfig.Value.SeedConfig.Value.OntapCredentials.SetTo(mutated)
 
 	internal := store.CurrentSetConfig()
-	require.Len(t, seedOf(internal).OntapCredentials, 1)
-	secretID, ok := seedOf(internal).OntapCredentials[0].PasswordAuthCreds.Value.PasswordSecretId.Get()
+	secretID := seedOf(internal).OntapCredentials.Value.DefaultModeUserCredentials.Value.PasswordSecret
+	got, ok := secretID.Get()
 	require.True(t, ok)
-	assert.Equal(t, "secret-a", secretID)
+	assert.Equal(t, "secret-a", got)
 }
 
 func TestStore_NodeProviderInput(t *testing.T) {
@@ -420,15 +420,8 @@ func TestStore_NodeProviderInput(t *testing.T) {
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
 	mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
 		seed.DeploymentId = vcmserver.NewOptString("gcnv-test")
-		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
-		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
-		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-			PasswordSecretId: vcmserver.NewOptString("secret-a"),
-		})
-		entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
-			CertSecretId: vcmserver.NewOptString("cert-a"),
-		})
-		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+		seed.OntapCredentials = ontapCredentials("admin-pass",
+			passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "secret-a"))
 	})
 	mutateLayout(req, func(layout *vcmserver.ClusterLayoutV1) {
 		layout.Nodes = []vcmserver.VsaNodeV1{layoutNode("vm1", "198.18.0.5")}
@@ -624,12 +617,8 @@ func rebuildConfigRequest(deploymentID string) *vcmserver.SetConfigRequestV1 {
 		seed.Zone2.SetTo("us-central1-b")
 		seed.MediatorZone.SetTo("us-central1-c")
 		seed.CaUri.SetTo("123456789012/pool/intermediate")
-		entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
-		entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
-		entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-			PasswordSecretId: vcmserver.NewOptString("projects/p/secrets/s"),
-		})
-		seed.OntapCredentials = []vcmserver.OntapCredentialV1{entry}
+		seed.OntapCredentials = ontapCredentials("admin-pass",
+			passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "projects/p/secrets/s"))
 	})
 	return req
 }
@@ -652,9 +641,16 @@ func TestStore_Apply_TriggersRebuildOnceWhenEmpty(t *testing.T) {
 	assert.Equal(t, "us-central1-b", p.Zone2)
 	assert.Equal(t, "us-central1-c", p.MediatorZone)
 	assert.Equal(t, "123456789012/pool/intermediate", p.CaURI)
-	require.Len(t, p.OntapCredentials, 1)
-	assert.Equal(t, "default", p.OntapCredentials[0].Type)
-	assert.Equal(t, "projects/p/secrets/s", p.OntapCredentials[0].SecretID)
+	// admin (adminPassSecretId) + default (VCM_ADMIN) entries.
+	require.Len(t, p.OntapCredentials, 2)
+	assert.Equal(t, "admin-pass", commonparams.AdminPasswordSecret(p.OntapCredentials))
+	var def commonparams.VCMOntapCredential
+	for _, c := range p.OntapCredentials {
+		if c.Type == "default" {
+			def = c
+		}
+	}
+	assert.Equal(t, "projects/p/secrets/s", def.SecretID)
 }
 
 func TestStore_Apply_TriggersEvenWithoutDeploymentID(t *testing.T) {
@@ -808,6 +804,16 @@ func TestCloneVSANodes_PreservesEmptySlice(t *testing.T) {
 	assert.Equal(t, "vm1", name)
 }
 
+// credByType returns the credential entry of the given type, or a zero value.
+func credByType(creds []commonparams.VCMOntapCredential, credType string) commonparams.VCMOntapCredential {
+	for _, c := range creds {
+		if c.Type == credType {
+			return c
+		}
+	}
+	return commonparams.VCMOntapCredential{}
+}
+
 func TestCloneVSANodes_DeepCopiesSanIps(t *testing.T) {
 	node := vcmserver.VsaNodeV1{GceVmName: vcmserver.NewOptString("vm1")}
 	node.IpConfig.SetTo(vcmserver.IpConfigV1{
@@ -839,79 +845,64 @@ func TestCloneGceDisks_PreservesEmptySlice(t *testing.T) {
 	assert.Equal(t, "disk-1", name)
 }
 
-func TestToVCMOntapCredentials_PasswordAuthUsesPasswordSecret(t *testing.T) {
-	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
-	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypePWD)
-	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-		Username:         vcmserver.NewOptString("root"),
-		PasswordSecretId: vcmserver.NewOptString("admin-1"),
-	})
-	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
-		CertSecretId:           vcmserver.NewOptString("cert-1"),
-		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
-	})
+func TestToVCMOntapCredentials_AdminAndPasswordDefault(t *testing.T) {
+	oc := vcmserver.OntapCredentialsV1{}
+	oc.AdminPassSecretId.SetTo("admin-1")
+	oc.DefaultModeUserCredentials.SetTo(passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "root", "vcm-secret"))
 
-	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
-	require.Len(t, creds, 1)
-	assert.Equal(t, "admin", creds[0].Type)
-	assert.Empty(t, creds[0].CertificateID)
-	assert.Equal(t, "admin-1", creds[0].SecretID)
-	assert.Equal(t, "root", creds[0].Username)
+	creds := ToVCMOntapCredentials(vcmserver.NewOptOntapCredentialsV1(oc))
+	require.Len(t, creds, 2)
+
+	admin := credByType(creds, "admin")
+	assert.Equal(t, "admin-1", admin.SecretID)
+	assert.Empty(t, admin.CertificateID)
+
+	def := credByType(creds, "default")
+	assert.Equal(t, "vcm-secret", def.SecretID)
+	assert.Empty(t, def.CertificateID)
+	assert.Equal(t, "root", def.Username)
+	assert.False(t, def.IsCertAuth)
 }
 
-// TestToVCMOntapCredentials_AdminForcesPasswordEvenWhenCertRequested asserts the
-// role-based policy: an ADMIN credential is always resolved via password, even
-// when it explicitly requests CERT and carries certificate material.
-func TestToVCMOntapCredentials_AdminForcesPasswordEvenWhenCertRequested(t *testing.T) {
-	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleADMIN}
-	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
-	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
-		CertSecretId:           vcmserver.NewOptString("cert-1"),
-		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
-	})
-	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-		Username:         vcmserver.NewOptString("root"),
-		PasswordSecretId: vcmserver.NewOptString("admin-1"),
-	})
+func TestToVCMOntapCredentials_CertificateDefaultUsesCertAndKey(t *testing.T) {
+	oc := vcmserver.OntapCredentialsV1{}
+	oc.AdminPassSecretId.SetTo("admin-1")
+	oc.DefaultModeUserCredentials.SetTo(certUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "vcm-admin", "cert-1", "key-1"))
 
-	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
-	require.Len(t, creds, 1)
-	assert.Empty(t, creds[0].CertificateID, "ADMIN must not resolve certificate material")
-	assert.Equal(t, "admin-1", creds[0].SecretID, "ADMIN must resolve the password secret")
-	assert.Equal(t, "root", creds[0].Username)
+	creds := ToVCMOntapCredentials(vcmserver.NewOptOntapCredentialsV1(oc))
+	def := credByType(creds, "default")
+	assert.Equal(t, "cert-1", def.CertificateID)
+	assert.Equal(t, "key-1", def.CertPrivateKeySecretID)
+	assert.True(t, def.IsCertAuth)
+	assert.Equal(t, "vcm-admin", def.Username)
 }
 
-func TestToVCMOntapCredentials_CertificateAuthUsesPrivateKey(t *testing.T) {
-	// Non-admin role honors an explicit CERT auth type.
-	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
-	entry.ActiveAuthType.SetTo(vcmserver.OntapCredentialV1ActiveAuthTypeCERT)
-	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
-		CertSecretId:           vcmserver.NewOptString("cert-1"),
-		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
-	})
-	entry.PasswordAuthCreds.SetTo(vcmserver.PasswordAuthCredsV1{
-		PasswordSecretId: vcmserver.NewOptString("admin-1"),
-	})
+func TestToVCMOntapCredentials_DefaultsToCertificateWhenAuthModeUnset(t *testing.T) {
+	def := vcmserver.UserCredentialsV1{}
+	def.CertId.SetTo("cert-1")
+	def.CertPrivateKeySecret.SetTo("key-1")
+	oc := vcmserver.OntapCredentialsV1{}
+	oc.AdminPassSecretId.SetTo("admin-1")
+	oc.DefaultModeUserCredentials.SetTo(def)
 
-	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
-	require.Len(t, creds, 1)
-	assert.Equal(t, "cert-1", creds[0].CertificateID)
-	assert.Equal(t, "key-1", creds[0].SecretID)
-	assert.Empty(t, creds[0].Username)
+	creds := ToVCMOntapCredentials(vcmserver.NewOptOntapCredentialsV1(oc))
+	got := credByType(creds, "default")
+	assert.Equal(t, "cert-1", got.CertificateID)
+	assert.Equal(t, "key-1", got.CertPrivateKeySecretID)
+	assert.True(t, got.IsCertAuth)
 }
 
-func TestToVCMOntapCredentials_DefaultsToCertificateWhenAuthTypeUnset(t *testing.T) {
-	// Non-admin role with no explicit auth type defaults to CERT.
-	entry := vcmserver.OntapCredentialV1{Role: vcmserver.OntapCredentialV1RoleVCMADMIN}
-	entry.CertificateAuthCreds.SetTo(vcmserver.CertificateAuthCredsV1{
-		CertSecretId:           vcmserver.NewOptString("cert-1"),
-		CertPrivateKeySecretId: vcmserver.NewOptString("key-1"),
-	})
+func TestToVCMOntapCredentials_IncludesOntapModeUser(t *testing.T) {
+	oc := vcmserver.OntapCredentialsV1{}
+	oc.AdminPassSecretId.SetTo("admin-1")
+	oc.DefaultModeUserCredentials.SetTo(certUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "vcm-admin", "cert-1", "key-1"))
+	oc.OntapModeUserCredentials.SetTo(passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEONTAPMODE, "om", "om-secret"))
 
-	creds := ToVCMOntapCredentials([]vcmserver.OntapCredentialV1{entry})
-	require.Len(t, creds, 1)
-	assert.Equal(t, "cert-1", creds[0].CertificateID)
-	assert.Equal(t, "key-1", creds[0].SecretID)
+	creds := ToVCMOntapCredentials(vcmserver.NewOptOntapCredentialsV1(oc))
+	require.Len(t, creds, 3)
+	om := credByType(creds, "ontap-mode")
+	assert.Equal(t, "om-secret", om.SecretID)
+	assert.Equal(t, "om", om.Username)
 }
 
 func TestStore_Apply_EmptyNodesClearsStoredNodes(t *testing.T) {

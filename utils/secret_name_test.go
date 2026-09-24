@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBareSecretName(t *testing.T) {
@@ -24,6 +25,53 @@ func TestBareSecretName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, BareSecretName(tc.in))
+		})
+	}
+}
+
+func TestParseSecretResourceName(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          string
+		wantProject string
+		wantSecret  string
+		wantErr     bool
+	}{
+		{
+			name:        "bare secret form",
+			in:          "projects/237071556299/secrets/ontap-admin-password",
+			wantProject: "237071556299",
+			wantSecret:  "ontap-admin-password",
+		},
+		{
+			name:        "versioned form ignores version",
+			in:          "projects/proj-1/secrets/sec-1/versions/5",
+			wantProject: "proj-1",
+			wantSecret:  "sec-1",
+		},
+		{
+			name:        "leading and trailing slashes trimmed",
+			in:          "/projects/proj-1/secrets/sec-1/",
+			wantProject: "proj-1",
+			wantSecret:  "sec-1",
+		},
+		{name: "empty", in: "", wantErr: true},
+		{name: "wrong prefix", in: "foo/proj/secrets/sec", wantErr: true},
+		{name: "missing secrets segment", in: "projects/proj/bar/sec", wantErr: true},
+		{name: "empty project", in: "projects//secrets/sec", wantErr: true},
+		{name: "empty secret", in: "projects/proj/secrets/", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			project, secret, err := ParseSecretResourceName(tc.in)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantProject, project)
+			assert.Equal(t, tc.wantSecret, secret)
 		})
 	}
 }

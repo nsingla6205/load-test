@@ -43,7 +43,16 @@ func nodeAndSvmFromStore(store Store) (*models.Node, string, error) {
 	// node identifiers. Reduce to the bare secret id so the resulting lookup is
 	// projects/{p}/secrets/{id} rather than a doubled path that 404s.
 	node.SecretID = utils.BareSecretName(node.SecretID)
-	node.CertificateID = utils.BareSecretName(node.CertificateID)
+	// VCM-provided certs carry the full CAS certificate resource name in
+	// CertificateID (and the private key's full Secret Manager resource name in
+	// CertPrivateKeySecretID), which vsa.GetProvidedCertificate parses directly.
+	// Only bare-name the certificate id on the legacy self-managed path (no
+	// provided private key), where vsa formats projects/{p}/secrets/{id}. Mirrors
+	// createPoolWorkflow.ontapNodeCredentials so post-pool cert-auth operations
+	// (host-group, volume) keep the full CAS identifier.
+	if node.CertPrivateKeySecretID == "" {
+		node.CertificateID = utils.BareSecretName(node.CertificateID)
+	}
 	svmName, err := orchcommon.DeriveVCMSvmName(node.DeploymentName)
 	if err != nil {
 		return nil, "", fmt.Errorf("derive SVM name: %w", err)

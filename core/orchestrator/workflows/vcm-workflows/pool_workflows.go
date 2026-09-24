@@ -291,21 +291,20 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 				ExternalUUID: svmUUIDFromVLMConfig(vlmCfg, svmName),
 			},
 		}
-		// TODO(vcm-dns): Temporary workaround until DNS handling for VCM is decided.
-		// VCM does not create Cloud DNS records (a GCP resource owned by CLH), so we
-		// cannot dial a per-node FQDN whose TLS SNI matches the cert's wildcard SAN.
-		// Instead dial the node mgmt IP directly (HostDNSName = IP => hosts map
-		// {IP: IP}) and disable server-cert verification (InsecureSkipVerify = true),
-		// mirroring the password/insecure path. Client mTLS (ONTAP verifying our
-		// client cert) is unaffected; only server-identity verification is skipped.
-		// Revert to FQDN+DNS (or an SNI-override) once the DNS decision lands.
+		// VCM does not create Cloud DNS records (a GCP resource owned by CLH), so
+		// we cannot dial a per-node FQDN. Instead use the SNI-override approach
+		// (same as OCI): dial the node mgmt IP directly and set the TLS SNI /
+		// hostname-verification name to "mgmt.<deploymentID>.<VsaDeployedDnsName>",
+		// which matches the wildcard SAN ("*.<deploymentID>.<VsaDeployedDnsName>")
+		// baked into the pool's certificate. This keeps full mTLS with server-cert
+		// verification intact — no InsecureSkipVerify, no DNS record.
 		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
 			Nodes: []*datamodel.Node{
 				{EndpointAddress: forwardingRuleIP, HostDNSName: forwardingRuleIP},
 			},
-			DeploymentName:     deploymentID,
-			OntapCredentials:   wf.ontapNodeCredentials(),
-			InsecureSkipVerify: true,
+			DeploymentName:   deploymentID,
+			OntapCredentials: wf.ontapNodeCredentials(),
+			ServerName:       vsa.OntapSNIServerName(deploymentID),
 		})
 
 		if err := wf.checkDeadline(ctx, "create-qos-policy"); err != nil {
@@ -491,6 +490,14 @@ func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials 
 	// fully qualified names.
 	nodeCreds := *wf.inputs.OntapCredentials
 	nodeCreds.SecretID = utils.BareSecretName(nodeCreds.SecretID)
-	nodeCreds.CertificateID = utils.BareSecretName(nodeCreds.CertificateID)
+	// VCM-provided certs carry the full CAS certificate resource name in
+	// CertificateID (and the private key's full Secret Manager resource name in
+	// CertPrivateKeySecretID), so vsa.GetProvidedCertificate can parse both.
+	// Only bare-name the certificate id on the legacy self-managed path (no
+	// provided private key), where vsa formats
+	// projects/{SECRET_MANAGER_PROJECT_ID}/secrets/{id}.
+	if nodeCreds.CertPrivateKeySecretID == "" {
+		nodeCreds.CertificateID = utils.BareSecretName(nodeCreds.CertificateID)
+	}
 	return &nodeCreds
 }

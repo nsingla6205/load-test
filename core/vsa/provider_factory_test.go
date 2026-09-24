@@ -901,6 +901,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 			OntapCredentials: &datamodel.PoolCredentials{
 				CertificateID: "cert-123",
 				SecretID:      "secret-123",
+				Username:      "vcm-admin",
 				AuthType:      env.USER_CERTIFICATE,
 			},
 		}
@@ -910,6 +911,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 		assert.Equal(t, "test-deployment", node.DeploymentName)
 		assert.Equal(t, "cert-123", node.CertificateID)
 		assert.Equal(t, "secret-123", node.SecretID)
+		assert.Equal(t, "vcm-admin", node.Username)
 		assert.Equal(t, env.USER_CERTIFICATE, node.AuthType)
 		assert.Equal(t, "", node.Password) // Password should be empty when not provided in input
 
@@ -931,6 +933,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 			OntapCredentials: &datamodel.PoolCredentials{
 				Password: "test-password",
 				SecretID: "secret-123",
+				Username: "vcm-admin",
 				AuthType: env.USERNAME_PWD,
 			},
 		}
@@ -940,6 +943,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 		assert.Equal(t, "test-deployment", node.DeploymentName)
 		assert.Equal(t, "", node.CertificateID)
 		assert.Equal(t, "secret-123", node.SecretID)
+		assert.Equal(t, "vcm-admin", node.Username)
 		assert.Equal(t, env.USERNAME_PWD, node.AuthType)
 		assert.Equal(t, "test-password", node.Password)
 
@@ -4386,4 +4390,410 @@ func Test_revokeServiceCertificateFromCAS_ValidationAndNoOp(t *testing.T) {
 
 		require.NoError(tt, err)
 	})
+}
+
+// TestParseCertificateResourceName covers parsing of the full CAS certificate
+// resource name that the VCM cert path (GetProvidedCertificate) receives for
+// certId, into the (project, region, caPool, certificate) tuple GetCertificate
+// needs.
+func TestParseCertificateResourceName(t *testing.T) {
+	tests := []struct {
+		name       string
+		in         string
+		wantProj   string
+		wantRegion string
+		wantPool   string
+		wantCert   string
+		wantErr    bool
+	}{
+		{
+			name:       "well-formed CAS path",
+			in:         "projects/237071556299/locations/us-central1/caPools/vcm-pool/certificates/vcm-admin-cert",
+			wantProj:   "237071556299",
+			wantRegion: "us-central1",
+			wantPool:   "vcm-pool",
+			wantCert:   "vcm-admin-cert",
+		},
+		{
+			name:       "leading and trailing slashes tolerated",
+			in:         "/projects/p/locations/r/caPools/pool/certificates/cert/",
+			wantProj:   "p",
+			wantRegion: "r",
+			wantPool:   "pool",
+			wantCert:   "cert",
+		},
+		{name: "empty", in: "", wantErr: true},
+		{name: "secret manager path is not a CAS path", in: "projects/p/secrets/vcm-admin-cert", wantErr: true},
+		{name: "wrong locations segment", in: "projects/p/regions/r/caPools/pool/certificates/cert", wantErr: true},
+		{name: "wrong caPools segment", in: "projects/p/locations/r/pools/pool/certificates/cert", wantErr: true},
+		{name: "wrong certificates segment", in: "projects/p/locations/r/caPools/pool/certs/cert", wantErr: true},
+		{name: "empty project", in: "projects//locations/r/caPools/pool/certificates/cert", wantErr: true},
+		{name: "empty certificate", in: "projects/p/locations/r/caPools/pool/certificates/", wantErr: true},
+		{name: "too few segments", in: "projects/p/locations/r/caPools/pool", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			proj, region, pool, cert, err := parseCertificateResourceName(tc.in)
+			if tc.wantErr {
+				require.Error(tt, err)
+				return
+			}
+			require.NoError(tt, err)
+			assert.Equal(tt, tc.wantProj, proj)
+			assert.Equal(tt, tc.wantRegion, region)
+			assert.Equal(tt, tc.wantPool, pool)
+			assert.Equal(tt, tc.wantCert, cert)
+		})
+	}
+}
+
+// References used by the VCM provided-certificate tests: a full CAS certificate
+// resource name and a Secret Manager resource name for its private key.
+const (
+	vcmCertResourceName = "projects/tenant-p/locations/us-central1/caPools/vcm-pool/certificates/vcm-cert"
+	vcmKeySecretRef     = "projects/tenant-p/secrets/vcm-cert-key"
+)
+
+// stubCertAuthCache swaps the process-wide cert cache accessors for a local
+// map so cases cannot leak resolved certificates into each other. It returns
+// the backing store so a test can seed a cache hit or assert a write-through.
+func stubCertAuthCache(t *testing.T) map[string]*models.Certificate {
+	t.Helper()
+	origGet, origAdd := common.GetCertAuthCache, common.AddToCertAuthCache
+	t.Cleanup(func() {
+		common.GetCertAuthCache = origGet
+		common.AddToCertAuthCache = origAdd
+	})
+
+	store := map[string]*models.Certificate{}
+	common.GetCertAuthCache = func(key string) (*models.CertCache, bool) {
+		cert, ok := store[key]
+		if !ok {
+			return nil, false
+		}
+		return &models.CertCache{Time: time.Now(), CertificateID: key, Certificate: cert}, true
+	}
+	common.AddToCertAuthCache = func(key string, value *models.Certificate) {
+		store[key] = value
+	}
+	return store
+}
+
+// stubResolveCloudService points hyperscaler.ResolveCloudService at the given
+// resolver for the duration of the test.
+func stubResolveCloudService(t *testing.T, resolver func(context.Context) (hyperscaler.Services, error)) {
+	t.Helper()
+	orig := hyperscaler.ResolveCloudService
+	t.Cleanup(func() { hyperscaler.ResolveCloudService = orig })
+	hyperscaler.ResolveCloudService = resolver
+}
+
+func Test_GetProvidedCertificate(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("missing references", func(tt *testing.T) {
+		tests := []struct {
+			name    string
+			certRef string
+			keyRef  string
+		}{
+			{name: "both empty"},
+			{name: "no private-key ref", certRef: vcmCertResourceName},
+			{name: "no certificate ref", keyRef: vcmKeySecretRef},
+		}
+		for _, tc := range tests {
+			tt.Run(tc.name, func(ttt *testing.T) {
+				// Neither the cache nor the cloud service may be reached when a
+				// reference is missing.
+				stubCertAuthCache(ttt)
+				stubResolveCloudService(ttt, func(context.Context) (hyperscaler.Services, error) {
+					ttt.Fatal("cloud service must not be resolved for incomplete references")
+					return nil, nil
+				})
+
+				cert, err := _getProvidedCertificate(ctx, tc.certRef, tc.keyRef)
+				require.Error(ttt, err)
+				assert.Nil(ttt, cert)
+				assert.Contains(ttt, err.Error(), "requires both certificate")
+			})
+		}
+	})
+
+	t.Run("cache hit short-circuits the cloud lookup", func(tt *testing.T) {
+		cached := &models.Certificate{SignedCertificate: "cached-cert", PrivateKey: "cached-key"}
+		store := stubCertAuthCache(tt)
+		store[vcmCertResourceName] = cached
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) {
+			tt.Fatal("a cache hit must not resolve the cloud service")
+			return nil, nil
+		})
+
+		cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+		require.NoError(tt, err)
+		assert.Same(tt, cached, cert)
+	})
+
+	t.Run("cloud resolve error is propagated", func(tt *testing.T) {
+		stubCertAuthCache(tt)
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) {
+			return nil, errors.New("no cloud credentials")
+		})
+
+		cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+		require.Error(tt, err)
+		assert.Nil(tt, cert)
+		assert.Contains(tt, err.Error(), "no cloud credentials")
+	})
+
+	t.Run("malformed certificate resource name", func(tt *testing.T) {
+		stubCertAuthCache(tt)
+		mockGCP := hyperscaler.NewMockServices(tt)
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) { return mockGCP, nil })
+
+		// A Secret Manager path is not a CAS path, so parsing must fail before
+		// any call reaches the cloud service.
+		cert, err := _getProvidedCertificate(ctx, "projects/p/secrets/not-a-cas-cert", vcmKeySecretRef)
+		require.Error(tt, err)
+		assert.Nil(tt, cert)
+	})
+
+	t.Run("CAS fetch error", func(tt *testing.T) {
+		stubCertAuthCache(tt)
+		mockGCP := hyperscaler.NewMockServices(tt)
+		mockGCP.On("GetCertificate", "tenant-p", "us-central1", "vcm-pool", "vcm-cert").
+			Return(nil, errors.New("permission denied on CAS"))
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) { return mockGCP, nil })
+
+		cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+		require.Error(tt, err)
+		assert.Nil(tt, cert)
+		assert.Contains(tt, err.Error(), "failed to read certificate")
+	})
+
+	t.Run("empty CAS certificate body", func(tt *testing.T) {
+		tests := []struct {
+			name string
+			cert *hyperscaler3.CustomCertificate
+		}{
+			{name: "nil certificate", cert: nil},
+			{name: "empty PEM body", cert: &hyperscaler3.CustomCertificate{}},
+		}
+		for _, tc := range tests {
+			tt.Run(tc.name, func(ttt *testing.T) {
+				stubCertAuthCache(ttt)
+				mockGCP := hyperscaler.NewMockServices(ttt)
+				mockGCP.On("GetCertificate", "tenant-p", "us-central1", "vcm-pool", "vcm-cert").
+					Return(tc.cert, nil)
+				stubResolveCloudService(ttt, func(context.Context) (hyperscaler.Services, error) { return mockGCP, nil })
+
+				cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+				require.Error(ttt, err)
+				assert.Nil(ttt, cert)
+				assert.Contains(ttt, err.Error(), "not found in CAS")
+			})
+		}
+	})
+
+	t.Run("private-key secret fetch error", func(tt *testing.T) {
+		stubCertAuthCache(tt)
+		mockGCP := hyperscaler.NewMockServices(tt)
+		mockGCP.On("GetCertificate", "tenant-p", "us-central1", "vcm-pool", "vcm-cert").
+			Return(&hyperscaler3.CustomCertificate{PemCertificate: "leaf-pem"}, nil)
+		mockGCP.On("GetSecretWithLatestVersion", "tenant-p", "vcm-cert-key").
+			Return(nil, errors.New("secret not accessible"))
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) { return mockGCP, nil })
+
+		cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+		require.Error(tt, err)
+		assert.Nil(tt, cert)
+		assert.Contains(tt, err.Error(), "failed to read certificate private-key secret")
+	})
+
+	t.Run("success assembles CAS cert with Secret Manager key and caches it", func(tt *testing.T) {
+		store := stubCertAuthCache(tt)
+		mockGCP := hyperscaler.NewMockServices(tt)
+		mockGCP.On("GetCertificate", "tenant-p", "us-central1", "vcm-pool", "vcm-cert").
+			Return(&hyperscaler3.CustomCertificate{
+				PemCertificate:      "leaf-pem",
+				PemCertificateChain: []string{"intermediate-pem"},
+				SubjectCommonName:   "vcm-admin",
+			}, nil)
+		mockGCP.On("GetSecretWithLatestVersion", "tenant-p", "vcm-cert-key").
+			Return(&hyperscaler3.CustomSecret{
+				SecretVersion: &hyperscaler3.CustomSecretVersion{Value: "private-key-pem"},
+			}, nil)
+		stubResolveCloudService(tt, func(context.Context) (hyperscaler.Services, error) { return mockGCP, nil })
+
+		cert, err := _getProvidedCertificate(ctx, vcmCertResourceName, vcmKeySecretRef)
+		require.NoError(tt, err)
+		require.NotNil(tt, cert)
+		assert.Equal(tt, "leaf-pem", cert.SignedCertificate)
+		assert.Equal(tt, "private-key-pem", cert.PrivateKey)
+		assert.Equal(tt, "vcm-admin", cert.CommonName)
+		assert.Equal(tt, []string{"intermediate-pem"}, cert.InterMediateCertificates)
+		// The resolved material is cached under the certificate resource name.
+		assert.Same(tt, cert, store[vcmCertResourceName])
+	})
+}
+
+func Test_getSecretValueByResourceName(t *testing.T) {
+	t.Run("malformed resource name", func(tt *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(tt)
+
+		value, err := getSecretValueByResourceName(mockGCP, "not-a-resource-name")
+		require.Error(tt, err)
+		assert.Empty(tt, value)
+	})
+
+	t.Run("fetch error is propagated", func(tt *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(tt)
+		mockGCP.On("GetSecretWithLatestVersion", "tenant-p", "vcm-cert-key").
+			Return(nil, errors.New("permission denied"))
+
+		value, err := getSecretValueByResourceName(mockGCP, vcmKeySecretRef)
+		require.Error(tt, err)
+		assert.Empty(tt, value)
+		assert.Contains(tt, err.Error(), "permission denied")
+	})
+
+	t.Run("absent latest version", func(tt *testing.T) {
+		tests := []struct {
+			name   string
+			secret *hyperscaler3.CustomSecret
+		}{
+			{name: "nil secret", secret: nil},
+			{name: "nil version", secret: &hyperscaler3.CustomSecret{}},
+			{name: "empty value", secret: &hyperscaler3.CustomSecret{SecretVersion: &hyperscaler3.CustomSecretVersion{}}},
+		}
+		for _, tc := range tests {
+			tt.Run(tc.name, func(ttt *testing.T) {
+				mockGCP := hyperscaler.NewMockServices(ttt)
+				mockGCP.On("GetSecretWithLatestVersion", "tenant-p", "vcm-cert-key").Return(tc.secret, nil)
+
+				value, err := getSecretValueByResourceName(mockGCP, vcmKeySecretRef)
+				require.Error(ttt, err)
+				assert.Empty(ttt, value)
+				assert.Contains(ttt, err.Error(), "no accessible latest version")
+			})
+		}
+	})
+
+	t.Run("success takes the project from the resource name", func(tt *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(tt)
+		mockGCP.On("GetSecretWithLatestVersion", "tenant-p", "vcm-cert-key").
+			Return(&hyperscaler3.CustomSecret{
+				SecretVersion: &hyperscaler3.CustomSecretVersion{Value: "private-key-pem"},
+			}, nil)
+
+		value, err := getSecretValueByResourceName(mockGCP, vcmKeySecretRef)
+		require.NoError(tt, err)
+		assert.Equal(tt, "private-key-pem", value)
+	})
+}
+
+// providedCertificateRefs records the references a caller handed to
+// GetProvidedCertificate.
+type providedCertificateRefs struct {
+	CertRef string
+	KeyRef  string
+}
+
+// stubProvidedCertificate routes the VCM cert path at a fake and fails the test
+// if the VCP self-managed lookup is used instead. It records the references the
+// caller passed through.
+func stubProvidedCertificate(t *testing.T, cert *models.Certificate, err error) *providedCertificateRefs {
+	t.Helper()
+	origProvided := GetProvidedCertificate
+	origSecretManager := GetCertificateFromCacheOrSecretManager
+	t.Cleanup(func() {
+		GetProvidedCertificate = origProvided
+		GetCertificateFromCacheOrSecretManager = origSecretManager
+	})
+
+	got := &providedCertificateRefs{}
+	GetProvidedCertificate = func(_ context.Context, certRef, keyRef string) (*models.Certificate, error) {
+		got.CertRef, got.KeyRef = certRef, keyRef
+		return cert, err
+	}
+	GetCertificateFromCacheOrSecretManager = func(context.Context, *datamodel.PoolCredentials) (*models.Certificate, error) {
+		t.Fatal("a node carrying CertPrivateKeySecretID must not use the VCP secret-manager cert lookup")
+		return nil, nil
+	}
+	return got
+}
+
+func Test_GetProviderByNode_GCP_UserCert_UsesProvidedCertificate(t *testing.T) {
+	origH := env.Hyperscaler
+	defer func() { env.Hyperscaler = origH }()
+	env.Hyperscaler = "gcp"
+
+	got := stubProvidedCertificate(t, &models.Certificate{
+		SignedCertificate:        "leaf-pem",
+		PrivateKey:               "private-key-pem",
+		CommonName:               "vcm-admin",
+		InterMediateCertificates: []string{"intermediate-pem"},
+	}, nil)
+
+	node := &models.Node{
+		Name:                           "vcm-node1",
+		AuthType:                       env.USER_CERTIFICATE,
+		CertificateID:                  vcmCertResourceName,
+		CertPrivateKeySecretID:         vcmKeySecretRef,
+		EndpointAddressesToHostNameMap: map[string]string{"198.18.0.5": "198.18.0.5"},
+	}
+
+	provider, err := _getProviderByNode(context.Background(), node)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	assert.Equal(t, vcmCertResourceName, got.CertRef)
+	assert.Equal(t, vcmKeySecretRef, got.KeyRef)
+}
+
+func Test_GetProviderByNode_GCP_UserCert_ProvidedCertificateError(t *testing.T) {
+	origH := env.Hyperscaler
+	defer func() { env.Hyperscaler = origH }()
+	env.Hyperscaler = "gcp"
+
+	stubProvidedCertificate(t, nil, errors.New("CAS lookup failed"))
+
+	node := &models.Node{
+		Name:                           "vcm-node1",
+		AuthType:                       env.USER_CERTIFICATE,
+		CertificateID:                  vcmCertResourceName,
+		CertPrivateKeySecretID:         vcmKeySecretRef,
+		EndpointAddressesToHostNameMap: map[string]string{"198.18.0.5": "198.18.0.5"},
+	}
+
+	provider, err := _getProviderByNode(context.Background(), node)
+	require.Error(t, err)
+	assert.Nil(t, provider)
+	cerr, ok := err.(*coreerrors.CustomError)
+	require.True(t, ok, "expected *coreerrors.CustomError, got %T", err)
+	assert.Equal(t, coreerrors.ErrGCPResourceFetchError, cerr.TrackingID)
+	require.NotNil(t, cerr.OriginalErr)
+	assert.Contains(t, cerr.OriginalErr.Error(), "CAS lookup failed")
+}
+
+func Test_GetProviderByNodeWithFastConnection_UsesProvidedCertificate(t *testing.T) {
+	got := stubProvidedCertificate(t, &models.Certificate{
+		SignedCertificate:        "leaf-pem",
+		PrivateKey:               "private-key-pem",
+		CommonName:               "vcm-admin",
+		InterMediateCertificates: []string{"intermediate-pem"},
+	}, nil)
+
+	node := &models.Node{
+		Name:                           "vcm-node1",
+		AuthType:                       env.USER_CERTIFICATE,
+		CertificateID:                  vcmCertResourceName,
+		CertPrivateKeySecretID:         vcmKeySecretRef,
+		EndpointAddressesToHostNameMap: map[string]string{"198.18.0.5": "198.18.0.5"},
+	}
+
+	provider, err := _getProviderByNodeWithFastConnection(context.Background(), node)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	assert.Equal(t, vcmCertResourceName, got.CertRef)
+	assert.Equal(t, vcmKeySecretRef, got.KeyRef)
 }

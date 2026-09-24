@@ -33,25 +33,21 @@ func (s *Store) NodeProviderInput() (vsa.NodeProviderInput, error) {
 		DeploymentName:   seed.DeploymentId.Value,
 		OntapCredentials: creds,
 	}
-	applyVCMCertAuthNodeDialWorkaround(&input)
+	applyVCMCertAuthNodeSNI(&input)
 	return input, nil
 }
 
-// applyVCMCertAuthNodeDialWorkaround mirrors the VCM create-pool ONTAP dial path.
-// VCM has no Cloud DNS records for per-node mgmt FQDNs, so cert-auth REST calls dial
-// the nodemgmt IP directly (HostDNSName = IP) and skip server-cert verification.
-// TODO(vcm-dns): remove once DNS / SNI handling lands.
-func applyVCMCertAuthNodeDialWorkaround(input *vsa.NodeProviderInput) {
+// applyVCMCertAuthNodeSNI mirrors the VCM create-pool ONTAP dial path. VCM has
+// no Cloud DNS records for per-node mgmt FQDNs, so cert-auth REST calls dial the
+// nodemgmt IP directly and use an SNI override for server-cert verification: the
+// TLS SNI / hostname is set to "mgmt.<deploymentId>.<VsaDeployedDnsName>", which
+// matches the wildcard SAN on the pool certificate. Full mTLS with server-cert
+// verification stays intact (no InsecureSkipVerify). Password auth is untouched.
+func applyVCMCertAuthNodeSNI(input *vsa.NodeProviderInput) {
 	if input == nil || input.OntapCredentials == nil || input.OntapCredentials.AuthType != env.USER_CERTIFICATE {
 		return
 	}
-	input.InsecureSkipVerify = true
-	for _, node := range input.Nodes {
-		if node == nil || node.EndpointAddress == "" {
-			continue
-		}
-		node.HostDNSName = node.EndpointAddress
-	}
+	input.ServerName = vsa.OntapSNIServerName(input.DeploymentName)
 }
 
 func seedAndLayout(config vcmserver.SetConfigRequestV1) (vcmserver.SeedConfigV1, vcmserver.ClusterLayoutV1, error) {
@@ -70,152 +66,157 @@ func seedAndLayout(config vcmserver.SetConfigRequestV1) (vcmserver.SeedConfigV1,
 	return seed, layout, nil
 }
 
-func poolCredentialsFromSetConfig(creds []vcmserver.OntapCredentialV1) (*datamodel.PoolCredentials, error) {
-	entry, err := selectOntapCredentials(creds)
-	if err != nil {
+// Internal credential type labels used to tag the flattened VCMOntapCredential
+// entries so downstream selection (commonparams.DeriveOntapCredentials) can pick
+// the right one. Kept in sync with the constants in core/orchestrator/common.
+const (
+	vcmCredentialTypeAdmin     = "admin"      // built-in ONTAP admin user (adminPassSecretId)
+	vcmCredentialTypeDefault   = "default"    // PURPOSE_VCM_ADMIN (defaultModeUserCredentials)
+	vcmCredentialTypeOntapMode = "ontap-mode" // PURPOSE_ONTAP_MODE (ontapModeUserCredentials)
+)
+
+// poolCredentialsFromSetConfig builds the datamodel.PoolCredentials VCM uses to
+// talk to ONTAP during pool create. The default-mode user (PURPOSE_VCM_ADMIN) is
+// the identity VCM authenticates as; adminPassSecretId supplies the built-in
+// admin password used to bootstrap the cluster (and during the cert-enable
+// flow). On the cert path the certificate and its private key are provided as
+// two Secret Manager secrets (certId + certPrivateKeySecret) - VCM does not mint
+// them - so both resource paths are carried through unchanged.
+func poolCredentialsFromSetConfig(opt vcmserver.OptOntapCredentialsV1) (*datamodel.PoolCredentials, error) {
+	creds, ok := opt.Get()
+	if !ok {
+		return nil, fmt.Errorf("VCM ontapCredentials are not configured")
+	}
+	if err := validateOntapCredentials(creds); err != nil {
 		return nil, err
 	}
-	mapped := mapOntapCredential(entry)
-	switch effectiveAuthType(entry) {
-	case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
-		if mapped.SecretID == "" {
-			return nil, fmt.Errorf("VCM ontapCredentials.passwordAuthCreds.passwordSecretId is required when activeAuthType is PWD")
-		}
+
+	def := creds.DefaultModeUserCredentials.Value
+	adminPass := creds.AdminPassSecretId.Or("")
+	username := def.Username.Or("")
+
+	if userAuthIsCert(def) {
 		return &datamodel.PoolCredentials{
-			SecretID: mapped.SecretID,
-			Username: mapped.Username,
-			AuthType: env.USERNAME_PWD_SEC_MGR,
-		}, nil
-	default: // CERT (default when unset)
-		if mapped.CertificateID == "" {
-			return nil, fmt.Errorf("VCM ontapCredentials.certificateAuthCreds.certSecretId is required when activeAuthType is CERT")
-		}
-		if mapped.SecretID == "" {
-			return nil, fmt.Errorf("VCM ontapCredentials.certificateAuthCreds.certPrivateKeySecretId is required when activeAuthType is CERT")
-		}
-		return &datamodel.PoolCredentials{
-			SecretID:      mapped.SecretID,
-			CertificateID: mapped.CertificateID,
-			AuthType:      env.USER_CERTIFICATE,
-			CaURI:         env.BuildCaURI(env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName),
+			CertificateID:          def.CertId.Or(""),
+			CertPrivateKeySecretID: def.CertPrivateKeySecret.Or(""),
+			// adminPassSecretId is the built-in admin password used to bootstrap
+			// the cluster and enable cert auth before the cert user is live.
+			SecretID: adminPass,
+			Username: username,
+			AuthType: env.USER_CERTIFICATE,
+			CaURI:    env.BuildCaURI(env.CaPoolDeployedProjectID, env.CaPoolName, env.CaName),
 		}, nil
 	}
+
+	// Password path: the default-mode (PURPOSE_VCM_ADMIN) user is not provisioned
+	// as a password-authenticatable ONTAP account (VLM only sets a password on
+	// the built-in "admin"; the configured username is created as a certificate
+	// user by the cert-enable flow). Authenticate as the built-in admin so
+	// password-mode direct ONTAP calls do not 401 against a non-existent user.
+	return &datamodel.PoolCredentials{
+		SecretID: def.PasswordSecret.Or(""),
+		Username: env.Admin,
+		AuthType: env.USERNAME_PWD_SEC_MGR,
+	}, nil
 }
 
-// ToVCMOntapCredentials maps OntapCredential_v1 entries onto workflow credential
-// identifiers, selecting CertificateID vs SecretID from each credential's
-// effective auth type (see effectiveAuthType) so every consumer of the stored
-// SetConfig agrees on which secret material is used.
-func ToVCMOntapCredentials(creds []vcmserver.OntapCredentialV1) []commonparams.VCMOntapCredential {
-	if len(creds) == 0 {
+// ToVCMOntapCredentials flattens the structured OntapCredentials payload into the
+// list form consumers (VLM config rebuild, DeriveOntapCredentials) use. Each
+// entry is tagged with its credential type and carries only the material for its
+// effective auth mode so downstream re-derivation stays consistent.
+func ToVCMOntapCredentials(opt vcmserver.OptOntapCredentialsV1) []commonparams.VCMOntapCredential {
+	creds, ok := opt.Get()
+	if !ok {
 		return nil
 	}
-	out := make([]commonparams.VCMOntapCredential, 0, len(creds))
-	for _, credential := range creds {
-		out = append(out, mapOntapCredential(credential))
+	out := make([]commonparams.VCMOntapCredential, 0, 3)
+	if adminPass := creds.AdminPassSecretId.Or(""); adminPass != "" {
+		out = append(out, commonparams.VCMOntapCredential{
+			Type:     vcmCredentialTypeAdmin,
+			SecretID: adminPass,
+		})
+	}
+	if def, ok := creds.DefaultModeUserCredentials.Get(); ok {
+		out = append(out, userToVCMOntapCredential(vcmCredentialTypeDefault, def))
+	}
+	if ontap, ok := creds.OntapModeUserCredentials.Get(); ok {
+		out = append(out, userToVCMOntapCredential(vcmCredentialTypeOntapMode, ontap))
 	}
 	return out
 }
 
-func mapOntapCredential(credential vcmserver.OntapCredentialV1) commonparams.VCMOntapCredential {
+// userToVCMOntapCredential maps a single UserCredentials entry, carrying only the
+// material for its effective auth mode.
+func userToVCMOntapCredential(credType string, u vcmserver.UserCredentialsV1) commonparams.VCMOntapCredential {
 	mapped := commonparams.VCMOntapCredential{
-		Type: internalCredentialType(credential.Role),
+		Type:     credType,
+		Username: u.Username.Or(""),
 	}
-	// Only the material for the effective auth type is carried over, so
-	// downstream consumers derive the same auth type from the fields present.
-	switch effectiveAuthType(credential) {
-	case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
-		pwd := credential.PasswordAuthCreds.Value
-		mapped.SecretID = pwd.PasswordSecretId.Or("")
-		mapped.Username = pwd.Username.Or("")
-	default: // CERT (default when unset for non-admin roles)
-		cert := credential.CertificateAuthCreds.Value
-		mapped.CertificateID = cert.CertSecretId.Or("")
-		mapped.SecretID = cert.CertPrivateKeySecretId.Or("")
+	if userAuthIsCert(u) {
+		mapped.CertificateID = u.CertId.Or("")
+		mapped.CertPrivateKeySecretID = u.CertPrivateKeySecret.Or("")
+		mapped.IsCertAuth = true
+	} else {
+		mapped.SecretID = u.PasswordSecret.Or("")
 	}
 	return mapped
 }
 
-// effectiveAuthType returns the auth type VCM must use to resolve a credential.
-//
-// The ADMIN role is password-only: the ONTAP admin/bootstrap user is provisioned
-// for password authentication, so an ADMIN credential is always resolved via its
-// passwordAuthCreds regardless of the declared activeAuthType. Every other role
-// honors the credential's activeAuthType (CERT or PWD), defaulting to CERT when
-// unset.
-func effectiveAuthType(credential vcmserver.OntapCredentialV1) vcmserver.OntapCredentialV1ActiveAuthType {
-	if credential.Role == vcmserver.OntapCredentialV1RoleADMIN {
-		return vcmserver.OntapCredentialV1ActiveAuthTypePWD
-	}
-	return activeAuthType(credential)
+// userAuthIsCert reports whether a user credential resolves via certificate auth.
+// AUTHMODE_UNSPECIFIED and AUTHMODE_CERT select certificate auth; only
+// AUTHMODE_PASSWORD selects password auth.
+func userAuthIsCert(u vcmserver.UserCredentialsV1) bool {
+	mode := u.ActiveAuthMode.Or(vcmserver.UserCredentialsV1ActiveAuthModeAUTHMODEUNSPECIFIED)
+	return mode != vcmserver.UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD
 }
 
-// validateOntapCredentials rejects a credential whose role is unset or whose
-// effective auth type is not backed by the material needed to resolve it.
-//
-// The role is mandatory: it drives effectiveAuthType (ADMIN is password-only)
-// and internalCredentialType, so an unset role would silently resolve as the
-// wrong kind of credential downstream.
-//
-// This has to be checked up front because the declared auth type is not carried
-// past mapOntapCredential: consumers re-derive it from which identifier is
-// populated. An incomplete credential would therefore resolve as the wrong type
-// instead of failing - a CERT entry missing certSecretId, for instance, leaves
-// only the private-key secret set and would be dereferenced as a password.
-func validateOntapCredentials(creds []vcmserver.OntapCredentialV1) error {
-	for _, credential := range creds {
-		role := string(credential.Role)
-		if role == "" {
-			return fmt.Errorf("VCM ontapCredentials: role is required and must be one of %v", vcmserver.OntapCredentialV1Role("").AllValues())
-		}
-		switch effectiveAuthType(credential) {
-		case vcmserver.OntapCredentialV1ActiveAuthTypePWD:
-			if credential.PasswordAuthCreds.Value.PasswordSecretId.Or("") == "" {
-				return fmt.Errorf("VCM ontapCredentials[role=%s]: passwordAuthCreds.passwordSecretId is required to resolve this credential via password authentication", role)
-			}
-		default: // CERT
-			if credential.CertificateAuthCreds.Value.CertSecretId.Or("") == "" {
-				return fmt.Errorf("VCM ontapCredentials[role=%s]: certificateAuthCreds.certSecretId is required when activeAuthType is CERT", role)
-			}
+// validateOntapCredentials enforces the credential contract:
+//   - adminPassSecretId (built-in ADMIN user password) is always required.
+//   - defaultModeUserCredentials (PURPOSE_VCM_ADMIN) is required.
+//   - ontapModeUserCredentials (PURPOSE_ONTAP_MODE) is optional; validated when present.
+//   - for cert auth (AUTHMODE_CERT / AUTHMODE_UNSPECIFIED) certId and
+//     certPrivateKeySecret are required; for AUTHMODE_PASSWORD passwordSecret is
+//     required.
+func validateOntapCredentials(creds vcmserver.OntapCredentialsV1) error {
+	if creds.AdminPassSecretId.Or("") == "" {
+		return fmt.Errorf("VCM ontapCredentials.adminPassSecretId is required (built-in ADMIN user password)")
+	}
+	def, ok := creds.DefaultModeUserCredentials.Get()
+	if !ok {
+		return fmt.Errorf("VCM ontapCredentials.defaultModeUserCredentials is required")
+	}
+	if err := validateUserCredentials("defaultModeUserCredentials", def, vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN); err != nil {
+		return err
+	}
+	if ontap, ok := creds.OntapModeUserCredentials.Get(); ok {
+		if err := validateUserCredentials("ontapModeUserCredentials", ontap, vcmserver.UserCredentialsV1UserPurposePURPOSEONTAPMODE); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-// activeAuthType returns the credential's declared auth type, defaulting to CERT
-// when unset.
-func activeAuthType(credential vcmserver.OntapCredentialV1) vcmserver.OntapCredentialV1ActiveAuthType {
-	if authType, ok := credential.ActiveAuthType.Get(); ok {
-		return authType
+// validateUserCredentials checks a single user's purpose and the material
+// required by its active auth mode.
+func validateUserCredentials(field string, u vcmserver.UserCredentialsV1, expected vcmserver.UserCredentialsV1UserPurpose) error {
+	if purpose, ok := u.UserPurpose.Get(); ok &&
+		purpose != vcmserver.UserCredentialsV1UserPurposePURPOSEUNSPECIFIED &&
+		purpose != expected {
+		return fmt.Errorf("VCM ontapCredentials.%s.userPurpose must be %s, got %s", field, expected, purpose)
 	}
-	return vcmserver.OntapCredentialV1ActiveAuthTypeCERT
-}
-
-func internalCredentialType(role vcmserver.OntapCredentialV1Role) string {
-	switch role {
-	case vcmserver.OntapCredentialV1RoleADMIN:
-		return "admin"
-	case vcmserver.OntapCredentialV1RoleVCMADMIN:
-		return "default"
-	case vcmserver.OntapCredentialV1RoleONTAPMODE:
-		return "ontap-mode"
-	default:
-		return ""
-	}
-}
-
-// selectOntapCredentials prefers the VCM_ADMIN credential entry (the default
-// credential VCM uses to talk to ONTAP), else the first.
-func selectOntapCredentials(creds []vcmserver.OntapCredentialV1) (vcmserver.OntapCredentialV1, error) {
-	if len(creds) == 0 {
-		return vcmserver.OntapCredentialV1{}, fmt.Errorf("VCM config has no ontapCredentials")
-	}
-	for _, entry := range creds {
-		if entry.Role == vcmserver.OntapCredentialV1RoleVCMADMIN || entry.Role == "" {
-			return entry, nil
+	if userAuthIsCert(u) {
+		if u.CertId.Or("") == "" {
+			return fmt.Errorf("VCM ontapCredentials.%s.certId is required when activeAuthMode is AUTHMODE_CERT", field)
 		}
+		if u.CertPrivateKeySecret.Or("") == "" {
+			return fmt.Errorf("VCM ontapCredentials.%s.certPrivateKeySecret is required when activeAuthMode is AUTHMODE_CERT", field)
+		}
+		return nil
 	}
-	return creds[0], nil
+	if u.PasswordSecret.Or("") == "" {
+		return fmt.Errorf("VCM ontapCredentials.%s.passwordSecret is required when activeAuthMode is AUTHMODE_PASSWORD", field)
+	}
+	return nil
 }
 
 // mediatorNodeName is the layout node name reserved for the mediator VM.

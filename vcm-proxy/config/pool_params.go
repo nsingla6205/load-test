@@ -107,10 +107,11 @@ func validateSeedForPoolCreate(seed vcmserver.SeedConfigV1) error {
 	if !netConfig.Nodemgmt.IsSet() {
 		return fmt.Errorf("VCM netConfig.nodemgmt is not configured")
 	}
-	if len(seed.OntapCredentials) == 0 {
+	ontapCreds, ok := seed.OntapCredentials.Get()
+	if !ok {
 		return fmt.Errorf("VCM ontapCredentials are not configured")
 	}
-	return validateOntapCredentials(seed.OntapCredentials)
+	return validateOntapCredentials(ontapCreds)
 }
 
 func toVCMNetConfig(cfg vcmserver.NetInterfaceConfigV1) commonparams.VCMNetConfig {

@@ -178,49 +178,104 @@ func TestVCMCreatePoolParams_DeriveInputs(t *testing.T) {
 		assert.Equal(tt, []string{"mgmt-subnet"}, d.TenancyInfo.SubnetworkNames)
 	})
 
-	t.Run("derives ontap credentials auth type from material present", func(tt *testing.T) {
+	t.Run("derives ontap credentials from default user + admin password", func(tt *testing.T) {
+		// Cert path: default user drives cert material; admin entry supplies the
+		// bootstrap admin password (SecretID).
 		cert := &VCMCreatePoolParams{
 			OntapCredentials: []VCMOntapCredential{
-				{Type: "admin", CertificateID: "cert-1", SecretID: "secret-1"},
+				{Type: "admin", SecretID: "admin-pass"},
+				{Type: "default", Username: "vcm-admin", CertificateID: "cert-1", CertPrivateKeySecretID: "key-1", IsCertAuth: true},
 			},
 		}
 		d := cert.DeriveInputs()
 		assert.Equal(tt, "cert-1", d.OntapCredentials.CertificateID)
+		assert.Equal(tt, "key-1", d.OntapCredentials.CertPrivateKeySecretID)
+		assert.Equal(tt, "admin-pass", d.OntapCredentials.SecretID, "cert bootstrap uses adminPassSecretId")
 		assert.Equal(tt, env.USER_CERTIFICATE, d.OntapCredentials.AuthType, "certificate present -> user certificate")
 
+		// Password path: default user's password secret drives SecretID.
 		secret := &VCMCreatePoolParams{
 			CaURI: "ca-uri",
 			OntapCredentials: []VCMOntapCredential{
-				{Type: "admin", SecretID: "secret-1"},
+				{Type: "admin", SecretID: "admin-pass"},
+				{Type: "default", Username: "root", SecretID: "vcm-secret"},
 			},
 		}
 		d = secret.DeriveInputs()
-		assert.Equal(tt, "secret-1", d.OntapCredentials.SecretID)
+		assert.Equal(tt, "vcm-secret", d.OntapCredentials.SecretID)
 		assert.Equal(tt, "ca-uri", d.OntapCredentials.CaURI)
 		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, d.OntapCredentials.AuthType, "secret only -> secret manager auth")
 	})
 }
 
-func TestSelectOntapCredential(t *testing.T) {
-	admin := VCMOntapCredential{Type: "admin", SecretID: "admin-secret"}
-	def := VCMOntapCredential{Type: "default", SecretID: "default-secret"}
-	other := VCMOntapCredential{Type: "ontap-mode", SecretID: "mode-secret"}
+func TestDeriveOntapCredentials(t *testing.T) {
+	t.Run("admin-only falls back to the built-in admin password secret", func(tt *testing.T) {
+		got := DeriveOntapCredentials([]VCMOntapCredential{{Type: "admin", SecretID: "admin-pass"}}, "ca-uri")
 
-	tests := []struct {
-		name  string
-		creds []VCMOntapCredential
-		want  VCMOntapCredential
-	}{
-		{name: "prefers admin", creds: []VCMOntapCredential{other, def, admin}, want: admin},
-		{name: "falls back to default", creds: []VCMOntapCredential{other, def}, want: def},
-		{name: "falls back to first", creds: []VCMOntapCredential{other}, want: other},
-		{name: "empty returns zero value", creds: nil, want: VCMOntapCredential{}},
+		assert.Equal(tt, "admin-pass", got.SecretID)
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, got.AuthType)
+		assert.Equal(tt, "ca-uri", got.CaURI)
+		assert.Empty(tt, got.Username, "no user entry means no username to authenticate as")
+	})
+
+	t.Run("no credentials at all yields plain password auth", func(tt *testing.T) {
+		got := DeriveOntapCredentials(nil, "")
+
+		assert.Empty(tt, got.SecretID)
+		assert.Equal(tt, env.USERNAME_PWD, got.AuthType)
+	})
+
+	t.Run("first non-admin entry becomes primary when no default user exists", func(tt *testing.T) {
+		// Without a "default" entry the first non-admin credential (here
+		// PURPOSE_ONTAP_MODE) drives the identity, and its username is kept as
+		// configured rather than replaced by the built-in admin.
+		got := DeriveOntapCredentials([]VCMOntapCredential{
+			{Type: "admin", SecretID: "admin-pass"},
+			{Type: "ontap-mode", Username: "ontap-user", SecretID: "ontap-secret"},
+			{Type: "ontap-mode", Username: "second-user", SecretID: "second-secret"},
+		}, "")
+
+		assert.Equal(tt, "ontap-user", got.Username)
+		assert.Equal(tt, "ontap-secret", got.SecretID)
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, got.AuthType)
+	})
+
+	t.Run("primary without a password secret borrows the admin password secret", func(tt *testing.T) {
+		got := DeriveOntapCredentials([]VCMOntapCredential{
+			{Type: "admin", SecretID: "admin-pass"},
+			{Type: "default", Username: "vcm-admin"},
+		}, "")
+
+		assert.Equal(tt, env.Admin, got.Username, "the default-mode user is not password-authenticatable")
+		assert.Equal(tt, "admin-pass", got.SecretID)
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, got.AuthType)
+	})
+
+	t.Run("no password secret anywhere yields plain password auth", func(tt *testing.T) {
+		got := DeriveOntapCredentials([]VCMOntapCredential{{Type: "default", Username: "vcm-admin"}}, "")
+
+		assert.Empty(tt, got.SecretID)
+		assert.Equal(tt, env.USERNAME_PWD, got.AuthType)
+	})
+
+	t.Run("cert-auth entry flagged without a certificate id falls through to password auth", func(tt *testing.T) {
+		got := DeriveOntapCredentials([]VCMOntapCredential{
+			{Type: "admin", SecretID: "admin-pass"},
+			{Type: "default", Username: "vcm-admin", IsCertAuth: true},
+		}, "")
+
+		assert.Equal(tt, env.USERNAME_PWD_SEC_MGR, got.AuthType)
+		assert.Empty(tt, got.CertificateID)
+	})
+}
+
+func TestAdminPasswordSecret(t *testing.T) {
+	creds := []VCMOntapCredential{
+		{Type: "default", SecretID: "vcm-secret"},
+		{Type: "admin", SecretID: "admin-pass"},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, SelectOntapCredential(tc.creds))
-		})
-	}
+	assert.Equal(t, "admin-pass", AdminPasswordSecret(creds))
+	assert.Empty(t, AdminPasswordSecret([]VCMOntapCredential{{Type: "default", SecretID: "x"}}))
 }
 
 func TestNormalizeExpertModeVolumeTenancyLimits(t *testing.T) {

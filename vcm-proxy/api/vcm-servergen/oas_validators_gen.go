@@ -714,14 +714,14 @@ func (s *MountPointV1) Validate() error {
 	return nil
 }
 
-func (s *OntapCredentialV1) Validate() error {
+func (s *OntapCredentialsV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if value, ok := s.ActiveAuthType.Get(); ok {
+		if value, ok := s.DefaultModeUserCredentials.Get(); ok {
 			if err := func() error {
 				if err := value.Validate(); err != nil {
 					return err
@@ -734,18 +734,25 @@ func (s *OntapCredentialV1) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "activeAuthType",
+			Name:  "defaultModeUserCredentials",
 			Error: err,
 		})
 	}
 	if err := func() error {
-		if err := s.Role.Validate(); err != nil {
-			return err
+		if value, ok := s.OntapModeUserCredentials.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "role",
+			Name:  "ontapModeUserCredentials",
 			Error: err,
 		})
 	}
@@ -753,30 +760,6 @@ func (s *OntapCredentialV1) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s OntapCredentialV1ActiveAuthType) Validate() error {
-	switch s {
-	case "CERT":
-		return nil
-	case "PWD":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
-func (s OntapCredentialV1Role) Validate() error {
-	switch s {
-	case "ONTAP_MODE":
-		return nil
-	case "ADMIN":
-		return nil
-	case "VCM_ADMIN":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *OperationGetV1BadRequest) Validate() error {
@@ -876,22 +859,15 @@ func (s *SeedConfigV1) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		var failures []validate.FieldError
-		for i, elem := range s.OntapCredentials {
+		if value, ok := s.OntapCredentials.Get(); ok {
 			if err := func() error {
-				if err := elem.Validate(); err != nil {
+				if err := value.Validate(); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				failures = append(failures, validate.FieldError{
-					Name:  fmt.Sprintf("[%d]", i),
-					Error: err,
-				})
+				return err
 			}
-		}
-		if len(failures) > 0 {
-			return &validate.Error{Fields: failures}
 		}
 		return nil
 	}(); err != nil {
@@ -1135,6 +1111,80 @@ func (s *SnapshotPolicyV1) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s *UserCredentialsV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.UserPurpose.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "userPurpose",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.ActiveAuthMode.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "activeAuthMode",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s UserCredentialsV1ActiveAuthMode) Validate() error {
+	switch s {
+	case "AUTHMODE_UNSPECIFIED":
+		return nil
+	case "AUTHMODE_CERT":
+		return nil
+	case "AUTHMODE_PASSWORD":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s UserCredentialsV1UserPurpose) Validate() error {
+	switch s {
+	case "PURPOSE_UNSPECIFIED":
+		return nil
+	case "PURPOSE_VCM_ADMIN":
+		return nil
+	case "PURPOSE_ONTAP_MODE":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *V1CreateIgroupBadRequest) Validate() error {
