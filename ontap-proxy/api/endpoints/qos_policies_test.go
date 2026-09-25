@@ -1,9 +1,11 @@
 package endpoints
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -323,7 +325,7 @@ func TestV1UpdateQoSPolicy(t *testing.T) {
 					return strings.Contains(string(body), `"max_throughput_iops":5000`)
 				}),
 			).
-			Return(nil, http.StatusOK, nil).
+			Return([]byte(`{"num_records":1}`), http.StatusOK, nil).
 			Once()
 
 		req := &oasgenserver.QoSPolicyUpdate{
@@ -333,11 +335,35 @@ func TestV1UpdateQoSPolicy(t *testing.T) {
 		}
 		res, err := handler.V1UpdateQoSPolicy(context.Background(), req, params)
 		require.NoError(t, err)
-		_, ok := res.(*oasgenserver.V1UpdateQoSPolicyOK)
+		okResponse, ok := res.(*oasgenserver.V1UpdateQoSPolicyOK)
 		require.True(t, ok, "expected OK, got %T", res)
+		assert.Equal(t, 1, okResponse.NumRecords.Value)
 	})
 
 	t.Run("customer policy update accepted", func(t *testing.T) {
+		client := handlers.NewMockOntapClient(t)
+		useQoSPolicyMutationClient(t, client)
+		client.EXPECT().
+			GetQoSPolicy(mock.Anything, qosPolicyTestPolicyUUID.String()).
+			Return(qosPolicyInfo("customer-policy", "svm1"), nil).
+			Once()
+		client.EXPECT().
+			ExecuteAPI(mock.Anything, http.MethodPatch, mock.Anything, mock.Anything).
+			Return([]byte(`{"job":{"uuid":"11111111-2222-3333-4444-555555555555"}}`), http.StatusAccepted, nil).
+			Once()
+
+		res, err := handler.V1UpdateQoSPolicy(
+			context.Background(),
+			&oasgenserver.QoSPolicyUpdate{Name: oasgenserver.NewOptString("cust2")},
+			params,
+		)
+		require.NoError(t, err)
+		accepted, ok := res.(*oasgenserver.V1UpdateQoSPolicyAccepted)
+		require.True(t, ok, "expected Accepted, got %T", res)
+		assert.Equal(t, "11111111-2222-3333-4444-555555555555", accepted.Job.Value.UUID.Value)
+	})
+
+	t.Run("empty Accepted response is rejected", func(t *testing.T) {
 		client := handlers.NewMockOntapClient(t)
 		useQoSPolicyMutationClient(t, client)
 		client.EXPECT().
@@ -355,8 +381,9 @@ func TestV1UpdateQoSPolicy(t *testing.T) {
 			params,
 		)
 		require.NoError(t, err)
-		_, ok := res.(*oasgenserver.V1UpdateQoSPolicyAccepted)
-		require.True(t, ok, "expected Accepted, got %T", res)
+		internal, ok := res.(*oasgenserver.V1UpdateQoSPolicyInternalServerError)
+		require.True(t, ok, "expected InternalServerError, got %T", res)
+		assert.Contains(t, internal.Message, "empty response body")
 	})
 
 	t.Run("prepare mutation auth failure is mapped", func(t *testing.T) {
@@ -504,7 +531,7 @@ func TestV1UpdateQoSPolicy(t *testing.T) {
 					return strings.Contains(string(body), `"absolute_min_iops":100`)
 				}),
 			).
-			Return(nil, http.StatusOK, nil).
+			Return([]byte(`{}`), http.StatusOK, nil).
 			Once()
 
 		res, err := handler.V1UpdateQoSPolicy(
@@ -563,7 +590,7 @@ func TestV1DeleteQoSPolicy(t *testing.T) {
 	handler := Handler{}
 	params := deleteQoSPolicyParams()
 
-	t.Run("customer policy delete is forwarded", func(t *testing.T) {
+	t.Run("NoContent response is rejected", func(t *testing.T) {
 		client := handlers.NewMockOntapClient(t)
 		useQoSPolicyMutationClient(t, client)
 		client.EXPECT().
@@ -582,8 +609,9 @@ func TestV1DeleteQoSPolicy(t *testing.T) {
 
 		res, err := handler.V1DeleteQoSPolicy(context.Background(), params)
 		require.NoError(t, err)
-		_, ok := res.(*oasgenserver.V1DeleteQoSPolicyNoContent)
-		require.True(t, ok, "expected NoContent, got %T", res)
+		internal, ok := res.(*oasgenserver.V1DeleteQoSPolicyInternalServerError)
+		require.True(t, ok, "expected InternalServerError, got %T", res)
+		assert.Equal(t, http.StatusInternalServerError, internal.Code)
 	})
 
 	t.Run("customer policy delete returns OK", func(t *testing.T) {
@@ -600,8 +628,27 @@ func TestV1DeleteQoSPolicy(t *testing.T) {
 
 		res, err := handler.V1DeleteQoSPolicy(context.Background(), params)
 		require.NoError(t, err)
-		_, ok := res.(*oasgenserver.V1DeleteQoSPolicyOK)
-		require.True(t, ok, "expected OK, got %T", res)
+		_, ok := res.(*oasgenserver.EmptyResponse)
+		require.True(t, ok, "expected EmptyResponse, got %T", res)
+	})
+
+	t.Run("ONTAP delete NotFound is returned as NotFound", func(t *testing.T) {
+		client := handlers.NewMockOntapClient(t)
+		useQoSPolicyMutationClient(t, client)
+		client.EXPECT().
+			GetQoSPolicy(mock.Anything, qosPolicyTestPolicyUUID.String()).
+			Return(qosPolicyInfo("customer-policy", "svm1"), nil).
+			Once()
+		client.EXPECT().
+			ExecuteAPI(mock.Anything, http.MethodDelete, mock.Anything, mock.Anything).
+			Return([]byte(`{"error":{"message":"entry doesn't exist"}}`), http.StatusNotFound, nil).
+			Once()
+
+		res, err := handler.V1DeleteQoSPolicy(context.Background(), params)
+		require.NoError(t, err)
+		notFound, ok := res.(*oasgenserver.V1DeleteQoSPolicyNotFound)
+		require.True(t, ok, "expected NotFound, got %T", res)
+		assert.Equal(t, "entry doesn't exist", notFound.Message)
 	})
 
 	t.Run("customer policy delete returns Accepted", func(t *testing.T) {
@@ -613,13 +660,33 @@ func TestV1DeleteQoSPolicy(t *testing.T) {
 			Once()
 		client.EXPECT().
 			ExecuteAPI(mock.Anything, http.MethodDelete, mock.Anything, mock.Anything).
-			Return(nil, http.StatusAccepted, nil).
+			Return([]byte(`{"job":{"uuid":"11111111-2222-3333-4444-555555555555"}}`), http.StatusAccepted, nil).
 			Once()
 
 		res, err := handler.V1DeleteQoSPolicy(context.Background(), params)
 		require.NoError(t, err)
-		_, ok := res.(*oasgenserver.V1DeleteQoSPolicyAccepted)
+		accepted, ok := res.(*oasgenserver.QoSPolicyJobLinkResponse)
 		require.True(t, ok, "expected Accepted, got %T", res)
+		assert.Equal(t, "11111111-2222-3333-4444-555555555555", accepted.Job.Value.UUID.Value)
+	})
+
+	t.Run("empty Accepted response is rejected", func(t *testing.T) {
+		client := handlers.NewMockOntapClient(t)
+		useQoSPolicyMutationClient(t, client)
+		client.EXPECT().
+			GetQoSPolicy(mock.Anything, qosPolicyTestPolicyUUID.String()).
+			Return(qosPolicyInfo("customer-policy", "svm1"), nil).
+			Once()
+		client.EXPECT().
+			ExecuteAPI(mock.Anything, http.MethodDelete, mock.Anything, mock.Anything).
+			Return([]byte(" \n\t"), http.StatusAccepted, nil).
+			Once()
+
+		res, err := handler.V1DeleteQoSPolicy(context.Background(), params)
+		require.NoError(t, err)
+		internal, ok := res.(*oasgenserver.V1DeleteQoSPolicyInternalServerError)
+		require.True(t, ok, "expected InternalServerError, got %T", res)
+		assert.Contains(t, internal.Message, "empty response body")
 	})
 
 	t.Run("prepare mutation cert failure is mapped", func(t *testing.T) {
@@ -692,6 +759,59 @@ func TestV1DeleteQoSPolicy(t *testing.T) {
 		forbidden, ok := res.(*oasgenserver.V1DeleteQoSPolicyForbidden)
 		require.True(t, ok, "expected Forbidden, got %T", res)
 		assert.Contains(t, forbidden.Message, "reserved")
+	})
+}
+
+func TestQoSPolicyMutationHTTPResponses(t *testing.T) {
+	const path = "/v1beta/projects/123456/locations/us-central1/pools/550e8400-e29b-41d4-a716-446655440000/ontap/api/storage/qos/policies/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+	t.Run("PATCH returns ONTAP job response as JSON", func(t *testing.T) {
+		client := handlers.NewMockOntapClient(t)
+		useQoSPolicyMutationClient(t, client)
+		client.EXPECT().
+			GetQoSPolicy(mock.Anything, qosPolicyTestPolicyUUID.String()).
+			Return(qosPolicyInfo("customer-policy", "svm1"), nil).
+			Once()
+		client.EXPECT().
+			ExecuteAPI(mock.Anything, http.MethodPatch, mock.Anything, mock.Anything).
+			Return([]byte(`{"job":{"uuid":"11111111-2222-3333-4444-555555555555"}}`), http.StatusAccepted, nil).
+			Once()
+
+		server, err := oasgenserver.NewServer(Handler{})
+		require.NoError(t, err)
+		request := httptest.NewRequest(http.MethodPatch, path, bytes.NewBufferString(`{"fixed":{"max_throughput_iops":8000}}`))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+
+		server.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusAccepted, recorder.Code)
+		assert.Equal(t, "application/json; charset=utf-8", recorder.Header().Get("Content-Type"))
+		assert.JSONEq(t, `{"job":{"uuid":"11111111-2222-3333-4444-555555555555"}}`, recorder.Body.String())
+	})
+
+	t.Run("DELETE returns JSON empty object", func(t *testing.T) {
+		client := handlers.NewMockOntapClient(t)
+		useQoSPolicyMutationClient(t, client)
+		client.EXPECT().
+			GetQoSPolicy(mock.Anything, qosPolicyTestPolicyUUID.String()).
+			Return(qosPolicyInfo("customer-policy", "svm1"), nil).
+			Once()
+		client.EXPECT().
+			ExecuteAPI(mock.Anything, http.MethodDelete, mock.Anything, mock.Anything).
+			Return(nil, http.StatusOK, nil).
+			Once()
+
+		server, err := oasgenserver.NewServer(Handler{})
+		require.NoError(t, err)
+		request := httptest.NewRequest(http.MethodDelete, path, nil)
+		recorder := httptest.NewRecorder()
+
+		server.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, "application/json; charset=utf-8", recorder.Header().Get("Content-Type"))
+		assert.JSONEq(t, `{}`, recorder.Body.String())
 	})
 }
 

@@ -624,21 +624,29 @@ func encodeV1DeleteEventRetentionPolicyResponse(response V1DeleteEventRetentionP
 
 func encodeV1DeleteQoSPolicyResponse(response V1DeleteQoSPolicyRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *V1DeleteQoSPolicyOK:
+	case *EmptyResponse:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(200)
 		span.SetStatus(codes.Ok, http.StatusText(200))
 
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
 		return nil
 
-	case *V1DeleteQoSPolicyAccepted:
+	case *QoSPolicyJobLinkResponse:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(202)
 		span.SetStatus(codes.Ok, http.StatusText(202))
 
-		return nil
-
-	case *V1DeleteQoSPolicyNoContent:
-		w.WriteHeader(204)
-		span.SetStatus(codes.Ok, http.StatusText(204))
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
 
 		return nil
 
@@ -1877,14 +1885,28 @@ func encodeV1UpdateEventRetentionPolicyResponse(response V1UpdateEventRetentionP
 func encodeV1UpdateQoSPolicyResponse(response V1UpdateQoSPolicyRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *V1UpdateQoSPolicyOK:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(200)
 		span.SetStatus(codes.Ok, http.StatusText(200))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
 
 		return nil
 
 	case *V1UpdateQoSPolicyAccepted:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(202)
 		span.SetStatus(codes.Ok, http.StatusText(202))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
 
 		return nil
 

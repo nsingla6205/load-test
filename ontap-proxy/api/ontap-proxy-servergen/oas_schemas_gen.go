@@ -632,6 +632,12 @@ func (s *EBRPolicyResponseLinks) SetNext(val OptHref) {
 	s.Next = val
 }
 
+// Successful response with no fields.
+// Ref: #/components/schemas/EmptyResponse
+type EmptyResponse struct{}
+
+func (*EmptyResponse) v1DeleteQoSPolicyRes() {}
+
 // Ref: #/components/schemas/Error
 type Error struct {
 	// Error code.
@@ -2578,6 +2584,47 @@ func (s *QoSPolicyFixed) SetCapacityShared(val OptBool) {
 	s.CapacityShared = val
 }
 
+// QoS mutation response returned by ONTAP.
+// Ref: #/components/schemas/QoSPolicyJobLinkResponse
+type QoSPolicyJobLinkResponse struct {
+	Job OptJobLink `json:"job"`
+	// Number of records.
+	NumRecords OptInt      `json:"num_records"`
+	Records    []QoSPolicy `json:"records"`
+}
+
+// GetJob returns the value of Job.
+func (s *QoSPolicyJobLinkResponse) GetJob() OptJobLink {
+	return s.Job
+}
+
+// GetNumRecords returns the value of NumRecords.
+func (s *QoSPolicyJobLinkResponse) GetNumRecords() OptInt {
+	return s.NumRecords
+}
+
+// GetRecords returns the value of Records.
+func (s *QoSPolicyJobLinkResponse) GetRecords() []QoSPolicy {
+	return s.Records
+}
+
+// SetJob sets the value of Job.
+func (s *QoSPolicyJobLinkResponse) SetJob(val OptJobLink) {
+	s.Job = val
+}
+
+// SetNumRecords sets the value of NumRecords.
+func (s *QoSPolicyJobLinkResponse) SetNumRecords(val OptInt) {
+	s.NumRecords = val
+}
+
+// SetRecords sets the value of Records.
+func (s *QoSPolicyJobLinkResponse) SetRecords(val []QoSPolicy) {
+	s.Records = val
+}
+
+func (*QoSPolicyJobLinkResponse) v1DeleteQoSPolicyRes() {}
+
 // Customer-modifiable QoS policy group fields.
 // Ref: #/components/schemas/QoSPolicyUpdate
 type QoSPolicyUpdate struct {
@@ -3937,11 +3984,6 @@ type V1DeleteEventRetentionPolicyUnauthorized Error
 
 func (*V1DeleteEventRetentionPolicyUnauthorized) v1DeleteEventRetentionPolicyRes() {}
 
-// V1DeleteQoSPolicyAccepted is response for V1DeleteQoSPolicy operation.
-type V1DeleteQoSPolicyAccepted struct{}
-
-func (*V1DeleteQoSPolicyAccepted) v1DeleteQoSPolicyRes() {}
-
 type V1DeleteQoSPolicyBadRequest Error
 
 func (*V1DeleteQoSPolicyBadRequest) v1DeleteQoSPolicyRes() {}
@@ -3954,19 +3996,9 @@ type V1DeleteQoSPolicyInternalServerError Error
 
 func (*V1DeleteQoSPolicyInternalServerError) v1DeleteQoSPolicyRes() {}
 
-// V1DeleteQoSPolicyNoContent is response for V1DeleteQoSPolicy operation.
-type V1DeleteQoSPolicyNoContent struct{}
-
-func (*V1DeleteQoSPolicyNoContent) v1DeleteQoSPolicyRes() {}
-
 type V1DeleteQoSPolicyNotFound Error
 
 func (*V1DeleteQoSPolicyNotFound) v1DeleteQoSPolicyRes() {}
-
-// V1DeleteQoSPolicyOK is response for V1DeleteQoSPolicy operation.
-type V1DeleteQoSPolicyOK struct{}
-
-func (*V1DeleteQoSPolicyOK) v1DeleteQoSPolicyRes() {}
 
 type V1DeleteQoSPolicyUnauthorized Error
 
@@ -4276,8 +4308,7 @@ type V1UpdateEventRetentionPolicyUnauthorized Error
 
 func (*V1UpdateEventRetentionPolicyUnauthorized) v1UpdateEventRetentionPolicyRes() {}
 
-// V1UpdateQoSPolicyAccepted is response for V1UpdateQoSPolicy operation.
-type V1UpdateQoSPolicyAccepted struct{}
+type V1UpdateQoSPolicyAccepted QoSPolicyJobLinkResponse
 
 func (*V1UpdateQoSPolicyAccepted) v1UpdateQoSPolicyRes() {}
 
@@ -4297,8 +4328,7 @@ type V1UpdateQoSPolicyNotFound Error
 
 func (*V1UpdateQoSPolicyNotFound) v1UpdateQoSPolicyRes() {}
 
-// V1UpdateQoSPolicyOK is response for V1UpdateQoSPolicy operation.
-type V1UpdateQoSPolicyOK struct{}
+type V1UpdateQoSPolicyOK QoSPolicyJobLinkResponse
 
 func (*V1UpdateQoSPolicyOK) v1UpdateQoSPolicyRes() {}
 

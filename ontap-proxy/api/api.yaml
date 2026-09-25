@@ -896,8 +896,16 @@ paths:
       responses:
         '200':
           description: QoS policy group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QoSPolicyJobLinkResponse'
         '202':
           description: QoS policy group update accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QoSPolicyJobLinkResponse'
         '400':
           $ref: '#/components/responses/StandardError-400'
         '401':
@@ -930,10 +938,16 @@ paths:
       responses:
         '200':
           description: QoS policy group deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
         '202':
           description: QoS policy group deletion accepted
-        '204':
-          description: QoS policy group deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QoSPolicyJobLinkResponse'
         '400':
           $ref: '#/components/responses/StandardError-400'
         '401':
@@ -1632,6 +1646,25 @@ components:
         uuid:
           type: string
           description: Job UUID
+    QoSPolicyJobLinkResponse:
+      type: object
+      title: QoSPolicyJobLinkResponse
+      description: QoS mutation response returned by ONTAP.
+      properties:
+        job:
+          $ref: '#/components/schemas/JobLink'
+        num_records:
+          type: integer
+          description: Number of records
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/QoSPolicy'
+    EmptyResponse:
+      type: object
+      title: EmptyResponse
+      description: Successful response with no fields.
+      additionalProperties: false
     SelfLink:
       type: object
       title: SelfLink

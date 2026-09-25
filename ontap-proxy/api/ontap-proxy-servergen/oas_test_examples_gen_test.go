@@ -237,6 +237,18 @@ func TestEBRPolicyResponseLinks_EncodeDecode(t *testing.T) {
 	var typ2 EBRPolicyResponseLinks
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestEmptyResponse_EncodeDecode(t *testing.T) {
+	var typ EmptyResponse
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 EmptyResponse
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestError_EncodeDecode(t *testing.T) {
 	var typ Error
 	typ.SetFake()
@@ -510,6 +522,18 @@ func TestQoSPolicyFixed_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 QoSPolicyFixed
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestQoSPolicyJobLinkResponse_EncodeDecode(t *testing.T) {
+	var typ QoSPolicyJobLinkResponse
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 QoSPolicyJobLinkResponse
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestQoSPolicyUpdate_EncodeDecode(t *testing.T) {
@@ -2128,6 +2152,18 @@ func TestV1UpdateEventRetentionPolicyUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateEventRetentionPolicyUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1UpdateQoSPolicyAccepted_EncodeDecode(t *testing.T) {
+	var typ V1UpdateQoSPolicyAccepted
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateQoSPolicyAccepted
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1UpdateQoSPolicyBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1UpdateQoSPolicyBadRequest
 	typ.SetFake()
@@ -2174,6 +2210,18 @@ func TestV1UpdateQoSPolicyNotFound_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateQoSPolicyNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateQoSPolicyOK_EncodeDecode(t *testing.T) {
+	var typ V1UpdateQoSPolicyOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateQoSPolicyOK
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdateQoSPolicyUnauthorized_EncodeDecode(t *testing.T) {

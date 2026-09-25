@@ -310,6 +310,10 @@ func (s *EBRPolicyResponseLinks) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *EmptyResponse) SetFake() {
+}
+
+// SetFake set fake values.
 func (s *Error) SetFake() {
 	{
 		{
@@ -877,6 +881,32 @@ func (s *QoSPolicyFixed) SetFake() {
 	{
 		{
 			s.CapacityShared.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyJobLinkResponse) SetFake() {
+	{
+		{
+			s.Job.SetFake()
+		}
+	}
+	{
+		{
+			s.NumRecords.SetFake()
+		}
+	}
+	{
+		{
+			s.Records = nil
+			for i := 0; i < 0; i++ {
+				var elem QoSPolicy
+				{
+					elem.SetFake()
+				}
+				s.Records = append(s.Records, elem)
+			}
 		}
 	}
 }
@@ -2278,6 +2308,15 @@ func (s *V1UpdateEventRetentionPolicyUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1UpdateQoSPolicyAccepted) SetFake() {
+	var unwrapped QoSPolicyJobLinkResponse
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyAccepted(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1UpdateQoSPolicyBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -2311,6 +2350,15 @@ func (s *V1UpdateQoSPolicyNotFound) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateQoSPolicyNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyOK) SetFake() {
+	var unwrapped QoSPolicyJobLinkResponse
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyOK(unwrapped)
 }
 
 // SetFake set fake values.

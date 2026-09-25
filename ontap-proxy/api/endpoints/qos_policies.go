@@ -125,9 +125,17 @@ func (h Handler) V1UpdateQoSPolicy(
 	}
 	switch responseStatus {
 	case http.StatusOK:
-		return &oasgenserver.V1UpdateQoSPolicyOK{}, nil
+		mutationResponse, err := decodeQoSPolicyMutationResponse(responseBody)
+		if err != nil {
+			return updateQoSPolicyError(http.StatusInternalServerError, fmt.Sprintf("failed to decode ONTAP QoS policy response: %s", err.Error())), nil
+		}
+		return (*oasgenserver.V1UpdateQoSPolicyOK)(mutationResponse), nil
 	case http.StatusAccepted:
-		return &oasgenserver.V1UpdateQoSPolicyAccepted{}, nil
+		mutationResponse, err := decodeQoSPolicyMutationResponse(responseBody)
+		if err != nil {
+			return updateQoSPolicyError(http.StatusInternalServerError, fmt.Sprintf("failed to decode ONTAP QoS policy response: %s", err.Error())), nil
+		}
+		return (*oasgenserver.V1UpdateQoSPolicyAccepted)(mutationResponse), nil
 	default:
 		return updateQoSPolicyError(responseStatus, ontapAPIErrorMessage(responseStatus, responseBody)), nil
 	}
@@ -162,14 +170,29 @@ func (h Handler) V1DeleteQoSPolicy(
 	}
 	switch responseStatus {
 	case http.StatusOK:
-		return &oasgenserver.V1DeleteQoSPolicyOK{}, nil
+		// ONTAP swagger documents DELETE 200 with an empty body. Callers
+		// decode JSON, so always answer {}.
+		return &oasgenserver.EmptyResponse{}, nil
 	case http.StatusAccepted:
-		return &oasgenserver.V1DeleteQoSPolicyAccepted{}, nil
-	case http.StatusNoContent:
-		return &oasgenserver.V1DeleteQoSPolicyNoContent{}, nil
+		mutationResponse, err := decodeQoSPolicyMutationResponse(responseBody)
+		if err != nil {
+			return deleteQoSPolicyError(http.StatusInternalServerError, fmt.Sprintf("failed to decode ONTAP QoS policy response: %s", err.Error())), nil
+		}
+		return mutationResponse, nil
 	default:
 		return deleteQoSPolicyError(responseStatus, ontapAPIErrorMessage(responseStatus, responseBody)), nil
 	}
+}
+
+func decodeQoSPolicyMutationResponse(body []byte) (*oasgenserver.QoSPolicyJobLinkResponse, error) {
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return nil, fmt.Errorf("empty response body")
+	}
+	response := &oasgenserver.QoSPolicyJobLinkResponse{}
+	if err := json.Unmarshal(body, response); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+	return response, nil
 }
 
 func prepareQoSPolicyMutation(
