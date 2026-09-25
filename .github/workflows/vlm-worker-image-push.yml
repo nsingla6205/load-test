@@ -93,20 +93,17 @@ jobs:
           DEST="/tmp/vlm-worker.tar.gz"
           echo "📋 Copying from: $SRC"
           if [[ "$SRC" == gs://* ]]; then
-            # gs://cot-releases-public is behind VPC-SC; read it from the Pull VM (inside the
-            # perimeter) impersonating an authorized SA, then SCP the file back to the runner.
-            # The pull VM has no external IP, so SSH/SCP must tunnel through IAP; use `gcloud beta`
-            # for Workload Identity Federation SSH.
+            # gs://cot-releases-public is behind VPC-SC. SSH as the pull SA (OS Login),
+            # then sudo gsutil -i on the VM: gsutil -i as the SSH user cannot write
+            # impersonation state (OSError: Operation not permitted).
             echo "   via Pull VM ${PULL_VM_NAME} impersonating ${VLM_IMPERSONATE_SA}"
-            # Scope impersonation to this gsutil invocation only (gsutil -i) so we do not mutate
-            # the long-lived pull VM's persistent gcloud config and affect other automation.
-            gcloud beta compute ssh ${PULL_VM_NAME} \
+            gcloud compute ssh ${PULL_VM_NAME} \
               --zone=${GCP_ZONE} \
               --project=${PULL_VM_PROJECT} \
               --tunnel-through-iap \
               --quiet \
-              --command="gsutil -i ${VLM_IMPERSONATE_SA} cp '$SRC' '$VM_PATH'"
-            gcloud beta compute scp \
+              --command="sudo gsutil -i ${VLM_IMPERSONATE_SA} cp '$SRC' '$VM_PATH' && sudo chmod 0644 '$VM_PATH'"
+            gcloud compute scp \
               --zone=${GCP_ZONE} \
               --project=${PULL_VM_PROJECT} \
               --tunnel-through-iap \

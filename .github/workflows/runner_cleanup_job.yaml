@@ -11,14 +11,20 @@ permissions:
 
 jobs:
   prune-docker:
+    # One leg per runner in the VCP group. The legs are queued together and a
+    # runner only takes one job at a time, so they spread across whichever
+    # hosts are online instead of pinning to hostnames that may be offline.
     strategy:
+      fail-fast: false
       matrix:
-        runner_label: [cvs-u24-sunilt-01, cvs-u24-sunilt-02, cvs-u24-sunilt-03, cvs-u24-sunilt-04, cvs-u24-sunilt-05]
-    runs-on: ${{ matrix.runner_label }}
+        replica: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: [self-hosted, vcp]
+    timeout-minutes: 30
     steps:
       - name: Check Disk Usage
         id: check_disk
         run: |
+          echo "Runner: $RUNNER_NAME"
           DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
           echo "Disk usage: $DISK_USAGE%"
           if [ "$DISK_USAGE" -gt 75 ]; then
@@ -44,7 +50,7 @@ jobs:
           if command -v go >/dev/null 2>&1; then
             echo "go_version=$(go version)" >> "$GITHUB_OUTPUT"
           else
-            echo "go_version=none" >> "$GITHUB_OUTPUT" 
+            echo "go_version=none" >> "$GITHUB_OUTPUT"
           fi
       - name: Clean Go Caches
         if: ${{ steps.go-check.outputs.go_version != 'none' }}
@@ -53,19 +59,21 @@ jobs:
           go clean -modcache
           go clean -testcache
           echo "Go caches cleaned."
-    
 
   cleanup-workspace:
     strategy:
+      fail-fast: false
       matrix:
-        runner_label: [cvs-u24-sunilt-01, cvs-u24-sunilt-02, cvs-u24-sunilt-03, cvs-u24-sunilt-04, cvs-u24-sunilt-05]
-    runs-on: ${{ matrix.runner_label }}
+        replica: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: [self-hosted, vcp]
+    timeout-minutes: 30
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v7
       options: --user root
       volumes:
-        - /home/cvs/actions-runner/_work/:/_work/
+        - /opt/actions-runner/_work/:/_work/
     steps:
       - name: Cleanup all working Directory files
         run: |
+          echo "Runner: $RUNNER_NAME"
           find /_work/_temp/ -mindepth 1 -maxdepth 1 ! -name '_github_home' -exec rm -rfv {} +
