@@ -14663,6 +14663,10 @@ func (s *Server) handleV1betaInternalReleaseVolumeReplicationRequest(args [3]str
 					Name: "X-Correlation-ID",
 					In:   "header",
 				}: params.XCorrelationID,
+				{
+					Name: "isCleanup",
+					In:   "query",
+				}: params.IsCleanup,
 			},
 			Raw: r,
 		}

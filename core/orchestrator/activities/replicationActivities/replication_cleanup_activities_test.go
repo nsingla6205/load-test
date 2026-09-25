@@ -1721,6 +1721,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1764,6 +1765,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1808,6 +1810,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1852,6 +1855,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1896,6 +1900,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1940,6 +1945,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -1983,6 +1989,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -2024,6 +2031,7 @@ func TestReleaseReplicationOnSourceForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3314,6 +3322,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3357,6 +3366,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3401,6 +3411,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3445,6 +3456,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3489,6 +3501,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3533,6 +3546,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3575,6 +3589,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
@@ -3616,6 +3631,7 @@ func TestUpdateReplicationRecordOnDestinationForCleanup(t *testing.T) {
 			LocationId:          inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 			VolumeReplicationId: inputResult.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 			XCorrelationID:      googleproxyclient.NewOptString(*inputResult.CorrelationID),
+			IsCleanup:           googleproxyclient.NewOptBool(true),
 		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc

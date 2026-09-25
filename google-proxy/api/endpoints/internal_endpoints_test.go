@@ -599,7 +599,7 @@ func TestV1betaInternalDeleteVolumeReplicationRow(t *testing.T) {
 		defer func() {
 			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
 		}()
-		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything).Return(nil, nil, errors.New("delete error"))
+		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything, mock.Anything).Return(nil, nil, errors.New("delete error"))
 		resp, err := handler.V1betaInternalReleaseVolumeReplication(ctx, params)
 		assert.NoError(tt, err)
 		assert.IsType(tt, &gcpgenserver.V1betaInternalReleaseVolumeReplicationInternalServerError{}, resp)
@@ -622,7 +622,7 @@ func TestV1betaInternalDeleteVolumeReplicationRow(t *testing.T) {
 		defer func() {
 			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
 		}()
-		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything).Return(nil, nil, errors.NewNotFoundErr("Volume replication not found", nil))
+		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything, mock.Anything).Return(nil, nil, errors.NewNotFoundErr("Volume replication not found", nil))
 		resp, err := handler.V1betaInternalReleaseVolumeReplication(ctx, params)
 		assert.NoError(tt, err)
 		assert.IsType(tt, &gcpgenserver.V1betaInternalReleaseVolumeReplicationBadRequest{}, resp)
@@ -685,7 +685,7 @@ func TestV1betaInternalDeleteVolumeReplicationRow(t *testing.T) {
 			Name: gcpgenserver.NewOptString(expectedOperationName),
 			Done: gcpgenserver.NewOptBool(true),
 		}
-		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything).Return(volumeReplication, job, nil)
+		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, mock.Anything, mock.Anything).Return(volumeReplication, job, nil)
 
 		resp, err := handler.V1betaInternalReleaseVolumeReplication(ctx, params)
 		operationResp := resp.(*gcpgenserver.OperationV1beta)
@@ -693,6 +693,33 @@ func TestV1betaInternalDeleteVolumeReplicationRow(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.Equal(tt, expectedResponse.Name.Value, operationResp.Name.Value)
 		assert.Equal(tt, expectedResponse.Done.Value, operationResp.Done.Value)
+	})
+	t.Run("PassesIsCleanupTrueToOrchestrator", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		ctx := context.Background()
+		params := gcpgenserver.V1betaInternalReleaseVolumeReplicationParams{
+			ProjectNumber:       "test-project",
+			LocationId:          "test-location",
+			VolumeReplicationId: "test-replication-id",
+			IsCleanup:           gcpgenserver.NewOptBool(true),
+		}
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "us-east4", "us-east4", nil
+		}
+		defer func() {
+			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
+		}()
+		job := &datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "job-uuid"},
+		}
+		mockOrchestrator.EXPECT().ReleaseVolumeReplication(ctx, params.VolumeReplicationId, true).Return(&models.VolumeReplication{}, job, nil)
+
+		resp, err := handler.V1betaInternalReleaseVolumeReplication(ctx, params)
+		assert.NoError(tt, err)
+		assert.IsType(tt, &gcpgenserver.OperationV1beta{}, resp)
 	})
 }
 

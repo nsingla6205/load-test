@@ -1279,11 +1279,11 @@ func _getProjectNumberForRegion(replication *datamodel.VolumeReplication, region
 	}
 }
 
-func (o *GCPOrchestrator) ReleaseVolumeReplication(ctx context.Context, replicationUUID string) (*models.VolumeReplication, *datamodel.Job, error) {
-	return releaseVolumeReplication(ctx, o.storage, o.temporal, replicationUUID)
+func (o *GCPOrchestrator) ReleaseVolumeReplication(ctx context.Context, replicationUUID string, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error) {
+	return releaseVolumeReplication(ctx, o.storage, o.temporal, replicationUUID, isCleanup)
 }
 
-func _releaseVolumeReplication(ctx context.Context, se database.Storage, temporal client.Client, replicationUUID string) (*models.VolumeReplication, *datamodel.Job, error) {
+func _releaseVolumeReplication(ctx context.Context, se database.Storage, temporal client.Client, replicationUUID string, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error) {
 	logger := util.GetLogger(ctx)
 
 	dbVolumeReplication, err := se.GetVolumeReplication(ctx, replicationUUID)
@@ -1296,7 +1296,7 @@ func _releaseVolumeReplication(ctx context.Context, se database.Storage, tempora
 			return nil, nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 		}
 	}
-	if dbVolumeReplication.ReplicationAttributes.EndpointType == cvpmodels.VolumeReplicationCVPV1betaEndpointTypeSrc {
+	if !isCleanup && dbVolumeReplication.ReplicationAttributes.EndpointType == cvpmodels.VolumeReplicationCVPV1betaEndpointTypeSrc {
 		if dbVolumeReplication.State == datamodel.LifeCycleStateCreating ||
 			dbVolumeReplication.State == datamodel.LifeCycleStateUpdating ||
 			dbVolumeReplication.State == datamodel.LifeCycleStateDeleting {

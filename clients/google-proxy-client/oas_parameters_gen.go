@@ -1096,6 +1096,9 @@ type V1betaInternalReleaseVolumeReplicationParams struct {
 	LocationId string
 	// Correlation identifier.
 	XCorrelationID OptString
+	// If true, indicates this is a cleanup replication operation. Cleanup operations may skip certain
+	// validations and state transitions. Defaults to false if not provided.
+	IsCleanup OptBool
 }
 
 // V1betaInternalResumeVolumeReplicationParams is parameters of v1beta_internalResumeVolumeReplication operation.

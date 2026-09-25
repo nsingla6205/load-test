@@ -435,7 +435,7 @@ func (o *OCIOrchestrator) GetReplication(ctx context.Context, volumeReplicationI
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
-func (o *OCIOrchestrator) ReleaseVolumeReplication(ctx context.Context, replicationUUID string) (*models.VolumeReplication, *datamodel.Job, error) {
+func (o *OCIOrchestrator) ReleaseVolumeReplication(ctx context.Context, replicationUUID string, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error) {
 	return nil, nil, utilserrors.NewNotImplementedYetErr()
 }
 

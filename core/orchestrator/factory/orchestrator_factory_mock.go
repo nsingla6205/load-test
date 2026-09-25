@@ -9758,9 +9758,9 @@ func (_c *MockOrchestratorFactory_PinAccountHosts_Call) RunAndReturn(run func(co
 	return _c
 }
 
-// ReleaseVolumeReplication provides a mock function with given fields: ctx, replicationUUID
-func (_m *MockOrchestratorFactory) ReleaseVolumeReplication(ctx context.Context, replicationUUID string) (*models.VolumeReplication, *datamodel.Job, error) {
-	ret := _m.Called(ctx, replicationUUID)
+// ReleaseVolumeReplication provides a mock function with given fields: ctx, replicationUUID, isCleanup
+func (_m *MockOrchestratorFactory) ReleaseVolumeReplication(ctx context.Context, replicationUUID string, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error) {
+	ret := _m.Called(ctx, replicationUUID, isCleanup)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ReleaseVolumeReplication")
@@ -9769,27 +9769,27 @@ func (_m *MockOrchestratorFactory) ReleaseVolumeReplication(ctx context.Context,
 	var r0 *models.VolumeReplication
 	var r1 *datamodel.Job
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.VolumeReplication, *datamodel.Job, error)); ok {
-		return rf(ctx, replicationUUID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) (*models.VolumeReplication, *datamodel.Job, error)); ok {
+		return rf(ctx, replicationUUID, isCleanup)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *models.VolumeReplication); ok {
-		r0 = rf(ctx, replicationUUID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) *models.VolumeReplication); ok {
+		r0 = rf(ctx, replicationUUID, isCleanup)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.VolumeReplication)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) *datamodel.Job); ok {
-		r1 = rf(ctx, replicationUUID)
+	if rf, ok := ret.Get(1).(func(context.Context, string, bool) *datamodel.Job); ok {
+		r1 = rf(ctx, replicationUUID, isCleanup)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*datamodel.Job)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
-		r2 = rf(ctx, replicationUUID)
+	if rf, ok := ret.Get(2).(func(context.Context, string, bool) error); ok {
+		r2 = rf(ctx, replicationUUID, isCleanup)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -9805,13 +9805,14 @@ type MockOrchestratorFactory_ReleaseVolumeReplication_Call struct {
 // ReleaseVolumeReplication is a helper method to define mock.On call
 //   - ctx context.Context
 //   - replicationUUID string
-func (_e *MockOrchestratorFactory_Expecter) ReleaseVolumeReplication(ctx interface{}, replicationUUID interface{}) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
-	return &MockOrchestratorFactory_ReleaseVolumeReplication_Call{Call: _e.mock.On("ReleaseVolumeReplication", ctx, replicationUUID)}
+//   - isCleanup bool
+func (_e *MockOrchestratorFactory_Expecter) ReleaseVolumeReplication(ctx interface{}, replicationUUID interface{}, isCleanup interface{}) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
+	return &MockOrchestratorFactory_ReleaseVolumeReplication_Call{Call: _e.mock.On("ReleaseVolumeReplication", ctx, replicationUUID, isCleanup)}
 }
 
-func (_c *MockOrchestratorFactory_ReleaseVolumeReplication_Call) Run(run func(ctx context.Context, replicationUUID string)) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
+func (_c *MockOrchestratorFactory_ReleaseVolumeReplication_Call) Run(run func(ctx context.Context, replicationUUID string, isCleanup bool)) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(bool))
 	})
 	return _c
 }
@@ -9821,7 +9822,7 @@ func (_c *MockOrchestratorFactory_ReleaseVolumeReplication_Call) Return(_a0 *mod
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_ReleaseVolumeReplication_Call) RunAndReturn(run func(context.Context, string) (*models.VolumeReplication, *datamodel.Job, error)) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
+func (_c *MockOrchestratorFactory_ReleaseVolumeReplication_Call) RunAndReturn(run func(context.Context, string, bool) (*models.VolumeReplication, *datamodel.Job, error)) *MockOrchestratorFactory_ReleaseVolumeReplication_Call {
 	_c.Call.Return(run)
 	return _c
 }

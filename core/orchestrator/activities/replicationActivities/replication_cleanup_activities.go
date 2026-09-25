@@ -330,6 +330,7 @@ func (a *CleanupVolumeReplicationActivity) UpdateReplicationRecordOnSourceForCle
 		LocationId:          result.Event.ReplicationModel.ReplicationAttributes.SourceLocation,
 		VolumeReplicationId: result.Event.ReplicationModel.ReplicationAttributes.SourceReplicationUUID,
 		XCorrelationID:      googleproxyclient.NewOptString(*result.CorrelationID),
+		IsCleanup:           googleproxyclient.NewOptBool(true),
 	}
 	res, err := googleProxyClient.Invoker.V1betaInternalReleaseVolumeReplication(ctx, *releaseReplicationParams)
 	if err != nil {
@@ -365,6 +366,7 @@ func (a *CleanupVolumeReplicationActivity) UpdateReplicationRecordOnDestinationF
 		LocationId:          result.Event.ReplicationModel.ReplicationAttributes.DestinationLocation,
 		VolumeReplicationId: result.Event.ReplicationModel.ReplicationAttributes.DestinationReplicationUUID,
 		XCorrelationID:      googleproxyclient.NewOptString(*result.CorrelationID),
+		IsCleanup:           googleproxyclient.NewOptBool(true),
 	}
 	res, err := googleProxyClient.Invoker.V1betaInternalReleaseVolumeReplication(ctx, *releaseReplicationParams)
 	if err != nil {

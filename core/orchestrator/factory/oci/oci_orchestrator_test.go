@@ -1039,7 +1039,7 @@ func TestOCIOrchestrator_ReleaseVolumeReplication(t *testing.T) {
 		orch := &OCIOrchestrator{}
 		ctx := context.Background()
 
-		result, job, err := orch.ReleaseVolumeReplication(ctx, "replication-uuid")
+		result, job, err := orch.ReleaseVolumeReplication(ctx, "replication-uuid", false)
 
 		assert.Error(tt, err)
 		assert.True(tt, errors.IsNotImplementedYetErr(err))

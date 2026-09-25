@@ -140,7 +140,12 @@ func (h Handler) V1betaInternalReleaseVolumeReplication(ctx context.Context, par
 	logger := util.GetLogger(ctx)
 	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
 
-	_, job, err := h.Orchestrator.ReleaseVolumeReplication(ctx, params.VolumeReplicationId)
+	var isCleanup bool
+	if params.IsCleanup.Set {
+		isCleanup = params.IsCleanup.Value
+	}
+
+	_, job, err := h.Orchestrator.ReleaseVolumeReplication(ctx, params.VolumeReplicationId, isCleanup)
 	if err != nil {
 		logger.Error("Failed to release volume replication", "error", err.Error())
 		if errors.IsNotFoundErr(err) {

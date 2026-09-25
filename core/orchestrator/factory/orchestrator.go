@@ -115,7 +115,7 @@ type OrchestratorFactory interface {
 	ResumeReplicationInternal(ctx context.Context, volumeReplicationId, accountName string, forceResume bool) (*models.VolumeReplication, *datamodel.Job, error)
 	ReverseReplicationInternal(ctx context.Context, volumeReplicationId, accountName string) (*models.VolumeReplication, *datamodel.Job, error)
 	GetReplication(ctx context.Context, volumeReplicationId string) (*models.VolumeReplication, error)
-	ReleaseVolumeReplication(ctx context.Context, replicationUUID string) (*models.VolumeReplication, *datamodel.Job, error)
+	ReleaseVolumeReplication(ctx context.Context, replicationUUID string, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error)
 	DeleteReplicationInternal(ctx context.Context, volumeReplicationId string, cleanupAfterReverse bool, isCleanup bool) (*models.VolumeReplication, *datamodel.Job, error)
 	StopReplicationInternal(ctx context.Context, replicationUUID string, accountName string, forceStop bool) (*models.VolumeReplication, *datamodel.Job, error)
 	StopReplication(ctx context.Context, params *commonparams.StopReplicationParams) (*models.VolumeReplication, string, error)

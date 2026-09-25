@@ -7274,7 +7274,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 
 		mockStorage.On("GetVolumeReplication", ctx, mock.Anything).Return(nil, errors.NewNotFoundErr("not found", nil))
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "volumeReplication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "volumeReplication", false)
 		assert.NotNil(tt, err)
 		var customErr *errors2.CustomError
 		assert.True(tt, errors2.As(err, &customErr), "Expected a CustomError")
@@ -7287,7 +7287,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 
 		mockStorage.On("GetVolumeReplication", ctx, mock.Anything).Return(nil, errors.New("failed to get volume replication"))
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "volumeReplication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "volumeReplication", false)
 		assert.NotNil(tt, err)
 		var customErr *errors2.CustomError
 		assert.True(tt, errors2.As(err, &customErr), "Expected a CustomError")
@@ -7312,9 +7312,51 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 		}
 		mockStorage.On("GetVolumeReplication", ctx, mock.Anything).Return(dbVolumeReplication, nil)
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication", false)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, "Error releasing volume Replication - Volume replication is already transitioning between states", err.Error())
+	})
+	t.Run("WhenIsCleanupTrueSkipsTransitionStateCheck", func(tt *testing.T) {
+		transitionStates := []string{
+			datamodel.LifeCycleStateCreating,
+			datamodel.LifeCycleStateUpdating,
+			datamodel.LifeCycleStateDeleting,
+		}
+		for _, state := range transitionStates {
+			tt.Run(state, func(ttt *testing.T) {
+				ctx := context.Background()
+				mockStorage := new(database.MockStorage)
+				mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(t)
+
+				dbVolumeReplication := &datamodel.VolumeReplication{
+					BaseModel: datamodel.BaseModel{
+						ID:   1,
+						UUID: "replication-uuid",
+					},
+					Name:      "test-replication",
+					AccountID: 1,
+					State:     state,
+					ReplicationAttributes: &datamodel.ReplicationDetails{
+						EndpointType: "src",
+					},
+					Volume: &datamodel.Volume{
+						Pool: &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "123"}},
+					},
+				}
+				jobResponse := &datamodel.Job{
+					BaseModel:  datamodel.BaseModel{ID: 1},
+					WorkflowID: "workflow-id",
+				}
+				mockStorage.On("GetVolumeReplication", ctx, mock.Anything).Return(dbVolumeReplication, nil)
+				mockStorage.On("CreateJob", ctx, mock.Anything).Return(jobResponse, nil)
+				mockStorage.On("UpdateVolumeReplicationStates", ctx, mock.Anything).Return(nil)
+				mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+				_, job, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication", true)
+				assert.Nil(ttt, err)
+				assert.Equal(ttt, jobResponse, job)
+			})
+		}
 	})
 	t.Run("WhenCreateJobFails", func(tt *testing.T) {
 		ctx := context.Background()
@@ -7339,7 +7381,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 		mockStorage.On("GetVolumeReplication", ctx, mock.Anything).Return(dbVolumeReplication, nil)
 		mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors.New("failed to create job"))
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication", false)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, "failed to create job", err.Error())
 	})
@@ -7367,7 +7409,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 		mockStorage.On("CreateJob", ctx, mock.Anything).Return(&datamodel.Job{WorkflowID: "workflow-id"}, nil)
 		mockStorage.On("UpdateVolumeReplicationStates", ctx, mock.Anything).Return(errors.New("update error"))
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication", false)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, "update error", err.Error())
 	})
@@ -7400,7 +7442,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, expectedError)
 		mockStorage.On("UpdateJob", ctx, mock.Anything, mock.Anything, mock.Anything, expectedError.Error()).Return(nil)
 
-		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication")
+		_, _, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, "test-replication", false)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, "failed to execute workflow", err.Error())
 	})
@@ -7488,7 +7530,7 @@ func Test_deleteVolumeReplicationRow(t *testing.T) {
 		mockStorage.On("UpdateVolumeReplicationStates", ctx, mock.Anything).Return(nil)
 		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
-		_, jobActualResponse, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, expectedResponse.UUID)
+		_, jobActualResponse, err := _releaseVolumeReplication(ctx, mockStorage, mockTemporal, expectedResponse.UUID, false)
 		assert.Nil(tt, err)
 		assert.Equal(tt, jobResponse, jobActualResponse)
 	})

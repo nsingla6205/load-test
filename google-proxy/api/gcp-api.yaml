@@ -6366,6 +6366,14 @@ paths:
         - $ref: '#/components/parameters/projectNumberPathParameter'
         - $ref: '#/components/parameters/locationIdPathParameter'
         - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - in: query
+          name: isCleanup
+          schema:
+            type: boolean
+            default: false
+          required: false
+          allowEmptyValue: true
+          description: 'If true, indicates this is a cleanup replication operation. Cleanup operations may skip certain validations and state transitions. Defaults to false if not provided.'
       responses:
         '202':
           description: Deleting volume replication row

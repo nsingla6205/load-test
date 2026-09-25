@@ -400,7 +400,7 @@ func (notImplementedOrchestrator) GetReplication(context.Context, string) (*mode
 	return nil, customerrors.NewNotImplementedYetErr()
 }
 
-func (notImplementedOrchestrator) ReleaseVolumeReplication(context.Context, string) (*models.VolumeReplication, *datamodel.Job, error) {
+func (notImplementedOrchestrator) ReleaseVolumeReplication(context.Context, string, bool) (*models.VolumeReplication, *datamodel.Job, error) {
 	return nil, nil, customerrors.NewNotImplementedYetErr()
 }
 

@@ -24686,6 +24686,9 @@ type V1betaInternalReleaseVolumeReplicationParams struct {
 	LocationId string
 	// Correlation identifier.
 	XCorrelationID OptString
+	// If true, indicates this is a cleanup replication operation. Cleanup operations may skip certain
+	// validations and state transitions. Defaults to false if not provided.
+	IsCleanup OptBool
 }
 
 func unpackV1betaInternalReleaseVolumeReplicationParams(packed middleware.Parameters) (params V1betaInternalReleaseVolumeReplicationParams) {
@@ -24719,10 +24722,20 @@ func unpackV1betaInternalReleaseVolumeReplicationParams(packed middleware.Parame
 			params.XCorrelationID = v.(OptString)
 		}
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "isCleanup",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.IsCleanup = v.(OptBool)
+		}
+	}
 	return params
 }
 
 func decodeV1betaInternalReleaseVolumeReplicationParams(args [3]string, argsEscaped bool, r *http.Request) (params V1betaInternalReleaseVolumeReplicationParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: volumeReplicationId.
 	if err := func() error {
@@ -24943,6 +24956,52 @@ func decodeV1betaInternalReleaseVolumeReplicationParams(args [3]string, argsEsca
 		return params, &ogenerrors.DecodeParamError{
 			Name: "X-Correlation-ID",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	// Set default value for query: isCleanup.
+	{
+		val := bool(false)
+		params.IsCleanup.SetTo(val)
+	}
+	// Decode query: isCleanup.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "isCleanup",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotIsCleanupVal bool
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToBool(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotIsCleanupVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.IsCleanup.SetTo(paramsDotIsCleanupVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "isCleanup",
+			In:   "query",
 			Err:  err,
 		}
 	}
