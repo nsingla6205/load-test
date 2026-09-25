@@ -12,8 +12,10 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"go.temporal.io/sdk/temporal"
 )
 
 func TestDeleteVolumeReplicationInternal(t *testing.T) {
@@ -128,6 +130,47 @@ func TestDeleteVolumeReplicationInternal(t *testing.T) {
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, res)
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("WhenConflictReturnsNonRetryableError", func(tt *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := InternalVolumeReplicationDeleteActivity{
+			SE: database.NewMockStorage(t),
+		}
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		node := &models.Node{}
+
+		params := &datamodel.VolumeReplication{
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				EndpointType:          "type",
+				SourceHostName:        "src-host",
+				SourceSvmName:         "src-svm",
+				SourceVolumeName:      "src-vol",
+				DestinationHostName:   "dst-host",
+				DestinationSvmName:    "dst-svm",
+				ReplicationSchedule:   "schedule",
+				DestinationVolumeName: "dst-vol",
+				ExternalUUID:          "uuid",
+			},
+		}
+
+		conflictErr := customerrors.NewConflictErr("some other conflict")
+		mockProvider.On("DeleteVolumeReplication", mock.Anything).Return(nil, conflictErr)
+
+		res, err := activity.DeleteVolumeReplication(ctx, params, node, false)
+
+		assert.Nil(tt, res)
+		var appErr *temporal.ApplicationError
+		assert.True(tt, vsaerrors.As(err, &appErr))
+		assert.True(tt, appErr.NonRetryable())
 		mockProvider.AssertExpectations(tt)
 	})
 }
@@ -440,4 +483,113 @@ func TestCleanupReplicationAfterReverse(t *testing.T) {
 		assert.NotNil(tt, res)
 		mockProvider.AssertExpectations(tt)
 	})
+}
+
+func TestGetVolumeReplicationFromOntap(t *testing.T) {
+	relationshipUUID := "snapmirror-uuid"
+	replicationWithUUID := &datamodel.VolumeReplication{
+		ReplicationAttributes: &datamodel.ReplicationDetails{ExternalUUID: relationshipUUID},
+	}
+	ontapReplication := &vsa.VolumeReplication{ExternalUUID: relationshipUUID, MirrorState: vsa.SnapmirrorStateMirrored}
+
+	tests := []struct {
+		name             string
+		replication      *datamodel.VolumeReplication
+		providerErr      error
+		mockGet          bool
+		getResponse      *vsa.VolumeReplication
+		getErr           error
+		expectedResponse *vsa.VolumeReplication
+		expectErr        bool
+		expectedCode     int
+	}{
+		{
+			name:        "NilReplication",
+			replication: nil,
+		},
+		{
+			name:        "NilReplicationAttributes",
+			replication: &datamodel.VolumeReplication{},
+		},
+		{
+			name:        "EmptyExternalUUID",
+			replication: &datamodel.VolumeReplication{ReplicationAttributes: &datamodel.ReplicationDetails{}},
+		},
+		{
+			name:        "GetProviderFails",
+			replication: replicationWithUUID,
+			providerErr: errors.New("provider error"),
+			expectErr:   true,
+		},
+		{
+			name:        "NotFoundErr",
+			replication: replicationWithUUID,
+			mockGet:     true,
+			getErr:      customerrors.NewNotFoundErr("snapmirror", &relationshipUUID),
+		},
+		{
+			name:        "EntryDoesNotExist",
+			replication: replicationWithUUID,
+			mockGet:     true,
+			getErr:      errors.New("entry doesn't exist"),
+		},
+		{
+			name:        "EntryNotFound",
+			replication: replicationWithUUID,
+			mockGet:     true,
+			getErr:      errors.New("entry not found"),
+		},
+		{
+			name:         "GetFails",
+			replication:  replicationWithUUID,
+			mockGet:      true,
+			getErr:       errors.New("ontap unreachable"),
+			expectErr:    true,
+			expectedCode: vsaerrors.ErrProviderGetVolumeReplication,
+		},
+		{
+			name:             "Success",
+			replication:      replicationWithUUID,
+			mockGet:          true,
+			getResponse:      ontapReplication,
+			expectedResponse: ontapReplication,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			mockProvider := new(vsa.MockProvider)
+			originalGetProviderByNode := vsa.GetProviderByNode
+			defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+			vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+				if tc.providerErr != nil {
+					return nil, tc.providerErr
+				}
+				return mockProvider, nil
+			}
+			if tc.mockGet {
+				mockProvider.On("GetVolumeReplication", &vsa.VolumeReplication{ExternalUUID: relationshipUUID}).
+					Return(tc.getResponse, tc.getErr).Once()
+			}
+
+			activity := InternalVolumeReplicationDeleteActivity{SE: database.NewMockStorage(tt)}
+			ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+			res, err := activity.GetVolumeReplicationFromOntap(ctx, tc.replication, &models.Node{})
+
+			if tc.expectErr {
+				assert.Error(tt, err)
+				assert.Nil(tt, res)
+				if tc.expectedCode != 0 {
+					var customErr *vsaerrors.CustomError
+					assert.True(tt, vsaerrors.As(err, &customErr))
+					assert.Equal(tt, tc.expectedCode, customErr.TrackingID)
+				}
+			} else {
+				assert.NoError(tt, err)
+				assert.Equal(tt, tc.expectedResponse, res)
+			}
+			mockProvider.AssertExpectations(tt)
+		})
+	}
 }

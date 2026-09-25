@@ -71,6 +71,7 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Run(ctx workflow.Context, arg
 	cleanupAfterReverse := args[1].(bool)
 	isCleanup := args[2].(bool)
 	replicationActivity := &replicationActivities.InternalVolumeReplicationDeleteActivity{}
+	stopActivity := &replicationActivities.InternalStopVolumeReplicationActivity{}
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
@@ -110,6 +111,20 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Run(ctx workflow.Context, arg
 
 	var replicationDeleteResponse *vsa.VolumeReplication
 	if !cleanupAfterReverse {
+		var ontapReplication *vsa.VolumeReplication
+		err = workflow.ExecuteActivity(ctx, replicationActivity.GetVolumeReplicationFromOntap, replication, node).Get(ctx, &ontapReplication)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		if replicationActivities.ShouldBreakBeforeDelete(ontapReplication) {
+			log.Infof("Replication is %s on ONTAP; stopping it before delete", ontapReplication.MirrorState)
+			forceStop := true
+			err = workflow.ExecuteActivity(ctx, stopActivity.BreakVolumeReplication, replication, node, forceStop).Get(ctx, nil)
+			if err != nil {
+				return nil, workflows.ConvertToVSAError(err)
+			}
+		}
+
 		err = workflow.ExecuteActivity(ctx, replicationActivity.DeleteVolumeReplication, replication, node, isCleanup).Get(ctx, &replicationDeleteResponse)
 		if err != nil {
 			return nil, workflows.ConvertToVSAError(err)

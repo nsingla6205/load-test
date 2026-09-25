@@ -13,8 +13,45 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
+// ShouldBreakBeforeDelete reports whether the live ONTAP relationship must be broken
+// before it is deleted, so the destination volume is left writable instead of DP.
+func ShouldBreakBeforeDelete(ontapReplication *vsa.VolumeReplication) bool {
+	if ontapReplication == nil {
+		return false
+	}
+	return ontapReplication.MirrorState == vsa.SnapmirrorStateMirrored ||
+		(ontapReplication.MirrorState == vsa.SnapmirrorStateUninitialized &&
+			ontapReplication.RelationshipStatus == vsa.SnapMirrorRelationshipStatusTransferring)
+}
+
 type InternalVolumeReplicationDeleteActivity struct {
 	SE database.Storage
+}
+
+// GetVolumeReplicationFromOntap returns the live SnapMirror relationship from ONTAP.
+// It returns nil when the replication has no relationship UUID or ONTAP no longer has it.
+func (a *InternalVolumeReplicationDeleteActivity) GetVolumeReplicationFromOntap(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node) (*vsa.VolumeReplication, error) {
+	logger := util.GetLogger(ctx)
+	if replication == nil || replication.ReplicationAttributes == nil || replication.ReplicationAttributes.ExternalUUID == "" {
+		logger.Info("No SnapMirror relationship UUID on replication; skipping ONTAP lookup")
+		return nil, nil
+	}
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	ontapReplication, err := provider.GetVolumeReplication(&vsa.VolumeReplication{
+		ExternalUUID: replication.ReplicationAttributes.ExternalUUID,
+	})
+	if err != nil {
+		if errors.IsNotFoundErr(err) || strings.Contains(err.Error(), "entry doesn't exist") || strings.Contains(err.Error(), "entry not found") {
+			logger.Info("SnapMirror relationship not found on ONTAP", "relationshipUUID", replication.ReplicationAttributes.ExternalUUID)
+			return nil, nil
+		}
+		logger.Error("Failed to get volume replication from ONTAP", "error", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrProviderGetVolumeReplication, err)
+	}
+	return ontapReplication, nil
 }
 
 func (a *InternalVolumeReplicationDeleteActivity) DeleteVolumeReplication(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node, isCleanup bool) (*vsa.VolumeReplication, error) {
