@@ -20,11 +20,11 @@ type Node struct {
 	// field) instead of being derived from CAS. Empty on the VCP path.
 	CertPrivateKeySecretID string
 	InstanceType           string
-	ExternalUUID                   string
-	Zone                           string
-	State                          string
-	DeploymentName                 string
-	AuthType                       int
+	ExternalUUID           string
+	Zone                   string
+	State                  string
+	DeploymentName         string
+	AuthType               int
 	// ServerName, when non-empty, is used as the TLS SNI value AND for
 	// hostname verification of the cert-auth ONTAP REST client. It lets the
 	// client dial the node by IP while still verifying the server certificate
@@ -32,6 +32,13 @@ type Node struct {
 	// VCM flows (mirrors the OCI SNI-override path). Empty for the GCP DNS path
 	// and password auth, which keep their existing behaviour.
 	ServerName string
+	// FastHostSelect, when true, opts this node's ONTAP REST client into the
+	// two-phase fast host-selection path (a cheap, single-attempt probe picks a
+	// reachable management LIF, then the real client is built for that host with
+	// the full retry budget). It is a per-call opt-in and only takes effect when
+	// the ONTAP_REST_FAST_HOST_SELECT deployment flag is also enabled. Set today
+	// only by the OCI reset-password path (buildOCIProviderNode).
+	FastHostSelect bool
 	// Certificate-related configuration (from database with env var fallback)
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
 	CaURI string `json:"ca_uri,omitempty"`

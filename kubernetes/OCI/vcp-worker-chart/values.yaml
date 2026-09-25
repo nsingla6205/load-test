@@ -179,6 +179,8 @@ workerConfig:
   vsaDeployedDnsName: ""
   ociVsaDnsZoneOcid: ""
   ociUseTlsSniOverride: true
+  ontapRestFastHostSelect: false
+  ontapRestHostProbeTimeoutSeconds: "5"
   # OCI cloud proxy (FSN resource manager): enabled by default for in-cluster deployments.
   # Routes OCI mutations through the proxy REST API instead of the OCI Go SDK.
   # Set ociProxyBaseUrl to "" in an environment override to use the OCI Go SDK.

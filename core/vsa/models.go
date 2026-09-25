@@ -22,6 +22,10 @@ type ProviderDetails struct {
 	Certificate        *Certificate      `json:"certificate"`
 	AuthType           int               `json:"authType"`       // 0=password, 2=certificate
 	FastConnection     bool              `json:"fastConnection"` // When true, bypasses retries and uses shorter timeout for test connections
+	// FastHostSelect, when true, opts this provider's ONTAP REST client into the
+	// two-phase fast host-selection path. It only takes effect when the
+	// ONTAP_REST_FAST_HOST_SELECT deployment flag is also enabled.
+	FastHostSelect bool `json:"fastHostSelect,omitempty"`
 	// ServerName, when non-empty, is used as the TLS SNI value AND for
 	// hostname verification of the server certificate. The REST client
 	// dials Hosts by IP (keys) instead of by FQDN (values) when this is

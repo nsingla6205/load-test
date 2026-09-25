@@ -213,6 +213,11 @@ func buildOCIProviderNode(pool *datamodel.Pool, dbNodes []*datamodel.Node) *mode
 	node := &models.Node{
 		EndpointAddressesToHostNameMap: endpointMap,
 		DeploymentName:                 pool.DeploymentName,
+		// Opt the reset-password ONTAP client into two-phase fast host selection.
+		// This only takes effect when ONTAP_REST_FAST_HOST_SELECT is enabled
+		// (OCI deployments), so a single unhealthy management LIF is skipped
+		// quickly instead of consuming the full retry budget before failover.
+		FastHostSelect: true,
 	}
 	if pool.PoolCredentials != nil {
 		node.AuthType = pool.PoolCredentials.AuthType

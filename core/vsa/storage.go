@@ -15,6 +15,13 @@ var (
 )
 
 func getOntapClient(clientParams ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+	// When the caller opts into fast host selection, route through the two-phase
+	// builder. It self-gates on the ONTAP_REST_FAST_HOST_SELECT deployment flag
+	// and transparently falls back to the standard client when disabled, so only
+	// opted-in paths (e.g. OCI reset-password) can ever exercise the fast path.
+	if clientParams.FastHostSelect {
+		return ontapRest.NewClientWithFastHostSelect(clientParams)
+	}
 	return ontapRest.NewOntapRestClient(clientParams)
 }
 

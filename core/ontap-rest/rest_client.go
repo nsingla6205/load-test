@@ -69,6 +69,12 @@ type RESTClientParams struct {
 	InsecureSkipVerify          bool
 	CertificateBasedAuthEnabled bool
 	FastConnection              bool // When true, bypasses retries and uses shorter timeout for test connections
+	// FastHostSelect, when true (and the ONTAP_REST_FAST_HOST_SELECT deployment
+	// flag is enabled), opts into two-phase host selection via
+	// NewClientWithFastHostSelect: a cheap single-attempt probe (no retry budget)
+	// selects a reachable host, then the returned client is built for that host
+	// with the full retry policy. Ignored by NewClient.
+	FastHostSelect bool
 	// ServerName, when non-empty, switches the connect loop into "SNI override"
 	// mode: dial Hosts by IP (keys) instead of by FQDN (values) and set
 	// tls.Config.ServerName to this value so hostname verification matches
@@ -102,127 +108,155 @@ const (
 )
 
 func NewClient(params RESTClientParams) (RESTClient, error) {
+	hosts := candidateHosts(params)
+
+	// Build each host's client WITH retries and verify connectivity through the
+	// full retry budget, failing over to the next host on error.
 	var lastErr error
 	var rClient *OntapRestClient
-
-	// Decide what to iterate over. Default (legacy) behaviour iterates
-	// the FQDN values from params.Hosts and lets Go derive SNI from the
-	// URL host. SNI-override mode (params.ServerName != "") iterates the
-	// IP keys instead and forces tls.Config.ServerName to the supplied
-	// SNI string so we can keep full mTLS without DNS resolution.
-	type hostAttempt struct{ host string }
-	var attempts []hostAttempt
-	if params.ServerName != "" {
-		for ip := range params.Hosts {
-			attempts = append(attempts, hostAttempt{host: ip})
-		}
-	} else {
-		for _, h := range params.Hosts {
-			attempts = append(attempts, hostAttempt{host: h})
-		}
-	}
-
-	for _, a := range attempts {
-		tryParams := params
-		// Set Host for this attempt
-		tryParams.Host = a.host
-
-		rt := newRuntimeClient(tryParams)
-		var httpRoundTripperTransport *http.Transport
-		if params.CertificateBasedAuthEnabled {
-			rootCA, clientCert, err := GetAPICallCertificate(params)
-			if err != nil {
-				return nil, err
-			}
-			tlsCfg := vcptls.NewFIPSClientConfig()
-			tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
-			tlsCfg.RootCAs = rootCA
-			tlsCfg.Certificates = []tls.Certificate{clientCert}
-			if params.ServerName != "" {
-				tlsCfg.ServerName = params.ServerName
-			}
-			httpRoundTripperTransport = &http.Transport{
-				Proxy:                 http.ProxyFromEnvironment,
-				MaxIdleConns:          MaxIdleConns,
-				IdleConnTimeout:       IdleConnTimeout,
-				TLSHandshakeTimeout:   TLSHandshakeTimeout,
-				ExpectContinueTimeout: time.Second,
-				TLSClientConfig:       tlsCfg,
-			}
-		} else {
-			tlsCfg := vcptls.NewFIPSClientConfig()
-			tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
-			if params.ServerName != "" {
-				tlsCfg.ServerName = params.ServerName
-			}
-			httpRoundTripperTransport = &http.Transport{
-				Proxy:                 http.ProxyFromEnvironment,
-				MaxIdleConns:          MaxIdleConns,
-				IdleConnTimeout:       IdleConnTimeout,
-				TLSHandshakeTimeout:   TLSHandshakeTimeout,
-				ExpectContinueTimeout: time.Second,
-				TLSClientConfig:       tlsCfg,
-			}
-		}
-
-		var rc *OntapRestClient
-		rt.Transport = httpRoundTripperTransport
-		rt.Transport = ottransport.NewLoggingRoundTripper(tryParams.Trace, ontapRestLogVerbose, params.CertificateBasedAuthEnabled, rt.Transport)
-		rt.Transport = ottransport.NewPaginationRoundTripper(rt.Transport)
-		authenticatedTransport := ottransport.NewAuthenticationRoundTripper(
-			rt.Transport, resolveRESTAuthUsername(tryParams.Username), tryParams.Password, params.CertificateBasedAuthEnabled)
-		rt.Transport = authenticatedTransport
-		retryTransport := ottransport.NewRetryTransport(tryParams.Trace, rt)
-		idempotentTransport := ottransport.NewIdempotentTransport(retryTransport, func(operation *runtime.ClientOperation) (interface{}, error) {
-			return resolveRESTClientRouterConflict(tryParams.Trace, rc, operation)
-		})
-		api := client.New(idempotentTransport, nil)
-		apiPriv := clientPriv.New(idempotentTransport, nil)
-		p := &poller{api: api.Cluster, logger: tryParams.Trace, clientParams: tryParams}
-		rc = &OntapRestClient{
-			httpRoundTripperTransport: httpRoundTripperTransport,
-			authenticatedTransport:    authenticatedTransport,
-			params:                    tryParams,
-			cluster:                   &clusterClient{api: api.Cluster, apiPriv: &apiPriv.Operations},
-			cloud:                     &cloudClient{api: api.Cloud},
-			svm:                       &svmClient{api: api.Svm, apiPriv: &apiPriv.Operations, poller: p},
-			networking:                &networkingClient{api: api.Networking, apiPriv: &apiPriv.Operations},
-			storage:                   &storageClient{api: api.Storage},
-			san:                       &sanClient{api: api.San, poller: p},
-			nvme:                      &nvmeClient{api: api.NvMe},
-			nas:                       &nasClient{api: api.Nas, apiPriv: &apiPriv.Operations, poller: p, Trace: tryParams.Trace},
-			snapmirror:                &snapmirrorClient{api: api.Snapmirror, apiPriv: apiPriv.Snapmirror},
-			poller:                    p,
-			security: &securityClient{
-				api:     &api.Security,
-				apiPriv: &apiPriv.Operations,
-			},
-			nameServices: &nameServicesClient{api: &api.NameServices},
-			support:      &supportClient{api: &api.Support},
+	for _, host := range hosts {
+		rc, err := buildClientForHost(params, host, true)
+		if err != nil {
+			return nil, err
 		}
 		if params.FastConnection {
-			if err := FastTestConnection(rc); err == nil {
-				return rc, nil
-			} else {
-				lastErr = err
+			if terr := FastTestConnection(rc); terr != nil {
+				lastErr = terr
 				rClient = rc
 				continue
 			}
-		} else {
-			if err := TestConnection(rc); err == nil {
-				return rc, nil
-			} else {
-				lastErr = err
-				rClient = rc
-				continue
-			}
+			return rc, nil
 		}
+		if terr := TestConnection(rc); terr != nil {
+			lastErr = terr
+			rClient = rc
+			continue
+		}
+		return rc, nil
 	}
 	if lastErr != nil {
 		params.Trace.Errorf("Failed to connect to any ONTAP REST API host: %v", lastErr)
 	}
 	params.Trace.Warnf("returning client with last tried host")
 	return rClient, lastErr
+}
+
+// candidateHosts returns the list of hosts NewClient should try. SNI override mode
+// (ServerName set) dials the IP keys of params.Hosts; legacy mode dials the FQDN
+// values. Go randomizes map iteration order, and that randomization is relied
+// upon here so calls spread across healthy management LIFs instead of always
+// hammering one; callers must not assume a stable ordering.
+func candidateHosts(params RESTClientParams) []string {
+	var hosts []string
+	if params.ServerName != "" {
+		for ip := range params.Hosts {
+			hosts = append(hosts, ip)
+		}
+	} else {
+		for _, h := range params.Hosts {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
+}
+
+// buildClientForHost constructs an *OntapRestClient bound to a single host. When
+// withRetry is false the RetryTransport layer is omitted, yielding a true
+// single-attempt client suitable for host-selection probes (Phase 1). When true,
+// the full retry policy is applied for real operations (Phase 2 and the legacy
+// path).
+func buildClientForHost(params RESTClientParams, host string, withRetry bool) (*OntapRestClient, error) {
+	tryParams := params
+	tryParams.Host = host
+
+	rt := newRuntimeClient(tryParams)
+	var httpRoundTripperTransport *http.Transport
+	if params.CertificateBasedAuthEnabled {
+		rootCA, clientCert, err := GetAPICallCertificate(params)
+		if err != nil {
+			return nil, err
+		}
+		tlsCfg := vcptls.NewFIPSClientConfig()
+		tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
+		tlsCfg.RootCAs = rootCA
+		tlsCfg.Certificates = []tls.Certificate{clientCert}
+		if params.ServerName != "" {
+			tlsCfg.ServerName = params.ServerName
+		}
+		httpRoundTripperTransport = &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			MaxIdleConns:          MaxIdleConns,
+			IdleConnTimeout:       IdleConnTimeout,
+			TLSHandshakeTimeout:   TLSHandshakeTimeout,
+			ExpectContinueTimeout: time.Second,
+			TLSClientConfig:       tlsCfg,
+		}
+	} else {
+		tlsCfg := vcptls.NewFIPSClientConfig()
+		tlsCfg.InsecureSkipVerify = params.InsecureSkipVerify
+		if params.ServerName != "" {
+			tlsCfg.ServerName = params.ServerName
+		}
+		httpRoundTripperTransport = &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			MaxIdleConns:          MaxIdleConns,
+			IdleConnTimeout:       IdleConnTimeout,
+			TLSHandshakeTimeout:   TLSHandshakeTimeout,
+			ExpectContinueTimeout: time.Second,
+			TLSClientConfig:       tlsCfg,
+		}
+	}
+
+	var rc *OntapRestClient
+	rt.Transport = httpRoundTripperTransport
+	rt.Transport = ottransport.NewLoggingRoundTripper(tryParams.Trace, ontapRestLogVerbose, params.CertificateBasedAuthEnabled, rt.Transport)
+	rt.Transport = ottransport.NewPaginationRoundTripper(rt.Transport)
+	authenticatedTransport := ottransport.NewAuthenticationRoundTripper(
+		rt.Transport, resolveRESTAuthUsername(tryParams.Username), tryParams.Password, params.CertificateBasedAuthEnabled)
+	rt.Transport = authenticatedTransport
+
+	clientTransport := withRetryTransport(tryParams.Trace, rt, withRetry)
+	idempotentTransport := ottransport.NewIdempotentTransport(clientTransport, func(operation *runtime.ClientOperation) (interface{}, error) {
+		return resolveRESTClientRouterConflict(tryParams.Trace, rc, operation)
+	})
+	api := client.New(idempotentTransport, nil)
+	apiPriv := clientPriv.New(idempotentTransport, nil)
+	p := &poller{api: api.Cluster, logger: tryParams.Trace, clientParams: tryParams}
+	rc = &OntapRestClient{
+		httpRoundTripperTransport: httpRoundTripperTransport,
+		authenticatedTransport:    authenticatedTransport,
+		params:                    tryParams,
+		cluster:                   &clusterClient{api: api.Cluster, apiPriv: &apiPriv.Operations},
+		cloud:                     &cloudClient{api: api.Cloud},
+		svm:                       &svmClient{api: api.Svm, apiPriv: &apiPriv.Operations, poller: p},
+		networking:                &networkingClient{api: api.Networking, apiPriv: &apiPriv.Operations},
+		storage:                   &storageClient{api: api.Storage},
+		san:                       &sanClient{api: api.San, poller: p},
+		nvme:                      &nvmeClient{api: api.NvMe},
+		nas:                       &nasClient{api: api.Nas, apiPriv: &apiPriv.Operations, poller: p, Trace: tryParams.Trace},
+		snapmirror:                &snapmirrorClient{api: api.Snapmirror, apiPriv: apiPriv.Snapmirror},
+		poller:                    p,
+		security: &securityClient{
+			api:     &api.Security,
+			apiPriv: &apiPriv.Operations,
+		},
+		nameServices: &nameServicesClient{api: &api.NameServices},
+		support:      &supportClient{api: &api.Support},
+	}
+	return rc, nil
+}
+
+// withRetryTransport returns rt wrapped in the retry layer when withRetry is
+// true, or rt unchanged otherwise. Phase 1 probes pass withRetry=false so an
+// unreachable host fails within the probe deadline instead of consuming the full
+// retry budget; Phase 2 and the legacy path pass true for real operations. It is
+// split out from buildClientForHost so the retry-layer decision is unit-testable
+// without inspecting a fully built client.
+func withRetryTransport(trace log.Logger, rt runtime.ClientTransport, withRetry bool) runtime.ClientTransport {
+	if withRetry {
+		return ottransport.NewRetryTransport(trace, rt)
+	}
+	return rt
 }
 
 // testConnection tries a simple API call to verify connectivity

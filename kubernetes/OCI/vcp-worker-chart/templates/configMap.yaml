@@ -156,6 +156,8 @@ data:
   VSA_DEPLOYED_DNS_NAME: {{ $.Values.workerConfig.vsaDeployedDnsName | quote }}
   OCI_VSA_DNS_ZONE_OCID: {{ $.Values.workerConfig.ociVsaDnsZoneOcid | quote }}
   OCI_USE_TLS_SNI_OVERRIDE: {{ $.Values.workerConfig.ociUseTlsSniOverride | quote }}
+  ONTAP_REST_FAST_HOST_SELECT: {{ $.Values.workerConfig.ontapRestFastHostSelect | quote }}
+  ONTAP_REST_HOST_PROBE_TIMEOUT_SECONDS: {{ $.Values.workerConfig.ontapRestHostProbeTimeoutSeconds | default "3" | quote }}
   OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "http://resource-manager-service.fsn.svc.cluster.local" | quote }}
   OCI_PROXY_ALLOW_HTTP: {{ $.Values.workerConfig.ociProxyAllowHttp | default true | quote }}
   OCI_PROXY_CA_BUNDLE: {{ $.Values.workerConfig.ociProxyCaBundle | default "" | quote }}

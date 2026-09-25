@@ -171,6 +171,7 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 			InsecureSkipVerify: false,
 			AuthType:           node.AuthType, // Set authentication type
 			ServerName:         serverName,
+			FastHostSelect:     node.FastHostSelect,
 		}), nil
 	}
 
@@ -218,6 +219,7 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 		Password:           password,
 		InsecureSkipVerify: true,
 		AuthType:           node.AuthType, // Set authentication type
+		FastHostSelect:     node.FastHostSelect,
 	}), nil
 }
 
