@@ -111,3 +111,4 @@ smcOperationEnabled: true
 ontapClientErrorCodes:
   - "917621"
   - "1254223"
+  - "6684689"
