@@ -29,6 +29,7 @@ import (
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
@@ -58,6 +59,7 @@ func main() {
 			logger.ErrorContext(ctx, "error shutting down OpenTelemetry", "error", err)
 		}
 	}()
+	metrics.RegisterTrialInfoCreateOutcomeCounter()
 
 	cfg := common.LoadConfig()
 

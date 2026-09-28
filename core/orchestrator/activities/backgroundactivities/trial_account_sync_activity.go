@@ -10,6 +10,7 @@ import (
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -29,6 +30,7 @@ type TrialAccountSyncActivity struct {
 func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error {
 	logger := util.GetLogger(ctx)
 	localRegion := env.Region
+	metrics.EmitTrialAccountSyncRun("started")
 
 	filter := database.TrialSyncEligibleFilter()
 	pageSize := int(env.GetUint64("TRIAL_ACCOUNT_SYNC_ACCOUNT_PAGE_SIZE", 500))
@@ -38,6 +40,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 		batch, err := a.SE.GetAccountsWithFilter(ctx, filter, &dbutils.Pagination{Offset: offset, Limit: pageSize})
 		if err != nil {
 			logger.Error("Failed to list accounts eligible for trial sync", "error", err)
+			metrics.EmitTrialAccountSyncRun("failed")
 			return err
 		}
 		if len(batch) == 0 {
@@ -51,6 +54,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 	}
 	if len(accounts) == 0 {
 		logger.Info("No accounts eligible for trial account sync")
+		metrics.EmitTrialAccountSyncRun("succeeded")
 		return nil
 	}
 
@@ -89,6 +93,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 				// Leave VCP metadata unchanged until Google confirms desired behavior (clear trialMode vs no-op).
 				if errors.Is(outcome.Err, trialclient.ErrTrialNotFound) {
 					skippedNotFound++
+					metrics.EmitTrialAccountSyncAccountOutcome("skipped_not_found")
 					logger.Warn("Internal trial not found in CCFE for account with trial metadata in VCP",
 						"accountName", outcome.Account.Name,
 						"accountUUID", outcome.Account.UUID,
@@ -98,6 +103,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 					continue
 				}
 				lookupFailed++
+				metrics.EmitTrialAccountSyncAccountOutcome("lookup_failed")
 				logger.Error("GetInternalTrial failed",
 					"accountName", outcome.Account.Name,
 					"accountUUID", outcome.Account.UUID,
@@ -110,6 +116,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 			// Merge start/end/exitReason into account_metadata.trialMode.
 			if err := a.SE.UpdateAccountTrialMetadata(ctx, outcome.Account, outcome.Trial.ToAccountTrialMode()); err != nil {
 				persistFailed++
+				metrics.EmitTrialAccountSyncAccountOutcome("persist_failed")
 				logger.Error("Failed to persist trial metadata from Google",
 					"accountName", outcome.Account.Name,
 					"accountUUID", outcome.Account.UUID,
@@ -119,6 +126,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 				continue
 			}
 			persisted++
+			metrics.EmitTrialAccountSyncAccountOutcome("persisted")
 		}
 	}
 
@@ -133,6 +141,7 @@ func (a *TrialAccountSyncActivity) SyncTrialAccounts(ctx context.Context) error 
 		"lookupFailed", lookupFailed,
 		"skippedNotFound", skippedNotFound,
 	)
+	metrics.EmitTrialAccountSyncRun("succeeded")
 	return nil
 }
 

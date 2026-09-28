@@ -102,6 +102,33 @@ var KmsRotationFailureCounter = prometheus.NewCounterVec(
 	[]string{"kms_config_uuid", "service_account_email", "failure_type"},
 )
 
+// TrialAccountSyncRunCounter tracks trial account sync activity runs by result.
+var TrialAccountSyncRunCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "vcp_trial_account_sync_runs_total",
+		Help: "Total number of trial account sync activity runs by result",
+	},
+	[]string{"result"},
+)
+
+// TrialAccountSyncAccountOutcomeCounter tracks per-account outcomes during trial sync.
+var TrialAccountSyncAccountOutcomeCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "vcp_trial_account_sync_account_outcomes_total",
+		Help: "Total number of per-account outcomes during trial account sync",
+	},
+	[]string{"outcome"},
+)
+
+// TrialInfoCreateOutcomeCounter tracks trial info handling outcomes in create API path.
+var TrialInfoCreateOutcomeCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "vcp_trial_info_create_outcomes_total",
+		Help: "Total number of trial info handling outcomes from create APIs",
+	},
+	[]string{"outcome"},
+)
+
 // Gauge for CMEK backup rewrite errors — uses the same metric name as CBS/SDE
 // (cbs_cmek_rewrite_error_gauge) so that a single alert rule covers both services.
 var CmekBackupRewriteErrorGauge = prometheus.NewGaugeVec(
@@ -401,6 +428,39 @@ func RegisterKmsRotationFailureCounter() {
 	}
 }
 
+func RegisterTrialAccountSyncRunCounter() {
+	err := prometheus.Register(TrialAccountSyncRunCounter)
+	if err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			TrialAccountSyncRunCounter = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			log.Printf("Failed to register TrialAccountSyncRunCounter: %v", err)
+		}
+	}
+}
+
+func RegisterTrialAccountSyncAccountOutcomeCounter() {
+	err := prometheus.Register(TrialAccountSyncAccountOutcomeCounter)
+	if err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			TrialAccountSyncAccountOutcomeCounter = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			log.Printf("Failed to register TrialAccountSyncAccountOutcomeCounter: %v", err)
+		}
+	}
+}
+
+func RegisterTrialInfoCreateOutcomeCounter() {
+	err := prometheus.Register(TrialInfoCreateOutcomeCounter)
+	if err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			TrialInfoCreateOutcomeCounter = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			log.Printf("Failed to register TrialInfoCreateOutcomeCounter: %v", err)
+		}
+	}
+}
+
 // EmitKmsKeyLimitReached emits a metric when KMS key rotation is blocked due to key limit
 func EmitKmsKeyLimitReached(kmsConfigUUID, limitType string) {
 	KmsKeyLimitReachedCounter.WithLabelValues(
@@ -435,6 +495,18 @@ func EmitKmsRotationFailure(kmsConfigUUID, serviceAccountEmail, failureType stri
 		serviceAccountEmail,
 		failureType,
 	).Inc()
+}
+
+func EmitTrialAccountSyncRun(result string) {
+	TrialAccountSyncRunCounter.WithLabelValues(result).Inc()
+}
+
+func EmitTrialAccountSyncAccountOutcome(outcome string) {
+	TrialAccountSyncAccountOutcomeCounter.WithLabelValues(outcome).Inc()
+}
+
+func EmitTrialInfoCreateOutcome(outcome string) {
+	TrialInfoCreateOutcomeCounter.WithLabelValues(outcome).Inc()
 }
 
 // Aggregate and emit metrics for Autotier enabled volumes

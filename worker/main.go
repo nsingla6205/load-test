@@ -261,6 +261,9 @@ func main() {
 		metrics.RegisterKmsKeyLimitReachedCounter()
 		metrics.RegisterKmsRotationFailureCounter()
 		metrics.RegisterCmekBackupRewriteErrorGauge()
+		metrics.RegisterTrialAccountSyncRunCounter()
+		metrics.RegisterTrialAccountSyncAccountOutcomeCounter()
+		metrics.RegisterTrialInfoCreateOutcomeCounter()
 	} else {
 		// OCI worker: register the OCI-specific certificate-rotation counters emitted by
 		// the OCI rotation workflows so they are exported at /metrics. The GCP block above

@@ -922,6 +922,81 @@ func TestEmitKmsRotationFailure(t *testing.T) {
 	}
 }
 
+func TestRegisterTrialAccountSyncRunCounter(t *testing.T) {
+	prometheus.Unregister(TrialAccountSyncRunCounter)
+	TrialAccountSyncRunCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "vcp_trial_account_sync_runs_total",
+			Help: "Total number of trial account sync activity runs by result",
+		},
+		[]string{"result"},
+	)
+	RegisterTrialAccountSyncRunCounter()
+	RegisterTrialAccountSyncRunCounter()
+}
+
+func TestEmitTrialAccountSyncRun(t *testing.T) {
+	RegisterTrialAccountSyncRunCounter()
+	EmitTrialAccountSyncRun("succeeded")
+	metric, err := TrialAccountSyncRunCounter.GetMetricWithLabelValues("succeeded")
+	if err != nil {
+		t.Errorf("Failed to get trial sync run metric: %v", err)
+	}
+	if metric == nil {
+		t.Error("Trial sync run metric not found")
+	}
+}
+
+func TestRegisterTrialAccountSyncAccountOutcomeCounter(t *testing.T) {
+	prometheus.Unregister(TrialAccountSyncAccountOutcomeCounter)
+	TrialAccountSyncAccountOutcomeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "vcp_trial_account_sync_account_outcomes_total",
+			Help: "Total number of per-account outcomes during trial account sync",
+		},
+		[]string{"outcome"},
+	)
+	RegisterTrialAccountSyncAccountOutcomeCounter()
+	RegisterTrialAccountSyncAccountOutcomeCounter()
+}
+
+func TestEmitTrialAccountSyncAccountOutcome(t *testing.T) {
+	RegisterTrialAccountSyncAccountOutcomeCounter()
+	EmitTrialAccountSyncAccountOutcome("persisted")
+	metric, err := TrialAccountSyncAccountOutcomeCounter.GetMetricWithLabelValues("persisted")
+	if err != nil {
+		t.Errorf("Failed to get trial sync account outcome metric: %v", err)
+	}
+	if metric == nil {
+		t.Error("Trial sync account outcome metric not found")
+	}
+}
+
+func TestRegisterTrialInfoCreateOutcomeCounter(t *testing.T) {
+	prometheus.Unregister(TrialInfoCreateOutcomeCounter)
+	TrialInfoCreateOutcomeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "vcp_trial_info_create_outcomes_total",
+			Help: "Total number of trial info handling outcomes from create APIs",
+		},
+		[]string{"outcome"},
+	)
+	RegisterTrialInfoCreateOutcomeCounter()
+	RegisterTrialInfoCreateOutcomeCounter()
+}
+
+func TestEmitTrialInfoCreateOutcome(t *testing.T) {
+	RegisterTrialInfoCreateOutcomeCounter()
+	EmitTrialInfoCreateOutcome("persisted")
+	metric, err := TrialInfoCreateOutcomeCounter.GetMetricWithLabelValues("persisted")
+	if err != nil {
+		t.Errorf("Failed to get trial create outcome metric: %v", err)
+	}
+	if metric == nil {
+		t.Error("Trial create outcome metric not found")
+	}
+}
+
 func TestEmitKmsRotationFailure_MultipleCalls(t *testing.T) {
 	prometheus.Unregister(KmsRotationFailureCounter)
 	RegisterKmsRotationFailureCounter()

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -19,6 +21,7 @@ import (
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 )
 
 func withLocalRegion(t *testing.T, region string) {
@@ -183,11 +186,20 @@ func TestTrialAccountSyncActivity_SyncTrialAccounts(t *testing.T) {
 	t.Run("no eligible accounts", func(t *testing.T) {
 		withLocalRegion(t, testRegion)
 
+		metrics.RegisterTrialAccountSyncRunCounter()
+		defer prometheus.Unregister(metrics.TrialAccountSyncRunCounter)
+
+		startedBefore := testutil.ToFloat64(metrics.TrialAccountSyncRunCounter.WithLabelValues("started"))
+		succeededBefore := testutil.ToFloat64(metrics.TrialAccountSyncRunCounter.WithLabelValues("succeeded"))
+
 		mockSE := database.NewMockStorage(t)
 		expectTrialSyncListAccounts(t, mockSE, ctx, nil, nil)
 
 		err := (&TrialAccountSyncActivity{SE: mockSE}).SyncTrialAccounts(ctx)
 		require.NoError(t, err)
+
+		assert.Equal(t, startedBefore+1, testutil.ToFloat64(metrics.TrialAccountSyncRunCounter.WithLabelValues("started")))
+		assert.Equal(t, succeededBefore+1, testutil.ToFloat64(metrics.TrialAccountSyncRunCounter.WithLabelValues("succeeded")))
 	})
 
 	t.Run("processes accounts in configured batches", func(t *testing.T) {

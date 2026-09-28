@@ -11,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 )
 
 var (
@@ -130,19 +131,27 @@ func validateTrialModeParams(trial *commonparams.TrialModeParams) error {
 // when TRIAL_ACCOUNT_SYNC_ENABLED is true (same flag as the background trial sync admin job).
 func persistAccountTrialMetadataIfSet(ctx context.Context, se database.Storage, account *datamodel.Account, trial *commonparams.TrialModeParams) error {
 	if trial == nil {
+		metrics.EmitTrialInfoCreateOutcome("trial_omitted")
 		return nil
 	}
 	if err := validateTrialModeParams(trial); err != nil {
+		metrics.EmitTrialInfoCreateOutcome("validation_failed")
 		return err
 	}
 	if !env.GetBool("TRIAL_ACCOUNT_SYNC_ENABLED", false) {
+		metrics.EmitTrialInfoCreateOutcome("feature_disabled")
 		return nil
 	}
 
-	return se.UpdateAccountTrialMetadata(ctx, account, &datamodel.AccountTrialMode{
+	if err := se.UpdateAccountTrialMetadata(ctx, account, &datamodel.AccountTrialMode{
 		StartTime: trial.Start,
 		EndTime:   trial.End,
-	})
+	}); err != nil {
+		metrics.EmitTrialInfoCreateOutcome("persist_failed")
+		return err
+	}
+	metrics.EmitTrialInfoCreateOutcome("persisted")
+	return nil
 }
 
 // getAccountName safely gets the account name, returning empty string if account is nil
