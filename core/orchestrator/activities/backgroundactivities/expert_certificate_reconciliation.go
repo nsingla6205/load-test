@@ -176,7 +176,7 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 			ctx,
 			pool,
 			targetCAURI,
-			env.Admin,
+			env.VSANodeUsername,
 			certificateUsername,
 		); err != nil {
 			return fmt.Errorf("expert credential %q preflight: %w", certificateUsername, err)

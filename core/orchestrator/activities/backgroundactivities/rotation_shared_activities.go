@@ -84,6 +84,28 @@ func certificateRotationUsername(pool *datamodel.Pool, activeCertificate *models
 	return "", fmt.Errorf("pool %s has no persisted certificate username or recoverable certificate common name", pool.UUID)
 }
 
+// certificateOrPasswordUsername returns the ONTAP login for a provider that uses
+// the pool's current auth type. Password auth uses VSA_NODE_USERNAME. Certificate
+// auth uses the persisted certificate username, or {deployment}_admin when that is empty.
+func certificateOrPasswordUsername(pool *datamodel.Pool) string {
+	if pool != nil && pool.PoolCredentials != nil &&
+		(pool.PoolCredentials.AuthType == env.USERNAME_PWD || pool.PoolCredentials.AuthType == env.USERNAME_PWD_SEC_MGR) {
+		return env.VSANodeUsername
+	}
+	username := ""
+	deploymentName := ""
+	if pool != nil {
+		deploymentName = pool.DeploymentName
+		if pool.PoolCredentials != nil {
+			username = strings.TrimSpace(pool.PoolCredentials.Username)
+		}
+	}
+	if username == "" {
+		return fmt.Sprintf("%s_admin", deploymentName)
+	}
+	return username
+}
+
 // reusableStagedCertificate reports whether certificate_id_new is an in-flight
 // candidate for the target CA. After a successful promotion the previous cert is
 // parked in certificate_id_new/staged_ca_uri; that pair must not be reused when the
@@ -629,7 +651,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotatePoolCertificateWithContext(ctx
 	}
 
 	safeRecordHeartbeat(ctx, "Running issuing CA, trust, and security login preflight")
-	if err := a.preflightCertificateIssuance(ctx, pool, targetCaURI, env.Admin, username); err != nil {
+	if err := a.preflightCertificateIssuance(ctx, pool, targetCaURI, env.VSANodeUsername, username); err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateGenerationFailed, fmt.Errorf("certificate issuance preflight: %w", err))
 	}
 
@@ -1116,14 +1138,7 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSA(ctx context.
 		password = secret
 	}
 
-	// Get username from pool credentials, fallback to deployment name with admin suffix
-	// This matches the logic used during certificate generation
-	username := pool.PoolCredentials.Username
-	if username == "" {
-		// Fallback: use deployment name with admin suffix (matches certificate generation fallback)
-		username = fmt.Sprintf("%s_admin", pool.DeploymentName)
-		logger.Warnf("Username is empty in pool credentials, using fallback: %s", username)
-	}
+	username := certificateOrPasswordUsername(pool)
 
 	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
 		Nodes:          dbNodes,
@@ -1409,8 +1424,8 @@ func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.C
 	return nil
 }
 
-// passwordAuthProvider builds an ONTAP provider using the bootstrap admin
-// identity and the pool password stored in Secret Manager.
+// passwordAuthProvider builds an ONTAP provider using VSA_NODE_USERNAME
+// and the pool password stored in Secret Manager.
 func (a *RotateVcpToVsaCertificateActivity) passwordAuthProvider(ctx context.Context, pool *datamodel.Pool) (vsa.Provider, error) {
 	logger := util.GetLogger(ctx)
 
@@ -1456,7 +1471,7 @@ func (a *RotateVcpToVsaCertificateActivity) passwordAuthProvider(ctx context.Con
 			CertificateID: pool.PoolCredentials.CertificateID,
 			AuthType:      env.USERNAME_PWD_SEC_MGR, // Always use password authentication for certificate installation.
 			CaURI:         pool.PoolCredentials.GetCaURIWithFallback(),
-			Username:      env.Admin,
+			Username:      env.VSANodeUsername,
 		},
 	})
 	// Create VSA provider with password authentication
@@ -2300,13 +2315,7 @@ func (a *RotateVcpToVsaCertificateActivity) removeCertificateFromVSA(ctx context
 		return err
 	}
 
-	// Get username from pool credentials, fallback to deployment name with admin suffix
-	username := pool.PoolCredentials.Username
-	if username == "" {
-		// Fallback: use deployment name with admin suffix (matches certificate generation fallback)
-		username = fmt.Sprintf("%s_admin", pool.DeploymentName)
-		logger.Warnf("Username is empty in pool credentials for certificate removal, using fallback: %s", username)
-	}
+	username := certificateOrPasswordUsername(pool)
 
 	// Create node for provider
 	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
@@ -2754,14 +2763,10 @@ func (a *RotateVcpToVsaCertificateActivity) testPasswordConnectivity(ctx context
 	}
 	logger.Infof("Retrieved %d nodes for pool", len(dbNodes))
 
-	// Get username from pool credentials, fallback to deployment name with admin suffix
-	// This matches the logic used during certificate generation
-	username := pool.PoolCredentials.Username
-	if username == "" {
-		// Fallback: use deployment name with admin suffix (matches certificate generation fallback)
-		username = fmt.Sprintf("%s_admin", pool.DeploymentName)
-		logger.Warnf("Username is empty in pool credentials for password connectivity test, using fallback: %s", username)
-	}
+	// The pool password belongs to the bootstrap ONTAP account (VSA_NODE_USERNAME),
+	// not the certificate user stored on the pool.
+	username := env.VSANodeUsername
+	logger.Infof("Testing password connectivity as %s", username)
 
 	// Create temporary node with PASSWORD-ONLY authentication
 	logger.Infof("Creating temporary node for password-only authentication test")
@@ -2866,7 +2871,7 @@ func (a *RotateVcpToVsaCertificateActivity) updatePasswordOnNode(ctx context.Con
 	logger.Debugf("Updating password on node %s using ONTAP REST API", nodeIP)
 
 	data := map[string]string{
-		"username":     "admin",
+		"username":     env.VSANodeUsername,
 		"new-password": newPassword,
 	}
 
@@ -2878,7 +2883,7 @@ func (a *RotateVcpToVsaCertificateActivity) updatePasswordOnNode(ctx context.Con
 		"Accept":       "application/json",
 	}
 
-	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:"+currentPassword))
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(env.VSANodeUsername+":"+currentPassword))
 
 	statusCode, responseBody, err := a.executeAPIRequestWithResponse(ctx, "POST", url, headers, data, auth)
 	if err != nil {

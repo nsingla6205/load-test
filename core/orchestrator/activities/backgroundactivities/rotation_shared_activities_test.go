@@ -7337,6 +7337,8 @@ func TestRotateVcpToVsaCertificateActivity_testPasswordConnectivity_EdgeCases(t 
 				Password:    "",
 				SecretID:    "test-secret-id",
 				SecretIDNew: "test-secret-id-new",
+				Username:    "1e762cdf_admin",
+				AuthType:    env.USER_CERTIFICATE,
 			},
 		}
 
@@ -7374,6 +7376,7 @@ func TestRotateVcpToVsaCertificateActivity_testPasswordConnectivity_EdgeCases(t 
 		version := "9.10.1"
 		mockProvider.On("GetONTAPVersion").Return(&version, nil).Once()
 		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			assert.Equal(tt, env.VSANodeUsername, node.Username)
 			return mockProvider, nil
 		}
 

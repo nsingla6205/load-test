@@ -700,6 +700,11 @@ var (
 	// ocicloudproxyclient.DefaultPathPrefixes().
 	OCIProxyDNSAPIVersionPrefix = GetString("OCI_PROXY_DNS_API_VERSION_PREFIX", "")
 
+	// VSANodeUsername is the ONTAP account used for password authentication.
+	// Certificate users such as "<hash>_admin" are not password-authenticatable;
+	// the bootstrap password in Secret Manager belongs to this account.
+	VSANodeUsername = GetString("VSA_NODE_USERNAME", Admin)
+
 	// OCIOntapAdminUsername is the ONTAP cluster admin username applied at
 	// pool-creation time on OCI. Captured once at process start so the
 	// orchestrator factory and the OCI pool workflow agree on a single value
