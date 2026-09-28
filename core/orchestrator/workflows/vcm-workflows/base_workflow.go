@@ -75,3 +75,13 @@ func (bw *baseWorkflow) UpdateJobStatus(ctx *orchestrator.Context, state vcmdb.J
 	ja := &activities.JobActivity{}
 	return orchestrator.ExecuteActivity(ctx, ja.UpdateJobProgress, params).Get(ctx, nil)
 }
+
+// finishJob records terminal job state (DONE or ERROR) and then returns workflowErr.
+// If persisting job progress fails, that activity error is returned instead.
+func finishJob(ctx *orchestrator.Context, operationID string, workflowErr error, responsePayload *string) error {
+	params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, responsePayload)
+	if err := orchestrator.ExecuteActivity(ctx, vcmJobActivity.UpdateJobProgress, params).Get(ctx, nil); err != nil {
+		return err
+	}
+	return workflowErr
+}

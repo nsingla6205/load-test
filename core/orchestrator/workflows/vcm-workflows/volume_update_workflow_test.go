@@ -33,27 +33,36 @@ type updateWorkflowVolumeActivity struct {
 	getVolumeResponses         []*vsa.VolumeResponse
 	getVolumeCall              int
 	getVolumeErr               error
+	getVolumeDelay             time.Duration
 	updateVolumeCalls          int
 	updateVolumeErr            error
+	updateVolumeDelay          time.Duration
 	updateLunCalls             int
 	updateLunErr               error
+	updateLunDelay             time.Duration
 	getSnapshotPolicy          *datamodel.SnapshotPolicy
 	getSnapshotErr             error
+	getSnapshotDelay           time.Duration
 	updateSnapshotErr          error
 	lastUpdatingSnapshotPolicy *datamodel.SnapshotPolicy
 	updateJunctionErr          error
+	updateJunctionDelay        time.Duration
 	getExportPolicy            *datamodel.ExportPolicy
 	getExportErr               error
+	getExportDelay             time.Duration
 	updateExportCalls          int
 	lastExportName             string
 	updateExportErr            error
 }
 
 func (s *updateWorkflowVolumeActivity) GetVolumeFromONTAP(_ context.Context, volume *datamodel.Volume, _ *models.Node) (*vsa.VolumeResponse, error) {
+	if s.getVolumeDelay > 0 {
+		time.Sleep(s.getVolumeDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.getVolumeErr != nil {
-		return nil, s.getVolumeErr
+		return nil, nonRetryableTestErr(s.getVolumeErr.Error())
 	}
 	if len(s.getVolumeResponses) > 0 {
 		idx := s.getVolumeCall
@@ -83,22 +92,37 @@ func (s *updateWorkflowVolumeActivity) GetVolumeFromONTAP(_ context.Context, vol
 }
 
 func (s *updateWorkflowVolumeActivity) UpdateVolumeInONTAP(context.Context, *datamodel.Volume, *common.UpdateVolumeParams, *models.Node) error {
+	if s.updateVolumeDelay > 0 {
+		time.Sleep(s.updateVolumeDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateVolumeCalls++
-	return s.updateVolumeErr
+	if s.updateVolumeErr != nil {
+		return nonRetryableTestErr(s.updateVolumeErr.Error())
+	}
+	return nil
 }
 
 func (s *updateWorkflowVolumeActivity) UpdateLun(context.Context, *datamodel.Volume, *vsa.VolumeResponse, *models.Node) error {
+	if s.updateLunDelay > 0 {
+		time.Sleep(s.updateLunDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateLunCalls++
-	return s.updateLunErr
+	if s.updateLunErr != nil {
+		return nonRetryableTestErr(s.updateLunErr.Error())
+	}
+	return nil
 }
 
 func (s *updateWorkflowVolumeActivity) GetSnapshotPolicyInONTAP(context.Context, *models.Node, string) (*datamodel.SnapshotPolicy, error) {
+	if s.getSnapshotDelay > 0 {
+		time.Sleep(s.getSnapshotDelay)
+	}
 	if s.getSnapshotErr != nil {
-		return nil, s.getSnapshotErr
+		return nil, nonRetryableTestErr(s.getSnapshotErr.Error())
 	}
 	if s.getSnapshotPolicy != nil {
 		return s.getSnapshotPolicy, nil
@@ -117,16 +141,28 @@ func (s *updateWorkflowVolumeActivity) UpdateSnapshotPolicyInOntap(_ context.Con
 		copied := *updating
 		s.lastUpdatingSnapshotPolicy = &copied
 	}
-	return s.updateSnapshotErr
+	if s.updateSnapshotErr != nil {
+		return nonRetryableTestErr(s.updateSnapshotErr.Error())
+	}
+	return nil
 }
 
 func (s *updateWorkflowVolumeActivity) UpdateJunctionPathInONTAP(context.Context, *datamodel.Volume, string, *models.Node) error {
-	return s.updateJunctionErr
+	if s.updateJunctionDelay > 0 {
+		time.Sleep(s.updateJunctionDelay)
+	}
+	if s.updateJunctionErr != nil {
+		return nonRetryableTestErr(s.updateJunctionErr.Error())
+	}
+	return nil
 }
 
 func (s *updateWorkflowVolumeActivity) GetExportPolicyInONTAP(context.Context, *models.Node, string, string) (*datamodel.ExportPolicy, error) {
+	if s.getExportDelay > 0 {
+		time.Sleep(s.getExportDelay)
+	}
 	if s.getExportErr != nil {
-		return nil, s.getExportErr
+		return nil, nonRetryableTestErr(s.getExportErr.Error())
 	}
 	if s.getExportPolicy != nil {
 		return s.getExportPolicy, nil
@@ -142,21 +178,38 @@ func (s *updateWorkflowVolumeActivity) GetExportPolicyInONTAP(context.Context, *
 func (s *updateWorkflowVolumeActivity) UpdateExportPolicyRulesInONTAP(_ context.Context, _ *datamodel.Volume, policy *models.ExportPolicy, _ *models.Node) error {
 	s.updateExportCalls++
 	s.lastExportName = policy.ExportPolicyName
-	return s.updateExportErr
+	if s.updateExportErr != nil {
+		return nonRetryableTestErr(s.updateExportErr.Error())
+	}
+	return nil
 }
 
 type updateWorkflowVCMVolumeActivity struct {
 	lunResponse           vsa.LunResponse
 	lunErr                error
+	lunDelay              time.Duration
+	populateDelay         time.Duration
+	populateErr           error
 	updateHostGroupsCalls int
 	updateHostGroupsErr   error
+	enrichmentErr         error
+	enrichmentDelay       time.Duration
 }
 
 func (s *updateWorkflowVCMVolumeActivity) PopulateVolumeFromONTAPResponse(ctx context.Context, volume *datamodel.Volume, volResponse *vsa.VolumeResponse) (*datamodel.Volume, error) {
+	if s.populateDelay > 0 {
+		time.Sleep(s.populateDelay)
+	}
+	if s.populateErr != nil {
+		return nil, nonRetryableTestErr(s.populateErr.Error())
+	}
 	return activities.VolumeActivity{}.PopulateVolumeFromONTAPResponse(ctx, volume, volResponse)
 }
 
 func (s *updateWorkflowVCMVolumeActivity) GetLunInONTAP(context.Context, string, string, string, *models.Node) (vsa.LunResponse, error) {
+	if s.lunDelay > 0 {
+		time.Sleep(s.lunDelay)
+	}
 	if s.lunErr != nil {
 		return vsa.LunResponse{}, s.lunErr
 	}
@@ -165,21 +218,37 @@ func (s *updateWorkflowVCMVolumeActivity) GetLunInONTAP(context.Context, string,
 
 func (s *updateWorkflowVCMVolumeActivity) UpdateBlockDeviceHostGroups(context.Context, vsa.LunResponse, string, []string, *models.Node) error {
 	s.updateHostGroupsCalls++
-	return s.updateHostGroupsErr
+	if s.updateHostGroupsErr != nil {
+		return nonRetryableTestErr(s.updateHostGroupsErr.Error())
+	}
+	return nil
 }
 
-func (s *updateWorkflowVCMVolumeActivity) BuildVolumeOperationResponseEnrichment(context.Context, *vsa.VolumeResponse, string, *models.Node) (*vsa.VolumeOperationEnrichment, error) {
-	return &vsa.VolumeOperationEnrichment{}, nil
+func (s *updateWorkflowVCMVolumeActivity) BuildVolumeOperationResponseEnrichment(context.Context, *vsa.VolumeResponse, string, *models.Node) (*activities.VolumeOperationEnrichment, error) {
+	if s.enrichmentDelay > 0 {
+		time.Sleep(s.enrichmentDelay)
+	}
+	if s.enrichmentErr != nil {
+		return nil, nonRetryableTestErr(s.enrichmentErr.Error())
+	}
+	return &activities.VolumeOperationEnrichment{}, nil
 }
 
 type updateWorkflowSnapshotCreateActivity struct {
 	calls int
 	err   error
+	delay time.Duration
 }
 
 func (s *updateWorkflowSnapshotCreateActivity) CreateSnapshotPolicyInONTAP(context.Context, *datamodel.Volume, *models.Node) error {
+	if s.delay > 0 {
+		time.Sleep(s.delay)
+	}
 	s.calls++
-	return s.err
+	if s.err != nil {
+		return nonRetryableTestErr(s.err.Error())
+	}
+	return nil
 }
 
 func registerUpdateVolumeActivities(
@@ -219,6 +288,11 @@ func runVcmUpdateVolumeWorkflow(
 ) error {
 	t.Helper()
 
+	var deadlineOffset time.Duration
+	if params != nil && !params.Deadline.IsZero() {
+		deadlineOffset = time.Until(params.Deadline)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), volumeUpdateWorkflowTestTimeout)
 	defer cancel()
 
@@ -237,6 +311,9 @@ func runVcmUpdateVolumeWorkflow(
 
 	if instanceID == "" {
 		instanceID = uuid.NewString()
+	}
+	if params != nil && !params.Deadline.IsZero() {
+		params.Deadline = time.Now().UTC().Add(deadlineOffset)
 	}
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
@@ -753,4 +830,393 @@ func TestVcmUpdateVolumeWorkflow_SANSnapReserveIncreaseValidation(t *testing.T) 
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cannot increase SnapReserve")
+}
+
+func TestVcmUpdateVolumeWorkflow_MarkProcessingFails(t *testing.T) {
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateProcessing,
+		failErr:     errors.New("store unavailable"),
+	}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), testUpdateVolumeParams(214748364800))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store unavailable")
+}
+
+func TestVcmUpdateVolumeWorkflow_GetVolumeFails(t *testing.T) {
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{getVolumeErr: errors.New("get volume failed")}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), testUpdateVolumeParams(214748364800))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get volume failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_PopulateFails(t *testing.T) {
+	job := &stubJobActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{populateErr: errors.New("populate failed")}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), testUpdateVolumeParams(214748364800))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "populate failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_LunLookupHardFailure(t *testing.T) {
+	job := &stubJobActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{lunErr: nonRetryableTestErr("lun lookup failed")}
+	params := testUpdateVolumeParams(214748364800)
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lun lookup failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_CreateSnapshotPolicyFails(t *testing.T) {
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{{
+			ProviderResponse:   vsa.ProviderResponse{Name: "nfs-vol", ExternalUUID: "vol-uuid-1"},
+			Size:               107374182400,
+			SnapshotPolicyName: models.DefaultONTAPSnapshotPolicyName,
+		}},
+	}
+	snapshotCreate := &updateWorkflowSnapshotCreateActivity{err: errors.New("create snapshot policy failed")}
+	params := testUpdateVolumeParams(107374182400)
+	params.SnapshotPolicy = &models.SnapshotPolicy{
+		IsEnabled: true,
+		Schedules: []*models.SnapshotPolicySchedule{{Count: 3, SnapmirrorLabel: "daily", Schedule: &models.Schedule{Hours: []int{1}}}},
+	}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, snapshotCreate, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create snapshot policy failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_GetSnapshotPolicyFails(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{{
+			ProviderResponse:   vsa.ProviderResponse{Name: volume.Name, ExternalUUID: "vol-uuid-1"},
+			Size:               volume.SizeInBytes,
+			SnapshotPolicyName: volume.Name,
+		}},
+		getSnapshotErr: errors.New("get snapshot policy failed"),
+	}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.SnapshotPolicy = &models.SnapshotPolicy{IsEnabled: false}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get snapshot policy failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_UpdateSnapshotPolicyFails(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{{
+			ProviderResponse:   vsa.ProviderResponse{Name: volume.Name, ExternalUUID: "vol-uuid-1"},
+			Size:               volume.SizeInBytes,
+			SnapshotPolicyName: volume.Name,
+		}},
+		updateSnapshotErr: errors.New("update snapshot policy failed"),
+	}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.SnapshotPolicy = &models.SnapshotPolicy{IsEnabled: false}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update snapshot policy failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_UpdateLunFails(t *testing.T) {
+	volume := testBlockVolume()
+	volume.VolumeAttributes.ExternalUUID = "vol-uuid-1"
+	volume.VolumeAttributes.SnapReserve = 10
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{
+			{ProviderResponse: vsa.ProviderResponse{Name: "vol-1", ExternalUUID: "vol-uuid-1"}, Size: volume.SizeInBytes, SnapReserve: 10},
+			{ProviderResponse: vsa.ProviderResponse{Name: "vol-1", ExternalUUID: "vol-uuid-1"}, Size: volume.SizeInBytes * 2, SnapReserve: 10},
+		},
+		updateLunErr: errors.New("update lun failed"),
+	}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{
+		lunResponse: vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"}, Size: volume.SizeInBytes},
+	}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), testUpdateVolumeParams(volume.SizeInBytes*2))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update lun failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_ValidateHostGroupsFails(t *testing.T) {
+	volume := testBlockVolume()
+	volume.VolumeAttributes.ExternalUUID = "vol-uuid-1"
+	job := &stubJobActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{
+		lunResponse: vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"}},
+	}
+	hostGroup := &stubVCMHostGroupActivity{validateHostGroupErr: errors.New("host group missing")}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.BlockDevices = []*common.BlockDevice{{HostGroupNames: []string{"hg-new"}}}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, hostGroup)
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "host group missing")
+}
+
+func TestVcmUpdateVolumeWorkflow_UpdateHostGroupsFails(t *testing.T) {
+	volume := testBlockVolume()
+	volume.VolumeAttributes.ExternalUUID = "vol-uuid-1"
+	job := &stubJobActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{
+		lunResponse:         vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"}},
+		updateHostGroupsErr: errors.New("update host groups failed"),
+	}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.BlockDevices = []*common.BlockDevice{{HostGroupNames: []string{"hg-new"}}}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update host groups failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_UpdateJunctionPathFails(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{updateJunctionErr: errors.New("junction update failed")}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.FileProperties = &models.FileProperties{JunctionPath: "/new-share"}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "junction update failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_GetExportPolicyFails(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{getExportErr: errors.New("get export policy failed")}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.FileProperties = &models.FileProperties{
+		ExportPolicy: &models.ExportPolicy{ExportRules: []*models.ExportRule{{AllowedClients: "10.0.0.0/8", AccessType: models.ReadWrite, NFSv3: true, Index: 1}}},
+	}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get export policy failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_UpdateExportPolicyFails(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	job := &stubJobActivity{}
+	update := &updateWorkflowVolumeActivity{updateExportErr: errors.New("update export policy failed")}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.FileProperties = &models.FileProperties{
+		ExportPolicy: &models.ExportPolicy{ExportRules: []*models.ExportRule{{AllowedClients: "10.0.0.0/8", AccessType: models.ReadWrite, NFSv3: true, Index: 1}}},
+	}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update export policy failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_RefreshVolumeFails(t *testing.T) {
+	job := &stubJobActivity{}
+	failing := &updateGetVolumeNthFail{failOnCall: 2, failErr: errors.New("refresh volume failed")}
+	update := &updateWorkflowVolumeActivity{}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity((&stubSvmActivity{}).GetSvmByName)
+		reg.RegisterActivity(failing.GetVolumeFromONTAP)
+		reg.RegisterActivity((&updateWorkflowVCMVolumeActivity{}).PopulateVolumeFromONTAPResponse)
+		reg.RegisterActivity((&updateWorkflowVCMVolumeActivity{}).BuildVolumeOperationResponseEnrichment)
+		reg.RegisterActivity((&updateWorkflowVCMVolumeActivity{}).GetLunInONTAP)
+		reg.RegisterActivity((&updateWorkflowVCMVolumeActivity{}).UpdateBlockDeviceHostGroups)
+		reg.RegisterActivity((&updateWorkflowSnapshotCreateActivity{}).CreateSnapshotPolicyInONTAP)
+		reg.RegisterActivity(update.GetSnapshotPolicyInONTAP)
+		reg.RegisterActivity(update.UpdateSnapshotPolicyInOntap)
+		reg.RegisterActivity(update.UpdateVolumeInONTAP)
+		reg.RegisterActivity(update.UpdateLun)
+		reg.RegisterActivity(update.UpdateJunctionPathInONTAP)
+		reg.RegisterActivity(update.GetExportPolicyInONTAP)
+		reg.RegisterActivity(update.UpdateExportPolicyRulesInONTAP)
+		reg.RegisterActivity((&stubVCMHostGroupActivity{}).ValidateHostGroupsExistInONTAP)
+	}, testUpdateNFSVolume(), testNode(), testUpdateVolumeParams(214748364800))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refresh volume failed")
+}
+
+type updateGetVolumeNthFail struct {
+	mu         sync.Mutex
+	calls      int
+	failOnCall int
+	failErr    error
+}
+
+func (s *updateGetVolumeNthFail) GetVolumeFromONTAP(_ context.Context, volume *datamodel.Volume, _ *models.Node) (*vsa.VolumeResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	if s.calls == s.failOnCall {
+		return nil, nonRetryableTestErr(s.failErr.Error())
+	}
+	return &vsa.VolumeResponse{
+		ProviderResponse:               vsa.ProviderResponse{Name: volume.Name, ExternalUUID: "vol-uuid-1"},
+		Size:                           volume.SizeInBytes,
+		UsedBytes:                      1024,
+		SnapReserve:                    10,
+		SnapshotDirectoryAccessEnabled: true,
+		SnapshotPolicyName:             models.DefaultONTAPSnapshotPolicyName,
+		JunctionPath:                   "/nfs-vol",
+		ExportPolicyName:               "nfs-vol",
+	}, nil
+}
+
+func TestVcmUpdateVolumeWorkflow_BuildEnrichmentFails(t *testing.T) {
+	job := &stubJobActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{enrichmentErr: errors.New("enrichment failed")}
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, job, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), testUpdateVolumeParams(214748364800))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enrichment failed")
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineChecks(t *testing.T) {
+	tests := []struct {
+		name           string
+		jobDelay       time.Duration
+		svmDelay       time.Duration
+		getVolDelay    time.Duration
+		deadlineOffset time.Duration
+		paramsFn       func() *common.UpdateVolumeParams
+	}{
+		{name: "before mark-processing", deadlineOffset: -time.Second, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(214748364800) }},
+		{name: "before get-svm", jobDelay: 100 * time.Millisecond, deadlineOffset: 50 * time.Millisecond, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(214748364800) }},
+		{name: "before get-volume", svmDelay: 1500 * time.Millisecond, deadlineOffset: time.Second, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(214748364800) }},
+		{name: "before populate-volume", getVolDelay: 1500 * time.Millisecond, deadlineOffset: time.Second, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(214748364800) }},
+		{name: "before update-volume", getVolDelay: 300 * time.Millisecond, deadlineOffset: 150 * time.Millisecond, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(214748364800) }},
+		{name: "before refresh-volume", getVolDelay: 400 * time.Millisecond, deadlineOffset: 200 * time.Millisecond, paramsFn: func() *common.UpdateVolumeParams {
+			// No size change so IsVolumeUpdateRequired may be false; still hits refresh at end after populate.
+			return testUpdateVolumeParams(107374182400)
+		}},
+		{name: "before build-response", getVolDelay: 500 * time.Millisecond, deadlineOffset: 250 * time.Millisecond, paramsFn: func() *common.UpdateVolumeParams { return testUpdateVolumeParams(107374182400) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &stubJobActivity{processingDelay: tt.jobDelay}
+			svm := &stubSvmActivity{delay: tt.svmDelay}
+			update := &updateWorkflowVolumeActivity{getVolumeDelay: tt.getVolDelay}
+			params := tt.paramsFn()
+			params.Deadline = time.Now().UTC().Add(tt.deadlineOffset)
+
+			err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+				registerUpdateVolumeActivities(reg, job, svm, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+			}, testUpdateNFSVolume(), testNode(), params)
+
+			assertOperationDeadlineExceeded(t, err)
+		})
+	}
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineBeforeCreateSnapshotPolicy(t *testing.T) {
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{{
+			ProviderResponse:   vsa.ProviderResponse{Name: "nfs-vol", ExternalUUID: "vol-uuid-1"},
+			Size:               107374182400,
+			SnapshotPolicyName: models.DefaultONTAPSnapshotPolicyName,
+		}},
+	}
+	params := testUpdateVolumeParams(107374182400)
+	params.SnapshotPolicy = &models.SnapshotPolicy{
+		IsEnabled: true,
+		Schedules: []*models.SnapshotPolicySchedule{{Count: 3, SnapmirrorLabel: "daily", Schedule: &models.Schedule{Hours: []int{1}}}},
+	}
+	params.Deadline = time.Now().UTC().Add(3 * time.Second)
+
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, &stubJobActivity{}, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{populateDelay: 4 * time.Second}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), params)
+	assertOperationDeadlineExceeded(t, err)
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineBeforeUpdateSnapshotPolicy(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	update := &updateWorkflowVolumeActivity{
+		getVolumeResponses: []*vsa.VolumeResponse{{
+			ProviderResponse:   vsa.ProviderResponse{Name: volume.Name, ExternalUUID: "vol-uuid-1"},
+			Size:               volume.SizeInBytes,
+			SnapshotPolicyName: volume.Name,
+		}},
+		getSnapshotDelay: 4 * time.Second,
+	}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.SnapshotPolicy = &models.SnapshotPolicy{IsEnabled: false}
+	params.Deadline = time.Now().UTC().Add(3 * time.Second)
+
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, &stubJobActivity{}, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	assertOperationDeadlineExceeded(t, err)
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineBeforeGetLun(t *testing.T) {
+	vcmVolume := &updateWorkflowVCMVolumeActivity{populateDelay: 4 * time.Second}
+	params := testUpdateVolumeParams(214748364800)
+	params.Deadline = time.Now().UTC().Add(3 * time.Second)
+
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, &stubJobActivity{}, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, testUpdateNFSVolume(), testNode(), params)
+	assertOperationDeadlineExceeded(t, err)
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineBeforeJunctionAndExport(t *testing.T) {
+	volume := testUpdateNFSVolume()
+	update := &updateWorkflowVolumeActivity{updateJunctionDelay: 200 * time.Millisecond}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.FileProperties = &models.FileProperties{
+		JunctionPath: "/new-share",
+		ExportPolicy: &models.ExportPolicy{ExportRules: []*models.ExportRule{{AllowedClients: "10.0.0.0/8", AccessType: models.ReadWrite, NFSv3: true, Index: 1}}},
+	}
+	params.Deadline = time.Now().UTC().Add(100 * time.Millisecond)
+
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, &stubJobActivity{}, &stubSvmActivity{}, update, &updateWorkflowVCMVolumeActivity{}, &updateWorkflowSnapshotCreateActivity{}, &stubVCMHostGroupActivity{})
+	}, volume, testNode(), params)
+	assertOperationDeadlineExceeded(t, err)
+}
+
+func TestVcmUpdateVolumeWorkflow_DeadlineBeforeHostGroupUpdate(t *testing.T) {
+	volume := testBlockVolume()
+	volume.VolumeAttributes.ExternalUUID = "vol-uuid-1"
+	vcmVolume := &updateWorkflowVCMVolumeActivity{
+		lunResponse: vsa.LunResponse{ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"}},
+	}
+	hostGroup := &stubVCMHostGroupActivity{validateHostGroupDelay: 200 * time.Millisecond}
+	params := testUpdateVolumeParams(volume.SizeInBytes)
+	params.BlockDevices = []*common.BlockDevice{{HostGroupNames: []string{"hg-new"}}}
+	params.Deadline = time.Now().UTC().Add(100 * time.Millisecond)
+
+	err := runVcmUpdateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerUpdateVolumeActivities(reg, &stubJobActivity{}, &stubSvmActivity{}, &updateWorkflowVolumeActivity{}, vcmVolume, &updateWorkflowSnapshotCreateActivity{}, hostGroup)
+	}, volume, testNode(), params)
+	assertOperationDeadlineExceeded(t, err)
 }

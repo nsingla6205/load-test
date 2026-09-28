@@ -98,6 +98,27 @@ func TestPopulateVolumeFromONTAPResponse(t *testing.T) {
 	assert.Equal(t, "default", updatedVolume.SnapshotPolicy.Name)
 }
 
+func TestBuildVolumeOperationResponseEnrichment_EnrichmentFails(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+
+	provider := vsa.NewMockProvider(t)
+	provider.On("LunList", mock.Anything).Return(nil, errors.New("lun lookup failed"))
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return provider, nil
+	}
+
+	enrichment, err := (VolumeActivity{}).BuildVolumeOperationResponseEnrichment(
+		context.Background(),
+		&vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{Name: "vol-1"}},
+		"svm-1",
+		&models.Node{},
+	)
+
+	require.ErrorContains(t, err, "lun lookup failed")
+	assert.Nil(t, enrichment)
+}
+
 func TestGetLunInONTAP_Found(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()

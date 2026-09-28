@@ -262,7 +262,6 @@ func TestErrorResponseV1_Examples(t *testing.T) {
 		{Input: "{\"code\":1994,\"message\":\"Out of cheese error! Please reboot the Universe\",\"retriable\":false}"},
 		{Input: "{\"code\":400,\"message\":\"Bad Request or Input\"}"},
 		{Input: "{\"code\":401,\"message\":\"Unauthorized access attempt\",\"retriable\":false}"},
-		{Input: "{\"code\":403,\"message\":\"Access to this resource forbidden\",\"retriable\":false}"},
 		{Input: "{\"code\":404,\"message\":\"The resource was not found\",\"retriable\":false}"},
 		{Input: "{\"code\":409,\"message\":\"Conflict. Resource already exists\",\"retriable\":false}"},
 		{Input: "{\"code\":500,\"message\":\"Internal server error\"}"},
@@ -950,30 +949,6 @@ func TestV1CreateIgroupBadRequest_EncodeDecode(t *testing.T) {
 	var typ2 V1CreateIgroupBadRequest
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1CreateIgroupConflict_EncodeDecode(t *testing.T) {
-	var typ V1CreateIgroupConflict
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1CreateIgroupConflict
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1CreateIgroupForbidden_EncodeDecode(t *testing.T) {
-	var typ V1CreateIgroupForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1CreateIgroupForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1CreateIgroupInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1CreateIgroupInternalServerError
 	typ.SetFake()
@@ -1008,18 +983,6 @@ func TestV1CreateVolumeBadRequest_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1CreateVolumeBadRequest
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1CreateVolumeForbidden_EncodeDecode(t *testing.T) {
-	var typ V1CreateVolumeForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1CreateVolumeForbidden
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1CreateVolumeInternalServerError_EncodeDecode(t *testing.T) {
@@ -1058,30 +1021,6 @@ func TestV1DeleteIgroupBadRequest_EncodeDecode(t *testing.T) {
 	var typ2 V1DeleteIgroupBadRequest
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1DeleteIgroupConflict_EncodeDecode(t *testing.T) {
-	var typ V1DeleteIgroupConflict
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DeleteIgroupConflict
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1DeleteIgroupForbidden_EncodeDecode(t *testing.T) {
-	var typ V1DeleteIgroupForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DeleteIgroupForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1DeleteIgroupInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1DeleteIgroupInternalServerError
 	typ.SetFake()
@@ -1092,18 +1031,6 @@ func TestV1DeleteIgroupInternalServerError_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DeleteIgroupInternalServerError
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1DeleteIgroupNotFound_EncodeDecode(t *testing.T) {
-	var typ V1DeleteIgroupNotFound
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DeleteIgroupNotFound
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1DeleteIgroupUnauthorized_EncodeDecode(t *testing.T) {
@@ -1128,18 +1055,6 @@ func TestV1DeleteVolumeBadRequest_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DeleteVolumeBadRequest
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1DeleteVolumeForbidden_EncodeDecode(t *testing.T) {
-	var typ V1DeleteVolumeForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DeleteVolumeForbidden
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1DeleteVolumeInternalServerError_EncodeDecode(t *testing.T) {
@@ -1176,18 +1091,6 @@ func TestV1DescribeIgroupBadRequest_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DescribeIgroupBadRequest
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1DescribeIgroupForbidden_EncodeDecode(t *testing.T) {
-	var typ V1DescribeIgroupForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DescribeIgroupForbidden
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1DescribeIgroupInternalServerError_EncodeDecode(t *testing.T) {
@@ -1238,18 +1141,6 @@ func TestV1DescribeVolumeBadRequest_EncodeDecode(t *testing.T) {
 	var typ2 V1DescribeVolumeBadRequest
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1DescribeVolumeForbidden_EncodeDecode(t *testing.T) {
-	var typ V1DescribeVolumeForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1DescribeVolumeForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1DescribeVolumeInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1DescribeVolumeInternalServerError
 	typ.SetFake()
@@ -1286,30 +1177,6 @@ func TestV1DescribeVolumeUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1DescribeVolumeUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1ListIgroupsBadRequest_EncodeDecode(t *testing.T) {
-	var typ V1ListIgroupsBadRequest
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1ListIgroupsBadRequest
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1ListIgroupsForbidden_EncodeDecode(t *testing.T) {
-	var typ V1ListIgroupsForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1ListIgroupsForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1ListIgroupsInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1ListIgroupsInternalServerError
 	typ.SetFake()
@@ -1344,30 +1211,6 @@ func TestV1ListIgroupsUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1ListIgroupsUnauthorized
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1ListVolumesBadRequest_EncodeDecode(t *testing.T) {
-	var typ V1ListVolumesBadRequest
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1ListVolumesBadRequest
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1ListVolumesForbidden_EncodeDecode(t *testing.T) {
-	var typ V1ListVolumesForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1ListVolumesForbidden
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ListVolumesInternalServerError_EncodeDecode(t *testing.T) {
@@ -1418,30 +1261,6 @@ func TestV1UpdateIgroupBadRequest_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateIgroupBadRequest
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1UpdateIgroupConflict_EncodeDecode(t *testing.T) {
-	var typ V1UpdateIgroupConflict
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateIgroupConflict
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1UpdateIgroupForbidden_EncodeDecode(t *testing.T) {
-	var typ V1UpdateIgroupForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateIgroupForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1UpdateIgroupInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1UpdateIgroupInternalServerError
 	typ.SetFake()
@@ -1452,18 +1271,6 @@ func TestV1UpdateIgroupInternalServerError_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateIgroupInternalServerError
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1UpdateIgroupNotFound_EncodeDecode(t *testing.T) {
-	var typ V1UpdateIgroupNotFound
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateIgroupNotFound
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdateIgroupUnauthorized_EncodeDecode(t *testing.T) {
@@ -1502,18 +1309,6 @@ func TestV1UpdateVolumeBadRequest_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateVolumeBadRequest
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1UpdateVolumeForbidden_EncodeDecode(t *testing.T) {
-	var typ V1UpdateVolumeForbidden
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateVolumeForbidden
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1UpdateVolumeInternalServerError_EncodeDecode(t *testing.T) {
 	var typ V1UpdateVolumeInternalServerError
 	typ.SetFake()
@@ -1524,18 +1319,6 @@ func TestV1UpdateVolumeInternalServerError_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateVolumeInternalServerError
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1UpdateVolumeNotFound_EncodeDecode(t *testing.T) {
-	var typ V1UpdateVolumeNotFound
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateVolumeNotFound
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdateVolumeOK_EncodeDecode(t *testing.T) {

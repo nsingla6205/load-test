@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 )
 
@@ -23,7 +24,7 @@ func TestVolumeCreateOperationResponsePayload_BlockVolume(t *testing.T) {
 		Created:                        createdAt,
 	}
 
-	payload, err := volumeOperationResponsePayload(ontapVol, &vsa.VolumeOperationEnrichment{
+	payload, err := volumeOperationResponsePayload(ontapVol, &activities.VolumeOperationEnrichment{
 		BlockDevices: []map[string]any{{
 			"osType":  "LINUX",
 			"igroups": []string{"hg-db-linux"},
@@ -61,7 +62,7 @@ func TestVolumeCreateOperationResponsePayload_BlockVolumeWithSnapshotPolicy(t *t
 		SnapReserve:      10,
 	}
 
-	payload, err := volumeOperationResponsePayload(ontapVol, &vsa.VolumeOperationEnrichment{
+	payload, err := volumeOperationResponsePayload(ontapVol, &activities.VolumeOperationEnrichment{
 		BlockDevices: []map[string]any{{
 			"osType":  "LINUX",
 			"igroups": []string{"hgtest_linux01", "hgtest_linux03"},
@@ -101,7 +102,7 @@ func TestVolumeCreateOperationResponsePayload_NASVolume(t *testing.T) {
 		Created:                        createdAt,
 	}
 
-	payload, err := volumeOperationResponsePayload(ontapVol, &vsa.VolumeOperationEnrichment{
+	payload, err := volumeOperationResponsePayload(ontapVol, &activities.VolumeOperationEnrichment{
 		ExportPolicy: map[string]any{
 			"rules": []map[string]any{{
 				"allowedClients": "10.0.0.0/8",
@@ -139,7 +140,7 @@ func TestVolumeCreateOperationResponsePayload_NASVolumeWithSnapshotPolicy(t *tes
 		JunctionPath:                   "/voltest_nfs01_renamed",
 	}
 
-	payload, err := volumeOperationResponsePayload(ontapVol, &vsa.VolumeOperationEnrichment{
+	payload, err := volumeOperationResponsePayload(ontapVol, &activities.VolumeOperationEnrichment{
 		SnapshotPolicy: map[string]any{
 			"enabled": true,
 			"hourlySchedule": map[string]any{

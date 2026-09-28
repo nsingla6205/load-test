@@ -162,7 +162,7 @@ func (VolumeActivity) PopulateVolumeFromONTAPResponse(ctx context.Context, volum
 }
 
 // BuildVolumeOperationResponseEnrichment loads block-device and export-policy payloads for LRO responses.
-func (VolumeActivity) BuildVolumeOperationResponseEnrichment(ctx context.Context, ontapVol *vsa.VolumeResponse, svmName string, node *models.Node) (*vsa.VolumeOperationEnrichment, error) {
+func (VolumeActivity) BuildVolumeOperationResponseEnrichment(ctx context.Context, ontapVol *vsa.VolumeResponse, svmName string, node *models.Node) (*VolumeOperationEnrichment, error) {
 	orchestrator.RecordHeartbeat(ctx, "Starting BuildVolumeOperationResponseEnrichment activity")
 	if ontapVol == nil {
 		return nil, apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
@@ -178,7 +178,7 @@ func (VolumeActivity) BuildVolumeOperationResponseEnrichment(ctx context.Context
 		return nil, apperror.WrapAsAppError(err, false)
 	}
 
-	enrichment, err := vsa.BuildVolumeOperationEnrichment(provider, svmName, ontapVol)
+	enrichment, err := BuildVolumeOperationEnrichment(provider, svmName, ontapVol)
 	if err != nil {
 		return nil, apperror.WrapAsAppError(err, false)
 	}

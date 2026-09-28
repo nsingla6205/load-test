@@ -4196,14 +4196,6 @@ type V1CreateIgroupBadRequest ErrorResponseV1
 
 func (*V1CreateIgroupBadRequest) v1CreateIgroupRes() {}
 
-type V1CreateIgroupConflict ErrorResponseV1
-
-func (*V1CreateIgroupConflict) v1CreateIgroupRes() {}
-
-type V1CreateIgroupForbidden ErrorResponseV1
-
-func (*V1CreateIgroupForbidden) v1CreateIgroupRes() {}
-
 type V1CreateIgroupInternalServerError ErrorResponseV1
 
 func (*V1CreateIgroupInternalServerError) v1CreateIgroupRes() {}
@@ -4215,10 +4207,6 @@ func (*V1CreateIgroupUnauthorized) v1CreateIgroupRes() {}
 type V1CreateVolumeBadRequest ErrorResponseV1
 
 func (*V1CreateVolumeBadRequest) v1CreateVolumeRes() {}
-
-type V1CreateVolumeForbidden ErrorResponseV1
-
-func (*V1CreateVolumeForbidden) v1CreateVolumeRes() {}
 
 type V1CreateVolumeInternalServerError ErrorResponseV1
 
@@ -4232,21 +4220,9 @@ type V1DeleteIgroupBadRequest ErrorResponseV1
 
 func (*V1DeleteIgroupBadRequest) v1DeleteIgroupRes() {}
 
-type V1DeleteIgroupConflict ErrorResponseV1
-
-func (*V1DeleteIgroupConflict) v1DeleteIgroupRes() {}
-
-type V1DeleteIgroupForbidden ErrorResponseV1
-
-func (*V1DeleteIgroupForbidden) v1DeleteIgroupRes() {}
-
 type V1DeleteIgroupInternalServerError ErrorResponseV1
 
 func (*V1DeleteIgroupInternalServerError) v1DeleteIgroupRes() {}
-
-type V1DeleteIgroupNotFound ErrorResponseV1
-
-func (*V1DeleteIgroupNotFound) v1DeleteIgroupRes() {}
 
 type V1DeleteIgroupUnauthorized ErrorResponseV1
 
@@ -4255,10 +4231,6 @@ func (*V1DeleteIgroupUnauthorized) v1DeleteIgroupRes() {}
 type V1DeleteVolumeBadRequest ErrorResponseV1
 
 func (*V1DeleteVolumeBadRequest) v1DeleteVolumeRes() {}
-
-type V1DeleteVolumeForbidden ErrorResponseV1
-
-func (*V1DeleteVolumeForbidden) v1DeleteVolumeRes() {}
 
 type V1DeleteVolumeInternalServerError ErrorResponseV1
 
@@ -4271,10 +4243,6 @@ func (*V1DeleteVolumeUnauthorized) v1DeleteVolumeRes() {}
 type V1DescribeIgroupBadRequest ErrorResponseV1
 
 func (*V1DescribeIgroupBadRequest) v1DescribeIgroupRes() {}
-
-type V1DescribeIgroupForbidden ErrorResponseV1
-
-func (*V1DescribeIgroupForbidden) v1DescribeIgroupRes() {}
 
 type V1DescribeIgroupInternalServerError ErrorResponseV1
 
@@ -4292,10 +4260,6 @@ type V1DescribeVolumeBadRequest ErrorResponseV1
 
 func (*V1DescribeVolumeBadRequest) v1DescribeVolumeRes() {}
 
-type V1DescribeVolumeForbidden ErrorResponseV1
-
-func (*V1DescribeVolumeForbidden) v1DescribeVolumeRes() {}
-
 type V1DescribeVolumeInternalServerError ErrorResponseV1
 
 func (*V1DescribeVolumeInternalServerError) v1DescribeVolumeRes() {}
@@ -4307,14 +4271,6 @@ func (*V1DescribeVolumeNotFound) v1DescribeVolumeRes() {}
 type V1DescribeVolumeUnauthorized ErrorResponseV1
 
 func (*V1DescribeVolumeUnauthorized) v1DescribeVolumeRes() {}
-
-type V1ListIgroupsBadRequest ErrorResponseV1
-
-func (*V1ListIgroupsBadRequest) v1ListIgroupsRes() {}
-
-type V1ListIgroupsForbidden ErrorResponseV1
-
-func (*V1ListIgroupsForbidden) v1ListIgroupsRes() {}
 
 type V1ListIgroupsInternalServerError ErrorResponseV1
 
@@ -4339,14 +4295,6 @@ func (*V1ListIgroupsOK) v1ListIgroupsRes() {}
 type V1ListIgroupsUnauthorized ErrorResponseV1
 
 func (*V1ListIgroupsUnauthorized) v1ListIgroupsRes() {}
-
-type V1ListVolumesBadRequest ErrorResponseV1
-
-func (*V1ListVolumesBadRequest) v1ListVolumesRes() {}
-
-type V1ListVolumesForbidden ErrorResponseV1
-
-func (*V1ListVolumesForbidden) v1ListVolumesRes() {}
 
 type V1ListVolumesInternalServerError ErrorResponseV1
 
@@ -4376,21 +4324,9 @@ type V1UpdateIgroupBadRequest ErrorResponseV1
 
 func (*V1UpdateIgroupBadRequest) v1UpdateIgroupRes() {}
 
-type V1UpdateIgroupConflict ErrorResponseV1
-
-func (*V1UpdateIgroupConflict) v1UpdateIgroupRes() {}
-
-type V1UpdateIgroupForbidden ErrorResponseV1
-
-func (*V1UpdateIgroupForbidden) v1UpdateIgroupRes() {}
-
 type V1UpdateIgroupInternalServerError ErrorResponseV1
 
 func (*V1UpdateIgroupInternalServerError) v1UpdateIgroupRes() {}
-
-type V1UpdateIgroupNotFound ErrorResponseV1
-
-func (*V1UpdateIgroupNotFound) v1UpdateIgroupRes() {}
 
 type V1UpdateIgroupUnauthorized ErrorResponseV1
 
@@ -4404,17 +4340,9 @@ type V1UpdateVolumeBadRequest ErrorResponseV1
 
 func (*V1UpdateVolumeBadRequest) v1UpdateVolumeRes() {}
 
-type V1UpdateVolumeForbidden ErrorResponseV1
-
-func (*V1UpdateVolumeForbidden) v1UpdateVolumeRes() {}
-
 type V1UpdateVolumeInternalServerError ErrorResponseV1
 
 func (*V1UpdateVolumeInternalServerError) v1UpdateVolumeRes() {}
-
-type V1UpdateVolumeNotFound ErrorResponseV1
-
-func (*V1UpdateVolumeNotFound) v1UpdateVolumeRes() {}
 
 type V1UpdateVolumeOK OperationV1
 

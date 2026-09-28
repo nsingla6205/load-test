@@ -1,4 +1,4 @@
-package vsa
+package activities
 
 import (
 	"testing"
@@ -7,15 +7,16 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
 func TestBuildVolumeOperationEnrichment_NASExportPolicy(t *testing.T) {
-	provider := NewMockProvider(t)
-	provider.On("GetExportPolicy", "nfs-vol", "test-svm").Return(&ExportPolicy{
+	provider := vsa.NewMockProvider(t)
+	provider.On("GetExportPolicy", "nfs-vol", "test-svm").Return(&vsa.ExportPolicy{
 		ExportPolicyName: "nfs-vol",
-		ExportRules: []*ExportRule{{
+		ExportRules: []*vsa.ExportRule{{
 			AllowedClients: "10.0.0.0/8",
 			AccessType:     models.ReadWrite,
 			NFSv3:          true,
@@ -24,7 +25,7 @@ func TestBuildVolumeOperationEnrichment_NASExportPolicy(t *testing.T) {
 		}},
 	}, nil)
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
 		JunctionPath:     "/nfs-vol",
 		ExportPolicyName: "nfs-vol",
 	})
@@ -51,8 +52,8 @@ func TestBuildVolumeOperationEnrichment_NASExportPolicy(t *testing.T) {
 func TestExportPolicyOperationPayload_AllSquashAndKerberos(t *testing.T) {
 	allSquash := true
 	anonUID := int64(65534)
-	payload := exportPolicyOperationPayload(&ExportPolicy{
-		ExportRules: []*ExportRule{{
+	payload := exportPolicyOperationPayload(&vsa.ExportPolicy{
+		ExportRules: []*vsa.ExportRule{{
 			AllowedClients:     "0.0.0.0/0",
 			AccessType:         models.ReadWrite,
 			NFSv3:              true,
@@ -75,20 +76,20 @@ func TestExportPolicyOperationPayload_AllSquashAndKerberos(t *testing.T) {
 }
 
 func TestBuildVolumeOperationEnrichment_NASSnapshotPolicy(t *testing.T) {
-	provider := NewMockProvider(t)
-	provider.On("GetSnapshotPolicy", "voltest_nfs01").Return(&SnapshotPolicy{
+	provider := vsa.NewMockProvider(t)
+	provider.On("GetSnapshotPolicy", "voltest_nfs01").Return(&vsa.SnapshotPolicy{
 		Name:      "voltest_nfs01",
 		IsEnabled: true,
-		Schedules: []*SnapshotPolicySchedule{{
+		Schedules: []*vsa.SnapshotPolicySchedule{{
 			Count:           4,
 			SnapmirrorLabel: "hourly",
-			Schedule: &Schedule{
+			Schedule: &vsa.Schedule{
 				Minutes: []int{0},
 			},
 		}},
 	}, nil)
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
 		JunctionPath:       "/voltest_nfs01",
 		SnapshotPolicyName: "voltest_nfs01",
 	})
@@ -102,28 +103,28 @@ func TestBuildVolumeOperationEnrichment_NASSnapshotPolicy(t *testing.T) {
 }
 
 func TestBuildVolumeOperationEnrichment_SANSnapshotPolicy(t *testing.T) {
-	provider := NewMockProvider(t)
-	provider.On("LunList", LunGetParams{
+	provider := vsa.NewMockProvider(t)
+	provider.On("LunList", vsa.LunGetParams{
 		SvmName:    "test-svm",
 		VolumeName: "voltest_iscsi01",
-	}).Return([]*LunResponse{{
-		ProviderResponse: ProviderResponse{ExternalUUID: "lun-uuid"},
+	}).Return([]*vsa.LunResponse{{
+		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "lun-uuid"},
 		OSType:           "linux",
 		IgroupNames:      []string{"hgtest_linux01"},
 	}}, nil)
 	provider.On("IgroupNamesForLunUUID", "test-svm", "lun-uuid").Return([]string{"hgtest_linux01", "hgtest_linux03"}, nil)
-	provider.On("GetSnapshotPolicy", "voltest_iscsi01").Return(&SnapshotPolicy{
+	provider.On("GetSnapshotPolicy", "voltest_iscsi01").Return(&vsa.SnapshotPolicy{
 		Name:      "voltest_iscsi01",
 		IsEnabled: true,
-		Schedules: []*SnapshotPolicySchedule{{
+		Schedules: []*vsa.SnapshotPolicySchedule{{
 			Count:           4,
 			SnapmirrorLabel: "hourly",
-			Schedule:        &Schedule{Minutes: []int{0}},
+			Schedule:        &vsa.Schedule{Minutes: []int{0}},
 		}},
 	}, nil)
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
-		ProviderResponse:   ProviderResponse{Name: "voltest_iscsi01"},
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
+		ProviderResponse:   vsa.ProviderResponse{Name: "voltest_iscsi01"},
 		SnapshotPolicyName: "voltest_iscsi01",
 	})
 	require.NoError(t, err)
@@ -133,19 +134,19 @@ func TestBuildVolumeOperationEnrichment_SANSnapshotPolicy(t *testing.T) {
 }
 
 func TestBuildVolumeOperationEnrichment_SANBlockDevices(t *testing.T) {
-	provider := NewMockProvider(t)
-	provider.On("LunList", LunGetParams{
+	provider := vsa.NewMockProvider(t)
+	provider.On("LunList", vsa.LunGetParams{
 		SvmName:    "test-svm",
 		VolumeName: "vol-1",
-	}).Return([]*LunResponse{{
-		ProviderResponse: ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"},
+	}).Return([]*vsa.LunResponse{{
+		ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"},
 		OSType:           "linux",
 		IgroupNames:      []string{"hg-old"},
 	}}, nil)
 	provider.On("IgroupNamesForLunUUID", "test-svm", "lun-uuid").Return([]string{"hg-old", "hg-new"}, nil)
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
-		ProviderResponse: ProviderResponse{Name: "vol-1"},
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{Name: "vol-1"},
 	})
 	require.NoError(t, err)
 	require.Len(t, enrichment.BlockDevices, 1)
@@ -154,19 +155,19 @@ func TestBuildVolumeOperationEnrichment_SANBlockDevices(t *testing.T) {
 }
 
 func TestBuildVolumeOperationEnrichment_SANBlockDevices_VMwareMapsToESXI(t *testing.T) {
-	provider := NewMockProvider(t)
-	provider.On("LunList", LunGetParams{
+	provider := vsa.NewMockProvider(t)
+	provider.On("LunList", vsa.LunGetParams{
 		SvmName:    "test-svm",
 		VolumeName: "vol-esxi",
-	}).Return([]*LunResponse{{
-		ProviderResponse: ProviderResponse{Name: "/vol/lun_vol-esxi", ExternalUUID: "lun-uuid"},
+	}).Return([]*vsa.LunResponse{{
+		ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-esxi", ExternalUUID: "lun-uuid"},
 		OSType:           "vmware",
 		IgroupNames:      []string{"hg-esxi"},
 	}}, nil)
 	provider.On("IgroupNamesForLunUUID", "test-svm", "lun-uuid").Return([]string{"hg-esxi"}, nil)
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
-		ProviderResponse: ProviderResponse{Name: "vol-esxi"},
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{Name: "vol-esxi"},
 	})
 	require.NoError(t, err)
 	require.Len(t, enrichment.BlockDevices, 1)
@@ -174,11 +175,11 @@ func TestBuildVolumeOperationEnrichment_SANBlockDevices_VMwareMapsToESXI(t *test
 }
 
 func TestBuildVolumeOperationEnrichment_SANNoLuns(t *testing.T) {
-	provider := NewMockProvider(t)
+	provider := vsa.NewMockProvider(t)
 	provider.On("LunList", mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, utilErrors.NewNotFoundErr("lun", nil)))
 
-	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &VolumeResponse{
-		ProviderResponse: ProviderResponse{Name: "vol-1"},
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{Name: "vol-1"},
 	})
 	require.NoError(t, err)
 	assert.Empty(t, enrichment.BlockDevices)

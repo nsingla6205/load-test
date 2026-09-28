@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
@@ -30,17 +31,36 @@ type jobProgressCall struct {
 }
 
 type stubJobActivity struct {
-	mu            sync.Mutex
-	calls         []jobProgressCall
-	failOnState   vcmdb.JobState
-	failErr       error
-	failOnceOnly  bool
-	failedOnce    bool
-	getJobErr     error
-	recoveryPayload string
+	mu                   sync.Mutex
+	calls                []jobProgressCall
+	failOnState          vcmdb.JobState
+	failErr              error
+	failOnceOnly         bool
+	failedOnce           bool
+	failOnProcessingCall int // 1-based; when set, fails that processing UpdateJobProgress call
+	processingCallCount  int
+	getJobErr            error
+	recoveryPayload      string
+	processingDelay      time.Duration
+	recoveryPersistDelay time.Duration // delay only when RecoveryPayload is set
 }
 
 func (s *stubJobActivity) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
+	var delay time.Duration
+	s.mu.Lock()
+	if params.State == vcmdb.JobStateProcessing {
+		s.processingCallCount++
+		if params.RecoveryPayload != "" && s.recoveryPersistDelay > 0 {
+			delay = s.recoveryPersistDelay
+		} else {
+			delay = s.processingDelay
+		}
+	}
+	s.mu.Unlock()
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls = append(s.calls, jobProgressCall{
@@ -52,6 +72,13 @@ func (s *stubJobActivity) UpdateJobProgress(_ context.Context, params vcmdb.Upda
 		responsePayload: string(params.ResponsePayload),
 		recoveryPayload: params.RecoveryPayload,
 	})
+	if s.failOnProcessingCall > 0 && params.State == vcmdb.JobStateProcessing && s.processingCallCount == s.failOnProcessingCall {
+		msg := "forced processing failure"
+		if s.failErr != nil {
+			msg = s.failErr.Error()
+		}
+		return nonRetryableTestErr(msg)
+	}
 	if s.failErr != nil && s.failOnState == params.State {
 		if s.failOnceOnly {
 			if s.failedOnce {
@@ -76,11 +103,11 @@ func (s *stubJobActivity) GetJob(_ context.Context, jobID string) (*vcmdb.Job, e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.getJobErr != nil {
-		return nil, s.getJobErr
+		return nil, nonRetryableTestErr(s.getJobErr.Error())
 	}
 	job := &vcmdb.Job{
-		ID:           jobID,
-		State:        vcmdb.JobStateProcessing,
+		ID:              jobID,
+		State:           vcmdb.JobStateProcessing,
 		RecoveryPayload: s.recoveryPayload,
 	}
 	return job, nil
@@ -91,9 +118,13 @@ type stubSvmActivity struct {
 
 	err   error
 	calls int
+	delay time.Duration
 }
 
 func (s *stubSvmActivity) GetSvmByName(_ context.Context, _ *models.Node, _ string) (*ontapRest.Svm, error) {
+	if s.delay > 0 {
+		time.Sleep(s.delay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls++

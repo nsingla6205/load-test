@@ -32,22 +32,39 @@ type stubVolumeDeleteActivity struct {
 	deleteSnapshotPolicyErr         error
 	deleteSnapshotPolicyInvoked     bool
 	deletedSnapshotPolicyVolumeName string
+	deleteVolumeDelay               time.Duration
+	deleteExportPolicyDelay         time.Duration
 }
 
 func (s *stubVolumeDeleteActivity) DeleteVolumeInONTAP(_ context.Context, _, _ string, _ *models.Node) error {
+	if s.deleteVolumeDelay > 0 {
+		time.Sleep(s.deleteVolumeDelay)
+	}
 	s.deleteVolumeInvoked = true
-	return s.deleteErr
+	if s.deleteErr != nil {
+		return nonRetryableTestErr(s.deleteErr.Error())
+	}
+	return nil
 }
 
 func (s *stubVolumeDeleteActivity) DeleteExportPolicy(_ context.Context, _ *datamodel.Volume, _ *models.Node) error {
+	if s.deleteExportPolicyDelay > 0 {
+		time.Sleep(s.deleteExportPolicyDelay)
+	}
 	s.deleteExportPolicyInvoked = true
-	return s.deleteExportPolicyErr
+	if s.deleteExportPolicyErr != nil {
+		return nonRetryableTestErr(s.deleteExportPolicyErr.Error())
+	}
+	return nil
 }
 
 func (s *stubVolumeDeleteActivity) DeleteSnapshotPolicyInONTAP(_ context.Context, volumeName string, _ *models.Node) error {
 	s.deleteSnapshotPolicyInvoked = true
 	s.deletedSnapshotPolicyVolumeName = volumeName
-	return s.deleteSnapshotPolicyErr
+	if s.deleteSnapshotPolicyErr != nil {
+		return nonRetryableTestErr(s.deleteSnapshotPolicyErr.Error())
+	}
+	return nil
 }
 
 type stubVolumeUpdateActivity struct {
@@ -56,11 +73,19 @@ type stubVolumeUpdateActivity struct {
 	exportPolicyName   string
 	volumeResponse     *vsa.VolumeResponse
 	err                error
+	returnNil          bool
+	delay              time.Duration
 }
 
 func (s *stubVolumeUpdateActivity) GetVolumeFromONTAP(_ context.Context, volume *datamodel.Volume, _ *models.Node) (*vsa.VolumeResponse, error) {
+	if s.delay > 0 {
+		time.Sleep(s.delay)
+	}
 	if s.err != nil {
 		return nil, s.err
+	}
+	if s.returnNil {
+		return nil, nil
 	}
 	if s.volumeResponse != nil {
 		return s.volumeResponse, nil
@@ -110,7 +135,22 @@ func runVcmDeleteVolumeWorkflow(
 	volume *datamodel.Volume,
 	node *models.Node,
 ) error {
+	return runVcmDeleteVolumeWorkflowWithDeadline(
+		t, instanceID, register, volume, node, time.Now().UTC().Add(time.Hour),
+	)
+}
+
+func runVcmDeleteVolumeWorkflowWithDeadline(
+	t *testing.T,
+	instanceID string,
+	register func(orchestrator.WorkflowRegistrar),
+	volume *datamodel.Volume,
+	node *models.Node,
+	deadline time.Time,
+) error {
 	t.Helper()
+
+	deadlineOffset := time.Until(deadline)
 
 	ctx, cancel := context.WithTimeout(context.Background(), volumeDeleteWorkflowTestTimeout)
 	defer cancel()
@@ -135,12 +175,13 @@ func runVcmDeleteVolumeWorkflow(
 	if volume != nil && volume.Svm != nil {
 		expectedSvmName = volume.Svm.Name
 	}
+	deadline = time.Now().UTC().Add(deadlineOffset)
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
 	}, gowfbackend.FuncName(VcmDeleteVolumeWorkflow), volume, common.WorkflowInputs{
 		Node:            node,
 		ExpectedSvmName: expectedSvmName,
-		Deadline:        time.Now().UTC().Add(time.Hour),
+		Deadline:        deadline,
 	})
 	require.NoError(t, err)
 
@@ -535,4 +576,98 @@ func TestVcmDeleteVolumeWorkflow_InvalidRecoveryPayload(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unmarshal payload")
 	assert.False(t, deleteAct.deleteVolumeInvoked)
+}
+
+func TestVcmDeleteVolumeWorkflow_MarkProcessingFails(t *testing.T) {
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateProcessing,
+		failErr:     errors.New("store unavailable"),
+	}
+
+	err := runVcmDeleteVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerDeleteVolumeActivities(reg, job, &stubSvmActivity{}, &stubVolumeUpdateActivity{}, &stubVolumeDeleteActivity{})
+	}, testDeleteVolume(), testNode())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store unavailable")
+}
+
+func TestVcmDeleteVolumeWorkflow_GetJobFailsOnRecovery(t *testing.T) {
+	job := &stubJobActivity{getJobErr: errors.New("job store unavailable")}
+	update := &stubVolumeUpdateActivity{
+		err: utilErrors.NewNotFoundErr("volume", nillable.ToPointer("vol-to-delete")),
+	}
+
+	err := runVcmDeleteVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerDeleteVolumeActivities(reg, job, &stubSvmActivity{}, update, &stubVolumeDeleteActivity{})
+	}, testDeleteVolume(), testNode())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "job store unavailable")
+}
+
+func TestVcmDeleteVolumeWorkflow_PersistRecoveryPayloadFails(t *testing.T) {
+	job := &stubJobActivity{
+		failOnProcessingCall: 2,
+		failErr:              errors.New("recovery persist failed"),
+	}
+
+	err := runVcmDeleteVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		registerDeleteVolumeActivities(reg, job, &stubSvmActivity{}, &stubVolumeUpdateActivity{externalUUID: "ontap-vol-uuid"}, &stubVolumeDeleteActivity{})
+	}, testDeleteVolume(), testNode())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recovery persist failed")
+}
+
+func TestIsVolumeNotFoundOnONTAP_Nil(t *testing.T) {
+	t.Parallel()
+	assert.False(t, isVolumeNotFoundOnONTAP(nil))
+}
+
+func TestVcmDeleteVolumeWorkflow_DeadlineChecks(t *testing.T) {
+	tests := []struct {
+		name                 string
+		jobDelay             time.Duration
+		svmDelay             time.Duration
+		getVolDelay          time.Duration
+		recoveryPersistDelay time.Duration
+		deleteVolDelay       time.Duration
+		deleteExportDelay    time.Duration
+		deadlineOffset       time.Duration
+		volumeNotFound       bool
+	}{
+		{name: "before mark-processing", deadlineOffset: -time.Second},
+		{name: "before get-svm", jobDelay: 100 * time.Millisecond, deadlineOffset: 50 * time.Millisecond},
+		{name: "before get-volume", svmDelay: 1500 * time.Millisecond, deadlineOffset: time.Second},
+		{name: "before load-recovery-payload", getVolDelay: 1500 * time.Millisecond, deadlineOffset: time.Second, volumeNotFound: true},
+		{name: "before persist-recovery-payload", getVolDelay: 1500 * time.Millisecond, deadlineOffset: time.Second},
+		{name: "before delete-volume", recoveryPersistDelay: 1500 * time.Millisecond, deadlineOffset: time.Second},
+		{name: "before delete-export-policy", deleteVolDelay: 4 * time.Second, deadlineOffset: 3 * time.Second},
+		{name: "before delete-snapshot-policy", deleteExportDelay: 4 * time.Second, deadlineOffset: 3 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &stubJobActivity{
+				processingDelay:      tt.jobDelay,
+				recoveryPersistDelay: tt.recoveryPersistDelay,
+			}
+			svm := &stubSvmActivity{delay: tt.svmDelay}
+			update := &stubVolumeUpdateActivity{externalUUID: "ontap-vol-uuid", delay: tt.getVolDelay}
+			if tt.volumeNotFound {
+				update.err = utilErrors.NewNotFoundErr("volume", nillable.ToPointer("vol-to-delete"))
+			}
+			deleteAct := &stubVolumeDeleteActivity{
+				deleteVolumeDelay:       tt.deleteVolDelay,
+				deleteExportPolicyDelay: tt.deleteExportDelay,
+			}
+
+			err := runVcmDeleteVolumeWorkflowWithDeadline(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+				registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
+			}, testDeleteVolume(), testNode(), time.Now().UTC().Add(tt.deadlineOffset))
+
+			assertOperationDeadlineExceeded(t, err)
+		})
+	}
 }

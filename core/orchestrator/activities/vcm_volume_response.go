@@ -1,10 +1,11 @@
-package vsa
+package activities
 
 import (
 	"strconv"
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
@@ -17,7 +18,7 @@ type VolumeOperationEnrichment struct {
 }
 
 // BuildVolumeOperationEnrichment loads block-device and export-policy payloads for operation responses.
-func BuildVolumeOperationEnrichment(provider Provider, svmName string, ontapVol *VolumeResponse) (*VolumeOperationEnrichment, error) {
+func BuildVolumeOperationEnrichment(provider vsa.Provider, svmName string, ontapVol *vsa.VolumeResponse) (*VolumeOperationEnrichment, error) {
 	if provider == nil || ontapVol == nil {
 		return nil, utilErrors.New("provider and ONTAP volume response are required")
 	}
@@ -34,7 +35,7 @@ func BuildVolumeOperationEnrichment(provider Provider, svmName string, ontapVol 
 			}
 		}
 	} else {
-		luns, err := provider.LunList(LunGetParams{
+		luns, err := provider.LunList(vsa.LunGetParams{
 			SvmName:    svmName,
 			VolumeName: ontapVol.Name,
 		})
@@ -77,7 +78,7 @@ func BuildVolumeOperationEnrichment(provider Provider, svmName string, ontapVol 
 	return enrichVolumeOperationSnapshotPolicy(provider, ontapVol, enrichment)
 }
 
-func enrichVolumeOperationSnapshotPolicy(provider Provider, ontapVol *VolumeResponse, enrichment *VolumeOperationEnrichment) (*VolumeOperationEnrichment, error) {
+func enrichVolumeOperationSnapshotPolicy(provider vsa.Provider, ontapVol *vsa.VolumeResponse, enrichment *VolumeOperationEnrichment) (*VolumeOperationEnrichment, error) {
 	if enrichment == nil {
 		enrichment = &VolumeOperationEnrichment{}
 	}
@@ -93,7 +94,7 @@ func enrichVolumeOperationSnapshotPolicy(provider Provider, ontapVol *VolumeResp
 	return enrichment, nil
 }
 
-func exportPolicyOperationPayload(exportPolicy *ExportPolicy) map[string]any {
+func exportPolicyOperationPayload(exportPolicy *vsa.ExportPolicy) map[string]any {
 	if exportPolicy == nil || len(exportPolicy.ExportRules) == 0 {
 		return nil
 	}
@@ -110,7 +111,7 @@ func exportPolicyOperationPayload(exportPolicy *ExportPolicy) map[string]any {
 	return map[string]any{"rules": rules}
 }
 
-func exportPolicyOperationRulePayload(rule *ExportRule) map[string]any {
+func exportPolicyOperationRulePayload(rule *vsa.ExportRule) map[string]any {
 	if rule == nil {
 		return nil
 	}
@@ -141,7 +142,7 @@ func exportPolicyOperationRulePayload(rule *ExportRule) map[string]any {
 	return ruleBody
 }
 
-func snapshotPolicyOperationPayload(snapshotPolicy *SnapshotPolicy) map[string]any {
+func snapshotPolicyOperationPayload(snapshotPolicy *vsa.SnapshotPolicy) map[string]any {
 	if snapshotPolicy == nil {
 		return nil
 	}
@@ -204,4 +205,3 @@ func snapshotPolicyOperationPayload(snapshotPolicy *SnapshotPolicy) map[string]a
 	}
 	return body
 }
-

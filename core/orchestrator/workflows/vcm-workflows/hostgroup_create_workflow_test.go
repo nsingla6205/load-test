@@ -52,6 +52,20 @@ func runVcmCreateHostGroupWorkflow(
 	host *common.HostParams,
 	expectedSvmName string,
 ) error {
+	return runVcmCreateHostGroupWorkflowWithDeadline(
+		t, instanceID, register, node, host, expectedSvmName, time.Now().UTC().Add(time.Hour),
+	)
+}
+
+func runVcmCreateHostGroupWorkflowWithDeadline(
+	t *testing.T,
+	instanceID string,
+	register func(orchestrator.WorkflowRegistrar),
+	node *models.Node,
+	host *common.HostParams,
+	expectedSvmName string,
+	deadline time.Time,
+) error {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), hostGroupWorkflowTestTimeout)
@@ -78,7 +92,7 @@ func runVcmCreateHostGroupWorkflow(
 	}, gowfbackend.FuncName(VcmCreateHostGroupWorkflow), common.WorkflowInputs{
 		Node:            node,
 		ExpectedSvmName: expectedSvmName,
-		Deadline:        time.Now().UTC().Add(time.Hour),
+		Deadline:        deadline,
 	}, host)
 	require.NoError(t, err)
 
@@ -240,4 +254,45 @@ func TestVcmCreateHostGroupWorkflow_MarkDoneFails(t *testing.T) {
 	require.Len(t, calls, 2)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
+}
+
+func TestVcmCreateHostGroupWorkflow_DeadlineChecks(t *testing.T) {
+	tests := []struct {
+		name           string
+		jobDelay       time.Duration
+		svmDelay       time.Duration
+		deadlineOffset time.Duration
+	}{
+		{
+			name:           "before mark processing",
+			deadlineOffset: -time.Second,
+		},
+		{
+			name:           "before get SVM",
+			jobDelay:       3 * time.Second,
+			deadlineOffset: 2 * time.Second,
+		},
+		{
+			name:           "before create igroup",
+			svmDelay:       3 * time.Second,
+			deadlineOffset: 2 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &stubJobActivity{processingDelay: tt.jobDelay}
+			svm := &stubSvmActivity{delay: tt.svmDelay}
+			creator := &stubHostGroupActivity{}
+
+			err := runVcmCreateHostGroupWorkflowWithDeadline(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+				reg.RegisterActivity(job.UpdateJobProgress)
+				reg.RegisterActivity(svm.GetSvmByName)
+				reg.RegisterActivity(creator.CreateIgroup)
+			}, testNode(), testHostParams(), testExpectedSvmName, time.Now().UTC().Add(tt.deadlineOffset))
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "operation timed out")
+		})
+	}
 }

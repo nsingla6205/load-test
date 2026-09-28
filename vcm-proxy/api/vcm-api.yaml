@@ -135,12 +135,8 @@ paths:
                     osType: WINDOWS
                     hosts:
                       - iqn.1998-01.com.vmware:win1
-        "400":
-          $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -187,10 +183,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
-        "409":
-          $ref: "#/components/responses/StandardError-409"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -226,8 +218,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "404":
           $ref: "#/components/responses/StandardError-404"
         "500":
@@ -275,12 +265,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
-        "404":
-          $ref: "#/components/responses/StandardError-404"
-        "409":
-          $ref: "#/components/responses/StandardError-409"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -314,12 +298,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
-        "404":
-          $ref: "#/components/responses/StandardError-404"
-        "409":
-          $ref: "#/components/responses/StandardError-409"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -361,12 +339,8 @@ paths:
                     snapReserve: 0
                     snapshotDirectory: true
                     created: "2016-11-30T20:32:50.459Z"
-        "400":
-          $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -417,8 +391,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -473,10 +445,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
-        "404":
-          $ref: "#/components/responses/StandardError-404"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -529,8 +497,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "404":
           $ref: "#/components/responses/StandardError-404"
         "500":
@@ -569,8 +535,6 @@ paths:
           $ref: "#/components/responses/StandardError-400"
         "401":
           $ref: "#/components/responses/StandardError-401"
-        "403":
-          $ref: "#/components/responses/StandardError-403"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -769,16 +733,6 @@ components:
           example:
             code: 401
             message: Unauthorized access attempt
-            retriable: false
-    StandardError-403:
-      description: Forbidden
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorResponse_v1"
-          example:
-            code: 403
-            message: Access to this resource forbidden
             retriable: false
     StandardError-409:
       description: Conflict

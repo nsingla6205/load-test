@@ -1308,24 +1308,6 @@ func (s *V1CreateIgroupBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1CreateIgroupConflict) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1CreateIgroupConflict(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1CreateIgroupForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1CreateIgroupForbidden(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1CreateIgroupInternalServerError) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
@@ -1350,15 +1332,6 @@ func (s *V1CreateVolumeBadRequest) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1CreateVolumeBadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1CreateVolumeForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1CreateVolumeForbidden(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1389,39 +1362,12 @@ func (s *V1DeleteIgroupBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1DeleteIgroupConflict) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DeleteIgroupConflict(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1DeleteIgroupForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DeleteIgroupForbidden(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1DeleteIgroupInternalServerError) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
 		unwrapped.SetFake()
 	}
 	*s = V1DeleteIgroupInternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1DeleteIgroupNotFound) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DeleteIgroupNotFound(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1440,15 +1386,6 @@ func (s *V1DeleteVolumeBadRequest) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DeleteVolumeBadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1DeleteVolumeForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DeleteVolumeForbidden(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1476,15 +1413,6 @@ func (s *V1DescribeIgroupBadRequest) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DescribeIgroupBadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1DescribeIgroupForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DescribeIgroupForbidden(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1524,15 +1452,6 @@ func (s *V1DescribeVolumeBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1DescribeVolumeForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1DescribeVolumeForbidden(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1DescribeVolumeInternalServerError) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
@@ -1557,24 +1476,6 @@ func (s *V1DescribeVolumeUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DescribeVolumeUnauthorized(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1ListIgroupsBadRequest) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1ListIgroupsBadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1ListIgroupsForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1ListIgroupsForbidden(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1609,24 +1510,6 @@ func (s *V1ListIgroupsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListIgroupsUnauthorized(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1ListVolumesBadRequest) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1ListVolumesBadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1ListVolumesForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1ListVolumesForbidden(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1673,39 +1556,12 @@ func (s *V1UpdateIgroupBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1UpdateIgroupConflict) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateIgroupConflict(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1UpdateIgroupForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateIgroupForbidden(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1UpdateIgroupInternalServerError) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateIgroupInternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1UpdateIgroupNotFound) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateIgroupNotFound(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1736,30 +1592,12 @@ func (s *V1UpdateVolumeBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1UpdateVolumeForbidden) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateVolumeForbidden(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1UpdateVolumeInternalServerError) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateVolumeInternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1UpdateVolumeNotFound) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateVolumeNotFound(unwrapped)
 }
 
 // SetFake set fake values.

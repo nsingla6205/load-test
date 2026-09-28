@@ -202,13 +202,10 @@ func convertHostGroupsToIgroupV1(igroups []*models.HostGroup) []vcmserver.Igroup
 }
 
 func mapCanonicalOSTypeToV1(osType string) vcmserver.IgroupV1OsType {
-	switch utils.MapONTAPOSTypeToAPIEnum(osType) {
-	case utils.APIOSTypeLinux:
-		return vcmserver.IgroupV1OsTypeLINUX
-	case utils.APIOSTypeWindows:
-		return vcmserver.IgroupV1OsTypeWINDOWS
-	case utils.APIOSTypeESXI:
-		return vcmserver.IgroupV1OsTypeESXI
+	mapped := vcmserver.IgroupV1OsType(utils.MapONTAPOSTypeToAPIEnum(osType))
+	switch mapped {
+	case vcmserver.IgroupV1OsTypeLINUX, vcmserver.IgroupV1OsTypeWINDOWS, vcmserver.IgroupV1OsTypeESXI:
+		return mapped
 	default:
 		return vcmserver.IgroupV1OsTypeOSTYPEUNSPECIFIED
 	}

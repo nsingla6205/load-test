@@ -2,6 +2,7 @@ package vcm_workflows
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,34 +22,38 @@ func (b *deadlineTestBackend) Now(*orchestrator.Context) time.Time { return b.no
 
 type nopDeadlineLogger struct{}
 
-func (nopDeadlineLogger) WithFields(orchestrator.Fields) orchestrator.UnifiedLogger { return nopDeadlineLogger{} }
-func (nopDeadlineLogger) With(orchestrator.Fields) orchestrator.UnifiedLogger       { return nopDeadlineLogger{} }
-func (nopDeadlineLogger) WithError(error) orchestrator.UnifiedLogger                { return nopDeadlineLogger{} }
-func (nopDeadlineLogger) WithTime(time.Time) orchestrator.UnifiedLogger             { return nopDeadlineLogger{} }
-func (nopDeadlineLogger) Info(string, ...any)                                      {}
-func (nopDeadlineLogger) Error(string, ...any)                                     {}
-func (nopDeadlineLogger) Debug(string, ...any)                                     {}
-func (nopDeadlineLogger) Warn(string, ...any)                                      {}
-func (nopDeadlineLogger) Printf(string, ...any)                                    {}
-func (nopDeadlineLogger) Print(...any)                                             {}
-func (nopDeadlineLogger) Println(...any)                                           {}
-func (nopDeadlineLogger) Fatal(...any)                                             {}
-func (nopDeadlineLogger) Fatalf(string, ...any)                                    {}
-func (nopDeadlineLogger) Fatalln(...any)                                           {}
-func (nopDeadlineLogger) Panic(...any)                                             {}
-func (nopDeadlineLogger) Panicf(string, ...any)                                    {}
-func (nopDeadlineLogger) Panicln(...any)                                           {}
-func (nopDeadlineLogger) Infof(string, ...any)                                     {}
-func (nopDeadlineLogger) Errorf(string, ...any)                                    {}
-func (nopDeadlineLogger) Debugf(string, ...any)                                    {}
-func (nopDeadlineLogger) Warnf(string, ...any)                                     {}
-func (nopDeadlineLogger) Trace(...any)                                             {}
-func (nopDeadlineLogger) Tracef(string, ...any)                                    {}
-func (nopDeadlineLogger) Traceln(...any)                                           {}
-func (nopDeadlineLogger) Warnln(...any)                                            {}
-func (nopDeadlineLogger) Errorln(...any)                                           {}
-func (nopDeadlineLogger) Debugln(...any)                                           {}
-func (nopDeadlineLogger) Infoln(...any)                                            {}
+func (nopDeadlineLogger) WithFields(orchestrator.Fields) orchestrator.UnifiedLogger {
+	return nopDeadlineLogger{}
+}
+func (nopDeadlineLogger) With(orchestrator.Fields) orchestrator.UnifiedLogger {
+	return nopDeadlineLogger{}
+}
+func (nopDeadlineLogger) WithError(error) orchestrator.UnifiedLogger    { return nopDeadlineLogger{} }
+func (nopDeadlineLogger) WithTime(time.Time) orchestrator.UnifiedLogger { return nopDeadlineLogger{} }
+func (nopDeadlineLogger) Info(string, ...any)                           {}
+func (nopDeadlineLogger) Error(string, ...any)                          {}
+func (nopDeadlineLogger) Debug(string, ...any)                          {}
+func (nopDeadlineLogger) Warn(string, ...any)                           {}
+func (nopDeadlineLogger) Printf(string, ...any)                         {}
+func (nopDeadlineLogger) Print(...any)                                  {}
+func (nopDeadlineLogger) Println(...any)                                {}
+func (nopDeadlineLogger) Fatal(...any)                                  {}
+func (nopDeadlineLogger) Fatalf(string, ...any)                         {}
+func (nopDeadlineLogger) Fatalln(...any)                                {}
+func (nopDeadlineLogger) Panic(...any)                                  {}
+func (nopDeadlineLogger) Panicf(string, ...any)                         {}
+func (nopDeadlineLogger) Panicln(...any)                                {}
+func (nopDeadlineLogger) Infof(string, ...any)                          {}
+func (nopDeadlineLogger) Errorf(string, ...any)                         {}
+func (nopDeadlineLogger) Debugf(string, ...any)                         {}
+func (nopDeadlineLogger) Warnf(string, ...any)                          {}
+func (nopDeadlineLogger) Trace(...any)                                  {}
+func (nopDeadlineLogger) Tracef(string, ...any)                         {}
+func (nopDeadlineLogger) Traceln(...any)                                {}
+func (nopDeadlineLogger) Warnln(...any)                                 {}
+func (nopDeadlineLogger) Errorln(...any)                                {}
+func (nopDeadlineLogger) Debugln(...any)                                {}
+func (nopDeadlineLogger) Infoln(...any)                                 {}
 
 type deadlineTestBackendCtx struct{}
 
@@ -96,4 +101,21 @@ func TestCheckDeadline(t *testing.T) {
 		require.ErrorAs(t, err, &customErr)
 		assert.Equal(t, vsaerrors.ErrOperationDeadlineExceeded, customErr.TrackingID)
 	})
+}
+
+// assertOperationDeadlineExceeded checks a gowf-serialized deadline failure.
+// GetWorkflowResult returns workflowerrors.Error, not *vsaerrors.CustomError:
+// the outer message is the catalog timeout text and the unwrapped cause is
+// "operation deadline exceeded before <step>".
+func assertOperationDeadlineExceeded(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
+
+	chain := err.Error()
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		chain += "\n" + e.Error()
+	}
+	assert.True(t, strings.Contains(chain, "operation deadline exceeded"),
+		"expected deadline cause in error chain, got %q", chain)
 }

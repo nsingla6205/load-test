@@ -22,53 +22,45 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	activityCtx := ctx.WithActivityOptions(vcmVolumeDeleteActivityOptions())
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
-	finishJob := func(workflowErr error) error {
-		params := activities.JobProgressParams(operationID, vcmdb.JobState(""), workflowErr, nil)
-		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, params).Get(activityCtx, nil); err != nil {
-			return err
-		}
-		return workflowErr
-	}
-
 	if volume == nil || inputs.ExpectedSvmName == "" ||
 		volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil ||
 		volume.VolumeAttributes.FileProperties.ExportPolicy == nil ||
 		volume.VolumeAttributes.ExternalUUID == "" {
-		return finishJob(utilErrors.New("invalid workflow input: missing volume/SVM attributes"))
+		return finishJob(activityCtx, operationID, utilErrors.New("invalid workflow input: missing volume/SVM attributes"), nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "mark-processing"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, activities.JobProgressParams(operationID, vcmdb.JobStateProcessing, nil, nil)).Get(activityCtx, nil); err != nil {
 		return err
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "get-svm"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	if err := orchestrator.ExecuteActivity(activityCtx, svmActivity.GetSvmByName, inputs.Node, inputs.ExpectedSvmName).Get(activityCtx, nil); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "get-volume"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	var volResponse vsa.VolumeResponse
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeUpdateActivity.GetVolumeFromONTAP, volume, inputs.Node).Get(activityCtx, &volResponse); err != nil {
 		if !isVolumeNotFoundOnONTAP(err) {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		if err := checkDeadline(ctx, inputs.Deadline, "load-recovery-payload"); err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		var job *vcmdb.Job
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.GetJob, operationID).Get(activityCtx, &job); err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		recovery, err := vcmdb.UnmarshalPayload[vcmdb.RecoveryPayload](job.RecoveryPayload)
 		if err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		volume.Name = recovery.VolumeName
 		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName = recovery.VolumeName
@@ -79,43 +71,43 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 			VolumeName: volResponse.Name,
 		})
 		if err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		if err := checkDeadline(ctx, inputs.Deadline, "persist-recovery-payload"); err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 		if err := orchestrator.ExecuteActivity(activityCtx, vcmJobActivity.UpdateJobProgress, vcmdb.UpdateJobProgressParams{
 			JobID:           operationID,
 			State:           vcmdb.JobStateProcessing,
 			RecoveryPayload: recoveryPayload,
 		}).Get(activityCtx, nil); err != nil {
-			return finishJob(err)
+			return finishJob(activityCtx, operationID, err, nil)
 		}
 	}
 
 	if volume.Name == "" {
-		return finishJob(utilErrors.New("cannot delete volume: ONTAP volume name could not be resolved"))
+		return finishJob(activityCtx, operationID, utilErrors.New("cannot delete volume: ONTAP volume name could not be resolved"), nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "delete-volume"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeDeleteActivity.DeleteVolumeInONTAP, volume.VolumeAttributes.ExternalUUID, volume.Name, inputs.Node).Get(activityCtx, nil); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "delete-export-policy"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeDeleteActivity.DeleteExportPolicy, volume, inputs.Node).Get(activityCtx, nil); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "delete-snapshot-policy"); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 	if err := orchestrator.ExecuteActivity(activityCtx, volumeDeleteActivity.DeleteSnapshotPolicyInONTAP, volume.Name, inputs.Node).Get(activityCtx, nil); err != nil {
-		return finishJob(err)
+		return finishJob(activityCtx, operationID, err, nil)
 	}
 
 	// Intentionally omitted vs the GCP DeleteVolumeWorkflow (VCM has no VCP volume DB and a narrower API surface):
@@ -129,7 +121,7 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 	// - DeleteCifsShareIfSMB and SmbTeardownWorkflow: SMB protocol volumes.
 	// - DetermineIfVolumeIsLastFilesVolume / DeleteLDAPConfiguration: LDAP-enabled pools.
 
-	return finishJob(nil)
+	return finishJob(activityCtx, operationID, nil, nil)
 }
 
 // isVolumeNotFoundOnONTAP reports whether ONTAP no longer has the target volume.

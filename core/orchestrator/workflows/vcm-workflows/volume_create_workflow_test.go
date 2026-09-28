@@ -34,21 +34,33 @@ type stubVolumeCreateBlockActivity struct {
 	createLunErr        error
 	createLunMapErr     error
 	snapshotPolicyErr   error
+	snapshotPolicyDelay time.Duration
+	createVolumeDelay   time.Duration
+	createLunDelay      time.Duration
 }
 
 func (s *stubVolumeCreateBlockActivity) CreateSnapshotPolicyInONTAP(context.Context, *datamodel.Volume, *models.Node) error {
+	if s.snapshotPolicyDelay > 0 {
+		time.Sleep(s.snapshotPolicyDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshotPolicyCalls++
-	return s.snapshotPolicyErr
+	if s.snapshotPolicyErr != nil {
+		return nonRetryableTestErr(s.snapshotPolicyErr.Error())
+	}
+	return nil
 }
 
 func (s *stubVolumeCreateBlockActivity) CreateVolumeInONTAP(context.Context, *datamodel.Volume, *models.Node, *datamodel.Snapshot, *datamodel.Backup, *models.AggregateDistributionResult) (*vsa.VolumeResponse, error) {
+	if s.createVolumeDelay > 0 {
+		time.Sleep(s.createVolumeDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createVolumeCalls++
 	if s.createVolumeErr != nil {
-		return nil, s.createVolumeErr
+		return nil, nonRetryableTestErr(s.createVolumeErr.Error())
 	}
 	return &vsa.VolumeResponse{
 		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "vol-uuid-1"},
@@ -60,13 +72,20 @@ type stubVCMHostGroupActivity struct {
 	mu                     sync.Mutex
 	validateHostGroupCalls int
 	validateHostGroupErr   error
+	validateHostGroupDelay time.Duration
 }
 
 func (s *stubVCMHostGroupActivity) ValidateHostGroupsExistInONTAP(_ context.Context, _ []string, _ string, _ *models.Node) error {
+	if s.validateHostGroupDelay > 0 {
+		time.Sleep(s.validateHostGroupDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.validateHostGroupCalls++
-	return s.validateHostGroupErr
+	if s.validateHostGroupErr != nil {
+		return nonRetryableTestErr(s.validateHostGroupErr.Error())
+	}
+	return nil
 }
 
 func registerBlockVolumeCreateActivities(
@@ -97,11 +116,14 @@ func registerVcmBuildVolumeOperationEnrichment(reg orchestrator.WorkflowRegistra
 }
 
 func (s *stubVolumeCreateBlockActivity) CreateLun(context.Context, *datamodel.Volume, *models.Node, int64) (*vsa.LunResponse, error) {
+	if s.createLunDelay > 0 {
+		time.Sleep(s.createLunDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createLunCalls++
 	if s.createLunErr != nil {
-		return nil, s.createLunErr
+		return nil, nonRetryableTestErr(s.createLunErr.Error())
 	}
 	return &vsa.LunResponse{
 		ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid-1"},
@@ -114,53 +136,74 @@ func (s *stubVolumeCreateBlockActivity) CreateLunMap(context.Context, *datamodel
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createLunMapCalls++
-	return s.createLunMapErr
+	if s.createLunMapErr != nil {
+		return nonRetryableTestErr(s.createLunMapErr.Error())
+	}
+	return nil
 }
 
 type stubVolumeCreateFileActivity struct {
-	mu                    sync.Mutex
-	clusterHealthCalls    int
-	exportPolicyCalls     int
-	snapshotPolicyCalls   int
-	createVolumeCalls     int
-	clusterHealthy        bool
-	clusterHealthErr      error
-	exportPolicyErr       error
-	createVolumeErr       error
-	snapshotPolicyErr     error
+	mu                  sync.Mutex
+	clusterHealthCalls  int
+	exportPolicyCalls   int
+	snapshotPolicyCalls int
+	createVolumeCalls   int
+	clusterHealthy      bool
+	clusterHealthErr    error
+	exportPolicyErr     error
+	createVolumeErr     error
+	snapshotPolicyErr   error
+	clusterHealthDelay  time.Duration
+	exportPolicyDelay   time.Duration
+	createVolumeDelay   time.Duration
 }
 
 func (s *stubVolumeCreateFileActivity) CreateSnapshotPolicyInONTAP(context.Context, *datamodel.Volume, *models.Node) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshotPolicyCalls++
-	return s.snapshotPolicyErr
+	if s.snapshotPolicyErr != nil {
+		return nonRetryableTestErr(s.snapshotPolicyErr.Error())
+	}
+	return nil
 }
 
 func (s *stubVolumeCreateFileActivity) GetOntapClusterHealth(context.Context, *models.Node) (*bool, error) {
+	if s.clusterHealthDelay > 0 {
+		time.Sleep(s.clusterHealthDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clusterHealthCalls++
 	if s.clusterHealthErr != nil {
-		return nil, s.clusterHealthErr
+		return nil, nonRetryableTestErr(s.clusterHealthErr.Error())
 	}
 	healthy := s.clusterHealthy
 	return &healthy, nil
 }
 
 func (s *stubVolumeCreateFileActivity) CreateExportPolicyInOntap(context.Context, *datamodel.Volume, *models.Node) error {
+	if s.exportPolicyDelay > 0 {
+		time.Sleep(s.exportPolicyDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.exportPolicyCalls++
-	return s.exportPolicyErr
+	if s.exportPolicyErr != nil {
+		return nonRetryableTestErr(s.exportPolicyErr.Error())
+	}
+	return nil
 }
 
 func (s *stubVolumeCreateFileActivity) CreateVolumeInONTAP(context.Context, *datamodel.Volume, *models.Node, *datamodel.Snapshot, *datamodel.Backup, *models.AggregateDistributionResult) (*vsa.VolumeResponse, error) {
+	if s.createVolumeDelay > 0 {
+		time.Sleep(s.createVolumeDelay)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createVolumeCalls++
 	if s.createVolumeErr != nil {
-		return nil, s.createVolumeErr
+		return nil, nonRetryableTestErr(s.createVolumeErr.Error())
 	}
 	return &vsa.VolumeResponse{
 		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "vol-uuid-1"},
@@ -182,6 +225,11 @@ func runVcmCreateVolumeWorkflow(
 	params *common.CreateVolumeParams,
 ) error {
 	t.Helper()
+
+	deadlineOffset := time.Hour
+	if params != nil && !params.Deadline.IsZero() {
+		deadlineOffset = time.Until(params.Deadline)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), volumeWorkflowTestTimeout)
 	defer cancel()
@@ -211,10 +259,7 @@ func runVcmCreateVolumeWorkflow(
 	if volume != nil && volume.Svm != nil {
 		expectedSvmName = volume.Svm.Name
 	}
-	deadline := time.Now().UTC().Add(time.Hour)
-	if params != nil && !params.Deadline.IsZero() {
-		deadline = params.Deadline.UTC()
-	}
+	deadline := time.Now().UTC().Add(deadlineOffset)
 	wfi, err := runner.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
 		InstanceID: instanceID,
 	}, gowfbackend.FuncName(VcmCreateVolumeWorkflow), volume, common.WorkflowInputs{
@@ -744,4 +789,126 @@ func TestVcmCreateVolumeWorkflow_MarkDoneFailsAfterSuccess(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store unavailable on done")
+}
+
+func TestVcmCreateVolumeWorkflow_GetVolumeFromONTAPFails(t *testing.T) {
+	job := &stubJobActivity{}
+	svm := &stubSvmActivity{}
+	volume := &stubVolumeCreateBlockActivity{}
+	getVol := &stubVolumeUpdateActivity{err: nonRetryableTestErr("get volume failed")}
+
+	err := runVcmCreateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity(svm.GetSvmByName)
+		reg.RegisterActivity(volume.CreateSnapshotPolicyInONTAP)
+		reg.RegisterActivity((&stubVCMHostGroupActivity{}).ValidateHostGroupsExistInONTAP)
+		reg.RegisterActivity(volume.CreateVolumeInONTAP)
+		reg.RegisterActivity(volume.CreateLun)
+		reg.RegisterActivity(volume.CreateLunMap)
+		reg.RegisterActivity(getVol.GetVolumeFromONTAP)
+		registerVcmBuildVolumeOperationEnrichment(reg)
+	}, testBlockVolume(), testNode(), testBlockCreateVolumeParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get volume failed")
+	calls := job.snapshot()
+	require.GreaterOrEqual(t, len(calls), 2)
+	assert.Equal(t, vcmdb.JobStateError, calls[len(calls)-1].state)
+}
+
+func TestVcmCreateVolumeWorkflow_BuildEnrichmentFails(t *testing.T) {
+	job := &stubJobActivity{}
+	svm := &stubSvmActivity{}
+	volume := &stubVolumeCreateBlockActivity{}
+	vcmVolume := &updateWorkflowVCMVolumeActivity{enrichmentErr: errors.New("enrichment failed")}
+
+	err := runVcmCreateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity(svm.GetSvmByName)
+		reg.RegisterActivity(volume.CreateSnapshotPolicyInONTAP)
+		reg.RegisterActivity((&stubVCMHostGroupActivity{}).ValidateHostGroupsExistInONTAP)
+		reg.RegisterActivity(volume.CreateVolumeInONTAP)
+		reg.RegisterActivity(volume.CreateLun)
+		reg.RegisterActivity(volume.CreateLunMap)
+		reg.RegisterActivity((&stubVolumeUpdateActivity{}).GetVolumeFromONTAP)
+		reg.RegisterActivity(vcmVolume.BuildVolumeOperationResponseEnrichment)
+	}, testBlockVolume(), testNode(), testBlockCreateVolumeParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enrichment failed")
+}
+
+func TestVcmCreateVolumeWorkflow_NilONTAPVolumeResponseFailsPayload(t *testing.T) {
+	job := &stubJobActivity{}
+	svm := &stubSvmActivity{}
+	volume := &stubVolumeCreateBlockActivity{}
+	getVol := &stubVolumeUpdateActivity{returnNil: true}
+
+	err := runVcmCreateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+		reg.RegisterActivity(svm.GetSvmByName)
+		reg.RegisterActivity(volume.CreateSnapshotPolicyInONTAP)
+		reg.RegisterActivity((&stubVCMHostGroupActivity{}).ValidateHostGroupsExistInONTAP)
+		reg.RegisterActivity(volume.CreateVolumeInONTAP)
+		reg.RegisterActivity(volume.CreateLun)
+		reg.RegisterActivity(volume.CreateLunMap)
+		reg.RegisterActivity(getVol.GetVolumeFromONTAP)
+		registerVcmBuildVolumeOperationEnrichment(reg)
+	}, testBlockVolume(), testNode(), testBlockCreateVolumeParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ONTAP volume response is required")
+}
+
+func TestVcmCreateVolumeWorkflow_DeadlineChecks(t *testing.T) {
+	tests := []struct {
+		name           string
+		jobDelay       time.Duration
+		svmDelay       time.Duration
+		hostGroupDelay time.Duration
+		snapshotDelay  time.Duration
+		createVolDelay time.Duration
+		createLunDelay time.Duration
+		getVolDelay    time.Duration
+		deadlineOffset time.Duration
+	}{
+		{name: "before mark-processing", deadlineOffset: -time.Second},
+		{name: "before get-svm", jobDelay: 100 * time.Millisecond, deadlineOffset: 50 * time.Millisecond},
+		{name: "before pre-provision", svmDelay: 100 * time.Millisecond, deadlineOffset: 50 * time.Millisecond},
+		{name: "before create-snapshot-policy", hostGroupDelay: 3 * time.Second, deadlineOffset: 2 * time.Second},
+		{name: "before create-volume", snapshotDelay: 3 * time.Second, deadlineOffset: 2 * time.Second},
+		{name: "before post-provision", createVolDelay: 3 * time.Second, deadlineOffset: 2 * time.Second},
+		{name: "before get-volume", createLunDelay: 12 * time.Second, deadlineOffset: 10 * time.Second},
+		{name: "before build-response", getVolDelay: 6 * time.Second, deadlineOffset: 5 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &stubJobActivity{processingDelay: tt.jobDelay}
+			svm := &stubSvmActivity{delay: tt.svmDelay}
+			volume := &stubVolumeCreateBlockActivity{
+				snapshotPolicyDelay: tt.snapshotDelay,
+				createVolumeDelay:   tt.createVolDelay,
+				createLunDelay:      tt.createLunDelay,
+			}
+			hostGroup := &stubVCMHostGroupActivity{validateHostGroupDelay: tt.hostGroupDelay}
+			getVol := &stubVolumeUpdateActivity{delay: tt.getVolDelay}
+			params := testBlockCreateVolumeParams()
+			params.Deadline = time.Now().UTC().Add(tt.deadlineOffset)
+
+			err := runVcmCreateVolumeWorkflow(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+				reg.RegisterActivity(job.UpdateJobProgress)
+				reg.RegisterActivity(svm.GetSvmByName)
+				reg.RegisterActivity(volume.CreateSnapshotPolicyInONTAP)
+				reg.RegisterActivity(hostGroup.ValidateHostGroupsExistInONTAP)
+				reg.RegisterActivity(volume.CreateVolumeInONTAP)
+				reg.RegisterActivity(volume.CreateLun)
+				reg.RegisterActivity(volume.CreateLunMap)
+				reg.RegisterActivity(getVol.GetVolumeFromONTAP)
+				registerVcmBuildVolumeOperationEnrichment(reg)
+			}, testBlockVolume(), testNode(), params)
+
+			assertOperationDeadlineExceeded(t, err)
+		})
+	}
 }

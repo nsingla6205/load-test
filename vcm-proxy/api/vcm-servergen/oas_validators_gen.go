@@ -1221,22 +1221,6 @@ func (s *V1CreateIgroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1CreateIgroupConflict) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1CreateIgroupForbidden) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1CreateIgroupInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
@@ -1254,14 +1238,6 @@ func (s *V1CreateIgroupUnauthorized) Validate() error {
 }
 
 func (s *V1CreateVolumeBadRequest) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1CreateVolumeForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1293,31 +1269,7 @@ func (s *V1DeleteIgroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1DeleteIgroupConflict) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1DeleteIgroupForbidden) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1DeleteIgroupInternalServerError) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1DeleteIgroupNotFound) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1334,14 +1286,6 @@ func (s *V1DeleteIgroupUnauthorized) Validate() error {
 }
 
 func (s *V1DeleteVolumeBadRequest) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1DeleteVolumeForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1366,14 +1310,6 @@ func (s *V1DeleteVolumeUnauthorized) Validate() error {
 }
 
 func (s *V1DescribeIgroupBadRequest) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1DescribeIgroupForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1413,14 +1349,6 @@ func (s *V1DescribeVolumeBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1DescribeVolumeForbidden) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1DescribeVolumeInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
@@ -1438,22 +1366,6 @@ func (s *V1DescribeVolumeNotFound) Validate() error {
 }
 
 func (s *V1DescribeVolumeUnauthorized) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1ListIgroupsBadRequest) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1ListIgroupsForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1507,22 +1419,6 @@ func (s *V1ListIgroupsOK) Validate() error {
 }
 
 func (s *V1ListIgroupsUnauthorized) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1ListVolumesBadRequest) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1ListVolumesForbidden) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1591,31 +1487,7 @@ func (s *V1UpdateIgroupBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateIgroupConflict) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1UpdateIgroupForbidden) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1UpdateIgroupInternalServerError) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1UpdateIgroupNotFound) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
@@ -1647,23 +1519,7 @@ func (s *V1UpdateVolumeBadRequest) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateVolumeForbidden) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1UpdateVolumeInternalServerError) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1UpdateVolumeNotFound) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err

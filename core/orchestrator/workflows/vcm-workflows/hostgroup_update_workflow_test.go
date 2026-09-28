@@ -65,6 +65,21 @@ func runVcmUpdateHostGroupWorkflow(
 	hosts []string,
 	expectedSvmName string,
 ) error {
+	return runVcmUpdateHostGroupWorkflowWithDeadline(
+		t, instanceID, register, node, igroupName, hosts, expectedSvmName, time.Now().UTC().Add(time.Hour),
+	)
+}
+
+func runVcmUpdateHostGroupWorkflowWithDeadline(
+	t *testing.T,
+	instanceID string,
+	register func(orchestrator.WorkflowRegistrar),
+	node *models.Node,
+	igroupName string,
+	hosts []string,
+	expectedSvmName string,
+	deadline time.Time,
+) error {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), hostGroupWorkflowTestTimeout)
@@ -91,7 +106,7 @@ func runVcmUpdateHostGroupWorkflow(
 	}, gowfbackend.FuncName(VcmUpdateHostGroupWorkflow), common.WorkflowInputs{
 		Node:            node,
 		ExpectedSvmName: expectedSvmName,
-		Deadline:        time.Now().UTC().Add(time.Hour),
+		Deadline:        deadline,
 	}, igroupName, hosts)
 	require.NoError(t, err)
 
@@ -191,4 +206,48 @@ func TestVcmUpdateHostGroupWorkflow_FinishJobUpdateFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "final job update failed")
 	updateCalls, _, _, _ := updater.snapshot()
 	assert.Equal(t, 1, updateCalls)
+}
+
+func TestVcmUpdateHostGroupWorkflow_MarkProcessingFails(t *testing.T) {
+	job := &stubJobActivity{
+		failOnState: vcmdb.JobStateProcessing,
+		failErr:     errors.New("store unavailable"),
+	}
+
+	err := runVcmUpdateHostGroupWorkflow(t, "op-update-processing-fails", func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(job.UpdateJobProgress)
+	}, testNode(), "hg-1", []string{"iqn.1998-01.com.vmware:db1"}, testExpectedSvmName)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store unavailable")
+}
+
+func TestVcmUpdateHostGroupWorkflow_DeadlineChecks(t *testing.T) {
+	tests := []struct {
+		name           string
+		jobDelay       time.Duration
+		svmDelay       time.Duration
+		deadlineOffset time.Duration
+	}{
+		{name: "before mark processing", deadlineOffset: -time.Second},
+		{name: "before get SVM", jobDelay: 3 * time.Second, deadlineOffset: 2 * time.Second},
+		{name: "before update igroup", svmDelay: 3 * time.Second, deadlineOffset: 2 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &stubJobActivity{processingDelay: tt.jobDelay}
+			svm := &stubSvmActivity{delay: tt.svmDelay}
+			updater := &stubUpdateIgroupActivity{osType: "LINUX"}
+
+			err := runVcmUpdateHostGroupWorkflowWithDeadline(t, uuid.NewString(), func(reg orchestrator.WorkflowRegistrar) {
+				reg.RegisterActivity(job.UpdateJobProgress)
+				reg.RegisterActivity(svm.GetSvmByName)
+				reg.RegisterActivity(updater.UpdateIgroup)
+			}, testNode(), "hg-1", []string{"iqn.1998-01.com.vmware:db1"}, testExpectedSvmName, time.Now().UTC().Add(tt.deadlineOffset))
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "operation timed out")
+		})
+	}
 }

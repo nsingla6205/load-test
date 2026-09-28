@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 )
 
 // volumeOperationResponsePayload JSON-encodes the completed volume as the LRO response payload.
-func volumeOperationResponsePayload(ontapVol *vsa.VolumeResponse, enrichment *vsa.VolumeOperationEnrichment) (*string, error) {
+func volumeOperationResponsePayload(ontapVol *vsa.VolumeResponse, enrichment *activities.VolumeOperationEnrichment) (*string, error) {
 	volumeBody, err := buildVolumeOperationResponseBody(ontapVol, enrichment)
 	if err != nil {
 		return nil, err
@@ -24,7 +25,7 @@ func volumeOperationResponsePayload(ontapVol *vsa.VolumeResponse, enrichment *vs
 	return &result, nil
 }
 
-func buildVolumeOperationResponseBody(ontapVol *vsa.VolumeResponse, enrichment *vsa.VolumeOperationEnrichment) (map[string]any, error) {
+func buildVolumeOperationResponseBody(ontapVol *vsa.VolumeResponse, enrichment *activities.VolumeOperationEnrichment) (map[string]any, error) {
 	if ontapVol == nil {
 		return nil, fmt.Errorf("ONTAP volume response is required for operation response")
 	}
