@@ -90,27 +90,27 @@ func (h Handler) V1betaBatchListVolumes(ctx context.Context, req *gcpgenserver.B
 		}, nil
 	}
 
-	if len(req.VolumeUUIDs) == 0 {
+	if len(req.VolumeUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListVolumesBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "volumeUUIDs is required and must have at least 1 item",
+			Message: "volumeUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	if len(req.VolumeUUIDs) > maxBatchVolumeUUIDs {
+	if len(req.VolumeUuids) > maxBatchVolumeUUIDs {
 		return &gcpgenserver.V1betaBatchListVolumesBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("volumeUUIDs in body should have at most %d items", maxBatchVolumeUUIDs),
+			Message: fmt.Sprintf("volumeUuids in body should have at most %d items", maxBatchVolumeUUIDs),
 		}, nil
 	}
 
 	fieldSet := buildBatchVolumeFieldSet(params.Fields)
 
 	if cvp.CVP_HOST == "" {
-		return h.batchListVolumesVCPOnly(ctx, req.VolumeUUIDs, fieldSet)
+		return h.batchListVolumesVCPOnly(ctx, req.VolumeUuids, fieldSet)
 	}
 
-	return h.batchListVolumesParallel(ctx, req.VolumeUUIDs, params, fieldSet)
+	return h.batchListVolumesParallel(ctx, req.VolumeUuids, params, fieldSet)
 }
 
 func (h Handler) batchListVolumesVCPOnly(ctx context.Context, volumeUUIDs []string, fieldSet map[string]bool) (gcpgenserver.V1betaBatchListVolumesRes, error) {

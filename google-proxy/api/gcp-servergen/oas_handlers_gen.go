@@ -1254,7 +1254,7 @@ func (s *Server) handleV1betaBatchListKmsConfigsRequest(args [1]string, argsEsca
 		}
 
 		type (
-			Request  = *BatchKmsConfigUUIDListV1beta
+			Request  = *BatchKmsConfigIdListV1beta
 			Params   = V1betaBatchListKmsConfigsParams
 			Response = V1betaBatchListKmsConfigsRes
 		)

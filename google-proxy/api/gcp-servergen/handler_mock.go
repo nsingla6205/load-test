@@ -440,7 +440,7 @@ func (_c *MockHandler_V1betaBatchListHostGroups_Call) RunAndReturn(run func(cont
 }
 
 // V1betaBatchListKmsConfigs provides a mock function with given fields: ctx, req, params
-func (_m *MockHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error) {
+func (_m *MockHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error) {
 	ret := _m.Called(ctx, req, params)
 
 	if len(ret) == 0 {
@@ -449,10 +449,10 @@ func (_m *MockHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *Batch
 
 	var r0 V1betaBatchListKmsConfigsRes
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *BatchKmsConfigUUIDListV1beta, V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *BatchKmsConfigIdListV1beta, V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)); ok {
 		return rf(ctx, req, params)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *BatchKmsConfigUUIDListV1beta, V1betaBatchListKmsConfigsParams) V1betaBatchListKmsConfigsRes); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *BatchKmsConfigIdListV1beta, V1betaBatchListKmsConfigsParams) V1betaBatchListKmsConfigsRes); ok {
 		r0 = rf(ctx, req, params)
 	} else {
 		if ret.Get(0) != nil {
@@ -460,7 +460,7 @@ func (_m *MockHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *Batch
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *BatchKmsConfigUUIDListV1beta, V1betaBatchListKmsConfigsParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *BatchKmsConfigIdListV1beta, V1betaBatchListKmsConfigsParams) error); ok {
 		r1 = rf(ctx, req, params)
 	} else {
 		r1 = ret.Error(1)
@@ -476,15 +476,15 @@ type MockHandler_V1betaBatchListKmsConfigs_Call struct {
 
 // V1betaBatchListKmsConfigs is a helper method to define mock.On call
 //   - ctx context.Context
-//   - req *BatchKmsConfigUUIDListV1beta
+//   - req *BatchKmsConfigIdListV1beta
 //   - params V1betaBatchListKmsConfigsParams
 func (_e *MockHandler_Expecter) V1betaBatchListKmsConfigs(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1betaBatchListKmsConfigs_Call {
 	return &MockHandler_V1betaBatchListKmsConfigs_Call{Call: _e.mock.On("V1betaBatchListKmsConfigs", ctx, req, params)}
 }
 
-func (_c *MockHandler_V1betaBatchListKmsConfigs_Call) Run(run func(ctx context.Context, req *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams)) *MockHandler_V1betaBatchListKmsConfigs_Call {
+func (_c *MockHandler_V1betaBatchListKmsConfigs_Call) Run(run func(ctx context.Context, req *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams)) *MockHandler_V1betaBatchListKmsConfigs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*BatchKmsConfigUUIDListV1beta), args[2].(V1betaBatchListKmsConfigsParams))
+		run(args[0].(context.Context), args[1].(*BatchKmsConfigIdListV1beta), args[2].(V1betaBatchListKmsConfigsParams))
 	})
 	return _c
 }
@@ -494,7 +494,7 @@ func (_c *MockHandler_V1betaBatchListKmsConfigs_Call) Return(_a0 V1betaBatchList
 	return _c
 }
 
-func (_c *MockHandler_V1betaBatchListKmsConfigs_Call) RunAndReturn(run func(context.Context, *BatchKmsConfigUUIDListV1beta, V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)) *MockHandler_V1betaBatchListKmsConfigs_Call {
+func (_c *MockHandler_V1betaBatchListKmsConfigs_Call) RunAndReturn(run func(context.Context, *BatchKmsConfigIdListV1beta, V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)) *MockHandler_V1betaBatchListKmsConfigs_Call {
 	_c.Call.Return(run)
 	return _c
 }

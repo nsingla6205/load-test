@@ -51,7 +51,7 @@ func TestV1betaBatchListActiveDirectories_Auth(t *testing.T) {
 			"Authorization": []string{"invalid-jwt-token"},
 		})
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(ctx, req, params)
@@ -69,7 +69,7 @@ func TestV1betaBatchListActiveDirectories_Auth(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(context.Background(), req, params)
@@ -90,7 +90,7 @@ func TestV1betaBatchListActiveDirectories_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "invalid location!"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(authContext(), req, params)
@@ -99,7 +99,7 @@ func TestV1betaBatchListActiveDirectories_Validation(t *testing.T) {
 		assert.True(tt, ok)
 	})
 
-	t.Run("NilActiveDirectoryUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("NilActiveDirectoryUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -108,17 +108,17 @@ func TestV1betaBatchListActiveDirectories_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: nil}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: nil}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListActiveDirectoriesBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "activeDirectoryUUIDs is required")
+		assert.Contains(tt, badReq.Message, "activeDirectoryUuids is required")
 	})
 
-	t.Run("EmptyActiveDirectoryUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyActiveDirectoryUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -127,17 +127,17 @@ func TestV1betaBatchListActiveDirectories_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListActiveDirectoriesBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "activeDirectoryUUIDs is required")
+		assert.Contains(tt, badReq.Message, "activeDirectoryUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -150,7 +150,7 @@ func TestV1betaBatchListActiveDirectories_Validation(t *testing.T) {
 		for i := range uuids {
 			uuids[i] = "uuid"
 		}
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: uuids}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: uuids}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(authContext(), req, params)
@@ -179,7 +179,7 @@ func TestV1betaBatchListActiveDirectories_Success(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"ad-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"ad-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListActiveDirectoriesFieldsItem{
@@ -213,7 +213,7 @@ func TestV1betaBatchListActiveDirectories_Success(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"ad-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"ad-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(ctx, req, params)
@@ -238,7 +238,7 @@ func TestV1betaBatchListActiveDirectories_Success(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListActiveDirectories(ctx, req, params)
@@ -265,7 +265,7 @@ func TestV1betaBatchListActiveDirectories_SkipsDeletedADs(t *testing.T) {
 	handler := &Handler{Orchestrator: mockOrch}
 	ctx := authContext()
 
-	req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUUIDs: []string{"ad-active", "ad-deleted"}}
+	req := &gcpgenserver.BatchActiveDirectoryUUIDListV1beta{ActiveDirectoryUuids: []string{"ad-active", "ad-deleted"}}
 	params := gcpgenserver.V1betaBatchListActiveDirectoriesParams{LocationId: "us-east4"}
 
 	res, err := handler.V1betaBatchListActiveDirectories(ctx, req, params)

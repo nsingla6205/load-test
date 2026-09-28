@@ -7354,7 +7354,7 @@ paths:
           required: true
           description: A list of KMS configuration UUIDs to return.
           schema:
-            $ref: '#/definitions/BatchKmsConfigUUIDList_v1beta'
+            $ref: '#/definitions/kmsConfigIDList_v1beta'
       responses:
         '200':
           description: OK
@@ -7362,7 +7362,7 @@ paths:
             type: object
             allOf:
               - properties:
-                  kmsConfigs:
+                  kmsConfigurations:
                     type: array
                     items:
                       $ref: '#/definitions/BatchKmsConfig_v1beta'
@@ -15375,18 +15375,6 @@ definitions:
         x-nullable: true
         description: The last error that occurred during a transfer
         example: Transfer aborted.
-  BatchKmsConfigUUIDList_v1beta:
-    type: object
-    title: BatchKmsConfigUUIDList
-    required:
-      - kmsConfigUUIDs
-    properties:
-      kmsConfigUUIDs:
-        title: kmsConfigUUIDs
-        type: array
-        items:
-          type: string
-        description: List of KMS configuration UUIDs to return
   BatchKmsConfig_v1beta:
     type: object
     title: KmsConfig

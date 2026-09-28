@@ -125,7 +125,7 @@ func TestV1betaBatchListVolumes_AuthAndValidation(t *testing.T) {
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(context.Background(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(context.Background(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesUnauthorized)
 		assert.True(tt, ok)
@@ -136,24 +136,25 @@ func TestV1betaBatchListVolumes_AuthAndValidation(t *testing.T) {
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "invalid location!"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "invalid location!"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
 		assert.True(tt, ok)
 	})
 
-	t.Run("EmptyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restoreParse := stubBatchVolumeParseRegionAndZone()
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
-		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
-		assert.True(tt, ok)
+		badReq, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
+		require.True(tt, ok)
+		assert.Contains(tt, badReq.Message, "volumeUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restoreParse := stubBatchVolumeParseRegionAndZone()
 		defer restoreParse()
 
@@ -162,7 +163,7 @@ func TestV1betaBatchListVolumes_AuthAndValidation(t *testing.T) {
 		defer func() { maxBatchVolumeUUIDs = origMax }()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1", "uuid-2"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1", "uuid-2"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
 		assert.True(tt, ok)
@@ -179,7 +180,7 @@ func TestV1betaBatchListVolumes_VCPAndParallelPaths(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return([]*models.Volume{makeVCPVolume("uuid-1", "vol-1")}, nil).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{
 			LocationId: "us-east4",
 			Fields:     allBatchVolumeFields(),
 		})
@@ -195,7 +196,7 @@ func TestV1betaBatchListVolumes_VCPAndParallelPaths(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return(nil, errors.New("db error")).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesInternalServerError)
 		assert.True(tt, ok)
@@ -213,7 +214,7 @@ func TestV1betaBatchListVolumes_VCPAndParallelPaths(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return(nil, errors.New("vcp error")).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesInternalServerError)
 		assert.True(tt, ok)
@@ -231,7 +232,7 @@ func TestV1betaBatchListVolumes_VCPAndParallelPaths(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return([]*models.Volume{makeVCPVolume("uuid-1", "vol-1")}, nil).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListVolumesOK)
 		require.True(tt, ok)
@@ -1134,7 +1135,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(context.Background(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(context.Background(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesUnauthorized)
 		assert.True(tt, ok)
@@ -1145,24 +1146,25 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "invalid location!"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "invalid location!"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
 		assert.True(tt, ok)
 	})
 
-	t.Run("EmptyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restoreParse := stubBatchVolumeParseRegionAndZone()
 		defer restoreParse()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
-		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
-		assert.True(tt, ok)
+		badReq, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
+		require.True(tt, ok)
+		assert.Contains(tt, badReq.Message, "volumeUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restoreParse := stubBatchVolumeParseRegionAndZone()
 		defer restoreParse()
 		origMax := maxBatchVolumeUUIDs
@@ -1170,7 +1172,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		defer func() { maxBatchVolumeUUIDs = origMax }()
 
 		handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(tt)}
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1", "uuid-2"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1", "uuid-2"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesBadRequest)
 		assert.True(tt, ok)
@@ -1185,7 +1187,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return([]*models.Volume{makeVCPVolume("uuid-1", "vol-1")}, nil).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListVolumesOK)
 		require.True(tt, ok)
@@ -1201,7 +1203,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return(nil, errors.New("db error")).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesInternalServerError)
 		assert.True(tt, ok)
@@ -1221,7 +1223,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return(nil, errors.New("vcp error")).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		_, ok := res.(*gcpgenserver.V1betaBatchListVolumesInternalServerError)
 		assert.True(tt, ok)
@@ -1241,7 +1243,7 @@ func TestV1betaBatchListVolumes_HandlerCoverage(t *testing.T) {
 		mockOrch.EXPECT().GetVolumesByUUIDs(mock.Anything, []string{"uuid-1"}, mock.Anything).Return([]*models.Volume{makeVCPVolume("uuid-1", "vol-1")}, nil).Once()
 		handler := &Handler{Orchestrator: mockOrch}
 
-		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUUIDs: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
+		res, err := handler.V1betaBatchListVolumes(batchVolumeRequestContext(), &gcpgenserver.BatchVolumeUUIDListV1beta{VolumeUuids: []string{"uuid-1"}}, gcpgenserver.V1betaBatchListVolumesParams{LocationId: "us-east4"})
 		require.NoError(tt, err)
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListVolumesOK)
 		require.True(tt, ok)

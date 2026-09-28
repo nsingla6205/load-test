@@ -54,18 +54,18 @@ func (h Handler) V1betaBatchListBackups(ctx context.Context, req *gcpgenserver.B
 		}, nil
 	}
 
-	if req == nil || len(req.BackupUUIDs) == 0 {
+	if req == nil || len(req.BackupUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListBackupsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "backupUUIDs is required and must have at least 1 item",
+			Message: "backupUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	uuids := utils.DeduplicateSlice(req.BackupUUIDs)
+	uuids := utils.DeduplicateSlice(req.BackupUuids)
 	if len(uuids) > env.MaxBatchBackupUUIDs {
 		return &gcpgenserver.V1betaBatchListBackupsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("backupUUIDs in body should have at most %d items", env.MaxBatchBackupUUIDs),
+			Message: fmt.Sprintf("backupUuids in body should have at most %d items", env.MaxBatchBackupUUIDs),
 		}, nil
 	}
 
@@ -73,7 +73,7 @@ func (h Handler) V1betaBatchListBackups(ctx context.Context, req *gcpgenserver.B
 	// inputs that can never match a real backup. Validation runs against the
 	// original (pre-dedup) list so the offending index in the message matches
 	// what the caller sent.
-	if msg := validateUUIDList(req.BackupUUIDs, "backupUUIDs"); msg != "" {
+	if msg := validateUUIDList(req.BackupUuids, "backupUuids"); msg != "" {
 		return &gcpgenserver.V1betaBatchListBackupsBadRequest{
 			Code:    http.StatusBadRequest,
 			Message: msg,

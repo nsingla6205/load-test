@@ -19,7 +19,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
@@ -111,7 +110,7 @@ func TestV1betaBatchListKmsConfigs_Auth(t *testing.T) {
 			"Authorization": []string{"invalid-jwt-token"},
 		})
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
@@ -129,7 +128,7 @@ func TestV1betaBatchListKmsConfigs_Auth(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(context.Background(), req, params)
@@ -146,7 +145,7 @@ func TestV1betaBatchListKmsConfigs_Auth(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := context.WithValue(context.Background(), utilsmiddleware.HeaderContextKey, "not-http-header")
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
@@ -166,7 +165,7 @@ func TestV1betaBatchListKmsConfigs_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "invalid location!"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
@@ -175,7 +174,7 @@ func TestV1betaBatchListKmsConfigs_Validation(t *testing.T) {
 		assert.True(tt, ok)
 	})
 
-	t.Run("EmptyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -184,30 +183,30 @@ func TestV1betaBatchListKmsConfigs_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "kmsConfigUUIDs is required")
+		assert.Contains(tt, badReq.Message, "kmsConfigIds is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
 		defer restoreAuth()
 
-		origLimit := env.MaxBatchKmsConfigUUIDs
-		env.MaxBatchKmsConfigUUIDs = 2
-		defer func() { env.MaxBatchKmsConfigUUIDs = origLimit }()
+		origLimit := maxBatchKmsConfigIDs
+		maxBatchKmsConfigIDs = func() int { return 2 }
+		defer func() { maxBatchKmsConfigIDs = origLimit }()
 
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"a", "b", "c"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"a", "b", "c"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
@@ -215,6 +214,71 @@ func TestV1betaBatchListKmsConfigs_Validation(t *testing.T) {
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsBadRequest)
 		assert.True(tt, ok)
 		assert.Contains(tt, badReq.Message, "at most 2")
+	})
+
+	t.Run("When_kmsConfigIds_contains_non_uuid", func(tt *testing.T) {
+		restore := stubParseRegionAndZone()
+		defer restore()
+		restoreAuth := stubBatchAuth(true)
+		defer restoreAuth()
+
+		origHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp.example"
+		defer func() { cvp.CVP_HOST = origHost }()
+
+		cvpCalled := false
+		origFetch := fetchBatchKmsConfigsFromCVPFn
+		fetchBatchKmsConfigsFromCVPFn = func(
+			_ context.Context,
+			_ []string,
+			_ gcpgenserver.V1betaBatchListKmsConfigsParams,
+			_ map[string]bool,
+		) ([]gcpgenserver.BatchKmsConfigV1beta, error) {
+			cvpCalled = true
+			return nil, errors.New("CVP client should not be called")
+		}
+		defer func() { fetchBatchKmsConfigsFromCVPFn = origFetch }()
+
+		// The orchestrator must never be called when the request fails UUID
+		// format validation; an unset mock would error out if it were.
+		mockOrch := factory.NewMockOrchestratorFactory(tt)
+		handler := &Handler{Orchestrator: mockOrch}
+
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{
+			"10000000-0000-0000-0000-000000000001",
+			"not-a-uuid",
+		}}
+		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
+
+		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
+		require.NoError(tt, err)
+		badReq, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsBadRequest)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+		assert.Contains(tt, badReq.Message, "kmsConfigIds")
+		assert.Contains(tt, badReq.Message, "kmsConfigIds.1 in body should match")
+		assert.Contains(tt, badReq.Message, "[a-fA-F0-9]{8}")
+		assert.False(tt, cvpCalled)
+		mockOrch.AssertNotCalled(tt, "GetKmsConfigsByUUIDs", mock.Anything, mock.Anything)
+	})
+
+	t.Run("When_kmsConfigIds_is_nil_request_returns_bad_request", func(tt *testing.T) {
+		restore := stubParseRegionAndZone()
+		defer restore()
+		restoreAuth := stubBatchAuth(true)
+		defer restoreAuth()
+
+		mockOrch := factory.NewMockOrchestratorFactory(tt)
+		handler := &Handler{Orchestrator: mockOrch}
+
+		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
+
+		res, err := handler.V1betaBatchListKmsConfigs(authContext(), nil, params)
+		require.NoError(tt, err)
+		badReq, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, "kmsConfigIds is required and must have at least 1 item", badReq.Message)
+		mockOrch.AssertNotCalled(tt, "GetKmsConfigsByUUIDs", mock.Anything, mock.Anything)
 	})
 }
 
@@ -233,11 +297,11 @@ func TestV1betaBatchListKmsConfigs_VCPOnly(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		kmsConfig := makeVCPKmsConfig("kms-1", "READY")
-		mockOrch.On("GetKmsConfigsByUUIDs", ctx, []string{"kms-1"}).
+		kmsConfig := makeVCPKmsConfig("11111111-1111-1111-1111-111111111111", "READY")
+		mockOrch.On("GetKmsConfigsByUUIDs", ctx, []string{"11111111-1111-1111-1111-111111111111"}).
 			Return([]*models.KmsConfig{kmsConfig}, nil)
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"kms-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"11111111-1111-1111-1111-111111111111"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
@@ -245,9 +309,37 @@ func TestV1betaBatchListKmsConfigs_VCPOnly(t *testing.T) {
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
 		require.True(tt, ok)
 		require.Len(tt, okRes.KmsConfigs, 1)
-		assert.Equal(tt, "kms-1", okRes.KmsConfigs[0].UUID.Value)
+		assert.Equal(tt, "11111111-1111-1111-1111-111111111111", okRes.KmsConfigs[0].UUID.Value)
 		assert.False(tt, okRes.KmsConfigs[0].ResourceId.Set)
 		assert.False(tt, okRes.KmsConfigs[0].KmsState.Set)
+	})
+
+	t.Run("When_kmsConfigIds_duplicates_are_deduped", func(tt *testing.T) {
+		restore := stubParseRegionAndZone()
+		defer restore()
+		restoreAuth := stubBatchAuth(true)
+		defer restoreAuth()
+
+		origHost := cvp.CVP_HOST
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = origHost }()
+
+		mockOrch := factory.NewMockOrchestratorFactory(tt)
+		handler := &Handler{Orchestrator: mockOrch}
+		ctx := authContext()
+
+		id := "11111111-1111-1111-1111-111111111111"
+		mockOrch.On("GetKmsConfigsByUUIDs", ctx, []string{id}).
+			Return([]*models.KmsConfig{makeVCPKmsConfig(id, "READY")}, nil)
+
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{id, id}}
+		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
+
+		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
+		require.NoError(tt, err)
+		_, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
+		require.True(tt, ok)
+		mockOrch.AssertExpectations(tt)
 	})
 
 	t.Run("Failure_ReturnsInternalServerError", func(tt *testing.T) {
@@ -264,10 +356,10 @@ func TestV1betaBatchListKmsConfigs_VCPOnly(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		mockOrch.On("GetKmsConfigsByUUIDs", ctx, []string{"kms-1"}).
+		mockOrch.On("GetKmsConfigsByUUIDs", ctx, []string{"11111111-1111-1111-1111-111111111111"}).
 			Return(nil, errors.New("db error"))
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"kms-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"11111111-1111-1111-1111-111111111111"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
@@ -284,7 +376,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		restoreAuth := stubBatchAuth(true)
 		defer restoreAuth()
 		restoreCVP := stubBatchKmsConfigCVPFetch([]gcpgenserver.BatchKmsConfigV1beta{
-			makeCVPBatchKmsConfig("cvp-1", "READY"),
+			makeCVPBatchKmsConfig("33333333-3333-3333-3333-333333333333", "READY"),
 		}, nil)
 		defer restoreCVP()
 
@@ -296,10 +388,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"vcp-1", "cvp-1"}).
-			Return([]*models.KmsConfig{makeVCPKmsConfig("vcp-1", "READY")}, nil)
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"}).
+			Return([]*models.KmsConfig{makeVCPKmsConfig("22222222-2222-2222-2222-222222222222", "READY")}, nil)
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"vcp-1", "cvp-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListKmsConfigsFieldsItem{
@@ -321,7 +413,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		restoreAuth := stubBatchAuth(true)
 		defer restoreAuth()
 		restoreCVP := stubBatchKmsConfigCVPFetch([]gcpgenserver.BatchKmsConfigV1beta{
-			{UUID: gcpgenserver.NewOptNilString("cvp-1")},
+			{UUID: gcpgenserver.NewOptNilString("33333333-3333-3333-3333-333333333333")},
 		}, nil)
 		defer restoreCVP()
 
@@ -333,10 +425,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"vcp-1", "cvp-1"}).
-			Return([]*models.KmsConfig{nil, makeVCPKmsConfig("vcp-1", "READY")}, nil)
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"}).
+			Return([]*models.KmsConfig{nil, makeVCPKmsConfig("22222222-2222-2222-2222-222222222222", "READY")}, nil)
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"vcp-1", "cvp-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(ctx, req, params)
@@ -344,8 +436,8 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
 		require.True(tt, ok)
 		require.Len(tt, okRes.KmsConfigs, 2)
-		assert.Equal(tt, "vcp-1", okRes.KmsConfigs[0].UUID.Value)
-		assert.Equal(tt, "cvp-1", okRes.KmsConfigs[1].UUID.Value)
+		assert.Equal(tt, "22222222-2222-2222-2222-222222222222", okRes.KmsConfigs[0].UUID.Value)
+		assert.Equal(tt, "33333333-3333-3333-3333-333333333333", okRes.KmsConfigs[1].UUID.Value)
 	})
 
 	t.Run("Success_DeduplicatesCVPWhenUUIDExistsInVCP", func(tt *testing.T) {
@@ -354,7 +446,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		restoreAuth := stubBatchAuth(true)
 		defer restoreAuth()
 		restoreCVP := stubBatchKmsConfigCVPFetch([]gcpgenserver.BatchKmsConfigV1beta{
-			makeCVPBatchKmsConfig("shared-1", "READY"),
+			makeCVPBatchKmsConfig("44444444-4444-4444-4444-444444444444", "READY"),
 		}, nil)
 		defer restoreCVP()
 
@@ -366,10 +458,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"shared-1"}).
-			Return([]*models.KmsConfig{makeVCPKmsConfig("shared-1", "CREATING")}, nil)
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"44444444-4444-4444-4444-444444444444"}).
+			Return([]*models.KmsConfig{makeVCPKmsConfig("44444444-4444-4444-4444-444444444444", "CREATING")}, nil)
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"shared-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"44444444-4444-4444-4444-444444444444"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListKmsConfigsFieldsItem{
@@ -382,7 +474,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
 		require.True(tt, ok)
 		require.Len(tt, okRes.KmsConfigs, 1)
-		assert.Equal(tt, "shared-1", okRes.KmsConfigs[0].UUID.Value)
+		assert.Equal(tt, "44444444-4444-4444-4444-444444444444", okRes.KmsConfigs[0].UUID.Value)
 		assert.Equal(tt, gcpgenserver.BatchKmsConfigV1betaKmsStateCREATING, okRes.KmsConfigs[0].KmsState.Value)
 	})
 
@@ -392,7 +484,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		restoreAuth := stubBatchAuth(true)
 		defer restoreAuth()
 		restoreCVP := stubBatchKmsConfigCVPFetch([]gcpgenserver.BatchKmsConfigV1beta{
-			makeCVPBatchKmsConfig("cvp-1", "READY"),
+			makeCVPBatchKmsConfig("33333333-3333-3333-3333-333333333333", "READY"),
 		}, nil)
 		defer restoreCVP()
 
@@ -403,10 +495,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"cvp-1"}).
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"33333333-3333-3333-3333-333333333333"}).
 			Return(nil, errors.New("vcp failed"))
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"cvp-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"33333333-3333-3333-3333-333333333333"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
@@ -414,7 +506,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
 		require.True(tt, ok)
 		require.Len(tt, okRes.KmsConfigs, 1)
-		assert.Equal(tt, "cvp-1", okRes.KmsConfigs[0].UUID.Value)
+		assert.Equal(tt, "33333333-3333-3333-3333-333333333333", okRes.KmsConfigs[0].UUID.Value)
 	})
 
 	t.Run("PartialSuccess_WhenCVPFails", func(tt *testing.T) {
@@ -432,10 +524,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"vcp-1"}).
-			Return([]*models.KmsConfig{makeVCPKmsConfig("vcp-1", "READY")}, nil)
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"22222222-2222-2222-2222-222222222222"}).
+			Return([]*models.KmsConfig{makeVCPKmsConfig("22222222-2222-2222-2222-222222222222", "READY")}, nil)
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"vcp-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"22222222-2222-2222-2222-222222222222"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
@@ -443,7 +535,7 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		okRes, ok := res.(*gcpgenserver.V1betaBatchListKmsConfigsOK)
 		require.True(tt, ok)
 		require.Len(tt, okRes.KmsConfigs, 1)
-		assert.Equal(tt, "vcp-1", okRes.KmsConfigs[0].UUID.Value)
+		assert.Equal(tt, "22222222-2222-2222-2222-222222222222", okRes.KmsConfigs[0].UUID.Value)
 	})
 
 	t.Run("Failure_WhenBothFail", func(tt *testing.T) {
@@ -461,10 +553,10 @@ func TestV1betaBatchListKmsConfigs_Parallel(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"kms-1"}).
+		mockOrch.On("GetKmsConfigsByUUIDs", mock.Anything, []string{"11111111-1111-1111-1111-111111111111"}).
 			Return(nil, errors.New("vcp failed"))
 
-		req := &gcpgenserver.BatchKmsConfigUUIDListV1beta{KmsConfigUUIDs: []string{"kms-1"}}
+		req := &gcpgenserver.BatchKmsConfigIdListV1beta{KmsConfigIds: []string{"11111111-1111-1111-1111-111111111111"}}
 		params := gcpgenserver.V1betaBatchListKmsConfigsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListKmsConfigs(authContext(), req, params)
@@ -646,14 +738,14 @@ func TestFetchBatchKmsConfigsFromCVP(t *testing.T) {
 		config2 := &cvpmodels.BatchKmsConfigV1beta{}
 		cvpResponse := &cvpBatch.V1betaBatchListKmsConfigsOK{
 			Payload: &cvpBatch.V1betaBatchListKmsConfigsOKBody{
-				KmsConfigs: []*cvpmodels.BatchKmsConfigV1beta{config1, nil, config2},
+				KmsConfigurations: []*cvpmodels.BatchKmsConfigV1beta{config1, nil, config2},
 			},
 		}
 		mockBatch.On("V1betaBatchListKmsConfigs", mock.MatchedBy(func(p *cvpBatch.V1betaBatchListKmsConfigsParams) bool {
 			return p.LocationID == "us-east4" &&
 				p.Body != nil &&
-				len(p.Body.KmsConfigUUIDs) == 2 &&
-				p.Body.KmsConfigUUIDs[0] == "kms-1" &&
+				len(p.Body.KmsConfigIDs) == 2 &&
+				p.Body.KmsConfigIDs[0] == "kms-1" &&
 				p.Fields != nil &&
 				len(p.Fields) == 2 &&
 				p.Fields[0] == "resourceId" &&

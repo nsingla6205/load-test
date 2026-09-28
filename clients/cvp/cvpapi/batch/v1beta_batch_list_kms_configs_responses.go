@@ -287,21 +287,21 @@ swagger:model V1betaBatchListKmsConfigsOKBody
 */
 type V1betaBatchListKmsConfigsOKBody struct {
 
-	// kms configs
-	KmsConfigs []*models.BatchKmsConfigV1beta `json:"kmsConfigs"`
+	// kms configurations
+	KmsConfigurations []*models.BatchKmsConfigV1beta `json:"kmsConfigurations"`
 }
 
 // UnmarshalJSON unmarshals this object from a JSON structure
 func (o *V1betaBatchListKmsConfigsOKBody) UnmarshalJSON(raw []byte) error {
 	// V1betaBatchListKmsConfigsOKBodyAO0
 	var dataV1betaBatchListKmsConfigsOKBodyAO0 struct {
-		KmsConfigs []*models.BatchKmsConfigV1beta `json:"kmsConfigs"`
+		KmsConfigurations []*models.BatchKmsConfigV1beta `json:"kmsConfigurations"`
 	}
 	if err := swag.ReadJSON(raw, &dataV1betaBatchListKmsConfigsOKBodyAO0); err != nil {
 		return err
 	}
 
-	o.KmsConfigs = dataV1betaBatchListKmsConfigsOKBodyAO0.KmsConfigs
+	o.KmsConfigurations = dataV1betaBatchListKmsConfigsOKBodyAO0.KmsConfigurations
 
 	return nil
 }
@@ -311,10 +311,10 @@ func (o V1betaBatchListKmsConfigsOKBody) MarshalJSON() ([]byte, error) {
 	_parts := make([][]byte, 0, 1)
 
 	var dataV1betaBatchListKmsConfigsOKBodyAO0 struct {
-		KmsConfigs []*models.BatchKmsConfigV1beta `json:"kmsConfigs"`
+		KmsConfigurations []*models.BatchKmsConfigV1beta `json:"kmsConfigurations"`
 	}
 
-	dataV1betaBatchListKmsConfigsOKBodyAO0.KmsConfigs = o.KmsConfigs
+	dataV1betaBatchListKmsConfigsOKBodyAO0.KmsConfigurations = o.KmsConfigurations
 
 	jsonDataV1betaBatchListKmsConfigsOKBodyAO0, errV1betaBatchListKmsConfigsOKBodyAO0 := swag.WriteJSON(dataV1betaBatchListKmsConfigsOKBodyAO0)
 	if errV1betaBatchListKmsConfigsOKBodyAO0 != nil {
@@ -328,7 +328,7 @@ func (o V1betaBatchListKmsConfigsOKBody) MarshalJSON() ([]byte, error) {
 func (o *V1betaBatchListKmsConfigsOKBody) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := o.validateKmsConfigs(formats); err != nil {
+	if err := o.validateKmsConfigurations(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -338,21 +338,21 @@ func (o *V1betaBatchListKmsConfigsOKBody) Validate(formats strfmt.Registry) erro
 	return nil
 }
 
-func (o *V1betaBatchListKmsConfigsOKBody) validateKmsConfigs(formats strfmt.Registry) error {
+func (o *V1betaBatchListKmsConfigsOKBody) validateKmsConfigurations(formats strfmt.Registry) error {
 
-	if swag.IsZero(o.KmsConfigs) { // not required
+	if swag.IsZero(o.KmsConfigurations) { // not required
 		return nil
 	}
 
-	for i := 0; i < len(o.KmsConfigs); i++ {
-		if swag.IsZero(o.KmsConfigs[i]) { // not required
+	for i := 0; i < len(o.KmsConfigurations); i++ {
+		if swag.IsZero(o.KmsConfigurations[i]) { // not required
 			continue
 		}
 
-		if o.KmsConfigs[i] != nil {
-			if err := o.KmsConfigs[i].Validate(formats); err != nil {
+		if o.KmsConfigurations[i] != nil {
+			if err := o.KmsConfigurations[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("v1betaBatchListKmsConfigsOK" + "." + "kmsConfigs" + "." + strconv.Itoa(i))
+					return ve.ValidateName("v1betaBatchListKmsConfigsOK" + "." + "kmsConfigurations" + "." + strconv.Itoa(i))
 				}
 				return err
 			}

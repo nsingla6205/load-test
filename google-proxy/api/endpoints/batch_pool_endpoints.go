@@ -50,27 +50,27 @@ func (h Handler) V1betaBatchListPools(ctx context.Context, req *gcpgenserver.Bat
 		}, nil
 	}
 
-	if len(req.PoolUUIDs) == 0 {
+	if len(req.PoolUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListPoolsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "poolUUIDs is required and must have at least 1 item",
+			Message: "poolUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	if len(req.PoolUUIDs) > env.MaxBatchPoolUUIDs {
+	if len(req.PoolUuids) > env.MaxBatchPoolUUIDs {
 		return &gcpgenserver.V1betaBatchListPoolsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("poolUUIDs in body should have at most %d items", env.MaxBatchPoolUUIDs),
+			Message: fmt.Sprintf("poolUuids in body should have at most %d items", env.MaxBatchPoolUUIDs),
 		}, nil
 	}
 
 	fieldSet := buildFieldSet(params.Fields)
 
 	if cvp.CVP_HOST == "" {
-		return h.batchListPoolsVCPOnly(ctx, req.PoolUUIDs, fieldSet)
+		return h.batchListPoolsVCPOnly(ctx, req.PoolUuids, fieldSet)
 	}
 
-	return h.batchListPoolsParallel(ctx, req.PoolUUIDs, params, fieldSet)
+	return h.batchListPoolsParallel(ctx, req.PoolUuids, params, fieldSet)
 }
 
 func (h Handler) batchListPoolsVCPOnly(ctx context.Context, poolUUIDs []string, fieldSet map[string]bool) (gcpgenserver.V1betaBatchListPoolsRes, error) {

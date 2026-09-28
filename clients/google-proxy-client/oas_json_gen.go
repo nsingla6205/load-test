@@ -6399,9 +6399,9 @@ func (s *BatchActiveDirectoryUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchActiveDirectoryUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("activeDirectoryUUIDs")
+		e.FieldStart("activeDirectoryUuids")
 		e.ArrStart()
-		for _, elem := range s.ActiveDirectoryUUIDs {
+		for _, elem := range s.ActiveDirectoryUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -6409,7 +6409,7 @@ func (s *BatchActiveDirectoryUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchActiveDirectoryUUIDListV1beta = [1]string{
-	0: "activeDirectoryUUIDs",
+	0: "activeDirectoryUuids",
 }
 
 // Decode decodes BatchActiveDirectoryUUIDListV1beta from json.
@@ -6421,10 +6421,10 @@ func (s *BatchActiveDirectoryUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "activeDirectoryUUIDs":
+		case "activeDirectoryUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.ActiveDirectoryUUIDs = make([]string, 0)
+				s.ActiveDirectoryUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -6432,14 +6432,14 @@ func (s *BatchActiveDirectoryUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.ActiveDirectoryUUIDs = append(s.ActiveDirectoryUUIDs, elem)
+					s.ActiveDirectoryUuids = append(s.ActiveDirectoryUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"activeDirectoryUUIDs\"")
+				return errors.Wrap(err, "decode field \"activeDirectoryUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -6979,9 +6979,9 @@ func (s *BatchBackupPolicyUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchBackupPolicyUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("backupPolicyUUIDs")
+		e.FieldStart("backupPolicyUuids")
 		e.ArrStart()
-		for _, elem := range s.BackupPolicyUUIDs {
+		for _, elem := range s.BackupPolicyUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -6989,7 +6989,7 @@ func (s *BatchBackupPolicyUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchBackupPolicyUUIDListV1beta = [1]string{
-	0: "backupPolicyUUIDs",
+	0: "backupPolicyUuids",
 }
 
 // Decode decodes BatchBackupPolicyUUIDListV1beta from json.
@@ -7001,10 +7001,10 @@ func (s *BatchBackupPolicyUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "backupPolicyUUIDs":
+		case "backupPolicyUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.BackupPolicyUUIDs = make([]string, 0)
+				s.BackupPolicyUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -7012,14 +7012,14 @@ func (s *BatchBackupPolicyUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.BackupPolicyUUIDs = append(s.BackupPolicyUUIDs, elem)
+					s.BackupPolicyUuids = append(s.BackupPolicyUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"backupPolicyUUIDs\"")
+				return errors.Wrap(err, "decode field \"backupPolicyUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -7353,9 +7353,9 @@ func (s *BatchBackupUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchBackupUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("backupUUIDs")
+		e.FieldStart("backupUuids")
 		e.ArrStart()
-		for _, elem := range s.BackupUUIDs {
+		for _, elem := range s.BackupUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -7363,7 +7363,7 @@ func (s *BatchBackupUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchBackupUUIDListV1beta = [1]string{
-	0: "backupUUIDs",
+	0: "backupUuids",
 }
 
 // Decode decodes BatchBackupUUIDListV1beta from json.
@@ -7375,10 +7375,10 @@ func (s *BatchBackupUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "backupUUIDs":
+		case "backupUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.BackupUUIDs = make([]string, 0)
+				s.BackupUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -7386,14 +7386,14 @@ func (s *BatchBackupUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.BackupUUIDs = append(s.BackupUUIDs, elem)
+					s.BackupUuids = append(s.BackupUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"backupUUIDs\"")
+				return errors.Wrap(err, "decode field \"backupUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -7925,9 +7925,9 @@ func (s *BatchBackupVaultUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchBackupVaultUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("backupVaultUUIDs")
+		e.FieldStart("backupVaultUuids")
 		e.ArrStart()
-		for _, elem := range s.BackupVaultUUIDs {
+		for _, elem := range s.BackupVaultUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -7935,7 +7935,7 @@ func (s *BatchBackupVaultUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchBackupVaultUUIDListV1beta = [1]string{
-	0: "backupVaultUUIDs",
+	0: "backupVaultUuids",
 }
 
 // Decode decodes BatchBackupVaultUUIDListV1beta from json.
@@ -7947,10 +7947,10 @@ func (s *BatchBackupVaultUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "backupVaultUUIDs":
+		case "backupVaultUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.BackupVaultUUIDs = make([]string, 0)
+				s.BackupVaultUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -7958,14 +7958,14 @@ func (s *BatchBackupVaultUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.BackupVaultUUIDs = append(s.BackupVaultUUIDs, elem)
+					s.BackupVaultUuids = append(s.BackupVaultUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"backupVaultUUIDs\"")
+				return errors.Wrap(err, "decode field \"backupVaultUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -8939,41 +8939,41 @@ func (s *BatchHostGroupV1betaType) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
-func (s *BatchKmsConfigUUIDListV1beta) Encode(e *jx.Encoder) {
+func (s *BatchKmsConfigIdListV1beta) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
 	e.ObjEnd()
 }
 
 // encodeFields encodes fields.
-func (s *BatchKmsConfigUUIDListV1beta) encodeFields(e *jx.Encoder) {
+func (s *BatchKmsConfigIdListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("kmsConfigUUIDs")
+		e.FieldStart("kmsConfigIds")
 		e.ArrStart()
-		for _, elem := range s.KmsConfigUUIDs {
+		for _, elem := range s.KmsConfigIds {
 			e.Str(elem)
 		}
 		e.ArrEnd()
 	}
 }
 
-var jsonFieldsNameOfBatchKmsConfigUUIDListV1beta = [1]string{
-	0: "kmsConfigUUIDs",
+var jsonFieldsNameOfBatchKmsConfigIdListV1beta = [1]string{
+	0: "kmsConfigIds",
 }
 
-// Decode decodes BatchKmsConfigUUIDListV1beta from json.
-func (s *BatchKmsConfigUUIDListV1beta) Decode(d *jx.Decoder) error {
+// Decode decodes BatchKmsConfigIdListV1beta from json.
+func (s *BatchKmsConfigIdListV1beta) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode BatchKmsConfigUUIDListV1beta to nil")
+		return errors.New("invalid: unable to decode BatchKmsConfigIdListV1beta to nil")
 	}
 	var requiredBitSet [1]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "kmsConfigUUIDs":
+		case "kmsConfigIds":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.KmsConfigUUIDs = make([]string, 0)
+				s.KmsConfigIds = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -8981,21 +8981,21 @@ func (s *BatchKmsConfigUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.KmsConfigUUIDs = append(s.KmsConfigUUIDs, elem)
+					s.KmsConfigIds = append(s.KmsConfigIds, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"kmsConfigUUIDs\"")
+				return errors.Wrap(err, "decode field \"kmsConfigIds\"")
 			}
 		default:
 			return d.Skip()
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "decode BatchKmsConfigUUIDListV1beta")
+		return errors.Wrap(err, "decode BatchKmsConfigIdListV1beta")
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
@@ -9012,8 +9012,8 @@ func (s *BatchKmsConfigUUIDListV1beta) Decode(d *jx.Decoder) error {
 				bitIdx := bits.TrailingZeros8(result)
 				fieldIdx := i*8 + bitIdx
 				var name string
-				if fieldIdx < len(jsonFieldsNameOfBatchKmsConfigUUIDListV1beta) {
-					name = jsonFieldsNameOfBatchKmsConfigUUIDListV1beta[fieldIdx]
+				if fieldIdx < len(jsonFieldsNameOfBatchKmsConfigIdListV1beta) {
+					name = jsonFieldsNameOfBatchKmsConfigIdListV1beta[fieldIdx]
 				} else {
 					name = strconv.Itoa(fieldIdx)
 				}
@@ -9034,14 +9034,14 @@ func (s *BatchKmsConfigUUIDListV1beta) Decode(d *jx.Decoder) error {
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *BatchKmsConfigUUIDListV1beta) MarshalJSON() ([]byte, error) {
+func (s *BatchKmsConfigIdListV1beta) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BatchKmsConfigUUIDListV1beta) UnmarshalJSON(data []byte) error {
+func (s *BatchKmsConfigIdListV1beta) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -9353,9 +9353,9 @@ func (s *BatchPoolUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchPoolUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("poolUUIDs")
+		e.FieldStart("poolUuids")
 		e.ArrStart()
-		for _, elem := range s.PoolUUIDs {
+		for _, elem := range s.PoolUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -9363,7 +9363,7 @@ func (s *BatchPoolUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchPoolUUIDListV1beta = [1]string{
-	0: "poolUUIDs",
+	0: "poolUuids",
 }
 
 // Decode decodes BatchPoolUUIDListV1beta from json.
@@ -9375,10 +9375,10 @@ func (s *BatchPoolUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "poolUUIDs":
+		case "poolUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.PoolUUIDs = make([]string, 0)
+				s.PoolUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -9386,14 +9386,14 @@ func (s *BatchPoolUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.PoolUUIDs = append(s.PoolUUIDs, elem)
+					s.PoolUuids = append(s.PoolUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"poolUUIDs\"")
+				return errors.Wrap(err, "decode field \"poolUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -12505,9 +12505,9 @@ func (s *BatchSnapshotUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchSnapshotUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("snapshotUUIDs")
+		e.FieldStart("snapshotUuids")
 		e.ArrStart()
-		for _, elem := range s.SnapshotUUIDs {
+		for _, elem := range s.SnapshotUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -12515,7 +12515,7 @@ func (s *BatchSnapshotUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchSnapshotUUIDListV1beta = [1]string{
-	0: "snapshotUUIDs",
+	0: "snapshotUuids",
 }
 
 // Decode decodes BatchSnapshotUUIDListV1beta from json.
@@ -12527,10 +12527,10 @@ func (s *BatchSnapshotUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "snapshotUUIDs":
+		case "snapshotUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.SnapshotUUIDs = make([]string, 0)
+				s.SnapshotUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -12538,14 +12538,14 @@ func (s *BatchSnapshotUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.SnapshotUUIDs = append(s.SnapshotUUIDs, elem)
+					s.SnapshotUuids = append(s.SnapshotUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"snapshotUUIDs\"")
+				return errors.Wrap(err, "decode field \"snapshotUuids\"")
 			}
 		default:
 			return d.Skip()
@@ -12866,9 +12866,9 @@ func (s *BatchVolumeUUIDListV1beta) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *BatchVolumeUUIDListV1beta) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("volumeUUIDs")
+		e.FieldStart("volumeUuids")
 		e.ArrStart()
-		for _, elem := range s.VolumeUUIDs {
+		for _, elem := range s.VolumeUuids {
 			e.Str(elem)
 		}
 		e.ArrEnd()
@@ -12876,7 +12876,7 @@ func (s *BatchVolumeUUIDListV1beta) encodeFields(e *jx.Encoder) {
 }
 
 var jsonFieldsNameOfBatchVolumeUUIDListV1beta = [1]string{
-	0: "volumeUUIDs",
+	0: "volumeUuids",
 }
 
 // Decode decodes BatchVolumeUUIDListV1beta from json.
@@ -12888,10 +12888,10 @@ func (s *BatchVolumeUUIDListV1beta) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "volumeUUIDs":
+		case "volumeUuids":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
-				s.VolumeUUIDs = make([]string, 0)
+				s.VolumeUuids = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
 					var elem string
 					v, err := d.Str()
@@ -12899,14 +12899,14 @@ func (s *BatchVolumeUUIDListV1beta) Decode(d *jx.Decoder) error {
 					if err != nil {
 						return err
 					}
-					s.VolumeUUIDs = append(s.VolumeUUIDs, elem)
+					s.VolumeUuids = append(s.VolumeUuids, elem)
 					return nil
 				}); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"volumeUUIDs\"")
+				return errors.Wrap(err, "decode field \"volumeUuids\"")
 			}
 		default:
 			return d.Skip()

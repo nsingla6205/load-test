@@ -96,7 +96,7 @@ func encodeV1betaBatchListHostGroupsRequest(
 }
 
 func encodeV1betaBatchListKmsConfigsRequest(
-	req *BatchKmsConfigUUIDListV1beta,
+	req *BatchKmsConfigIdListV1beta,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

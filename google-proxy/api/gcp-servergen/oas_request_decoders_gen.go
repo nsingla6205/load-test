@@ -434,7 +434,7 @@ func (s *Server) decodeV1betaBatchListHostGroupsRequest(r *http.Request) (
 }
 
 func (s *Server) decodeV1betaBatchListKmsConfigsRequest(r *http.Request) (
-	req *BatchKmsConfigUUIDListV1beta,
+	req *BatchKmsConfigIdListV1beta,
 	close func() error,
 	rerr error,
 ) {
@@ -473,7 +473,7 @@ func (s *Server) decodeV1betaBatchListKmsConfigsRequest(r *http.Request) (
 
 		d := jx.DecodeBytes(buf)
 
-		var request BatchKmsConfigUUIDListV1beta
+		var request BatchKmsConfigIdListV1beta
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err

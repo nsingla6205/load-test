@@ -2897,13 +2897,13 @@ func (s *BatchActiveDirectoryUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.ActiveDirectoryUUIDs == nil {
+		if s.ActiveDirectoryUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "activeDirectoryUUIDs",
+			Name:  "activeDirectoryUuids",
 			Error: err,
 		})
 	}
@@ -3130,7 +3130,7 @@ func (s *BatchBackupPolicyUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.BackupPolicyUUIDs == nil {
+		if s.BackupPolicyUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		if err := (validate.Array{
@@ -3138,11 +3138,11 @@ func (s *BatchBackupPolicyUUIDListV1beta) Validate() error {
 			MinLengthSet: true,
 			MaxLength:    0,
 			MaxLengthSet: false,
-		}).ValidateLength(len(s.BackupPolicyUUIDs)); err != nil {
+		}).ValidateLength(len(s.BackupPolicyUuids)); err != nil {
 			return errors.Wrap(err, "array")
 		}
 		var failures []validate.FieldError
-		for i, elem := range s.BackupPolicyUUIDs {
+		for i, elem := range s.BackupPolicyUuids {
 			if err := func() error {
 				if err := (validate.String{
 					MinLength:    36,
@@ -3169,7 +3169,7 @@ func (s *BatchBackupPolicyUUIDListV1beta) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "backupPolicyUUIDs",
+			Name:  "backupPolicyUuids",
 			Error: err,
 		})
 	}
@@ -3370,11 +3370,11 @@ func (s *BatchBackupUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.BackupUUIDs == nil {
+		if s.BackupUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		var failures []validate.FieldError
-		for i, elem := range s.BackupUUIDs {
+		for i, elem := range s.BackupUuids {
 			if err := func() error {
 				if err := (validate.String{
 					MinLength:    36,
@@ -3401,7 +3401,7 @@ func (s *BatchBackupUUIDListV1beta) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "backupUUIDs",
+			Name:  "backupUuids",
 			Error: err,
 		})
 	}
@@ -3606,11 +3606,11 @@ func (s *BatchBackupVaultUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.BackupVaultUUIDs == nil {
+		if s.BackupVaultUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		var failures []validate.FieldError
-		for i, elem := range s.BackupVaultUUIDs {
+		for i, elem := range s.BackupVaultUuids {
 			if err := func() error {
 				if err := (validate.String{
 					MinLength:    36,
@@ -3637,7 +3637,7 @@ func (s *BatchBackupVaultUUIDListV1beta) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "backupVaultUUIDs",
+			Name:  "backupVaultUuids",
 			Error: err,
 		})
 	}
@@ -4047,20 +4047,53 @@ func (s BatchHostGroupV1betaType) Validate() error {
 	}
 }
 
-func (s *BatchKmsConfigUUIDListV1beta) Validate() error {
+func (s *BatchKmsConfigIdListV1beta) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.KmsConfigUUIDs == nil {
+		if s.KmsConfigIds == nil {
 			return errors.New("nil is invalid value")
+		}
+		if err := (validate.Array{
+			MinLength:    1,
+			MinLengthSet: true,
+			MaxLength:    0,
+			MaxLengthSet: false,
+		}).ValidateLength(len(s.KmsConfigIds)); err != nil {
+			return errors.Wrap(err, "array")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.KmsConfigIds {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    0,
+					MinLengthSet: false,
+					MaxLength:    0,
+					MaxLengthSet: false,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(elem)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "kmsConfigUUIDs",
+			Name:  "kmsConfigIds",
 			Error: err,
 		})
 	}
@@ -4220,13 +4253,13 @@ func (s *BatchPoolUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.PoolUUIDs == nil {
+		if s.PoolUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "poolUUIDs",
+			Name:  "poolUuids",
 			Error: err,
 		})
 	}
@@ -5498,7 +5531,7 @@ func (s *BatchSnapshotUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.SnapshotUUIDs == nil {
+		if s.SnapshotUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		if err := (validate.Array{
@@ -5506,13 +5539,13 @@ func (s *BatchSnapshotUUIDListV1beta) Validate() error {
 			MinLengthSet: true,
 			MaxLength:    0,
 			MaxLengthSet: false,
-		}).ValidateLength(len(s.SnapshotUUIDs)); err != nil {
+		}).ValidateLength(len(s.SnapshotUuids)); err != nil {
 			return errors.Wrap(err, "array")
 		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "snapshotUUIDs",
+			Name:  "snapshotUuids",
 			Error: err,
 		})
 	}
@@ -5689,7 +5722,7 @@ func (s *BatchVolumeUUIDListV1beta) Validate() error {
 
 	var failures []validate.FieldError
 	if err := func() error {
-		if s.VolumeUUIDs == nil {
+		if s.VolumeUuids == nil {
 			return errors.New("nil is invalid value")
 		}
 		if err := (validate.Array{
@@ -5697,11 +5730,11 @@ func (s *BatchVolumeUUIDListV1beta) Validate() error {
 			MinLengthSet: true,
 			MaxLength:    0,
 			MaxLengthSet: false,
-		}).ValidateLength(len(s.VolumeUUIDs)); err != nil {
+		}).ValidateLength(len(s.VolumeUuids)); err != nil {
 			return errors.Wrap(err, "array")
 		}
 		var failures []validate.FieldError
-		for i, elem := range s.VolumeUUIDs {
+		for i, elem := range s.VolumeUuids {
 			if err := func() error {
 				if err := (validate.String{
 					MinLength:    0,
@@ -5728,7 +5761,7 @@ func (s *BatchVolumeUUIDListV1beta) Validate() error {
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
-			Name:  "volumeUUIDs",
+			Name:  "volumeUuids",
 			Error: err,
 		})
 	}

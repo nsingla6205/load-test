@@ -32,7 +32,7 @@ func TestV1betaBatchListBackupPolicies_BackupDisabled(t *testing.T) {
 
 	h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	ctx := authContext()
-	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{"00000000-0000-4000-8000-000000000001"}}
+	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{"00000000-0000-4000-8000-000000000001"}}
 	params := gcpgenserver.V1betaBatchListBackupPoliciesParams{
 		LocationId: "us-east4",
 		Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -76,7 +76,7 @@ func TestV1betaBatchListBackupPolicies_VCPOnly(t *testing.T) {
 
 	h := Handler{Orchestrator: mockOrch}
 	ctx := context.WithValue(context.Background(), utilsmiddleware.HeaderContextKey, http.Header{})
-	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}}
+	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}}
 	params := gcpgenserver.V1betaBatchListBackupPoliciesParams{
 		LocationId: "us-east4",
 		Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -189,7 +189,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_MergesDuplicateUUID(t *testing.T
 
 	h := Handler{Orchestrator: mockOrch}
 	ctx := context.WithValue(context.Background(), utilsmiddleware.HeaderContextKey, http.Header{})
-	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}}
+	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}}
 	params := gcpgenserver.V1betaBatchListBackupPoliciesParams{
 		LocationId: "us-east4",
 		Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -251,7 +251,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_FieldMaskOmitsBackupPolicyId_Sti
 
 	h := Handler{Orchestrator: mockOrch}
 	ctx := context.WithValue(context.Background(), utilsmiddleware.HeaderContextKey, http.Header{})
-	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}}
+	req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}}
 	params := gcpgenserver.V1betaBatchListBackupPoliciesParams{
 		LocationId: "us-east4",
 		Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -283,7 +283,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 	t.Run("NoHTTPRequest_Unauthorized", func(t *testing.T) {
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := context.Background()
-		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{"00000000-0000-4000-8000-000000000001"}}
+		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{"00000000-0000-4000-8000-000000000001"}}
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"}
 		res, err := h.V1betaBatchListBackupPolicies(ctx, req, params)
 		require.NoError(t, err)
@@ -296,7 +296,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 		defer restoreAuth()
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := authContext()
-		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{"00000000-0000-4000-8000-000000000001"}}
+		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{"00000000-0000-4000-8000-000000000001"}}
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"}
 		res, err := h.V1betaBatchListBackupPolicies(ctx, req, params)
 		require.NoError(t, err)
@@ -307,7 +307,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 	t.Run("InvalidLocation_BadRequest", func(t *testing.T) {
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := authContext()
-		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{"00000000-0000-4000-8000-000000000001"}}
+		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{"00000000-0000-4000-8000-000000000001"}}
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "invalid location!"}
 		res, err := h.V1betaBatchListBackupPolicies(ctx, req, params)
 		require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 		assert.Equal(t, float64(400), bad.Code)
 	})
 
-	t.Run("EmptyUUIDList_BadRequest", func(t *testing.T) {
+	t.Run("EmptyBackupPolicyUuids_BadRequest", func(t *testing.T) {
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := authContext()
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"}
@@ -327,7 +327,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 		assert.Contains(t, bad.Message, "at least 1 item")
 	})
 
-	t.Run("TooManyUUIDs_BadRequest", func(t *testing.T) {
+	t.Run("TooManyUuids_BadRequest", func(t *testing.T) {
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := authContext()
 		uuids := make([]string, env.MaxBatchBackupPolicyUUIDs+1)
@@ -335,7 +335,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 			uuids[i] = fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
 		}
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"}
-		res, err := h.V1betaBatchListBackupPolicies(ctx, &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: uuids}, params)
+		res, err := h.V1betaBatchListBackupPolicies(ctx, &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: uuids}, params)
 		require.NoError(t, err)
 		bad, ok := res.(*gcpgenserver.V1betaBatchListBackupPoliciesBadRequest)
 		require.True(t, ok)
@@ -346,7 +346,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		h := Handler{Orchestrator: mockOrch}
 		ctx := authContext()
-		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{
+		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{
 			"11111111-1111-4111-8111-111111111111",
 			"not-a-uuid",
 		}}
@@ -356,7 +356,7 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 		bad, ok := res.(*gcpgenserver.V1betaBatchListBackupPoliciesBadRequest)
 		require.True(t, ok)
 		assert.Equal(t, float64(http.StatusBadRequest), bad.Code)
-		assert.Contains(t, bad.Message, "backupPolicyUUIDs.1 in body should match")
+		assert.Contains(t, bad.Message, "backupPolicyUuids.1 in body should match")
 		assert.Contains(t, bad.Message, "[a-fA-F0-9]{8}")
 		mockOrch.AssertNotCalled(t, "GetBackupPoliciesByUUIDs", mock.Anything, mock.Anything)
 	})
@@ -364,13 +364,13 @@ func TestV1betaBatchListBackupPolicies_RequestValidationAndAuth(t *testing.T) {
 	t.Run("EmptyStringUUID_ReturnsBadRequest", func(t *testing.T) {
 		h := Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 		ctx := authContext()
-		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{""}}
+		req := &gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{""}}
 		params := gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"}
 		res, err := h.V1betaBatchListBackupPolicies(ctx, req, params)
 		require.NoError(t, err)
 		bad, ok := res.(*gcpgenserver.V1betaBatchListBackupPoliciesBadRequest)
 		require.True(t, ok)
-		assert.Contains(t, bad.Message, "backupPolicyUUIDs.0 in body should match")
+		assert.Contains(t, bad.Message, "backupPolicyUuids.0 in body should match")
 	})
 }
 
@@ -394,7 +394,7 @@ func TestV1betaBatchListBackupPolicies_VCPOnly_OrchestratorError(t *testing.T) {
 	ctx := authContext()
 	policyUUID := "11111111-1111-4111-8111-111111111111"
 	res, err := h.V1betaBatchListBackupPolicies(ctx,
-		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}},
+		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}},
 		gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4", Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
 			gcpgenserver.V1betaBatchListBackupPoliciesFieldsItemBackupPolicyId,
 		}})
@@ -430,7 +430,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_ErrorPaths(t *testing.T) {
 		h := Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 		res, err := h.V1betaBatchListBackupPolicies(ctx,
-			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}},
+			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}},
 			gcpgenserver.V1betaBatchListBackupPoliciesParams{
 				LocationId: "us-east4",
 				Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -457,7 +457,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_ErrorPaths(t *testing.T) {
 		h := Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 		res, err := h.V1betaBatchListBackupPolicies(ctx,
-			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}},
+			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}},
 			gcpgenserver.V1betaBatchListBackupPoliciesParams{
 				LocationId: "us-east4",
 				Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -487,7 +487,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_ErrorPaths(t *testing.T) {
 		h := Handler{Orchestrator: mockOrch}
 		ctx := authContext()
 		res, err := h.V1betaBatchListBackupPolicies(ctx,
-			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}},
+			&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}},
 			gcpgenserver.V1betaBatchListBackupPoliciesParams{
 				LocationId: "us-east4",
 				Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -529,7 +529,7 @@ func TestV1betaBatchListBackupPolicies_NoFields_MatchesCVPMinimal(t *testing.T) 
 	h := Handler{Orchestrator: mockOrch}
 	ctx := authContext()
 	res, err := h.V1betaBatchListBackupPolicies(ctx,
-		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{policyUUID}},
+		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{policyUUID}},
 		gcpgenserver.V1betaBatchListBackupPoliciesParams{LocationId: "us-east4"})
 	require.NoError(t, err)
 	okRes, ok := res.(*gcpgenserver.V1betaBatchListBackupPoliciesOK)
@@ -745,7 +745,7 @@ func TestV1betaBatchListBackupPolicies_VCPOnly_SkipsMissingUUID(t *testing.T) {
 	h := Handler{Orchestrator: mockOrch}
 	ctx := authContext()
 	res, err := h.V1betaBatchListBackupPolicies(ctx,
-		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{u1, u2}},
+		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{u1, u2}},
 		gcpgenserver.V1betaBatchListBackupPoliciesParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{
@@ -791,7 +791,7 @@ func TestV1betaBatchListBackupPolicies_Parallel_SkipsMissingUUIDInVCP(t *testing
 	h := Handler{Orchestrator: mockOrch}
 	ctx := authContext()
 	res, err := h.V1betaBatchListBackupPolicies(ctx,
-		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUUIDs: []string{u1, u2}},
+		&gcpgenserver.BatchBackupPolicyUUIDListV1beta{BackupPolicyUuids: []string{u1, u2}},
 		gcpgenserver.V1betaBatchListBackupPoliciesParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListBackupPoliciesFieldsItem{

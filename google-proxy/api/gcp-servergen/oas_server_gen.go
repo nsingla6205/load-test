@@ -60,7 +60,7 @@ type Handler interface {
 	// Batch lists all KMS configurations with the given UUIDs across all accounts.
 	//
 	// POST /v1beta/locations/{locationId}/batch/kmsConfigs
-	V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)
+	V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)
 	// V1betaBatchListPools implements v1beta_batchListPools operation.
 	//
 	// Batch lists all pools with the given UUIDs across all accounts.

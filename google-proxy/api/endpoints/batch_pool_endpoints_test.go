@@ -107,7 +107,7 @@ func TestV1betaBatchListPools_Auth(t *testing.T) {
 			"Authorization": []string{"invalid-jwt-token"},
 		})
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -126,7 +126,7 @@ func TestV1betaBatchListPools_Auth(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := context.Background()
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -145,7 +145,7 @@ func TestV1betaBatchListPools_Auth(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := context.WithValue(context.Background(), utilsmiddleware.HeaderContextKey, "not-http-header")
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -171,7 +171,7 @@ func TestV1betaBatchListPools_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "invalid location!"}
 
 		res, err := handler.V1betaBatchListPools(authContext(), req, params)
@@ -180,7 +180,7 @@ func TestV1betaBatchListPools_Validation(t *testing.T) {
 		assert.True(tt, ok)
 	})
 
-	t.Run("NilPoolUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("NilPoolUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -189,17 +189,17 @@ func TestV1betaBatchListPools_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: nil}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: nil}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListPoolsBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "poolUUIDs is required")
+		assert.Contains(tt, badReq.Message, "poolUuids is required")
 	})
 
-	t.Run("EmptyPoolUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyPoolUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -208,17 +208,17 @@ func TestV1betaBatchListPools_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListPoolsBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "poolUUIDs is required")
+		assert.Contains(tt, badReq.Message, "poolUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -231,7 +231,7 @@ func TestV1betaBatchListPools_Validation(t *testing.T) {
 		for i := range uuids {
 			uuids[i] = "uuid"
 		}
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: uuids}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: uuids}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(authContext(), req, params)
@@ -258,7 +258,7 @@ func TestV1betaBatchListPools_VCPOnly(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", ctx, []string{"vcp-pool-1"}, mock.Anything).
 			Return([]*models.Pool{pool}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"vcp-pool-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"vcp-pool-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListPoolsFieldsItem{"resourceId", "storagePoolState"},
@@ -289,7 +289,7 @@ func TestV1betaBatchListPools_VCPOnly(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", ctx, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("database error"))
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -313,7 +313,7 @@ func TestV1betaBatchListPools_VCPOnly(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"pool-1"}, mock.Anything).
 			Return([]*models.Pool{pool}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"pool-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"pool-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -340,7 +340,7 @@ func TestV1betaBatchListPools_VCPOnly(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"nonexistent"}, mock.Anything).
 			Return([]*models.Pool{}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"nonexistent"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"nonexistent"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -372,7 +372,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"vcp-pool-1", "sde-pool-1"}, mock.Anything).
 			Return([]*models.Pool{vcpPool}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"vcp-pool-1", "sde-pool-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"vcp-pool-1", "sde-pool-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListPoolsFieldsItem{"resourceId", "storagePoolState"},
@@ -412,7 +412,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("VCP database error"))
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -442,7 +442,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"vcp-pool-1"}, mock.Anything).
 			Return([]*models.Pool{vcpPool}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"vcp-pool-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"vcp-pool-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListPoolsFieldsItem{"resourceId"},
@@ -475,7 +475,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("VCP down"))
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -502,7 +502,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"nonexistent"}, mock.Anything).
 			Return([]*models.Pool{}, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"nonexistent"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"nonexistent"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListPools(ctx, req, params)
@@ -539,7 +539,7 @@ func TestV1betaBatchListPools_Parallel(t *testing.T) {
 		mockOrch.On("GetPoolsByUUIDs", mock.Anything, []string{"vcp-1", "vcp-2", "vcp-3", "sde-1", "sde-2"}, mock.Anything).
 			Return(vcpPools, nil)
 
-		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUUIDs: []string{"vcp-1", "vcp-2", "vcp-3", "sde-1", "sde-2"}}
+		req := &gcpgenserver.BatchPoolUUIDListV1beta{PoolUuids: []string{"vcp-1", "vcp-2", "vcp-3", "sde-1", "sde-2"}}
 		params := gcpgenserver.V1betaBatchListPoolsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListPoolsFieldsItem{"resourceId"},

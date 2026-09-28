@@ -123,7 +123,7 @@ func TestV1betaBatchListSnapshots_Auth(t *testing.T) {
 			"Authorization": []string{"invalid-jwt-token"},
 		})
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -140,7 +140,7 @@ func TestV1betaBatchListSnapshots_Auth(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(context.Background(), req, params)
@@ -160,7 +160,7 @@ func TestV1betaBatchListSnapshots_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "invalid location!"}
 
 		res, err := handler.V1betaBatchListSnapshots(authContext(), req, params)
@@ -169,7 +169,7 @@ func TestV1betaBatchListSnapshots_Validation(t *testing.T) {
 		assert.True(tt, ok)
 	})
 
-	t.Run("EmptySnapshotUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptySnapshotUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -178,17 +178,17 @@ func TestV1betaBatchListSnapshots_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListSnapshotsBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "snapshotUUIDs is required")
+		assert.Contains(tt, badReq.Message, "snapshotUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -201,7 +201,7 @@ func TestV1betaBatchListSnapshots_Validation(t *testing.T) {
 		for i := range uuids {
 			uuids[i] = "uuid"
 		}
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: uuids}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: uuids}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(authContext(), req, params)
@@ -228,7 +228,7 @@ func TestV1betaBatchListSnapshots_VCPOnly(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"snap-1"}, mock.Anything).
 			Return([]*models.Snapshot{snap}, nil)
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"snap-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"snap-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListSnapshotsFieldsItem{"resourceId", "snapshotState"},
@@ -260,7 +260,7 @@ func TestV1betaBatchListSnapshots_VCPOnly(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("database error"))
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -284,7 +284,7 @@ func TestV1betaBatchListSnapshots_VCPOnly(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"snap-1"}, mock.Anything).
 			Return([]*models.Snapshot{snap}, nil)
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"snap-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"snap-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -319,7 +319,7 @@ func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"vcp-1", "sde-1"}, mock.Anything).
 			Return([]*models.Snapshot{vcpSnap}, nil)
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"vcp-1", "sde-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"vcp-1", "sde-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListSnapshotsFieldsItem{"resourceId"},
@@ -360,7 +360,7 @@ func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("VCP database error"))
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -390,7 +390,7 @@ func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"vcp-1"}, mock.Anything).
 			Return([]*models.Snapshot{vcpSnap}, nil)
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"vcp-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"vcp-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListSnapshotsFieldsItem{"resourceId"},
@@ -422,7 +422,7 @@ func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"uuid-1"}, mock.Anything).
 			Return(nil, errors.New("VCP down"))
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"uuid-1"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"uuid-1"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -449,7 +449,7 @@ func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {
 		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"nonexistent"}, mock.Anything).
 			Return([]*models.Snapshot{}, nil)
 
-		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUUIDs: []string{"nonexistent"}}
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"nonexistent"}}
 		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
@@ -821,7 +821,7 @@ func TestV1betaBatchListSnapshots_CVPMissingRequestedFields(t *testing.T) {
 		"isAppConsistent": true,
 	}
 	req := &gcpgenserver.BatchSnapshotUUIDListV1beta{
-		SnapshotUUIDs: []string{"cccccccc-cccc-cccc-cccc-cccccccccccc"},
+		SnapshotUuids: []string{"cccccccc-cccc-cccc-cccc-cccccccccccc"},
 	}
 	params := gcpgenserver.V1betaBatchListSnapshotsParams{
 		LocationId: "us-east4",

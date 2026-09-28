@@ -1282,8 +1282,8 @@ func TestBatchHostGroupV1betaType_Examples(t *testing.T) {
 		})
 	}
 }
-func TestBatchKmsConfigUUIDListV1beta_EncodeDecode(t *testing.T) {
-	var typ BatchKmsConfigUUIDListV1beta
+func TestBatchKmsConfigIdListV1beta_EncodeDecode(t *testing.T) {
+	var typ BatchKmsConfigIdListV1beta
 	typ.SetFake()
 
 	e := jx.Encoder{}
@@ -1291,7 +1291,7 @@ func TestBatchKmsConfigUUIDListV1beta_EncodeDecode(t *testing.T) {
 	data := e.Bytes()
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
-	var typ2 BatchKmsConfigUUIDListV1beta
+	var typ2 BatchKmsConfigIdListV1beta
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestBatchKmsConfigV1beta_EncodeDecode(t *testing.T) {

@@ -86,7 +86,7 @@ func (UnimplementedHandler) V1betaBatchListHostGroups(ctx context.Context, req *
 // Batch lists all KMS configurations with the given UUIDs across all accounts.
 //
 // POST /v1beta/locations/{locationId}/batch/kmsConfigs
-func (UnimplementedHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (r V1betaBatchListKmsConfigsRes, _ error) {
+func (UnimplementedHandler) V1betaBatchListKmsConfigs(ctx context.Context, req *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (r V1betaBatchListKmsConfigsRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

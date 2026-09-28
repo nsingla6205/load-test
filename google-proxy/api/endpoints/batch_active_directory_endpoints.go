@@ -37,17 +37,17 @@ func (h Handler) V1betaBatchListActiveDirectories(ctx context.Context, req *gcpg
 		}, nil
 	}
 
-	if len(req.ActiveDirectoryUUIDs) == 0 {
+	if len(req.ActiveDirectoryUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListActiveDirectoriesBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "activeDirectoryUUIDs is required and must have at least 1 item",
+			Message: "activeDirectoryUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	if len(req.ActiveDirectoryUUIDs) > env.MaxBatchActiveDirectoryUUIDs {
+	if len(req.ActiveDirectoryUuids) > env.MaxBatchActiveDirectoryUUIDs {
 		return &gcpgenserver.V1betaBatchListActiveDirectoriesBadRequest{
 			Code: http.StatusBadRequest,
-			Message: fmt.Sprintf("activeDirectoryUUIDs in body should have at most %d items",
+			Message: fmt.Sprintf("activeDirectoryUuids in body should have at most %d items",
 				env.MaxBatchActiveDirectoryUUIDs),
 		}, nil
 	}
@@ -64,7 +64,7 @@ func (h Handler) V1betaBatchListActiveDirectories(ctx context.Context, req *gcpg
 	}
 
 	batchParams := &commonparams.BatchListADsParams{
-		UUIDs:      req.ActiveDirectoryUUIDs,
+		UUIDs:      req.ActiveDirectoryUuids,
 		LocationID: params.LocationId,
 		Fields:     fieldsForCVP,
 	}

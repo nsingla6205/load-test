@@ -1395,13 +1395,13 @@ func (s *BackupVaultV1betaState) SetFake() {
 func (s *BatchActiveDirectoryUUIDListV1beta) SetFake() {
 	{
 		{
-			s.ActiveDirectoryUUIDs = nil
+			s.ActiveDirectoryUuids = nil
 			for i := 0; i < 0; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.ActiveDirectoryUUIDs = append(s.ActiveDirectoryUUIDs, elem)
+				s.ActiveDirectoryUuids = append(s.ActiveDirectoryUuids, elem)
 			}
 		}
 	}
@@ -1530,13 +1530,13 @@ func (s *BatchActiveDirectoryV1betaActiveDirectoryState) SetFake() {
 func (s *BatchBackupPolicyUUIDListV1beta) SetFake() {
 	{
 		{
-			s.BackupPolicyUUIDs = nil
+			s.BackupPolicyUuids = nil
 			for i := 0; i < 1; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.BackupPolicyUUIDs = append(s.BackupPolicyUUIDs, elem)
+				s.BackupPolicyUuids = append(s.BackupPolicyUuids, elem)
 			}
 		}
 	}
@@ -1605,13 +1605,13 @@ func (s *BatchBackupPolicyV1betaState) SetFake() {
 func (s *BatchBackupUUIDListV1beta) SetFake() {
 	{
 		{
-			s.BackupUUIDs = nil
+			s.BackupUuids = nil
 			for i := 0; i < 0; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.BackupUUIDs = append(s.BackupUUIDs, elem)
+				s.BackupUuids = append(s.BackupUuids, elem)
 			}
 		}
 	}
@@ -1730,13 +1730,13 @@ func (s *BatchBackupV1betaState) SetFake() {
 func (s *BatchBackupVaultUUIDListV1beta) SetFake() {
 	{
 		{
-			s.BackupVaultUUIDs = nil
+			s.BackupVaultUuids = nil
 			for i := 0; i < 0; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.BackupVaultUUIDs = append(s.BackupVaultUUIDs, elem)
+				s.BackupVaultUuids = append(s.BackupVaultUuids, elem)
 			}
 		}
 	}
@@ -1927,16 +1927,16 @@ func (s *BatchHostGroupV1betaType) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *BatchKmsConfigUUIDListV1beta) SetFake() {
+func (s *BatchKmsConfigIdListV1beta) SetFake() {
 	{
 		{
-			s.KmsConfigUUIDs = nil
-			for i := 0; i < 0; i++ {
+			s.KmsConfigIds = nil
+			for i := 0; i < 1; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.KmsConfigUUIDs = append(s.KmsConfigUUIDs, elem)
+				s.KmsConfigIds = append(s.KmsConfigIds, elem)
 			}
 		}
 	}
@@ -2010,13 +2010,13 @@ func (s *BatchKmsConfigV1betaKmsState) SetFake() {
 func (s *BatchPoolUUIDListV1beta) SetFake() {
 	{
 		{
-			s.PoolUUIDs = nil
+			s.PoolUuids = nil
 			for i := 0; i < 0; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.PoolUUIDs = append(s.PoolUUIDs, elem)
+				s.PoolUuids = append(s.PoolUuids, elem)
 			}
 		}
 	}
@@ -2696,13 +2696,13 @@ func (s *BatchReplicationV1betaTransferStats) SetFake() {
 func (s *BatchSnapshotUUIDListV1beta) SetFake() {
 	{
 		{
-			s.SnapshotUUIDs = nil
+			s.SnapshotUuids = nil
 			for i := 0; i < 1; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.SnapshotUUIDs = append(s.SnapshotUUIDs, elem)
+				s.SnapshotUuids = append(s.SnapshotUuids, elem)
 			}
 		}
 	}
@@ -2766,13 +2766,13 @@ func (s *BatchSnapshotV1betaSnapshotState) SetFake() {
 func (s *BatchVolumeUUIDListV1beta) SetFake() {
 	{
 		{
-			s.VolumeUUIDs = nil
+			s.VolumeUuids = nil
 			for i := 0; i < 1; i++ {
 				var elem string
 				{
 					elem = "string"
 				}
-				s.VolumeUUIDs = append(s.VolumeUUIDs, elem)
+				s.VolumeUuids = append(s.VolumeUuids, elem)
 			}
 		}
 	}

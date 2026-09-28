@@ -45,23 +45,23 @@ func (h Handler) V1betaBatchListBackupVaults(ctx context.Context, req *gcpgenser
 		}, nil
 	}
 
-	if req == nil || len(req.BackupVaultUUIDs) == 0 {
+	if req == nil || len(req.BackupVaultUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListBackupVaultsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "backupVaultUUIDs is required and must have at least 1 item",
+			Message: "backupVaultUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	uuids := utils.DeduplicateSlice(req.BackupVaultUUIDs)
+	uuids := utils.DeduplicateSlice(req.BackupVaultUuids)
 	if len(uuids) > env.MaxBatchBackupVaultUUIDs {
 		return &gcpgenserver.V1betaBatchListBackupVaultsBadRequest{
 			Code: http.StatusBadRequest,
-			Message: fmt.Sprintf("backupVaultUUIDs in body should have at most %d items",
+			Message: fmt.Sprintf("backupVaultUuids in body should have at most %d items",
 				env.MaxBatchBackupVaultUUIDs),
 		}, nil
 	}
 
-	if msg := validateUUIDList(req.BackupVaultUUIDs, "backupVaultUUIDs"); msg != "" {
+	if msg := validateUUIDList(req.BackupVaultUuids, "backupVaultUuids"); msg != "" {
 		return &gcpgenserver.V1betaBatchListBackupVaultsBadRequest{
 			Code:    http.StatusBadRequest,
 			Message: msg,

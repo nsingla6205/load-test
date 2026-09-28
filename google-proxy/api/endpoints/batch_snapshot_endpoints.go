@@ -43,27 +43,27 @@ func (h Handler) V1betaBatchListSnapshots(ctx context.Context, req *gcpgenserver
 		}, nil
 	}
 
-	if len(req.SnapshotUUIDs) == 0 {
+	if len(req.SnapshotUuids) == 0 {
 		return &gcpgenserver.V1betaBatchListSnapshotsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "snapshotUUIDs is required and must have at least 1 item",
+			Message: "snapshotUuids is required and must have at least 1 item",
 		}, nil
 	}
 
-	if len(req.SnapshotUUIDs) > env.MaxBatchSnapshotUUIDs {
+	if len(req.SnapshotUuids) > env.MaxBatchSnapshotUUIDs {
 		return &gcpgenserver.V1betaBatchListSnapshotsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("snapshotUUIDs in body should have at most %d items", env.MaxBatchSnapshotUUIDs),
+			Message: fmt.Sprintf("snapshotUuids in body should have at most %d items", env.MaxBatchSnapshotUUIDs),
 		}, nil
 	}
 
 	fieldSet := batchSnapshotFieldsAsSet(params.Fields)
 
 	if cvp.CVP_HOST == "" {
-		return h.batchListSnapshotsVCPOnly(ctx, req.SnapshotUUIDs, fieldSet)
+		return h.batchListSnapshotsVCPOnly(ctx, req.SnapshotUuids, fieldSet)
 	}
 
-	return h.batchListSnapshotsVCPAndCVPParallel(ctx, req.SnapshotUUIDs, params, fieldSet)
+	return h.batchListSnapshotsVCPAndCVPParallel(ctx, req.SnapshotUuids, params, fieldSet)
 }
 
 func (h Handler) batchListSnapshotsVCPOnly(ctx context.Context, snapshotUUIDs []string, fieldSet map[string]bool) (gcpgenserver.V1betaBatchListSnapshotsRes, error) {

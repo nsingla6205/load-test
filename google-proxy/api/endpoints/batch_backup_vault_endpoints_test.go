@@ -83,7 +83,7 @@ func TestV1betaBatchListBackupVaults_Auth(t *testing.T) {
 			"Authorization": []string{"invalid-jwt-token"},
 		})
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -102,7 +102,7 @@ func TestV1betaBatchListBackupVaults_Auth(t *testing.T) {
 		handler := &Handler{Orchestrator: mockOrch}
 		ctx := context.Background()
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -127,7 +127,7 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "invalid location!"}
 
 		res, err := handler.V1betaBatchListBackupVaults(authContext(), req, params)
@@ -136,7 +136,7 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		assert.True(tt, ok)
 	})
 
-	t.Run("EmptyBackupVaultUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("EmptyBackupVaultUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -145,17 +145,17 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListBackupVaultsBadRequest)
 		assert.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "backupVaultUUIDs is required")
+		assert.Contains(tt, badReq.Message, "backupVaultUuids is required")
 	})
 
-	t.Run("TooManyUUIDs_ReturnsBadRequest", func(tt *testing.T) {
+	t.Run("TooManyUuids_ReturnsBadRequest", func(tt *testing.T) {
 		restore := stubParseRegionAndZone()
 		defer restore()
 		restoreAuth := stubBatchAuth(true)
@@ -168,7 +168,7 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		for i := range uuids {
 			uuids[i] = "uuid-" + time.Now().Format("150405.000000000") + "-" + toString(i)
 		}
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: uuids}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: uuids}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(authContext(), req, params)
@@ -189,7 +189,7 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{
 			"11111111-1111-1111-1111-111111111111",
 			"not-a-uuid",
 		}}
@@ -202,7 +202,7 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
 		// The message must call out the offending index in the original request
 		// (1 here) and embed the UUID regex so clients know what to fix.
-		assert.Contains(tt, badReq.Message, "backupVaultUUIDs.1 in body should match")
+		assert.Contains(tt, badReq.Message, "backupVaultUuids.1 in body should match")
 		assert.Contains(tt, badReq.Message, "[a-fA-F0-9]{8}")
 	})
 
@@ -215,14 +215,14 @@ func TestV1betaBatchListBackupVaults_Validation(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(tt)
 		handler := &Handler{Orchestrator: mockOrch}
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{""}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{""}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(authContext(), req, params)
 		require.NoError(tt, err)
 		badReq, ok := res.(*gcpgenserver.V1betaBatchListBackupVaultsBadRequest)
 		require.True(tt, ok)
-		assert.Contains(tt, badReq.Message, "backupVaultUUIDs.0 in body should match")
+		assert.Contains(tt, badReq.Message, "backupVaultUuids.0 in body should match")
 	})
 }
 
@@ -246,7 +246,7 @@ func TestV1betaBatchListBackupVaults_VCPOnly(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", ctx, []string{"11111111-1111-1111-1111-111111111111"}).
 			Return([]*models.BackupVaultV1beta{bv}, nil)
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"11111111-1111-1111-1111-111111111111"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"11111111-1111-1111-1111-111111111111"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListBackupVaultsFieldsItem{
@@ -281,7 +281,7 @@ func TestV1betaBatchListBackupVaults_VCPOnly(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", ctx, []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}).
 			Return(nil, errors.New("database error"))
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -305,7 +305,7 @@ func TestV1betaBatchListBackupVaults_VCPOnly(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"11111111-1111-1111-1111-111111111111"}).
 			Return([]*models.BackupVaultV1beta{bv}, nil)
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"11111111-1111-1111-1111-111111111111"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"11111111-1111-1111-1111-111111111111"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -337,7 +337,7 @@ func TestV1betaBatchListBackupVaults_VCPOnly(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"44444444-4444-4444-4444-444444444444", "55555555-5555-5555-5555-555555555555"}).
 			Return([]*models.BackupVaultV1beta{activeBV, deletedBV}, nil)
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"44444444-4444-4444-4444-444444444444", "55555555-5555-5555-5555-555555555555"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"44444444-4444-4444-4444-444444444444", "55555555-5555-5555-5555-555555555555"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -374,7 +374,7 @@ func TestV1betaBatchListBackupVaults_Parallel(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"88888888-8888-8888-8888-888888888888", "99999999-9999-9999-9999-999999999999"}).
 			Return([]*models.BackupVaultV1beta{vcpBV}, nil)
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"88888888-8888-8888-8888-888888888888", "99999999-9999-9999-9999-999999999999"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"88888888-8888-8888-8888-888888888888", "99999999-9999-9999-9999-999999999999"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{
 			LocationId: "us-east4",
 			Fields: []gcpgenserver.V1betaBatchListBackupVaultsFieldsItem{
@@ -417,7 +417,7 @@ func TestV1betaBatchListBackupVaults_Parallel(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}).
 			Return(nil, errors.New("VCP database error"))
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -447,7 +447,7 @@ func TestV1betaBatchListBackupVaults_Parallel(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"88888888-8888-8888-8888-888888888888"}).
 			Return([]*models.BackupVaultV1beta{vcpBV}, nil)
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"88888888-8888-8888-8888-888888888888"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"88888888-8888-8888-8888-888888888888"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{
 			LocationId: "us-east4",
 			Fields:     []gcpgenserver.V1betaBatchListBackupVaultsFieldsItem{gcpgenserver.V1betaBatchListBackupVaultsFieldsItem("resourceId")},
@@ -481,7 +481,7 @@ func TestV1betaBatchListBackupVaults_Parallel(t *testing.T) {
 		mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}).
 			Return(nil, errors.New("VCP down"))
 
-		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
+		req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 		res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)
@@ -580,7 +580,7 @@ func TestV1betaBatchListBackupVaults_Dedup_VCPPriority(t *testing.T) {
 	mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}).
 		Return([]*models.BackupVaultV1beta{vcpBV}, nil)
 
-	req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}}
+	req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}}
 	params := gcpgenserver.V1betaBatchListBackupVaultsParams{
 		LocationId: "us-east4",
 		Fields:     []gcpgenserver.V1betaBatchListBackupVaultsFieldsItem{"resourceId"},
@@ -1306,7 +1306,7 @@ func TestV1betaBatchListBackupVaults_NilVaultInResults(t *testing.T) {
 	mockOrch.On("GetMultipleBackupVaults", mock.Anything, []string{"11111111-1111-1111-1111-111111111111", "66666666-6666-6666-6666-666666666666"}).
 		Return([]*models.BackupVaultV1beta{bv, nil}, nil)
 
-	req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUUIDs: []string{"11111111-1111-1111-1111-111111111111", "66666666-6666-6666-6666-666666666666"}}
+	req := &gcpgenserver.BatchBackupVaultUUIDListV1beta{BackupVaultUuids: []string{"11111111-1111-1111-1111-111111111111", "66666666-6666-6666-6666-666666666666"}}
 	params := gcpgenserver.V1betaBatchListBackupVaultsParams{LocationId: "us-east4"}
 
 	res, err := handler.V1betaBatchListBackupVaults(ctx, req, params)

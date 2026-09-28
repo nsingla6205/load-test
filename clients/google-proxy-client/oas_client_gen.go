@@ -73,7 +73,7 @@ type Invoker interface {
 	// Batch lists all KMS configurations with the given UUIDs across all accounts.
 	//
 	// POST /v1beta/locations/{locationId}/batch/kmsConfigs
-	V1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)
+	V1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error)
 	// V1betaBatchListPools invokes v1beta_batchListPools operation.
 	//
 	// Batch lists all pools with the given UUIDs across all accounts.
@@ -1696,12 +1696,12 @@ func (c *Client) sendV1betaBatchListHostGroups(ctx context.Context, request *Bat
 // Batch lists all KMS configurations with the given UUIDs across all accounts.
 //
 // POST /v1beta/locations/{locationId}/batch/kmsConfigs
-func (c *Client) V1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error) {
+func (c *Client) V1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (V1betaBatchListKmsConfigsRes, error) {
 	res, err := c.sendV1betaBatchListKmsConfigs(ctx, request, params)
 	return res, err
 }
 
-func (c *Client) sendV1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigUUIDListV1beta, params V1betaBatchListKmsConfigsParams) (res V1betaBatchListKmsConfigsRes, err error) {
+func (c *Client) sendV1betaBatchListKmsConfigs(ctx context.Context, request *BatchKmsConfigIdListV1beta, params V1betaBatchListKmsConfigsParams) (res V1betaBatchListKmsConfigsRes, err error) {
 	// Validate request before sending.
 	if err := func() error {
 		if err := request.Validate(); err != nil {

@@ -3579,17 +3579,17 @@ func (s *BackupVaultV1betaState) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/BatchActiveDirectoryUUIDList_v1beta
 type BatchActiveDirectoryUUIDListV1beta struct {
 	// List of Active Directory UUIDs to return.
-	ActiveDirectoryUUIDs []string `json:"activeDirectoryUUIDs"`
+	ActiveDirectoryUuids []string `json:"activeDirectoryUuids"`
 }
 
-// GetActiveDirectoryUUIDs returns the value of ActiveDirectoryUUIDs.
-func (s *BatchActiveDirectoryUUIDListV1beta) GetActiveDirectoryUUIDs() []string {
-	return s.ActiveDirectoryUUIDs
+// GetActiveDirectoryUuids returns the value of ActiveDirectoryUuids.
+func (s *BatchActiveDirectoryUUIDListV1beta) GetActiveDirectoryUuids() []string {
+	return s.ActiveDirectoryUuids
 }
 
-// SetActiveDirectoryUUIDs sets the value of ActiveDirectoryUUIDs.
-func (s *BatchActiveDirectoryUUIDListV1beta) SetActiveDirectoryUUIDs(val []string) {
-	s.ActiveDirectoryUUIDs = val
+// SetActiveDirectoryUuids sets the value of ActiveDirectoryUuids.
+func (s *BatchActiveDirectoryUUIDListV1beta) SetActiveDirectoryUuids(val []string) {
+	s.ActiveDirectoryUuids = val
 }
 
 // Ref: #/components/schemas/BatchActiveDirectory_v1beta
@@ -3950,20 +3950,20 @@ func (s *BatchActiveDirectoryV1betaActiveDirectoryState) UnmarshalText(data []by
 	}
 }
 
-// Request body for batch list backup policies (canonical backupPolicyUUIDs field).
+// Request body for batch list backup policies (canonical backupPolicyUuids field).
 // Ref: #/components/schemas/BatchBackupPolicyUUIDList_v1beta
 type BatchBackupPolicyUUIDListV1beta struct {
-	BackupPolicyUUIDs []string `json:"backupPolicyUUIDs"`
+	BackupPolicyUuids []string `json:"backupPolicyUuids"`
 }
 
-// GetBackupPolicyUUIDs returns the value of BackupPolicyUUIDs.
-func (s *BatchBackupPolicyUUIDListV1beta) GetBackupPolicyUUIDs() []string {
-	return s.BackupPolicyUUIDs
+// GetBackupPolicyUuids returns the value of BackupPolicyUuids.
+func (s *BatchBackupPolicyUUIDListV1beta) GetBackupPolicyUuids() []string {
+	return s.BackupPolicyUuids
 }
 
-// SetBackupPolicyUUIDs sets the value of BackupPolicyUUIDs.
-func (s *BatchBackupPolicyUUIDListV1beta) SetBackupPolicyUUIDs(val []string) {
-	s.BackupPolicyUUIDs = val
+// SetBackupPolicyUuids sets the value of BackupPolicyUuids.
+func (s *BatchBackupPolicyUUIDListV1beta) SetBackupPolicyUuids(val []string) {
+	s.BackupPolicyUuids = val
 }
 
 // Merged schema.
@@ -4160,17 +4160,17 @@ func (s *BatchBackupPolicyV1betaState) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/BatchBackupUUIDList_v1beta
 type BatchBackupUUIDListV1beta struct {
 	// List of backup UUIDs to return.
-	BackupUUIDs []string `json:"backupUUIDs"`
+	BackupUuids []string `json:"backupUuids"`
 }
 
-// GetBackupUUIDs returns the value of BackupUUIDs.
-func (s *BatchBackupUUIDListV1beta) GetBackupUUIDs() []string {
-	return s.BackupUUIDs
+// GetBackupUuids returns the value of BackupUuids.
+func (s *BatchBackupUUIDListV1beta) GetBackupUuids() []string {
+	return s.BackupUuids
 }
 
-// SetBackupUUIDs sets the value of BackupUUIDs.
-func (s *BatchBackupUUIDListV1beta) SetBackupUUIDs(val []string) {
-	s.BackupUUIDs = val
+// SetBackupUuids sets the value of BackupUuids.
+func (s *BatchBackupUUIDListV1beta) SetBackupUuids(val []string) {
+	s.BackupUuids = val
 }
 
 // Ref: #/components/schemas/BatchBackup_v1beta
@@ -4540,17 +4540,17 @@ func (s *BatchBackupV1betaState) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/BatchBackupVaultUUIDList_v1beta
 type BatchBackupVaultUUIDListV1beta struct {
 	// List of backup vault UUIDs to return.
-	BackupVaultUUIDs []string `json:"backupVaultUUIDs"`
+	BackupVaultUuids []string `json:"backupVaultUuids"`
 }
 
-// GetBackupVaultUUIDs returns the value of BackupVaultUUIDs.
-func (s *BatchBackupVaultUUIDListV1beta) GetBackupVaultUUIDs() []string {
-	return s.BackupVaultUUIDs
+// GetBackupVaultUuids returns the value of BackupVaultUuids.
+func (s *BatchBackupVaultUUIDListV1beta) GetBackupVaultUuids() []string {
+	return s.BackupVaultUuids
 }
 
-// SetBackupVaultUUIDs sets the value of BackupVaultUUIDs.
-func (s *BatchBackupVaultUUIDListV1beta) SetBackupVaultUUIDs(val []string) {
-	s.BackupVaultUUIDs = val
+// SetBackupVaultUuids sets the value of BackupVaultUuids.
+func (s *BatchBackupVaultUUIDListV1beta) SetBackupVaultUuids(val []string) {
+	s.BackupVaultUuids = val
 }
 
 // Ref: #/components/schemas/BatchBackupVault_v1beta
@@ -5252,20 +5252,20 @@ func (s *BatchHostGroupV1betaType) UnmarshalText(data []byte) error {
 	}
 }
 
-// Ref: #/components/schemas/BatchKmsConfigUUIDList_v1beta
-type BatchKmsConfigUUIDListV1beta struct {
-	// List of KMS configuration UUIDs to return.
-	KmsConfigUUIDs []string `json:"kmsConfigUUIDs"`
+// Ref: #/components/schemas/BatchKmsConfigIdList_v1beta
+type BatchKmsConfigIdListV1beta struct {
+	// List of KMS configuration IDs to return.
+	KmsConfigIds []string `json:"kmsConfigIds"`
 }
 
-// GetKmsConfigUUIDs returns the value of KmsConfigUUIDs.
-func (s *BatchKmsConfigUUIDListV1beta) GetKmsConfigUUIDs() []string {
-	return s.KmsConfigUUIDs
+// GetKmsConfigIds returns the value of KmsConfigIds.
+func (s *BatchKmsConfigIdListV1beta) GetKmsConfigIds() []string {
+	return s.KmsConfigIds
 }
 
-// SetKmsConfigUUIDs sets the value of KmsConfigUUIDs.
-func (s *BatchKmsConfigUUIDListV1beta) SetKmsConfigUUIDs(val []string) {
-	s.KmsConfigUUIDs = val
+// SetKmsConfigIds sets the value of KmsConfigIds.
+func (s *BatchKmsConfigIdListV1beta) SetKmsConfigIds(val []string) {
+	s.KmsConfigIds = val
 }
 
 // Ref: #/components/schemas/BatchKmsConfig_v1beta
@@ -5533,17 +5533,17 @@ func (s *BatchKmsConfigV1betaKmsState) UnmarshalText(data []byte) error {
 // Ref: #/components/schemas/BatchPoolUUIDList_v1beta
 type BatchPoolUUIDListV1beta struct {
 	// List of pool UUIDs to return.
-	PoolUUIDs []string `json:"poolUUIDs"`
+	PoolUuids []string `json:"poolUuids"`
 }
 
-// GetPoolUUIDs returns the value of PoolUUIDs.
-func (s *BatchPoolUUIDListV1beta) GetPoolUUIDs() []string {
-	return s.PoolUUIDs
+// GetPoolUuids returns the value of PoolUuids.
+func (s *BatchPoolUUIDListV1beta) GetPoolUuids() []string {
+	return s.PoolUuids
 }
 
-// SetPoolUUIDs sets the value of PoolUUIDs.
-func (s *BatchPoolUUIDListV1beta) SetPoolUUIDs(val []string) {
-	s.PoolUUIDs = val
+// SetPoolUuids sets the value of PoolUuids.
+func (s *BatchPoolUUIDListV1beta) SetPoolUuids(val []string) {
+	s.PoolUuids = val
 }
 
 // Ref: #/components/schemas/BatchPool_v1beta
@@ -7661,17 +7661,17 @@ func (s *BatchReplicationV1betaTransferStats) SetLagTime(val OptFloat64) {
 // Ref: #/components/schemas/BatchSnapshotUUIDList_v1beta
 type BatchSnapshotUUIDListV1beta struct {
 	// List of snapshot UUIDs to return.
-	SnapshotUUIDs []string `json:"snapshotUUIDs"`
+	SnapshotUuids []string `json:"snapshotUuids"`
 }
 
-// GetSnapshotUUIDs returns the value of SnapshotUUIDs.
-func (s *BatchSnapshotUUIDListV1beta) GetSnapshotUUIDs() []string {
-	return s.SnapshotUUIDs
+// GetSnapshotUuids returns the value of SnapshotUuids.
+func (s *BatchSnapshotUUIDListV1beta) GetSnapshotUuids() []string {
+	return s.SnapshotUuids
 }
 
-// SetSnapshotUUIDs sets the value of SnapshotUUIDs.
-func (s *BatchSnapshotUUIDListV1beta) SetSnapshotUUIDs(val []string) {
-	s.SnapshotUUIDs = val
+// SetSnapshotUuids sets the value of SnapshotUuids.
+func (s *BatchSnapshotUUIDListV1beta) SetSnapshotUuids(val []string) {
+	s.SnapshotUuids = val
 }
 
 // Ref: #/components/schemas/BatchSnapshot_v1beta
@@ -7879,17 +7879,17 @@ func (s *BatchSnapshotV1betaSnapshotState) UnmarshalText(data []byte) error {
 
 // Ref: #/components/schemas/BatchVolumeUUIDList_v1beta
 type BatchVolumeUUIDListV1beta struct {
-	VolumeUUIDs []string `json:"volumeUUIDs"`
+	VolumeUuids []string `json:"volumeUuids"`
 }
 
-// GetVolumeUUIDs returns the value of VolumeUUIDs.
-func (s *BatchVolumeUUIDListV1beta) GetVolumeUUIDs() []string {
-	return s.VolumeUUIDs
+// GetVolumeUuids returns the value of VolumeUuids.
+func (s *BatchVolumeUUIDListV1beta) GetVolumeUuids() []string {
+	return s.VolumeUuids
 }
 
-// SetVolumeUUIDs sets the value of VolumeUUIDs.
-func (s *BatchVolumeUUIDListV1beta) SetVolumeUUIDs(val []string) {
-	s.VolumeUUIDs = val
+// SetVolumeUuids sets the value of VolumeUuids.
+func (s *BatchVolumeUUIDListV1beta) SetVolumeUuids(val []string) {
+	s.VolumeUuids = val
 }
 
 // Ref: #/components/schemas/BatchVolume_v1beta

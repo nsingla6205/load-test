@@ -8769,11 +8769,11 @@ paths:
                 - instructions
                 - resourceId
       requestBody:
-        description: A list of KMS configuration UUIDs to return.
+        description: A list of KMS configuration IDs to return.
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BatchKmsConfigUUIDList_v1beta'
+              $ref: '#/components/schemas/BatchKmsConfigIdList_v1beta'
         required: true
       responses:
         '200':
@@ -9250,10 +9250,10 @@ components:
       type: object
       title: BatchPoolUUIDList
       required:
-        - poolUUIDs
+        - poolUuids
       properties:
-        poolUUIDs:
-          title: poolUUIDs
+        poolUuids:
+          title: poolUuids
           type: array
           items:
             type: string
@@ -9262,10 +9262,10 @@ components:
       type: object
       title: BatchSnapshotUUIDList
       required:
-        - snapshotUUIDs
+        - snapshotUuids
       properties:
-        snapshotUUIDs:
-          title: snapshotUUIDs
+        snapshotUuids:
+          title: snapshotUuids
           type: array
           minItems: 1
           items:
@@ -9826,18 +9826,22 @@ components:
           x-omitempty: true
           nullable: true
           description: Flag indicating if region has C4/hyperdisk machines.
-    BatchKmsConfigUUIDList_v1beta:
+    BatchKmsConfigIdList_v1beta:
       type: object
-      title: BatchKmsConfigUUIDList
+      title: BatchKmsConfigIdList
       required:
-        - kmsConfigUUIDs
+        - kmsConfigIds
       properties:
-        kmsConfigUUIDs:
-          title: kmsConfigUUIDs
+        kmsConfigIds:
+          title: kmsConfigIds
           type: array
+          minItems: 1
           items:
             type: string
-          description: List of KMS configuration UUIDs to return
+            description: Uuid used to identify the KMS encryption keys
+            pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+            example: 9760acf5-4638-11e7-9bdb-020073ca3333
+          description: List of KMS configuration IDs to return
     BatchKmsConfig_v1beta:
       type: object
       title: KmsConfig
@@ -9956,10 +9960,10 @@ components:
       type: object
       title: BatchActiveDirectoryUUIDList
       required:
-        - activeDirectoryUUIDs
+        - activeDirectoryUuids
       properties:
-        activeDirectoryUUIDs:
-          title: activeDirectoryUUIDs
+        activeDirectoryUuids:
+          title: activeDirectoryUuids
           type: array
           items:
             type: string
@@ -10157,10 +10161,10 @@ components:
       type: object
       title: BatchBackupVaultUUIDList
       required:
-        - backupVaultUUIDs
+        - backupVaultUuids
       properties:
-        backupVaultUUIDs:
-          title: backupVaultUUIDs
+        backupVaultUuids:
+          title: backupVaultUuids
           type: array
           items:
             type: string
@@ -10317,10 +10321,10 @@ components:
       type: object
       title: BatchBackupUUIDList
       required:
-        - backupUUIDs
+        - backupUuids
       properties:
-        backupUUIDs:
-          title: backupUUIDs
+        backupUuids:
+          title: backupUuids
           type: array
           items:
             type: string
@@ -12546,11 +12550,11 @@ components:
     BatchVolumeUUIDList_v1beta:
       title: BatchVolumeUUIDList
       required:
-        - volumeUUIDs
+        - volumeUuids
       type: object
       properties:
-        volumeUUIDs:
-          title: volumeUUIDs
+        volumeUuids:
+          title: volumeUuids
           minItems: 1
           type: array
           items:
@@ -16155,12 +16159,12 @@ components:
     BatchBackupPolicyUUIDList_v1beta:
       type: object
       title: BatchBackupPolicyUUIDList
-      description: Request body for batch list backup policies (canonical backupPolicyUUIDs field).
+      description: Request body for batch list backup policies (canonical backupPolicyUuids field).
       required:
-        - backupPolicyUUIDs
+        - backupPolicyUuids
       properties:
-        backupPolicyUUIDs:
-          title: backupPolicyUUIDs
+        backupPolicyUuids:
+          title: backupPolicyUuids
           type: array
           minItems: 1
           items:

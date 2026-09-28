@@ -17,11 +17,14 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-var fetchBatchKmsConfigsFromCVPFn = fetchBatchKmsConfigsFromCVP
+var (
+	fetchBatchKmsConfigsFromCVPFn = fetchBatchKmsConfigsFromCVP
+	maxBatchKmsConfigIDs          = func() int { return env.MaxBatchKmsConfigUUIDs }
+)
 
 func (h Handler) V1betaBatchListKmsConfigs(
 	ctx context.Context,
-	req *gcpgenserver.BatchKmsConfigUUIDListV1beta,
+	req *gcpgenserver.BatchKmsConfigIdListV1beta,
 	params gcpgenserver.V1betaBatchListKmsConfigsParams,
 ) (gcpgenserver.V1betaBatchListKmsConfigsRes, error) {
 	httpReq := getHTTPRequestFromContext(ctx)
@@ -47,37 +50,49 @@ func (h Handler) V1betaBatchListKmsConfigs(
 		}, nil
 	}
 
-	if len(req.KmsConfigUUIDs) == 0 {
+	if req == nil || len(req.KmsConfigIds) == 0 {
 		return &gcpgenserver.V1betaBatchListKmsConfigsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: "kmsConfigUUIDs is required and must have at least 1 item",
+			Message: "kmsConfigIds is required and must have at least 1 item",
 		}, nil
 	}
 
-	if len(req.KmsConfigUUIDs) > env.MaxBatchKmsConfigUUIDs {
+	ids := utils.DeduplicateSlice(req.KmsConfigIds)
+	if len(ids) > maxBatchKmsConfigIDs() {
 		return &gcpgenserver.V1betaBatchListKmsConfigsBadRequest{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("kmsConfigUUIDs in body should have at most %d items", env.MaxBatchKmsConfigUUIDs),
+			Message: fmt.Sprintf("kmsConfigIds in body should have at most %d items", maxBatchKmsConfigIDs()),
+		}, nil
+	}
+
+	// Reject malformed UUIDs up front so we don't hit the VCP DB or CVP for
+	// inputs that can never match a real KMS configuration. Validation runs
+	// against the original (pre-dedup) list so the offending index in the
+	// message matches what the caller sent.
+	if msg := validateUUIDList(req.KmsConfigIds, "kmsConfigIds"); msg != "" {
+		return &gcpgenserver.V1betaBatchListKmsConfigsBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: msg,
 		}, nil
 	}
 
 	fieldSet := buildBatchKmsConfigFieldSet(params.Fields)
 
 	if cvp.CVP_HOST == "" {
-		return h.batchListKmsConfigsVCPOnly(ctx, req.KmsConfigUUIDs, fieldSet)
+		return h.batchListKmsConfigsVCPOnly(ctx, ids, fieldSet)
 	}
 
-	return h.batchListKmsConfigsParallel(ctx, req.KmsConfigUUIDs, params, fieldSet)
+	return h.batchListKmsConfigsParallel(ctx, ids, params, fieldSet)
 }
 
 func (h Handler) batchListKmsConfigsVCPOnly(
 	ctx context.Context,
-	kmsConfigUUIDs []string,
+	kmsConfigIDs []string,
 	fieldSet map[string]bool,
 ) (gcpgenserver.V1betaBatchListKmsConfigsRes, error) {
 	logger := util.GetLogger(ctx)
 
-	kmsConfigs, err := h.Orchestrator.GetKmsConfigsByUUIDs(ctx, kmsConfigUUIDs)
+	kmsConfigs, err := h.Orchestrator.GetKmsConfigsByUUIDs(ctx, kmsConfigIDs)
 	if err != nil {
 		logger.Error("Failed to get KMS configs by UUIDs from VCP", "error", err.Error())
 		return &gcpgenserver.V1betaBatchListKmsConfigsInternalServerError{
@@ -96,7 +111,7 @@ func (h Handler) batchListKmsConfigsVCPOnly(
 
 func (h Handler) batchListKmsConfigsParallel(
 	ctx context.Context,
-	kmsConfigUUIDs []string,
+	kmsConfigIDs []string,
 	params gcpgenserver.V1betaBatchListKmsConfigsParams,
 	fieldSet map[string]bool,
 ) (gcpgenserver.V1betaBatchListKmsConfigsRes, error) {
@@ -114,12 +129,12 @@ func (h Handler) batchListKmsConfigsParallel(
 
 	go func() {
 		defer wg.Done()
-		vcpKmsConfigs, vcpErr = h.Orchestrator.GetKmsConfigsByUUIDs(ctx, kmsConfigUUIDs)
+		vcpKmsConfigs, vcpErr = h.Orchestrator.GetKmsConfigsByUUIDs(ctx, kmsConfigIDs)
 	}()
 
 	go func() {
 		defer wg.Done()
-		cvpKmsConfigs, cvpErr = fetchBatchKmsConfigsFromCVPFn(ctx, kmsConfigUUIDs, params, fieldSet)
+		cvpKmsConfigs, cvpErr = fetchBatchKmsConfigsFromCVPFn(ctx, kmsConfigIDs, params, fieldSet)
 	}()
 
 	wg.Wait()
@@ -167,7 +182,7 @@ func (h Handler) batchListKmsConfigsParallel(
 
 func fetchBatchKmsConfigsFromCVP(
 	ctx context.Context,
-	kmsConfigUUIDs []string,
+	kmsConfigIDs []string,
 	params gcpgenserver.V1betaBatchListKmsConfigsParams,
 	fieldSet map[string]bool,
 ) ([]gcpgenserver.BatchKmsConfigV1beta, error) {
@@ -176,8 +191,8 @@ func fetchBatchKmsConfigsFromCVP(
 
 	cvpParams := cvpBatch.NewV1betaBatchListKmsConfigsParamsWithContext(ctx)
 	applyBatchCvpListCommonParams(cvpParams, params.LocationId, fields, params.XCorrelationID)
-	cvpParams.SetBody(&cvpmodels.BatchKmsConfigUUIDListV1beta{
-		KmsConfigUUIDs: kmsConfigUUIDs,
+	cvpParams.SetBody(&cvpmodels.KmsConfigIDListV1beta{
+		KmsConfigIDs: kmsConfigIDs,
 	})
 
 	cvpResponse, err := cvpClient.Batch.V1betaBatchListKmsConfigs(cvpParams)
@@ -186,8 +201,8 @@ func fetchBatchKmsConfigsFromCVP(
 	}
 
 	var result []gcpgenserver.BatchKmsConfigV1beta
-	if cvpResponse != nil && cvpResponse.Payload != nil && cvpResponse.Payload.KmsConfigs != nil {
-		for _, cvpKmsConfig := range cvpResponse.Payload.KmsConfigs {
+	if cvpResponse != nil && cvpResponse.Payload != nil && cvpResponse.Payload.KmsConfigurations != nil {
+		for _, cvpKmsConfig := range cvpResponse.Payload.KmsConfigurations {
 			if cvpKmsConfig != nil {
 				result = append(result, convertCVPBatchKmsConfigToGCPBatchKmsConfig(cvpKmsConfig, fieldSet))
 			}
