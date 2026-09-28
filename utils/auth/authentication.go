@@ -64,6 +64,9 @@ var (
 		"/v1/zone",
 		"/v1/svm",
 		"/v1/interclusterLif",
+		// SRE jumphost endpoints (POST and GET; jobId is a query parameter).
+		"/v1/pools/reconcileCertificateAuthority",
+		"/v1/pools/forceCertificateRotation",
 	}
 	authSkipPrefixPaths = []string{
 		"/v1/expertMode/",

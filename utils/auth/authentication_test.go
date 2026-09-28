@@ -865,6 +865,8 @@ func TestAuthMiddleware_BypassForCvnInfraEndpoints(t *testing.T) {
 		{name: "region", path: "/v1/region"},
 		{name: "zone", path: "/v1/zone"},
 		{name: "interclusterLif", path: "/v1/interclusterLif"},
+		{name: "reconcile certificate authority", path: "/v1/pools/reconcileCertificateAuthority"},
+		{name: "force certificate rotation", path: "/v1/pools/forceCertificateRotation"},
 	}
 
 	for _, tt := range tests {
@@ -1106,7 +1108,11 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/v1/addressRange"))
 		assert.True(tt, shouldSkipAuthPath("/v1/host"))
 		assert.True(tt, shouldSkipAuthPath("/v1/interclusterLif"))
+		assert.True(tt, shouldSkipAuthPath("/v1/pools/reconcileCertificateAuthority"))
+		assert.True(tt, shouldSkipAuthPath("/v1/pools/forceCertificateRotation"))
 		assert.False(tt, shouldSkipAuthPath("/api"))
+		assert.False(tt, shouldSkipAuthPath("/v1/pools"))
+		assert.False(tt, shouldSkipAuthPath("/v1/pools/reconcileAuthType"))
 	})
 
 	t.Run("prefix path match", func(tt *testing.T) {
@@ -1121,6 +1127,8 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/replications"))
 		assert.False(tt, shouldSkipAuthPath("/v1/api"))
 		assert.False(tt, shouldSkipAuthPath("/api/expertMode"))
+		assert.False(tt, shouldSkipAuthPath("/v1/pools/reconcileCertificateAuthority/extra"))
+		assert.False(tt, shouldSkipAuthPath("/v1/pools/forceCertificateRotation/extra"))
 	})
 
 	t.Run("case sensitive matching", func(tt *testing.T) {
