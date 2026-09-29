@@ -36,11 +36,6 @@ jobs:
           fetch-tags: true
           clean: true
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
       - name: Fetch PR user and details
         id: fetch_pr_user_and_details
         run: |
@@ -109,6 +104,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Configure Git identity
         run: |
