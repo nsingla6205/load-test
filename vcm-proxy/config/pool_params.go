@@ -6,6 +6,7 @@ import (
 
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
 
@@ -90,6 +91,26 @@ func (s *Store) CreatePoolParams(requestID string, deadline time.Time, shape vcm
 	return &commonparams.CreatePoolParams{VCM: vcm}, nil
 }
 
+// UpdatePoolParams builds the orchestrator input for an update-cluster request,
+// merging the request-level controls and complete target cluster shape with the
+// configuration held in memory from POST /v1/config.
+func (s *Store) UpdatePoolParams(requestID string, deadline time.Time, shape vcmserver.ClusterShapeV1, updateMask, changeType string) (*commonparams.UpdatePoolParams, error) {
+	vcm, err := s.SeedPoolParams()
+	if err != nil {
+		return nil, err
+	}
+	vcm.RequestID = requestID
+	vcm.Deadline = deadline
+	ApplyClusterShape(vcm, shape)
+	return &commonparams.UpdatePoolParams{
+		VCM: &commonparams.VCMUpdatePoolParams{
+			VCMCreatePoolParams: *vcm,
+			UpdateMask:          updateMask,
+			ChangeType:          changeType,
+		},
+	}, nil
+}
+
 // validateSeedForPoolCreate rejects a seed configuration that cannot produce a
 // dispatchable pool-create request. Runtime addressing (ipConfig) is
 // deliberately not required: the cluster does not exist yet at create time.
@@ -111,7 +132,14 @@ func validateSeedForPoolCreate(seed vcmserver.SeedConfigV1) error {
 	if !ok {
 		return fmt.Errorf("VCM ontapCredentials are not configured")
 	}
-	return validateOntapCredentials(ontapCreds)
+	if err := validateOntapCredentials(ontapCreds); err != nil {
+		return err
+	}
+	// Certificate auth requires VSA_DEPLOYED_DNS_NAME for TLS SNI.
+	if def, ok := ontapCreds.DefaultModeUserCredentials.Get(); ok && userAuthIsCert(def) && env.VsaDeployedDnsName == "" {
+		return fmt.Errorf("certificate auth requires VSA_DEPLOYED_DNS_NAME")
+	}
+	return nil
 }
 
 func toVCMNetConfig(cfg vcmserver.NetInterfaceConfigV1) commonparams.VCMNetConfig {

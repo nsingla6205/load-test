@@ -10,8 +10,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// JobTypePoolCreate is the durable job type for a VCM pool-create operation.
-const JobTypePoolCreate = "POOL_CREATE"
+const (
+	// JobTypePoolCreate is the durable job type for a VCM pool-create operation.
+	JobTypePoolCreate = "POOL_CREATE"
+	// JobTypePoolUpdate is the durable job type for a VCM pool-update operation.
+	JobTypePoolUpdate = "POOL_UPDATE"
+)
 
 // JobState is the durable execution state of a VCM job.
 type JobState string
@@ -104,6 +108,29 @@ func (s *gormStore) GetJob(ctx context.Context, jobID string) (*Job, error) {
 			return nil, fmt.Errorf("%w: %s", ErrJobNotFound, jobID)
 		}
 		return nil, fmt.Errorf("vcm: get job %q: %w", jobID, err)
+	}
+	return &job, nil
+}
+
+// GetOngoingJobByResource returns one non-terminal job (NEW or PROCESSING) for
+// the resource and type. A missing row is not an error: the caller uses a nil
+// job to mean the resource is free for a new operation of that type.
+func (s *gormStore) GetOngoingJobByResource(ctx context.Context, resourceID, jobType string) (*Job, error) {
+	db, err := s.database()
+	if err != nil {
+		return nil, err
+	}
+
+	var job Job
+	err = db.WithContext(ctx).
+		Where("resource_id = ? AND type = ? AND state IN ?", resourceID, jobType, []JobState{JobStateNew, JobStateProcessing}).
+		Order("created_at ASC").
+		First(&job).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("vcm: get ongoing job for resource %q type %q: %w", resourceID, jobType, err)
 	}
 	return &job, nil
 }

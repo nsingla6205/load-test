@@ -25,12 +25,14 @@ import (
 type fakeStarter struct {
 	called      bool
 	gotInstance string
+	gotArgs     []any
 	err         error
 }
 
-func (f *fakeStarter) Start(_ context.Context, instanceID string, _ interface{}, _ ...any) (*gowf.Instance, error) {
+func (f *fakeStarter) Start(_ context.Context, instanceID string, _ interface{}, args ...any) (*gowf.Instance, error) {
 	f.called = true
 	f.gotInstance = instanceID
+	f.gotArgs = args
 	return nil, f.err
 }
 
@@ -44,6 +46,11 @@ type fakeStore struct {
 	// existing is returned by GetJob (used on the duplicate-request path).
 	existing *vcmdb.Job
 	getErr   error
+	// ongoing is returned by GetOngoingJobByResource.
+	ongoing         *vcmdb.Job
+	ongoingErr      error
+	ongoingResource string
+	ongoingJobType  string
 }
 
 func (f *fakeStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
@@ -57,6 +64,12 @@ func (f *fakeStore) CreateJob(_ context.Context, job *vcmdb.Job) error {
 
 func (f *fakeStore) GetJob(_ context.Context, _ string) (*vcmdb.Job, error) {
 	return f.existing, f.getErr
+}
+
+func (f *fakeStore) GetOngoingJobByResource(_ context.Context, resourceID, jobType string) (*vcmdb.Job, error) {
+	f.ongoingResource = resourceID
+	f.ongoingJobType = jobType
+	return f.ongoing, f.ongoingErr
 }
 
 func (f *fakeStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
@@ -286,6 +299,193 @@ func TestCreatePool_DispatcherError_UpdateFailure_StillReturnsDispatchError(t *t
 	assert.Contains(t, err.Error(), "failed to start pool workflow")
 	assert.Contains(t, err.Error(), "dispatch boom")
 	// The ERROR-marking write was attempted even though it failed.
+	require.Len(t, store.updated, 1)
+	assert.Equal(t, vcmdb.JobStateError, store.updated[0].State)
+}
+
+func validUpdateParams() *commonparams.UpdatePoolParams {
+	return &commonparams.UpdatePoolParams{
+		VCM: &commonparams.VCMUpdatePoolParams{
+			VCMCreatePoolParams: commonparams.VCMCreatePoolParams{
+				DeploymentID: "gcnv-123",
+				RequestID:    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+				Deadline:     time.Now().UTC().Add(time.Hour),
+			},
+			UpdateMask: "clusterShape.throughputMibps,clusterShape.iops,clusterShape.sizeGib",
+			ChangeType: "SCALE",
+		},
+	}
+}
+
+func TestUpdatePool_Success_ReturnsRequestIDAsOperationID(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	params := validUpdateParams()
+	pool, operationID, err := o.UpdatePool(context.Background(), params)
+
+	require.NoError(t, err)
+	assert.Nil(t, pool, "VCM is async; no pool model is returned")
+	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", operationID)
+	assert.True(t, starter.called)
+	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", starter.gotInstance)
+
+	require.NotNil(t, store.created)
+	assert.Equal(t, operationID, store.created.ID)
+	assert.Equal(t, "gcnv-123", store.created.ResourceID)
+	assert.Equal(t, vcmdb.JobTypePoolUpdate, store.created.Type)
+	assert.Equal(t, vcmdb.JobStateNew, store.created.State)
+	assert.True(t, store.created.DeadlineAt.Equal(params.VCM.Deadline.UTC()))
+	assert.Empty(t, store.updated)
+	assert.Equal(t, "gcnv-123", store.ongoingResource)
+	assert.Equal(t, vcmdb.JobTypePoolUpdate, store.ongoingJobType)
+}
+
+func TestUpdatePool_PersistsRequestPayloadForRecovery(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	params := validUpdateParams()
+	_, _, err := o.UpdatePool(context.Background(), params)
+	require.NoError(t, err)
+
+	require.NotNil(t, store.created)
+	var got commonparams.VCMUpdatePoolParams
+	require.NoError(t, json.Unmarshal([]byte(store.created.RequestPayload), &got))
+	assert.Equal(t, params.VCM.DeploymentID, got.DeploymentID)
+	assert.Equal(t, params.VCM.RequestID, got.RequestID)
+	assert.Equal(t, params.VCM.UpdateMask, got.UpdateMask)
+	assert.Equal(t, params.VCM.ChangeType, got.ChangeType)
+}
+
+func TestUpdatePool_InvalidParams_ReturnsError(t *testing.T) {
+	tests := []struct {
+		name    string
+		params  *commonparams.UpdatePoolParams
+		wantMsg string
+	}{
+		{name: "nil params", params: nil, wantMsg: "deployment id missing"},
+		{name: "nil VCM", params: &commonparams.UpdatePoolParams{}, wantMsg: "deployment id missing"},
+		{
+			name:    "empty deployment id",
+			params:  &commonparams.UpdatePoolParams{VCM: &commonparams.VCMUpdatePoolParams{VCMCreatePoolParams: commonparams.VCMCreatePoolParams{RequestID: "r"}}},
+			wantMsg: "deployment id missing",
+		},
+		{
+			name:    "empty request id",
+			params:  &commonparams.UpdatePoolParams{VCM: &commonparams.VCMUpdatePoolParams{VCMCreatePoolParams: commonparams.VCMCreatePoolParams{DeploymentID: "d"}}},
+			wantMsg: "request id missing",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			starter := &fakeStarter{}
+			store := &fakeStore{}
+			o := newTestOrchestrator(store, starter)
+
+			_, _, err := o.UpdatePool(context.Background(), tc.params)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantMsg)
+			assert.False(t, starter.called)
+			assert.Nil(t, store.created)
+		})
+	}
+}
+
+func TestUpdatePool_InFlightJob_ReturnsConflictAndSkipsDispatch(t *testing.T) {
+	tests := []struct {
+		name  string
+		state vcmdb.JobState
+	}{
+		{name: "new", state: vcmdb.JobStateNew},
+		{name: "processing", state: vcmdb.JobStateProcessing},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			starter := &fakeStarter{}
+			store := &fakeStore{ongoing: &vcmdb.Job{
+				ID:         "existing-update",
+				ResourceID: "gcnv-123",
+				Type:       vcmdb.JobTypePoolUpdate,
+				State:      tc.state,
+			}}
+			o := newTestOrchestrator(store, starter)
+
+			params := validUpdateParams()
+			params.VCM.RequestID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+			_, operationID, err := o.UpdatePool(context.Background(), params)
+
+			require.Error(t, err)
+			assert.Empty(t, operationID)
+			assert.False(t, starter.called, "an in-flight update must not start another workflow")
+			assert.Nil(t, store.created, "an in-flight update must not persist a second job")
+			assert.Equal(t, "gcnv-123", store.ongoingResource)
+			assert.Equal(t, vcmdb.JobTypePoolUpdate, store.ongoingJobType)
+
+			var customErr *vsaerrors.CustomError
+			require.True(t, vsaerrors.As(err, &customErr))
+			assert.True(t, customErr.IsError(vsaerrors.ErrResourceStateConflictError))
+			require.NotNil(t, customErr.OriginalErr)
+			assert.Contains(t, customErr.OriginalErr.Error(), "existing-update")
+			assert.Contains(t, customErr.OriginalErr.Error(), string(tc.state))
+		})
+	}
+}
+
+func TestUpdatePool_OngoingLookupError_SkipsDispatch(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{ongoingErr: errors.New("spanner unavailable")}
+	o := newTestOrchestrator(store, starter)
+
+	_, operationID, err := o.UpdatePool(context.Background(), validUpdateParams())
+
+	require.Error(t, err)
+	assert.Empty(t, operationID)
+	assert.False(t, starter.called)
+	assert.Nil(t, store.created)
+	assert.Contains(t, err.Error(), "failed to check in-flight pool update")
+	assert.Contains(t, err.Error(), "spanner unavailable")
+}
+
+func TestUpdatePool_DuplicateJob_ReturnsConflictAndSkipsDispatch(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{
+		createErr: fmt.Errorf("wrap: %w", vcmdb.ErrJobAlreadyExists),
+		existing: &vcmdb.Job{
+			ID:    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+			State: vcmdb.JobStateProcessing,
+		},
+	}
+	o := newTestOrchestrator(store, starter)
+
+	_, operationID, err := o.UpdatePool(context.Background(), validUpdateParams())
+
+	require.Error(t, err)
+	assert.Empty(t, operationID)
+	assert.False(t, starter.called)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrResourceStateConflictError))
+	require.NotNil(t, customErr.OriginalErr)
+	assert.Contains(t, customErr.OriginalErr.Error(), string(vcmdb.JobStateProcessing))
+}
+
+func TestUpdatePool_DispatcherError_IsWrappedAndMarksJobError(t *testing.T) {
+	starter := &fakeStarter{err: errors.New("boom")}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	_, _, err := o.UpdatePool(context.Background(), validUpdateParams())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to start pool update workflow")
+	assert.Contains(t, err.Error(), "boom")
+	require.NotNil(t, store.created)
 	require.Len(t, store.updated, 1)
 	assert.Equal(t, vcmdb.JobStateError, store.updated[0].State)
 }

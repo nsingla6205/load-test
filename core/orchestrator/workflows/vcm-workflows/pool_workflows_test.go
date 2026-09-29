@@ -231,6 +231,158 @@ func TestPoolCreateOperationResponsePayloadFn(t *testing.T) {
 	assert.JSONEq(t, `{"clusterShape":{},"clusterLayout":{"nodes":[],"disks":[],"activeZone":"","standbyZone":""}}`, *payload)
 }
 
+func TestBuildVCMUpdateDeploymentRequest(t *testing.T) {
+	creds := vlm.OntapCredentials{AdminPassword: "pw"}
+	current := vlm.VLMConfig{}
+	current.Deployment.DeploymentID = "gcnv-test"
+	current.Deployment.VSAInstanceType = "n2-standard-8"
+	current.Deployment.NumHAPair = 1
+	current.Deployment.SPConfig = vlm.SPConfig{Size: "2TiB", IOps: 1000, Throughput: 64}
+
+	t.Run("COMPUTE same SKU skips VLM and keeps current disks", func(t *testing.T) {
+		target := current
+		req, skip, err := buildVCMUpdateDeploymentRequest(current, target, creds, ClusterComputeChangeType)
+		require.NoError(t, err)
+		assert.True(t, skip)
+		assert.Empty(t, req.NewInstanceType)
+		assert.Equal(t, current.Deployment.SPConfig, req.SPConfig)
+		assert.Equal(t, []int{1}, req.HAPairIndices)
+		assert.Equal(t, vlmSkipAutoTierThreshold, req.AutoTierThreshold)
+	})
+
+	t.Run("COMPUTE SKU change sets NewInstanceType and keeps current SPConfig", func(t *testing.T) {
+		target := current
+		target.Deployment.VSAInstanceType = "c3-standard-8-lssd"
+		target.Deployment.SPConfig = vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128}
+		req, skip, err := buildVCMUpdateDeploymentRequest(current, target, creds, ClusterComputeChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Equal(t, "c3-standard-8-lssd", req.NewInstanceType)
+		assert.Equal(t, current.Deployment.VSAInstanceType, req.VLMConfig.Deployment.VSAInstanceType,
+			"embedded VSAInstanceType must stay current; VLM diffs it against NewInstanceType")
+		assert.Equal(t, current.Deployment.SPConfig.Size, req.SPConfig.Size, "COMPUTE must not apply the target disk layout")
+		assert.Equal(t, current.Deployment.SPConfig.IOps, req.SPConfig.IOps)
+		assert.Equal(t, current.Deployment.SPConfig.Throughput, req.SPConfig.Throughput)
+		assert.Equal(t, current.Deployment.SPConfig, req.VLMConfig.Deployment.SPConfig,
+			"embedded SPConfig must stay current on COMPUTE")
+		assert.Empty(t, req.SPConfig.HAPairConfigs, "VLM derives the requested per-HA-pair config from the pool scalars")
+		assert.Empty(t, req.VLMConfig.Deployment.SPConfig.HAPairConfigs, "VLM owns compatibility backfill for the current config")
+	})
+
+	t.Run("SCALE applies target SPConfig and never sets NewInstanceType", func(t *testing.T) {
+		target := current
+		target.Deployment.VSAInstanceType = "c3-standard-8-lssd"
+		target.Deployment.SPConfig = vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128}
+		req, skip, err := buildVCMUpdateDeploymentRequest(current, target, creds, ClusterScaleChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Empty(t, req.NewInstanceType)
+		assert.Equal(t, target.Deployment.SPConfig.Size, req.SPConfig.Size)
+		assert.Equal(t, target.Deployment.SPConfig.IOps, req.SPConfig.IOps)
+		assert.Equal(t, target.Deployment.SPConfig.Throughput, req.SPConfig.Throughput)
+		assert.Equal(t, current.Deployment.SPConfig, req.VLMConfig.Deployment.SPConfig,
+			"embedded SPConfig must stay current; VLM diffs it against top-level SPConfig")
+		assert.Empty(t, req.SPConfig.HAPairConfigs)
+		assert.Empty(t, req.VLMConfig.Deployment.SPConfig.HAPairConfigs)
+		assert.Equal(t, current.Deployment.VSAInstanceType, req.VLMConfig.Deployment.VSAInstanceType)
+	})
+
+	t.Run("SCALE calls VLM even when the storage config already matches", func(t *testing.T) {
+		target := current
+		req, skip, err := buildVCMUpdateDeploymentRequest(current, target, creds, ClusterScaleChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Empty(t, req.NewInstanceType)
+		assert.Equal(t, target.Deployment.SPConfig, req.SPConfig)
+	})
+
+	t.Run("SCALE sends the disk-rounded size and leaves performance to VLM", func(t *testing.T) {
+		// 1229Gi / 8 disks rounds to 154Gi each, so VLM is asked for 1232Gi.
+		// IOPS and throughput stay at the VMRS values; VLM applies its own floors.
+		live := current
+		live.Deployment.DataDiskCount = 8
+		live.Deployment.SPConfig = vlm.SPConfig{Size: "1232Gi", IOps: 24000, Throughput: 1120}
+		target := live
+		target.Deployment.SPConfig = vlm.SPConfig{Size: "1229Gi", IOps: 2636, Throughput: 197}
+		req, skip, err := buildVCMUpdateDeploymentRequest(live, target, creds, ClusterScaleChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Empty(t, req.NewInstanceType)
+		assert.Equal(t, "1232Gi", req.SPConfig.Size)
+		assert.Equal(t, int64(2636), req.SPConfig.IOps)
+		assert.Equal(t, int64(197), req.SPConfig.Throughput)
+		assert.Equal(t, "1232Gi", req.VLMConfig.Deployment.SPConfig.Size,
+			"embedded size stays at the live value so VLM can diff against the rounded request")
+	})
+
+	t.Run("SCALE rounds a larger size up to whole disks", func(t *testing.T) {
+		live := current
+		live.Deployment.DataDiskCount = 8
+		live.Deployment.SPConfig = vlm.SPConfig{Size: "1232Gi", IOps: 24000, Throughput: 1120}
+		target := live
+		target.Deployment.SPConfig = vlm.SPConfig{Size: "2458Gi", IOps: 2636, Throughput: 197}
+		req, skip, err := buildVCMUpdateDeploymentRequest(live, target, creds, ClusterScaleChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Equal(t, "2464Gi", req.SPConfig.Size)
+	})
+
+	t.Run("SCALE disk-rounding fallback uses 8 disks when count is unset", func(t *testing.T) {
+		live := current
+		live.Deployment.DataDiskCount = 0
+		live.Deployment.SPConfig = vlm.SPConfig{Size: "1232Gi", IOps: 24000, Throughput: 1120}
+		target := live
+		target.Deployment.SPConfig = vlm.SPConfig{Size: "1229Gi", IOps: 2636, Throughput: 197}
+		req, skip, err := buildVCMUpdateDeploymentRequest(live, target, creds, ClusterScaleChangeType)
+		require.NoError(t, err)
+		assert.False(t, skip)
+		assert.Equal(t, "1232Gi", req.SPConfig.Size)
+	})
+
+	t.Run("unknown changeType is rejected", func(t *testing.T) {
+		_, _, err := buildVCMUpdateDeploymentRequest(current, current, creds, "CONFIG")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported changeType")
+	})
+}
+
+func TestHaPairIndices(t *testing.T) {
+	assert.Equal(t, []int{1}, haPairIndices(0))
+	assert.Equal(t, []int{1, 2, 3}, haPairIndices(3))
+}
+
+func TestUpdatePoolWorkflow_NilInputs_ReturnsError(t *testing.T) {
+	wf := &updatePoolWorkflow{req: &commonparams.VCMUpdatePoolParams{}}
+
+	// Both methods reject nil derived inputs before touching the engine context.
+	err := wf.apply(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "derived inputs missing")
+
+	_, err = wf.identifyTargetVLMConfig(nil, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "derived inputs missing")
+}
+
+func TestPoolUpdateWorkflow_MissingParams_ReturnsError(t *testing.T) {
+	tests := []struct {
+		name   string
+		params *commonparams.UpdatePoolParams
+	}{
+		{name: "nil params", params: nil},
+		{name: "nil VCM", params: &commonparams.UpdatePoolParams{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// PoolUpdateWorkflow validates params before touching the engine
+			// context, so a nil orchestrator context is never dereferenced here.
+			_, err := PoolUpdateWorkflow(nil, tc.params)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "VCM params missing")
+		})
+	}
+}
+
 func TestPoolWorkflow_MissingParams_ReturnsError(t *testing.T) {
 	tests := []struct {
 		name   string

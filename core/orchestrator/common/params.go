@@ -164,6 +164,22 @@ type VCMCreatePoolParams struct {
 	Derived *VCMDerivedPoolInputs
 }
 
+// VCMUpdatePoolParams carries VCM pool-update inputs. Shape and configuration
+// reuse VCMCreatePoolParams; updateMask and changeType are request-level
+// controls unique to PATCH /v1/clusters.
+type VCMUpdatePoolParams struct {
+	VCMCreatePoolParams
+	UpdateMask string
+	ChangeType string
+}
+
+// Field-mask paths PATCH /v1/clusters accepts for the cluster performance shape.
+const (
+	VCMUpdateMaskProvisionedIops            = "clusterShape.provisionedIops"
+	VCMUpdateMaskProvisionedSizeInBytes     = "clusterShape.provisionedSizeInBytes"
+	VCMUpdateMaskProvisionedThroughputMibps = "clusterShape.provisionedThroughputMibps"
+)
+
 // VCMNetConfig is a VCM VPC/subnet pair.
 type VCMNetConfig struct {
 	VPC    string
@@ -901,6 +917,9 @@ type UpdatePoolParams struct {
 	HAPairs                   uint64
 	// WorkflowID, when set, is used as the Temporal workflow ID (OCI: opc-request-id).
 	WorkflowID string
+	// VCM holds VCM-specific pool-update inputs (stateless go-workflows path).
+	// Populated only when the request originates from vcm-proxy; nil for GCP/OCI.
+	VCM *VCMUpdatePoolParams
 }
 
 // NodeCapacity describes per-node capacity parameters for OCI pool updates.

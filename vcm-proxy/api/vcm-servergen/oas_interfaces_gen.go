@@ -5,6 +5,10 @@ type ClusterCreateV1Res interface {
 	clusterCreateV1Res()
 }
 
+type ClusterUpdateV1Res interface {
+	clusterUpdateV1Res()
+}
+
 type GetHealthRes interface {
 	getHealthRes()
 }

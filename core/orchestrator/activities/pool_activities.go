@@ -231,17 +231,17 @@ func ValidateVSAZonesForMachineType(cloudService hyperscaler2.Services, projectN
 
 // ValidateZonesForMachineTypes is an activity method that validates VSA zones support the machine type
 func (j *PoolActivity) ValidateZonesForMachineTypes(ctx context.Context, projectNumber, primaryZone, secondaryZone, instanceType string) error {
-	activity.RecordHeartbeat(ctx, "Starting ValidateZonesForMachineTypes activity and Getting cloud service")
+	orchestrator.RecordHeartbeat(ctx, "Starting ValidateZonesForMachineTypes activity and Getting cloud service")
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to initialize cloud service: %w", err))
 	}
-	recordHeartbeat(ctx, fmt.Sprintf("Validating zones %s and %s for machine type %s", primaryZone, secondaryZone, instanceType))
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Validating zones %s and %s for machine type %s", primaryZone, secondaryZone, instanceType))
 	err = ValidateVSAZonesForMachineType(cloudService, projectNumber, primaryZone, secondaryZone, instanceType)
 	if err != nil {
 		return err
 	}
-	activity.RecordHeartbeat(ctx, "Finished ValidateZonesForMachineTypes activity")
+	orchestrator.RecordHeartbeat(ctx, "Finished ValidateZonesForMachineTypes activity")
 	return nil
 }
 

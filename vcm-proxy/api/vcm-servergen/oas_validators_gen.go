@@ -147,6 +147,21 @@ func (s BlockDeviceV1OsType) Validate() error {
 	}
 }
 
+func (s ChangeTypeV1) Validate() error {
+	switch s {
+	case "CHANGE_TYPE_UNSPECIFIED":
+		return nil
+	case "COMPUTE":
+		return nil
+	case "SCALE":
+		return nil
+	case "CONFIG":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *ClusterConfigV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -260,6 +275,46 @@ func (s ClusterShapeV1Mode) Validate() error {
 	default:
 		return errors.Errorf("invalid value: %v", s)
 	}
+}
+
+func (s *ClusterUpdateV1BadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterUpdateV1Conflict) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterUpdateV1InternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterUpdateV1NotFound) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterUpdateV1Unauthorized) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ClusterV1) Validate() error {

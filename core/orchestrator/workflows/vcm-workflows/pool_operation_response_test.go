@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 func TestPoolOperationResponsePayload_FullLayout(t *testing.T) {
@@ -505,4 +506,29 @@ func TestConfigureVCMVLMConfigForPoolCreate_EnablesIlbSupport(t *testing.T) {
 	assert.True(t, cfg.Deployment.DevFlags.EnableIlbSupport)
 	assert.True(t, cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport)
 	assert.Equal(t, "true", cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier)
+}
+
+func TestConfigureVCMVLMConfigForPoolUpdate_EnablesIlbSupport(t *testing.T) {
+	cfg := &vlm.VLMConfig{}
+	configureVCMVLMConfigForPoolUpdate(cfg)
+	assert.True(t, cfg.Deployment.DevFlags.EnableIlbSupport)
+	assert.True(t, cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport)
+	assert.Equal(t, "true", cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier)
+}
+
+func TestConfigureVCMVLMConfigForPoolUpdate_SetsProviderFromEnv(t *testing.T) {
+	prevHyperscaler := env.Hyperscaler
+	t.Cleanup(func() { env.Hyperscaler = prevHyperscaler })
+	env.Hyperscaler = vlm.GCPCloud
+
+	cfg := &vlm.VLMConfig{}
+	configureVCMVLMConfigForPoolUpdate(cfg)
+	assert.Equal(t, vlm.GCPCloud, cfg.Deployment.Provider)
+}
+
+func TestConfigureVCMVLMConfigForPoolUpdate_KeepsExistingProvider(t *testing.T) {
+	cfg := &vlm.VLMConfig{}
+	cfg.Deployment.Provider = vlm.OCICloud
+	configureVCMVLMConfigForPoolUpdate(cfg)
+	assert.Equal(t, vlm.OCICloud, cfg.Deployment.Provider)
 }

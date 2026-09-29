@@ -60,6 +60,18 @@ func (s *e2eJobStore) GetJob(_ context.Context, jobID string) (*vcmdb.Job, error
 	return &clone, nil
 }
 
+func (s *e2eJobStore) GetOngoingJobByResource(_ context.Context, resourceID, jobType string) (*vcmdb.Job, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, job := range s.jobs {
+		if job.ResourceID == resourceID && job.Type == jobType && !job.IsTerminal() {
+			clone := *job
+			return &clone, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *e2eJobStore) ListOngoingJobs(context.Context) ([]vcmdb.Job, error) { return nil, nil }
 
 func (s *e2eJobStore) UpdateJobProgress(_ context.Context, params vcmdb.UpdateJobProgressParams) error {
@@ -144,6 +156,42 @@ func runPoolWorkflowE2EWithReg(t *testing.T, store vcmdb.VCMDatastore, params *c
 	return werr
 }
 
+func runPoolUpdateWorkflowE2E(
+	t *testing.T,
+	store vcmdb.VCMDatastore,
+	params *commonparams.UpdatePoolParams,
+	extra func(orchestrator.WorkflowRegistrar),
+) error {
+	t.Helper()
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	r, err := gowfbackend.NewRunner(ctx)
+	require.NoError(t, err)
+
+	reg := r.Registrar()
+	reg.RegisterWorkflow(PoolUpdateWorkflow)
+	ja := &activities.JobActivity{Store: store}
+	reg.RegisterActivity(ja.UpdateJobProgress)
+	extra(reg)
+
+	require.NoError(t, r.Start(ctx))
+	t.Cleanup(func() {
+		cancel()
+		_ = r.Stop()
+	})
+
+	wfi, err := r.Client().CreateWorkflowInstance(ctx, cclient.WorkflowInstanceOptions{
+		InstanceID: uuid.NewString(),
+	}, gowfbackend.FuncName(PoolUpdateWorkflow), params)
+	require.NoError(t, err)
+
+	_, werr := cclient.GetWorkflowResult[json.RawMessage](ctx, r.Client(), wfi, 30*time.Second)
+	return werr
+}
+
 // --- happy-path stubs ---
 //
 // The gowf backend dispatches activities/child workflows by their SHORT name
@@ -154,7 +202,10 @@ func runPoolWorkflowE2EWithReg(t *testing.T, store vcmdb.VCMDatastore, params *c
 // stubPoolActivity stands in for PoolActivity.IdentifyVMs in e2e tests; set
 // identifyErr to simulate a provisioning failure without a separate stub type.
 type stubPoolActivity struct {
-	identifyErr error
+	identifyErr        error
+	validateErr        error
+	targetInstanceType string
+	targetSPConfig     vlm.SPConfig
 }
 
 func (a stubPoolActivity) IdentifyVMs(_ context.Context, req activities.IdentifyVMsRequest) (*vlm.VLMConfig, error) {
@@ -165,7 +216,20 @@ func (a stubPoolActivity) IdentifyVMs(_ context.Context, req activities.Identify
 	cfg.VsaCluster.ClusterName = "cluster-e2e"
 	// InvokeCreateSVM requires a non-empty deployment id on the VLM config.
 	cfg.Deployment.DeploymentID = req.DeploymentName
+	cfg.Deployment.Provider = vlm.GCPCloud
+	cfg.Deployment.VSAInstanceType = a.targetInstanceType
+	cfg.Deployment.SPConfig = a.targetSPConfig
 	return cfg, nil
+}
+
+func (a stubPoolActivity) ValidateZonesForMachineTypes(context.Context, string, string, string, string) error {
+	return a.validateErr
+}
+
+type fakeCredentialActivity struct{}
+
+func (fakeCredentialActivity) ResolveOntapAdminPassword(context.Context, activities.ResolveOntapAdminPasswordRequest) (*vlm.OntapCredentials, error) {
+	return &vlm.OntapCredentials{AdminPassword: "resolved-password"}, nil
 }
 
 type fakeSvmActivity struct{}
@@ -215,6 +279,190 @@ func childCreateSVM(_ *orchestrator.Context, req *vlm.CreateSVMRequest) (*vlm.Cr
 		},
 	}
 	return &vlm.CreateSVMResponse{VLMConfig: cfg}, nil
+}
+
+func childGetClusterForUpdate(_ *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	cfg := vlm.VLMConfig{}
+	cfg.Deployment.Provider = vlm.GCPCloud
+	cfg.Deployment.DeploymentID = req.DeploymentID
+	cfg.Deployment.NumHAPair = 1
+	cfg.Deployment.VSAInstanceType = "n2-standard-8"
+	cfg.Deployment.SPConfig = vlm.SPConfig{Size: "2TiB", IOps: 1000, Throughput: 64}
+	return &vlm.GetVSAClusterDeploymentResponse{VLMConfig: cfg}, nil
+}
+
+// childUpdateClusterForPool models UpdateVSAClusterDeploymentWorkflow: the
+// desired change is the top-level NewInstanceType and SPConfig, and
+// req.VLMConfig stays the live cluster. The returned config is what VLM
+// writes back after applying those top-level fields.
+func childUpdateClusterForPool(_ *orchestrator.Context, req *vlm.UpdateVSAClusterDeploymentRequest) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	cfg := req.VLMConfig
+	if req.NewInstanceType != "" {
+		cfg.Deployment.VSAInstanceType = req.NewInstanceType
+	}
+	cfg.Deployment.SPConfig = req.SPConfig
+	return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: cfg}, nil
+}
+
+func newUpdatePoolParams(requestID, changeType string) *commonparams.UpdatePoolParams {
+	createParams := commonparams.VCMCreatePoolParams{
+		DeploymentID:         "gcnv-e2e",
+		RequestID:            requestID,
+		ServiceTenantProject: "tenant-project",
+		PrimaryZone:          "us-central1-a",
+		SecondaryZone:        "us-central1-b",
+		MediatorZone:         "us-central1-c",
+		SizeInBytes:          4096 * 1024 * 1024 * 1024,
+		ThroughputMibps:      128,
+		Iops:                 2000,
+		Derived: &commonparams.VCMDerivedPoolInputs{
+			Region:               "us-central1",
+			DesiredCapacityInGiB: 4096,
+			OntapCredentials: &datamodel.PoolCredentials{
+				SecretID: "projects/test/secrets/admin-password",
+			},
+		},
+	}
+	return &commonparams.UpdatePoolParams{VCM: &commonparams.VCMUpdatePoolParams{
+		VCMCreatePoolParams: createParams,
+		ChangeType:          changeType,
+	}}
+}
+
+func registerPoolUpdateDependencies(reg orchestrator.WorkflowRegistrar, pool stubPoolActivity) {
+	reg.RegisterActivity(fakeCredentialActivity{}.ResolveOntapAdminPassword)
+	reg.RegisterActivity(pool.IdentifyVMs)
+	reg.RegisterActivity(pool.ValidateZonesForMachineTypes)
+	reg.RegisterWorkflowWithName(vlm.GetVSAClusterDeploymentWorkflowName, childGetClusterForUpdate)
+	reg.RegisterWorkflowWithName(vlm.UpdateVSAClusterDeploymentWorkflowName, childUpdateClusterForPool)
+}
+
+func TestPoolUpdateWorkflowE2E_ComputeSuccess_MarksJobDone(t *testing.T) {
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	params := newUpdatePoolParams(reqID, ClusterComputeChangeType)
+	params.VCM.Deadline = time.Now().UTC().Add(time.Hour)
+
+	err := runPoolUpdateWorkflowE2E(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		registerPoolUpdateDependencies(reg, stubPoolActivity{
+			targetInstanceType: "c3-standard-8-lssd",
+			targetSPConfig:     vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128},
+		})
+	})
+
+	require.NoError(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State)
+	assert.Equal(t, jobStepCompleted, last.Step)
+	assert.NotEmpty(t, last.ResponsePayload)
+}
+
+func TestPoolUpdateWorkflowE2E_ScaleSuccess_MarksJobDone(t *testing.T) {
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	params := newUpdatePoolParams(reqID, ClusterScaleChangeType)
+
+	err := runPoolUpdateWorkflowE2E(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		registerPoolUpdateDependencies(reg, stubPoolActivity{
+			targetInstanceType: "n2-standard-8",
+			targetSPConfig:     vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128},
+		})
+	})
+
+	require.NoError(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State)
+	assert.Equal(t, jobStepCompleted, last.Step)
+}
+
+func TestPoolUpdateWorkflowE2E_NoOpUpdates_MarkJobDone(t *testing.T) {
+	tests := []struct {
+		name       string
+		changeType string
+		target     stubPoolActivity
+	}{
+		{
+			name:       "compute keeps current instance type",
+			changeType: ClusterComputeChangeType,
+			target: stubPoolActivity{
+				targetInstanceType: "n2-standard-8",
+				targetSPConfig:     vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128},
+			},
+		},
+		{
+			name:       "scale calls VLM when storage config already matches",
+			changeType: ClusterScaleChangeType,
+			target: stubPoolActivity{
+				targetInstanceType: "n2-standard-8",
+				targetSPConfig:     vlm.SPConfig{Size: "2TiB", IOps: 1000, Throughput: 64},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reqID := uuid.NewString()
+			store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+			params := newUpdatePoolParams(reqID, tt.changeType)
+
+			err := runPoolUpdateWorkflowE2E(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+				registerPoolUpdateDependencies(reg, tt.target)
+			})
+
+			require.NoError(t, err)
+			last, ok := store.lastUpdate()
+			require.True(t, ok)
+			assert.Equal(t, vcmdb.JobStateDone, last.State)
+			assert.Equal(t, jobStepCompleted, last.Step)
+		})
+	}
+}
+
+func TestPoolUpdateWorkflowE2E_UnsupportedChangeType_MarksJobError(t *testing.T) {
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	params := newUpdatePoolParams(reqID, "CONFIG")
+
+	err := runPoolUpdateWorkflowE2E(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		registerPoolUpdateDependencies(reg, stubPoolActivity{
+			targetInstanceType: "n2-standard-8",
+			targetSPConfig:     vlm.SPConfig{Size: "2TiB", IOps: 1000, Throughput: 64},
+		})
+	})
+
+	require.Error(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateError, last.State)
+	assert.Contains(t, last.ErrorMessage, "unsupported changeType")
+}
+
+func TestPoolUpdateWorkflowE2E_ExpiredDeadline_MarksJobErrorBeforeWork(t *testing.T) {
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	params := newUpdatePoolParams(reqID, ClusterComputeChangeType)
+	params.VCM.Deadline = time.Now().UTC().Add(-time.Minute)
+
+	err := runPoolUpdateWorkflowE2E(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		registerPoolUpdateDependencies(reg, stubPoolActivity{
+			targetInstanceType: "c3-standard-8-lssd",
+			targetSPConfig:     vlm.SPConfig{Size: "4TiB", IOps: 2000, Throughput: 128},
+		})
+	})
+
+	require.Error(t, err)
+	updates := store.allUpdates()
+	require.Len(t, updates, 1, "an expired job must fail before mark-processing")
+	assert.Equal(t, vcmdb.JobStateError, updates[0].State)
+	assert.Equal(t, jobStepStarting, updates[0].Step)
+	assert.Equal(t, vsaerrors.ErrOperationDeadlineExceeded, updates[0].TrackingID)
+	assert.Contains(t, updates[0].ErrorMessage, "mark-processing")
+	for _, update := range updates {
+		assert.NotEqual(t, vcmdb.JobStateProcessing, update.State)
+		assert.NotEqual(t, jobStepGetCluster, update.Step)
+	}
 }
 
 func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {

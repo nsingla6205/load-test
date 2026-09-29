@@ -77,6 +77,7 @@ func TestNodeAndSvmFromStore_ProvidedCertPreservesFullCASName(t *testing.T) {
 	const casName = "projects/tenant-proj/locations/us-central1/caPools/vcm-pool/certificates/cert-1"
 	store := &stubStore{input: vsa.NodeProviderInput{
 		DeploymentName: "gcnv-test",
+		ServerName:     "mgmt.gcnv-test.vsa.example.com",
 		OntapCredentials: &datamodel.PoolCredentials{
 			CertificateID:          casName,
 			CertPrivateKeySecretID: "projects/tenant-proj/secrets/cert-key",
@@ -98,11 +99,13 @@ func TestNodeAndSvmFromStore_ProvidedCertPreservesFullCASName(t *testing.T) {
 	assert.Equal(t, "projects/tenant-proj/secrets/cert-key", node.CertPrivateKeySecretID)
 	assert.Equal(t, "admin-pass", node.SecretID)
 	assert.Equal(t, "vcm-admin", node.Username)
+	assert.Equal(t, "mgmt.gcnv-test.vsa.example.com", node.ServerName)
 }
 
 func TestNodeAndSvmFromStore_SelfManagedCertIsBareNamed(t *testing.T) {
 	store := &stubStore{input: vsa.NodeProviderInput{
 		DeploymentName: "gcnv-test",
+		ServerName:     "mgmt.gcnv-test.vsa.example.com",
 		OntapCredentials: &datamodel.PoolCredentials{
 			CertificateID: "projects/p/secrets/cert-1",
 			SecretID:      "projects/p/secrets/admin-pass",
@@ -135,6 +138,10 @@ func (s *jobTestStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
 func (s *jobTestStore) CreateJob(_ context.Context, job *vcmdb.Job) error {
 	s.created = job
 	return s.createErr
+}
+
+func (s *jobTestStore) GetOngoingJobByResource(context.Context, string, string) (*vcmdb.Job, error) {
+	return nil, nil
 }
 
 func (s *jobTestStore) GetJob(_ context.Context, _ string) (*vcmdb.Job, error) {

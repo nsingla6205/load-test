@@ -1041,6 +1041,196 @@ func (s *ClusterShapeV1Mode) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes ClusterUpdateV1BadRequest as json.
+func (s *ClusterUpdateV1BadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ClusterUpdateV1BadRequest from json.
+func (s *ClusterUpdateV1BadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ClusterUpdateV1BadRequest to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ClusterUpdateV1BadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ClusterUpdateV1BadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ClusterUpdateV1BadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ClusterUpdateV1Conflict as json.
+func (s *ClusterUpdateV1Conflict) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ClusterUpdateV1Conflict from json.
+func (s *ClusterUpdateV1Conflict) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ClusterUpdateV1Conflict to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ClusterUpdateV1Conflict(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ClusterUpdateV1Conflict) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ClusterUpdateV1Conflict) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ClusterUpdateV1InternalServerError as json.
+func (s *ClusterUpdateV1InternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ClusterUpdateV1InternalServerError from json.
+func (s *ClusterUpdateV1InternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ClusterUpdateV1InternalServerError to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ClusterUpdateV1InternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ClusterUpdateV1InternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ClusterUpdateV1InternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ClusterUpdateV1NotFound as json.
+func (s *ClusterUpdateV1NotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ClusterUpdateV1NotFound from json.
+func (s *ClusterUpdateV1NotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ClusterUpdateV1NotFound to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ClusterUpdateV1NotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ClusterUpdateV1NotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ClusterUpdateV1NotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ClusterUpdateV1Unauthorized as json.
+func (s *ClusterUpdateV1Unauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponseV1)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ClusterUpdateV1Unauthorized from json.
+func (s *ClusterUpdateV1Unauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ClusterUpdateV1Unauthorized to nil")
+	}
+	var unwrapped ErrorResponseV1
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ClusterUpdateV1Unauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ClusterUpdateV1Unauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ClusterUpdateV1Unauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode implements json.Marshaler.
 func (s *ClusterV1) Encode(e *jx.Encoder) {
 	e.ObjStart()

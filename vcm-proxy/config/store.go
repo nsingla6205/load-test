@@ -142,6 +142,15 @@ func (s *Store) GetJob(ctx context.Context, jobID string) (*vcmdb.Job, error) {
 	return store.GetJob(ctx, jobID)
 }
 
+// GetOngoingJobByResource returns a non-terminal job for the resource and type.
+func (s *Store) GetOngoingJobByResource(ctx context.Context, resourceID, jobType string) (*vcmdb.Job, error) {
+	store, err := s.storage()
+	if err != nil {
+		return nil, err
+	}
+	return store.GetOngoingJobByResource(ctx, resourceID, jobType)
+}
+
 // ListOngoingJobs returns durable VCM jobs that have not reached a terminal state.
 func (s *Store) ListOngoingJobs(ctx context.Context) ([]vcmdb.Job, error) {
 	store, err := s.storage()

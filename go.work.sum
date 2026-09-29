@@ -619,6 +619,10 @@ github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tN
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 h1:d+Bc7a5rLufV/sSk/8dngufqelfh6jnri85riMAaF/M=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
+github.com/VCP-VSA-control-Plane/vlm/lifecycle-manager v0.0.0-20260916071839-91a01a70866d h1:arOd15IF+GKf7JPdzX7gIMOBqBirQ/ppImc6rmjYoN4=
+github.com/VCP-VSA-control-Plane/vlm/lifecycle-manager v0.0.0-20260916071839-91a01a70866d/go.mod h1:+60xhC1VhJyicJd3ocKlOkVMHUA0sZ47owZlVHIy8L8=
+github.com/VCP-VSA-control-Plane/vlm/vsa-orchestrator v0.0.0-20260916071839-91a01a70866d h1:ndeLY9z8DW234CxHig8u661r/dLZTVezH4t20LgkG3U=
+github.com/VCP-VSA-control-Plane/vlm/vsa-orchestrator v0.0.0-20260916071839-91a01a70866d/go.mod h1:/gPyQluwdHM1qpVe092Dh0q/iD0qZpNszmZs0WpGuAM=
 github.com/agiledragon/gomonkey/v2 v2.13.0/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
 github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b h1:slYM766cy2nI3BwyRiyQj/Ud48djTMtMebDqepE95rw=
 github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b/go.mod h1:1KcenG0jGWcpt8ov532z81sp/kMMUG485J2InIOyADM=

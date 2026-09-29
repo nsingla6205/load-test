@@ -617,6 +617,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
+    patch:
+      operationId: clusterUpdate_v1
+      tags: [cluster]
+      summary: Update an existing ONTAP cluster
+      description: |
+        Updates specific fields of the existing ONTAP cluster using an update
+        mask. changeType classifies the mutation (compute, scale, or config)
+        until CLH can fully translate the user spec into a technical spec.
+        Identity, zones, networking, projects and ONTAP credentials are read
+        from the configuration previously pushed via POST /v1/config.
+        Returns 202 Accepted; poll GET /v1/operations/{operationId}
+        where operationId equals requestId.
+      parameters:
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/clusterUpdateMaskQuery"
+        - $ref: "#/components/parameters/clusterChangeTypeQuery"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
+      requestBody:
+        required: true
+        description: |
+          Same Cluster_v1 object as create. The provisionedThroughputMibps,
+          provisionedIops, and provisionedSizeInBytes fields form one complete
+          target shape and must be provided together. Names in updateMask are
+          relative to this resource (for example clusterShape). clusterLayout
+          is ignored on input.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Cluster_v1"
+            example:
+              requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              clusterShape:
+                provisionedThroughputMibps: 2048
+                provisionedIops: 10000
+                provisionedSizeInBytes: 2199023255552
+                qosType: auto
+                mode: DEFAULT
+                regionIdentifier: "34"
+                infrastructureSpec:
+                  haPairCount: 1
+                  preferredVsaInstanceFamily: c3-lssd
+                  vsaInstanceType: c3-standard-44-lssd
+                  dataDiskType: hyperdisk-balanced
+                  systemDiskType: hyperdisk-balanced
+                  mediatorDiskType: pd-ssd
+                  dataDiskCount: 16
+      responses:
+        "202":
+          description: Cluster update accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/3fa85f64-5717-4562-b3fc-2c963f66afa6
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
+        "404":
+          $ref: "#/components/responses/StandardError-404"
+        "409":
+          $ref: "#/components/responses/StandardError-409"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
 
 components:
   parameters:
@@ -703,6 +775,34 @@ components:
         type: string
         minLength: 1
       example: sizeInBytes
+
+    clusterUpdateMaskQuery:
+      name: updateMask
+      in: query
+      required: true
+      description: |
+        The list of fields to update. Names are relative to the root Cluster
+        resource. Multiple field paths can be specified as a comma-separated
+        list (google.protobuf.FieldMask JSON encoding). The provisioned IOPS,
+        throughput, and size paths must be included together.
+      schema:
+        type: string
+        minLength: 1
+      example: "clusterShape.provisionedThroughputMibps,clusterShape.provisionedIops,clusterShape.provisionedSizeInBytes"
+
+    clusterChangeTypeQuery:
+      name: changeType
+      in: query
+      required: false
+      description: |
+        Type of change to apply. Temporary until CLH can fully translate the
+        user spec into a technical spec.
+        Omitted defaults to CHANGE_TYPE_UNSPECIFIED. Currently only COMPUTE
+        and SCALE are supported; CHANGE_TYPE_UNSPECIFIED and CONFIG are
+        rejected.
+      schema:
+        $ref: "#/components/schemas/ChangeType_v1"
+      example: SCALE
 
   responses:
     StandardError-400:
@@ -1484,8 +1584,9 @@ components:
           description: ONTAP volume create_time (UTC).
           example: "2016-11-30T20:32:50.459Z"
 
-    # Long-running operation resource (AIP-151). Returned both by POST /v1/cluster
-    # (202 Accepted, done=false) and by GET /v1/operations/{operationId} for polling.
+    # Long-running operation resource (AIP-151). Returned by POST /v1/cluster
+    # and PATCH /v1/cluster (202 Accepted, done=false) and by
+    # GET /v1/operations/{operationId} for polling.
     Operation_v1:
       type: object
       required: [name, done]
@@ -1918,6 +2019,18 @@ components:
         project: "237071556299"
         instance: vcm-instance
         database: vcm
+
+    ChangeType_v1:
+      title: ChangeType
+      type: string
+      description: Type of change for cluster updates.
+      enum:
+        - CHANGE_TYPE_UNSPECIFIED
+        - COMPUTE
+        - SCALE
+        - CONFIG
+      default: CHANGE_TYPE_UNSPECIFIED
+      example: SCALE
 
     Cluster_v1:
       type: object

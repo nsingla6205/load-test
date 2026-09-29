@@ -11614,6 +11614,40 @@ func TestValidateZonesForMachineTypes_GCPServiceError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to initialize cloud service")
 }
 
+// TestValidateZonesForMachineTypes_NonTemporalContext invokes the activity the way the VCM
+// go-workflows worker does: with a plain context that carries no Temporal activity state.
+// Heartbeats must go through orchestrator.RecordHeartbeat, which is a no-op outside Temporal;
+// calling activity.RecordHeartbeat directly panics with "Not an activity context".
+func TestValidateZonesForMachineTypes_NonTemporalContext(t *testing.T) {
+	const (
+		projectNumber = "test-project"
+		primaryZone   = "us-central1-a"
+		secondaryZone = "us-central1-b"
+		instanceType  = "c3-standard-44-lssd"
+	)
+
+	mockService := new(hyperscaler2.MockServices)
+	mockService.On("GetContext").Maybe().Return(context.Background())
+	mockService.On("IsMachineTypeAvailable", projectNumber, primaryZone, instanceType).Return(true, nil)
+	mockService.On("IsMachineTypeAvailable", projectNumber, secondaryZone, instanceType).Return(true, nil)
+
+	originalResolve := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalResolve }()
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
+		return mockService, nil
+	}
+
+	poolActivity := &activities.PoolActivity{}
+
+	var err error
+	assert.NotPanics(t, func() {
+		err = poolActivity.ValidateZonesForMachineTypes(context.Background(), projectNumber, primaryZone, secondaryZone, instanceType)
+	})
+
+	assert.NoError(t, err)
+	mockService.AssertExpectations(t)
+}
+
 // TestResolveZonesForCluster_PrimaryZoneValidationError covers lines 1160, 1161
 func TestResolveZonesForCluster_PrimaryZoneValidationError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)

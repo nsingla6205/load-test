@@ -176,6 +176,66 @@ func TestClusterShapeV1Mode_EncodeDecode(t *testing.T) {
 	var typ2 ClusterShapeV1Mode
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestClusterUpdateV1BadRequest_EncodeDecode(t *testing.T) {
+	var typ ClusterUpdateV1BadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterUpdateV1BadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterUpdateV1Conflict_EncodeDecode(t *testing.T) {
+	var typ ClusterUpdateV1Conflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterUpdateV1Conflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterUpdateV1InternalServerError_EncodeDecode(t *testing.T) {
+	var typ ClusterUpdateV1InternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterUpdateV1InternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterUpdateV1NotFound_EncodeDecode(t *testing.T) {
+	var typ ClusterUpdateV1NotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterUpdateV1NotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterUpdateV1Unauthorized_EncodeDecode(t *testing.T) {
+	var typ ClusterUpdateV1Unauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterUpdateV1Unauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestClusterV1_EncodeDecode(t *testing.T) {
 	var typ ClusterV1
 	typ.SetFake()
@@ -195,6 +255,7 @@ func TestClusterV1_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"clusterShape\":{\"autoTieringConfig\":{\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"hotTierSizeInBytes\":1099511627776},\"infrastructureSpec\":{\"dataDiskCount\":8,\"dataDiskType\":\"hyperdisk-balanced\",\"haPairCount\":1,\"mediatorDiskType\":\"pd-ssd\",\"preferredVsaInstanceFamily\":\"c3-lssd\",\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"mode\":\"DEFAULT\",\"provisionedIops\":5000,\"provisionedSizeInBytes\":1099511627776,\"provisionedThroughputMibps\":1024,\"qosType\":\"auto\",\"regionIdentifier\":\"34\"}}"},
+		{Input: "{\"clusterShape\":{\"infrastructureSpec\":{\"dataDiskCount\":16,\"dataDiskType\":\"hyperdisk-balanced\",\"haPairCount\":1,\"mediatorDiskType\":\"pd-ssd\",\"preferredVsaInstanceFamily\":\"c3-lssd\",\"systemDiskType\":\"hyperdisk-balanced\",\"vsaInstanceType\":\"c3-standard-44-lssd\"},\"mode\":\"DEFAULT\",\"provisionedIops\":10000,\"provisionedSizeInBytes\":2199023255552,\"provisionedThroughputMibps\":2048,\"qosType\":\"auto\",\"regionIdentifier\":\"34\"},\"requestId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -623,6 +684,7 @@ func TestOperationV1_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"done\":false,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
+		{Input: "{\"done\":false,\"name\":\"/v1/operations/3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
 		{Input: "{\"done\":true,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
 	} {
 		tc := tc

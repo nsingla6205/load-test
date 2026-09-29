@@ -136,10 +136,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						if len(elem) == 0 {
 							// Leaf node.
 							switch r.Method {
+							case "PATCH":
+								s.handleClusterUpdateV1Request([0]string{}, elemIsEscaped, w, r)
 							case "POST":
 								s.handleClusterCreateV1Request([0]string{}, elemIsEscaped, w, r)
 							default:
-								s.notAllowed(w, r, "POST")
+								s.notAllowed(w, r, "PATCH,POST")
 							}
 
 							return
@@ -499,6 +501,14 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						if len(elem) == 0 {
 							// Leaf node.
 							switch method {
+							case "PATCH":
+								r.name = ClusterUpdateV1Operation
+								r.summary = "Update an existing ONTAP cluster"
+								r.operationID = "clusterUpdate_v1"
+								r.pathPattern = "/v1/cluster"
+								r.args = args
+								r.count = 0
+								return r, true
 							case "POST":
 								r.name = ClusterCreateV1Operation
 								r.summary = "Create a new ONTAP cluster"

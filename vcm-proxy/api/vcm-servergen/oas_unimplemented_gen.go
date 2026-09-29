@@ -29,6 +29,21 @@ func (UnimplementedHandler) ClusterCreateV1(ctx context.Context, req *ClusterV1,
 	return r, ht.ErrNotImplemented
 }
 
+// ClusterUpdateV1 implements clusterUpdate_v1 operation.
+//
+// Updates specific fields of the existing ONTAP cluster using an update
+// mask. changeType classifies the mutation (compute, scale, or config)
+// until CLH can fully translate the user spec into a technical spec.
+// Identity, zones, networking, projects and ONTAP credentials are read
+// from the configuration previously pushed via POST /v1/config.
+// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+// where operationId equals requestId.
+//
+// PATCH /v1/cluster
+func (UnimplementedHandler) ClusterUpdateV1(ctx context.Context, req *ClusterV1, params ClusterUpdateV1Params) (r ClusterUpdateV1Res, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetHealth implements getHealth operation.
 //
 // Liveness check for the VCM process. Returns HTTP 200 while the process

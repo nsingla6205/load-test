@@ -115,6 +115,11 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register create-pool recovery handler", "error", err)
 		os.Exit(1)
 	}
+	if err := recoveryCoordinator.Register(vcmdb.JobTypePoolUpdate,
+		vcm.NewUpdatePoolRecoveryHandler(workflowRunner.WorkflowStarter(), logger)); err != nil {
+		logger.ErrorContext(ctx, "failed to register update-pool recovery handler", "error", err)
+		os.Exit(1)
+	}
 	configStore.SetOngoingJobResumer(recoveryCoordinator)
 
 	serverState := vcmapi.NewServerState()
@@ -218,6 +223,7 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfi
 func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg := runner.Registrar()
 	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.PoolUpdateWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmCreateHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmDeleteHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmUpdateHostGroupWorkflow)
@@ -241,6 +247,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	jobActivity := &activities.JobActivity{Store: store}
 
 	reg.RegisterActivity(poolActivity.IdentifyVMs)
+	reg.RegisterActivity(poolActivity.ValidateZonesForMachineTypes)
 	reg.RegisterActivity(credentialActivity.ResolveOntapAdminPassword)
 	reg.RegisterActivity(credentialActivity.ResolveOntapCertificate)
 	reg.RegisterActivity(svmActivity.CreateQoSPolicyAndApplyToSVM)

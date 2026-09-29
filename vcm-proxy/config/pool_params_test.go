@@ -161,6 +161,14 @@ func TestStore_SeedPoolParams_RejectsIncompleteConfig(t *testing.T) {
 			wantMsg: "certPrivateKeySecret is required when activeAuthMode is AUTHMODE_CERT",
 		},
 		{
+			name: "cert user without VSA_DEPLOYED_DNS_NAME",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				seed.OntapCredentials = ontapCredentials("admin-pass",
+					certUser(vcmserver.UserCredentialsV1UserPurposePURPOSEVCMADMIN, "vcm-admin", "cert-1", "key-1"))
+			},
+			wantMsg: "VSA_DEPLOYED_DNS_NAME",
+		},
+		{
 			name: "password user without passwordSecret",
 			mutate: func(seed *vcmserver.SeedConfigV1) {
 				seed.OntapCredentials = ontapCredentials("admin-pass",
@@ -183,6 +191,10 @@ func TestStore_SeedPoolParams_RejectsIncompleteConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantMsg == "VSA_DEPLOYED_DNS_NAME" {
+				restore := setVsaDeployedDnsName(t, "")
+				defer restore()
+			}
 			_, err := poolSeedStore(t, tt.mutate).SeedPoolParams()
 
 			require.Error(t, err)

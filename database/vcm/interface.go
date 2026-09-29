@@ -25,6 +25,9 @@ type (
 	VCMDatastore interface {
 		CreateJob(ctx context.Context, job *Job) error
 		GetJob(ctx context.Context, jobID string) (*Job, error)
+		// GetOngoingJobByResource returns a non-terminal job (NEW or PROCESSING)
+		// for the resource and type. It returns (nil, nil) when none exists.
+		GetOngoingJobByResource(ctx context.Context, resourceID, jobType string) (*Job, error)
 		ListOngoingJobs(ctx context.Context) ([]Job, error)
 		UpdateJobProgress(ctx context.Context, params UpdateJobProgressParams) error
 	}

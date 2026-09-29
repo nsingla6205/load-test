@@ -27,6 +27,10 @@ func (s *stubJobStore) GetJob(context.Context, string) (*vcmdb.Job, error) {
 	return nil, nil
 }
 
+func (s *stubJobStore) GetOngoingJobByResource(context.Context, string, string) (*vcmdb.Job, error) {
+	return nil, nil
+}
+
 func (s *stubJobStore) ListOngoingJobs(context.Context) ([]vcmdb.Job, error) {
 	return s.jobs, s.listErr
 }

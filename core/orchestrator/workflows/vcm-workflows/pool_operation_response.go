@@ -8,6 +8,7 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 // bytesPerGiB converts the GiB-denominated disk sizes VLM records into the byte
@@ -248,4 +249,20 @@ func configureVCMVLMConfigForPoolCreate(cfg *vlm.VLMConfig) {
 	cfg.Deployment.DevFlags.EnableIlbSupport = true
 	cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport = true
 	cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier = "true"
+}
+
+// configureVCMVLMConfigForPoolUpdate applies the same VCM flags to a config
+// read back from the live cluster. The provider is restored when the live
+// config omits it, since the update child workflow needs it to pick a cloud.
+func configureVCMVLMConfigForPoolUpdate(cfg *vlm.VLMConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.Deployment.DevFlags.EnableIlbSupport = true
+	cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport = true
+	cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier = "true"
+
+	if cfg.Deployment.Provider == "" {
+		cfg.Deployment.Provider = env.Hyperscaler
+	}
 }

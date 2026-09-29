@@ -11,17 +11,17 @@ import (
 )
 
 type stubStore struct {
-	input        vsa.NodeProviderInput
-	inputErr     error
-	createdJob   *vcmdb.Job
-	createErr    error
-	existingJob  *vcmdb.Job
-	getJobErr    error
-	getJobState  vcmdb.JobState
-	updatedJobID string
-	updatedState vcmdb.JobState
-	updatedStep  string
-	updatedError string
+	input            vsa.NodeProviderInput
+	inputErr         error
+	createdJob       *vcmdb.Job
+	createErr        error
+	existingJob      *vcmdb.Job
+	getJobErr        error
+	getJobState      vcmdb.JobState
+	updatedJobID     string
+	updatedState     vcmdb.JobState
+	updatedStep      string
+	updatedError     string
 	updatedRetriable bool
 	updateErr        error
 }
@@ -36,6 +36,10 @@ func (s *stubStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
 func (s *stubStore) CreateJob(_ context.Context, job *vcmdb.Job) error {
 	s.createdJob = job
 	return s.createErr
+}
+
+func (s *stubStore) GetOngoingJobByResource(context.Context, string, string) (*vcmdb.Job, error) {
+	return nil, nil
 }
 
 func (s *stubStore) GetJob(_ context.Context, jobID string) (*vcmdb.Job, error) {

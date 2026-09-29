@@ -14,6 +14,7 @@ type Store interface {
 	NodeProviderInput() (vsa.NodeProviderInput, error)
 	CreateJob(ctx context.Context, job *vcmdb.Job) error
 	GetJob(ctx context.Context, jobID string) (*vcmdb.Job, error)
+	GetOngoingJobByResource(ctx context.Context, resourceID, jobType string) (*vcmdb.Job, error)
 	UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJobProgressParams) error
 }
 

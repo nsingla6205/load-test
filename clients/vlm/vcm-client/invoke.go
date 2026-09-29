@@ -70,6 +70,44 @@ func InvokeCreateClusterDeployment(ctx *orchestrator.Context, req *vlm.CreateVSA
 	return resp, nil
 }
 
+// InvokeUpdateClusterDeployment runs the VLM UpdateVSAClusterDeploymentWorkflow
+// as a child workflow. COMPUTE sets NewInstanceType and keeps current SPConfig;
+// SCALE applies the target SPConfig and leaves NewInstanceType empty.
+func InvokeUpdateClusterDeployment(ctx *orchestrator.Context, req *vlm.UpdateVSAClusterDeploymentRequest) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	retryPolicy, err := vlm.PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentID := req.VLMConfig.Deployment.DeploymentID
+	workflowExecutionTimeout := vlm.WorkflowExecutionTimeoutMap[vlm.UpdateVSAClusterDeploymentWorkflowName]
+	if req.NumHAPair >= vlm.MinLvHAPair {
+		workflowExecutionTimeout = vlm.CreateVSAClusterLargeCapacityTime
+	}
+
+	childCtx := ctx.WithChildWorkflowOptions(orchestrator.ChildWorkflowOptions{
+		WorkflowID:               deploymentID + "-update-cluster",
+		WorkflowExecutionTimeout: workflowExecutionTimeout,
+		RetryPolicy:              toRetryPolicy(retryPolicy),
+	})
+	childCtx = orchestrator.WithValue(childCtx, vlm.DeploymentIDKey, deploymentID)
+
+	logger := wfLogger(childCtx)
+	logger.Info("dispatching VLM child workflow",
+		"workflowName", vlm.UpdateVSAClusterDeploymentWorkflowName,
+		"workflowID", deploymentID+"-update-cluster",
+		"newInstanceType", req.NewInstanceType,
+		"executionTimeout", workflowExecutionTimeout.String())
+	resp := &vlm.UpdateVSAClusterDeploymentResponse{}
+	if err := orchestrator.ExecuteChildWorkflow(childCtx, vlm.UpdateVSAClusterDeploymentWorkflowName, req).Get(childCtx, resp); err != nil {
+		logger.Error("VLM update-cluster child workflow failed",
+			"workflowID", deploymentID+"-update-cluster", "error", err.Error())
+		handledErr := vlm.NewVLMErrorHandler().HandleVLMError(err)
+		return nil, apperror.WrapAsAppError(handledErr, false)
+	}
+	return resp, nil
+}
+
 // InvokeCreateSVM runs the VLM CreateVSASVMWorkflow as a child workflow.
 func InvokeCreateSVM(ctx *orchestrator.Context, req *vlm.CreateSVMRequest) (*vlm.CreateSVMResponse, error) {
 	if req.VLMConfig.Deployment.DeploymentID == "" {

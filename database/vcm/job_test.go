@@ -256,6 +256,41 @@ func TestCreateJob_Duplicate_ReturnsJobAlreadyExists(t *testing.T) {
 	assert.Contains(t, err.Error(), job.ID)
 }
 
+func TestGetOngoingJobByResource(t *testing.T) {
+	ctx := context.Background()
+	store := openJobTestStore(t)
+	resource := "gcnv-overlap"
+	deadline := time.Now().UTC().Add(time.Hour)
+	older := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+
+	jobs := []*Job{
+		{ID: "done-1", ResourceID: resource, Type: JobTypePoolUpdate, State: JobStateDone, DeadlineAt: deadline, CreatedAt: older},
+		{ID: "create-1", ResourceID: resource, Type: JobTypePoolCreate, State: JobStateNew, DeadlineAt: deadline, CreatedAt: older.Add(time.Minute)},
+		{ID: "other-1", ResourceID: "gcnv-other", Type: JobTypePoolUpdate, State: JobStateProcessing, DeadlineAt: deadline, CreatedAt: older.Add(2 * time.Minute)},
+		{ID: "update-1", ResourceID: resource, Type: JobTypePoolUpdate, State: JobStateProcessing, DeadlineAt: deadline, CreatedAt: older.Add(3 * time.Minute)},
+		{ID: "update-2", ResourceID: resource, Type: JobTypePoolUpdate, State: JobStateNew, DeadlineAt: deadline, CreatedAt: older.Add(4 * time.Minute)},
+	}
+	for _, job := range jobs {
+		require.NoError(t, store.CreateJob(ctx, job))
+	}
+
+	got, err := store.GetOngoingJobByResource(ctx, resource, JobTypePoolUpdate)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "update-1", got.ID, "the oldest non-terminal POOL_UPDATE for the resource is returned")
+
+	missing, err := store.GetOngoingJobByResource(ctx, "gcnv-absent", JobTypePoolUpdate)
+	require.NoError(t, err)
+	assert.Nil(t, missing)
+
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{JobID: "update-1", State: JobStateDone}))
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{JobID: "update-2", State: JobStateError}))
+
+	got, err = store.GetOngoingJobByResource(ctx, resource, JobTypePoolUpdate)
+	require.NoError(t, err)
+	assert.Nil(t, got, "a finished update must not block the next request")
+}
+
 func TestIsUniqueViolation(t *testing.T) {
 	tests := []struct {
 		name string

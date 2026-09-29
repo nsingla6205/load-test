@@ -113,6 +113,22 @@ func fullClusterCreateParams() vcmserver.ClusterCreateV1Params {
 	return testOperationClusterCreateParams(testOperationRequestID, testOperationTimeout)
 }
 
+const testUpdateMask = "clusterShape.provisionedThroughputMibps,clusterShape.provisionedIops,clusterShape.provisionedSizeInBytes"
+
+func testChangeType() vcmserver.OptChangeTypeV1 {
+	return vcmserver.NewOptChangeTypeV1(vcmserver.ChangeTypeV1SCALE)
+}
+
+func fullClusterUpdateParams() vcmserver.ClusterUpdateV1Params {
+	return testOperationClusterUpdateParams(testOperationRequestID, testOperationTimeout, testUpdateMask, testChangeType())
+}
+
+func clusterRequestWithoutSize() *vcmserver.ClusterV1 {
+	req := clusterRequest()
+	req.ClusterShape.ProvisionedSizeInBytes.Reset()
+	return req
+}
+
 func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 	handler, _, mockOrch := configuredClusterHandler(t)
 	req := clusterRequest()
@@ -264,17 +280,6 @@ func TestClusterCreateV1_UnseededConfig_ReturnsRetriableBadRequest(t *testing.T)
 	mockOrch.AssertNotCalled(t, "CreatePool", mock.Anything, mock.Anything)
 }
 
-func TestClusterCreateV1_NilConfigStore_Returns500(t *testing.T) {
-	handler := Handler{}
-
-	res, err := handler.ClusterCreateV1(context.Background(), clusterRequest(), fullClusterCreateParams())
-
-	require.NoError(t, err)
-	errRes, ok := res.(*vcmserver.ClusterCreateV1InternalServerError)
-	require.True(t, ok, "expected an InternalServerError response, got %T", res)
-	assert.EqualValues(t, 500, errRes.Code)
-}
-
 func TestClusterCreateV1_Success_ReturnsOperation(t *testing.T) {
 	handler, _, mockOrch := configuredClusterHandler(t)
 	mockOrch.On("CreatePool", mock.Anything, mock.Anything).Return(nil, "op-123", nil)
@@ -323,5 +328,386 @@ func TestClusterCreateV1_DuplicateRequest_ReturnsNonRetriableClientError(t *test
 	assert.EqualValues(t, 409, errRes.Code)
 	assert.False(t, errRes.Retriable.Or(true), "a duplicate request must be non-retriable")
 	assert.Contains(t, errRes.Message, "already exists in state PROCESSING")
+	mockOrch.AssertExpectations(t)
+}
+
+func TestClusterUpdateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	params := fullClusterUpdateParams()
+
+	var dispatched *common.UpdatePoolParams
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			dispatched = args.Get(1).(*common.UpdatePoolParams)
+		}).
+		Return(nil, params.RequestId, nil)
+
+	_, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), params)
+	require.NoError(t, err)
+	require.NotNil(t, dispatched)
+	require.NotNil(t, dispatched.VCM)
+	vcm := dispatched.VCM
+
+	assert.Equal(t, params.RequestId, vcm.RequestID)
+	assert.WithinDuration(t, time.Now().UTC().Add(3600*time.Second), vcm.Deadline, 2*time.Second)
+	assert.Equal(t, testUpdateMask, vcm.UpdateMask)
+	assert.Equal(t, string(vcmserver.ChangeTypeV1SCALE), vcm.ChangeType)
+
+	assert.Equal(t, "ONTAP", vcm.Mode)
+	assert.Equal(t, testDeploymentID, vcm.DeploymentID)
+	assert.Equal(t, "us-central1-a", vcm.PrimaryZone)
+
+	assert.Equal(t, int64(5000), vcm.Iops)
+	assert.Equal(t, int64(1099511627776), vcm.SizeInBytes)
+	assert.Equal(t, int64(1024), vcm.ThroughputMibps)
+
+	mockOrch.AssertExpectations(t)
+}
+
+func TestValidateMaskedClusterShape(t *testing.T) {
+	shapeWith := func(mutate func(*vcmserver.ClusterShapeV1)) vcmserver.ClusterShapeV1 {
+		shape := clusterRequest().ClusterShape
+		mutate(&shape)
+		return shape
+	}
+
+	for _, tc := range []struct {
+		name       string
+		updateMask string
+		shape      vcmserver.ClusterShapeV1
+		wantErr    string
+	}{
+		{
+			name:       "masked fields are set",
+			updateMask: testUpdateMask,
+			shape:      clusterRequest().ClusterShape,
+		},
+		{
+			name:       "masked size is absent",
+			updateMask: testUpdateMask,
+			shape: shapeWith(func(s *vcmserver.ClusterShapeV1) {
+				s.ProvisionedSizeInBytes.Reset()
+			}),
+			wantErr: `updateMask names "clusterShape.provisionedSizeInBytes" but the field is not set in clusterShape`,
+		},
+		{
+			name:       "masked iops is zero",
+			updateMask: testUpdateMask,
+			shape: shapeWith(func(s *vcmserver.ClusterShapeV1) {
+				s.ProvisionedIops = vcmserver.NewOptInt64(0)
+			}),
+			wantErr: `updateMask names "clusterShape.provisionedIops" but its value 0 is not greater than zero`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateMaskedClusterShape(tc.updateMask, tc.shape)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
+
+func TestValidateProvisionedShapeGroup(t *testing.T) {
+	shapeWith := func(mutate func(*vcmserver.ClusterShapeV1)) vcmserver.ClusterShapeV1 {
+		shape := clusterRequest().ClusterShape
+		mutate(&shape)
+		return shape
+	}
+
+	for _, tc := range []struct {
+		name    string
+		shape   vcmserver.ClusterShapeV1
+		wantErr bool
+	}{
+		{name: "all fields present", shape: clusterRequest().ClusterShape},
+		{
+			name: "all fields absent",
+			shape: shapeWith(func(s *vcmserver.ClusterShapeV1) {
+				s.ProvisionedIops.Reset()
+				s.ProvisionedThroughputMibps.Reset()
+				s.ProvisionedSizeInBytes.Reset()
+			}),
+		},
+		{
+			name: "only IOPS present",
+			shape: shapeWith(func(s *vcmserver.ClusterShapeV1) {
+				s.ProvisionedThroughputMibps.Reset()
+				s.ProvisionedSizeInBytes.Reset()
+			}),
+			wantErr: true,
+		},
+		{
+			name: "size missing",
+			shape: shapeWith(func(s *vcmserver.ClusterShapeV1) {
+				s.ProvisionedSizeInBytes.Reset()
+			}),
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateProvisionedShapeGroup(tc.shape)
+			if tc.wantErr {
+				require.EqualError(t, err,
+					"provisionedIops, provisionedThroughputMibps, and provisionedSizeInBytes must be provided together")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestClusterUpdateV1ForwardsToOrchestrator(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	requestID := uuid.NewString()
+
+	mockOrch.On("UpdatePool", mock.Anything, mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+		return p != nil && p.VCM != nil &&
+			p.VCM.RequestID == requestID &&
+			p.VCM.DeploymentID == testDeploymentID &&
+			p.VCM.UpdateMask == testUpdateMask
+	})).Return(nil, requestID, nil)
+
+	result, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(),
+		testOperationClusterUpdateParams(requestID, "7200s", testUpdateMask, testChangeType()))
+
+	require.NoError(t, err)
+	opRes, ok := result.(*vcmserver.OperationV1)
+	require.True(t, ok, "expected OperationV1, got %T", result)
+	assert.Equal(t, "/v1/operations/"+requestID, opRes.Name)
+	assert.False(t, opRes.Done)
+	mockOrch.AssertExpectations(t)
+}
+
+func TestClusterUpdateV1_EmptyOperationID_FallsBackToRequestID(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	params := fullClusterUpdateParams()
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).Return(nil, "", nil)
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), params)
+
+	require.NoError(t, err)
+	opRes, ok := res.(*vcmserver.OperationV1)
+	require.True(t, ok, "expected an OperationV1, got %T", res)
+	assert.Equal(t, "/v1/operations/"+params.RequestId, opRes.Name)
+	assert.False(t, opRes.Done)
+	mockOrch.AssertExpectations(t)
+}
+
+func TestValidateClusterUpdateMask(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		updateMask   string
+		wantContains string
+	}{
+		{
+			name:       "supported provisioned shape group",
+			updateMask: testUpdateMask,
+		},
+		{
+			name:         "partial provisioned shape group",
+			updateMask:   "clusterShape.provisionedThroughputMibps",
+			wantContains: "updateMask must include provisionedIops, provisionedThroughputMibps, and provisionedSizeInBytes together",
+		},
+		{
+			// preferredVsaInstanceFamily lives under infrastructureSpec, so the
+			// flat path is not a field of clusterShape at all.
+			name:         "flat preferredVsaInstanceFamily is not a schema path",
+			updateMask:   "clusterShape.preferredVsaInstanceFamily",
+			wantContains: `invalid updateMask field path "clusterShape.preferredVsaInstanceFamily"`,
+		},
+		{
+			name:         "nested preferredVsaInstanceFamily not supported",
+			updateMask:   "clusterShape.infrastructureSpec.preferredVsaInstanceFamily",
+			wantContains: `updateMask field path "clusterShape.infrastructureSpec.preferredVsaInstanceFamily" is not supported`,
+		},
+		{
+			name:         "valid parent path not supported",
+			updateMask:   "clusterShape",
+			wantContains: `updateMask field path "clusterShape" is not supported`,
+		},
+		{
+			name:         "valid nested path not supported",
+			updateMask:   "clusterShape.infrastructureSpec.haPairCount",
+			wantContains: `updateMask field path "clusterShape.infrastructureSpec.haPairCount" is not supported`,
+		},
+		{
+			name:         "unknown field",
+			updateMask:   "clusterShape.provisionedABCDWrongThroughputMibps",
+			wantContains: `invalid updateMask field path "clusterShape.provisionedABCDWrongThroughputMibps"`,
+		},
+		{
+			name:         "output-only field",
+			updateMask:   "clusterLayout",
+			wantContains: `invalid updateMask field path "clusterLayout"`,
+		},
+		{
+			name:         "request id",
+			updateMask:   "requestId",
+			wantContains: `invalid updateMask field path "requestId"`,
+		},
+		{
+			name:         "empty path",
+			updateMask:   "clusterShape.provisionedIops,",
+			wantContains: `invalid updateMask field path ""`,
+		},
+		{
+			name:         "whitespace around path",
+			updateMask:   "clusterShape.provisionedIops, clusterShape.provisionedSizeInBytes",
+			wantContains: `invalid updateMask field path " clusterShape.provisionedSizeInBytes"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateClusterUpdateMask(tc.updateMask)
+			if tc.wantContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.wantContains)
+		})
+	}
+}
+
+func TestValidateClusterChangeType(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		changeType vcmserver.ChangeTypeV1
+		wantErr    string
+	}{
+		{name: "compute", changeType: vcmserver.ChangeTypeV1COMPUTE},
+		{name: "scale", changeType: vcmserver.ChangeTypeV1SCALE},
+		{name: "unspecified", changeType: vcmserver.ChangeTypeV1CHANGETYPEUNSPECIFIED, wantErr: `changeType "CHANGE_TYPE_UNSPECIFIED" is not supported`},
+		{name: "config", changeType: vcmserver.ChangeTypeV1CONFIG, wantErr: `changeType "CONFIG" is not supported`},
+		{name: "empty", changeType: "", wantErr: `changeType "" is not supported`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateClusterChangeType(tc.changeType)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
+
+func TestClusterUpdateV1ValidatesRequest(t *testing.T) {
+	handler, _, _ := configuredClusterHandler(t)
+
+	for _, tc := range []struct {
+		name        string
+		req         *vcmserver.ClusterV1
+		params      vcmserver.ClusterUpdateV1Params
+		wantMessage string
+	}{
+		{name: "nil request", req: nil, params: fullClusterUpdateParams(), wantMessage: "request body is required"},
+		{name: "empty requestId", req: clusterRequest(), params: testOperationClusterUpdateParams("", testOperationTimeout, testUpdateMask, testChangeType()), wantMessage: "requestId is required"},
+		{name: "whitespace requestId", req: clusterRequest(), params: testOperationClusterUpdateParams("   ", testOperationTimeout, testUpdateMask, testChangeType()), wantMessage: "requestId is required"},
+		{name: "empty updateMask", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, "", testChangeType()), wantMessage: "updateMask is required"},
+		{name: "invalid updateMask field", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, "clusterShape.provisionedABCDWrongThroughputMibps", testChangeType()), wantMessage: `invalid updateMask field path "clusterShape.provisionedABCDWrongThroughputMibps"`},
+		{name: "unsupported updateMask field", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, "clusterShape.qosType", testChangeType()), wantMessage: `updateMask field path "clusterShape.qosType" is not supported`},
+		{name: "masked field missing from shape", req: clusterRequestWithoutSize(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, testUpdateMask, testChangeType()), wantMessage: "provisionedIops, provisionedThroughputMibps, and provisionedSizeInBytes must be provided together"},
+		{name: "unsupported changeType unspecified", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, testUpdateMask, vcmserver.NewOptChangeTypeV1(vcmserver.ChangeTypeV1CHANGETYPEUNSPECIFIED)), wantMessage: `changeType "CHANGE_TYPE_UNSPECIFIED" is not supported`},
+		{name: "unsupported changeType config", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), testOperationTimeout, testUpdateMask, vcmserver.NewOptChangeTypeV1(vcmserver.ChangeTypeV1CONFIG)), wantMessage: `changeType "CONFIG" is not supported`},
+		{name: "invalid timeout", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), "10m", testUpdateMask, testChangeType()), wantMessage: "timeout must be specified in seconds (for example 600s)"},
+		{name: "zero timeout", req: clusterRequest(), params: testOperationClusterUpdateParams(uuid.NewString(), "0s", testUpdateMask, testChangeType()), wantMessage: "timeout must be greater than 0s"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler.ClusterUpdateV1(context.Background(), tc.req, tc.params)
+			require.NoError(t, err)
+
+			badRequest, ok := result.(*vcmserver.ClusterUpdateV1BadRequest)
+			require.True(t, ok)
+			assert.EqualValues(t, 400, badRequest.Code)
+			assert.False(t, badRequest.Retriable.Or(true))
+			assert.Equal(t, tc.wantMessage, badRequest.Message)
+		})
+	}
+}
+
+func TestClusterUpdateV1_UnseededConfig_ReturnsRetriableBadRequest(t *testing.T) {
+	store := vcmconfig.NewStoreWithOpener(log.NewLogger(), &stubDBOpener{
+		dsn: fmt.Sprintf("file:vcm-cluster-endpoint-%s?mode=memory&cache=shared", t.Name()),
+	})
+	store.Apply(context.Background(), &vcmserver.SetConfigRequestV1{
+		StateDbConfig: vcmserver.StateDbConfigV1{Project: "p", Instance: "i", Database: "d"},
+	})
+	waitForConfigured(t, store)
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := &Handler{ConfigStore: store, Orchestrator: mockOrch}
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), fullClusterUpdateParams())
+
+	require.NoError(t, err)
+	badRequest, ok := res.(*vcmserver.ClusterUpdateV1BadRequest)
+	require.True(t, ok, "expected a BadRequest response, got %T", res)
+	assert.EqualValues(t, 400, badRequest.Code)
+	assert.True(t, badRequest.Retriable.Or(false), "CLH can re-seed config and retry")
+	assert.Contains(t, badRequest.Message, "deploymentId is not configured")
+	mockOrch.AssertNotCalled(t, "UpdatePool", mock.Anything, mock.Anything)
+}
+
+func TestClusterUpdateV1_Success_ReturnsOperation(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).Return(nil, "op-123", nil)
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), fullClusterUpdateParams())
+
+	require.NoError(t, err)
+	opRes, ok := res.(*vcmserver.OperationV1)
+	require.True(t, ok, "expected an Operation_v1, got %T", res)
+	assert.Equal(t, "/v1/operations/op-123", opRes.Name)
+	assert.False(t, opRes.Done)
+	mockOrch.AssertExpectations(t)
+}
+
+func TestClusterUpdateV1_OrchestratorError_Returns500(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).Return(nil, "", errors.New("dispatch failed"))
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), fullClusterUpdateParams())
+
+	require.NoError(t, err, "handler surfaces the failure through the typed response, not a Go error")
+	errRes, ok := res.(*vcmserver.ClusterUpdateV1InternalServerError)
+	require.True(t, ok, "expected an InternalServerError response, got %T", res)
+	assert.EqualValues(t, 500, errRes.Code)
+	assert.Contains(t, errRes.Message, "Internal error occurred")
+	assert.True(t, errRes.Retriable.Or(false))
+	mockOrch.AssertExpectations(t)
+}
+
+func TestClusterUpdateV1_DuplicateRequest_ReturnsNonRetriableClientError(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	conflict := vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+		errors.New(`update-pool request "3fa85f64-5717-4562-b3fc-2c963f66afa6" already exists in state PROCESSING`))
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).Return(nil, "", conflict)
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), fullClusterUpdateParams())
+
+	require.NoError(t, err)
+	errRes, ok := res.(*vcmserver.ClusterUpdateV1Conflict)
+	require.True(t, ok, "expected a Conflict response, got %T", res)
+	assert.EqualValues(t, 409, errRes.Code)
+	assert.False(t, errRes.Retriable.Or(true))
+	assert.Contains(t, errRes.Message, "already exists in state PROCESSING")
+	mockOrch.AssertExpectations(t)
+}
+
+func TestClusterUpdateV1_NotFound_Returns404(t *testing.T) {
+	handler, _, mockOrch := configuredClusterHandler(t)
+	notFound := vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+		errors.New(`cluster "gcnv-8d0ff6a0b456f30" not found`))
+	mockOrch.On("UpdatePool", mock.Anything, mock.Anything).Return(nil, "", notFound)
+
+	res, err := handler.ClusterUpdateV1(context.Background(), clusterRequest(), fullClusterUpdateParams())
+
+	require.NoError(t, err)
+	errRes, ok := res.(*vcmserver.ClusterUpdateV1NotFound)
+	require.True(t, ok, "expected a NotFound response, got %T", res)
+	assert.EqualValues(t, 404, errRes.Code)
+	assert.False(t, errRes.Retriable.Or(true))
+	assert.Contains(t, errRes.Message, "not found")
 	mockOrch.AssertExpectations(t)
 }

@@ -138,6 +138,63 @@ func (s *BlockDeviceV1OsType) UnmarshalText(data []byte) error {
 	}
 }
 
+// Type of change for cluster updates.
+// Ref: #/components/schemas/ChangeType_v1
+type ChangeTypeV1 string
+
+const (
+	ChangeTypeV1CHANGETYPEUNSPECIFIED ChangeTypeV1 = "CHANGE_TYPE_UNSPECIFIED"
+	ChangeTypeV1COMPUTE               ChangeTypeV1 = "COMPUTE"
+	ChangeTypeV1SCALE                 ChangeTypeV1 = "SCALE"
+	ChangeTypeV1CONFIG                ChangeTypeV1 = "CONFIG"
+)
+
+// AllValues returns all ChangeTypeV1 values.
+func (ChangeTypeV1) AllValues() []ChangeTypeV1 {
+	return []ChangeTypeV1{
+		ChangeTypeV1CHANGETYPEUNSPECIFIED,
+		ChangeTypeV1COMPUTE,
+		ChangeTypeV1SCALE,
+		ChangeTypeV1CONFIG,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ChangeTypeV1) MarshalText() ([]byte, error) {
+	switch s {
+	case ChangeTypeV1CHANGETYPEUNSPECIFIED:
+		return []byte(s), nil
+	case ChangeTypeV1COMPUTE:
+		return []byte(s), nil
+	case ChangeTypeV1SCALE:
+		return []byte(s), nil
+	case ChangeTypeV1CONFIG:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ChangeTypeV1) UnmarshalText(data []byte) error {
+	switch ChangeTypeV1(data) {
+	case ChangeTypeV1CHANGETYPEUNSPECIFIED:
+		*s = ChangeTypeV1CHANGETYPEUNSPECIFIED
+		return nil
+	case ChangeTypeV1COMPUTE:
+		*s = ChangeTypeV1COMPUTE
+		return nil
+	case ChangeTypeV1SCALE:
+		*s = ChangeTypeV1SCALE
+		return nil
+	case ChangeTypeV1CONFIG:
+		*s = ChangeTypeV1CONFIG
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Cluster configuration segmented by seed, required shape, and actual layout.
 // Ref: #/components/schemas/ClusterConfig_v1
 type ClusterConfigV1 struct {
@@ -455,6 +512,26 @@ func (s *ClusterShapeV1Mode) UnmarshalText(data []byte) error {
 		return errors.Errorf("invalid value: %q", data)
 	}
 }
+
+type ClusterUpdateV1BadRequest ErrorResponseV1
+
+func (*ClusterUpdateV1BadRequest) clusterUpdateV1Res() {}
+
+type ClusterUpdateV1Conflict ErrorResponseV1
+
+func (*ClusterUpdateV1Conflict) clusterUpdateV1Res() {}
+
+type ClusterUpdateV1InternalServerError ErrorResponseV1
+
+func (*ClusterUpdateV1InternalServerError) clusterUpdateV1Res() {}
+
+type ClusterUpdateV1NotFound ErrorResponseV1
+
+func (*ClusterUpdateV1NotFound) clusterUpdateV1Res() {}
+
+type ClusterUpdateV1Unauthorized ErrorResponseV1
+
+func (*ClusterUpdateV1Unauthorized) clusterUpdateV1Res() {}
 
 // ONTAP cluster resource, and the create-cluster request body.
 // clusterShape is the CLH-computed technical blueprint for the cluster to
@@ -1409,6 +1486,7 @@ func (s *OperationV1) SetResponse(val OptOperationV1Response) {
 }
 
 func (*OperationV1) clusterCreateV1Res() {}
+func (*OperationV1) clusterUpdateV1Res() {}
 func (*OperationV1) operationGetV1Res()  {}
 func (*OperationV1) v1CreateIgroupRes()  {}
 func (*OperationV1) v1CreateVolumeRes()  {}
@@ -1518,6 +1596,52 @@ func (o OptBool) Get() (v bool, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptBool) Or(d bool) bool {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptChangeTypeV1 returns new OptChangeTypeV1 with value set to v.
+func NewOptChangeTypeV1(v ChangeTypeV1) OptChangeTypeV1 {
+	return OptChangeTypeV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptChangeTypeV1 is optional ChangeTypeV1.
+type OptChangeTypeV1 struct {
+	Value ChangeTypeV1
+	Set   bool
+}
+
+// IsSet returns true if OptChangeTypeV1 was set.
+func (o OptChangeTypeV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptChangeTypeV1) Reset() {
+	var v ChangeTypeV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptChangeTypeV1) SetTo(v ChangeTypeV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptChangeTypeV1) Get() (v ChangeTypeV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptChangeTypeV1) Or(d ChangeTypeV1) ChangeTypeV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}

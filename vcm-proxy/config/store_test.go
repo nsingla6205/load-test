@@ -377,6 +377,11 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ongoing, 1)
 	assert.Equal(t, job.ID, ongoing[0].ID)
+
+	inFlight, err := store.GetOngoingJobByResource(ctx, job.ResourceID, job.Type)
+	require.NoError(t, err)
+	require.NotNil(t, inFlight)
+	assert.Equal(t, job.ID, inFlight.ID)
 }
 
 func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {

@@ -76,6 +76,20 @@ func testOperationClusterCreateParams(requestID string, timeout string) vcmserve
 	}
 }
 
+func testOperationClusterUpdateParams(
+	requestID string,
+	timeout string,
+	updateMask string,
+	changeType vcmserver.OptChangeTypeV1,
+) vcmserver.ClusterUpdateV1Params {
+	return vcmserver.ClusterUpdateV1Params{
+		RequestId:  requestID,
+		Timeout:    timeout,
+		UpdateMask: updateMask,
+		ChangeType: changeType,
+	}
+}
+
 func TestParseProtobufDuration(t *testing.T) {
 	duration, err := parseProtobufDuration("600s")
 	require.NoError(t, err)

@@ -248,5 +248,53 @@ func TestInvokeGetClusterDeployment_ChildError_IsWrapped(t *testing.T) {
 	require.Error(t, err)
 }
 
+func parentInvokeUpdateCluster(ctx *orchestrator.Context, req *vlm.UpdateVSAClusterDeploymentRequest) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	return InvokeUpdateClusterDeployment(ctx, req)
+}
+
+func childUpdateClusterEcho(_ *orchestrator.Context, req *vlm.UpdateVSAClusterDeploymentRequest) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	cfg := req.VLMConfig
+	if req.NewInstanceType != "" {
+		cfg.Deployment.VSAInstanceType = req.NewInstanceType
+	}
+	cfg.Deployment.SPConfig = req.SPConfig
+	return &vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: cfg}, nil
+}
+
+func childUpdateClusterPermError(_ *orchestrator.Context, _ *vlm.UpdateVSAClusterDeploymentRequest) (*vlm.UpdateVSAClusterDeploymentResponse, error) {
+	return nil, orchestrator.NewNonRetryableApplicationError("boom update-cluster failure", "TEST", nil)
+}
+
+func TestInvokeUpdateClusterDeployment_Success(t *testing.T) {
+	req := &vlm.UpdateVSAClusterDeploymentRequest{
+		NewInstanceType: "c3-standard-88-lssd",
+		SPConfig:        vlm.SPConfig{Size: "1024Gi"},
+	}
+	req.VLMConfig.Deployment.DeploymentID = "dep-update"
+	req.VLMConfig.Deployment.VSAInstanceType = "c3-standard-44-lssd"
+
+	var resp vlm.UpdateVSAClusterDeploymentResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeUpdateCluster)
+		r.RegisterWorkflowWithName(vlm.UpdateVSAClusterDeploymentWorkflowName, childUpdateClusterEcho)
+	}, parentInvokeUpdateCluster, &resp, req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "dep-update", resp.VLMConfig.Deployment.DeploymentID)
+	assert.Equal(t, "c3-standard-88-lssd", resp.VLMConfig.Deployment.VSAInstanceType)
+}
+
+func TestInvokeUpdateClusterDeployment_ChildError_IsWrapped(t *testing.T) {
+	req := &vlm.UpdateVSAClusterDeploymentRequest{}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	err := runInvokeE2E[vlm.UpdateVSAClusterDeploymentResponse](t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeUpdateCluster)
+		r.RegisterWorkflowWithName(vlm.UpdateVSAClusterDeploymentWorkflowName, childUpdateClusterPermError)
+	}, parentInvokeUpdateCluster, nil, req)
+
+	require.Error(t, err)
+}
+
 // ensure vsaerrors stays referenced if future assertions need it.
 var _ = vsaerrors.ErrGCPResourceAlreadyExistsError

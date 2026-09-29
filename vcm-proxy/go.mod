@@ -247,6 +247,6 @@ replace github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler => ../hyp
 
 replace github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core => ../vcp-core
 
-replace netapp.com/vsa/lifecycle-manager => github.com/VCP-VSA-control-Plane/vlm/lifecycle-manager v0.0.0-20260731080932-f8f0da9502b9
+replace netapp.com/vsa/lifecycle-manager => github.com/VCP-VSA-control-Plane/vlm/lifecycle-manager v0.0.0-20260916071839-91a01a70866d
 
-replace netapp.com/vsa/vsa-orchestrator => github.com/VCP-VSA-control-Plane/vlm/vsa-orchestrator v0.0.0-20260731080932-f8f0da9502b9
+replace netapp.com/vsa/vsa-orchestrator => github.com/VCP-VSA-control-Plane/vlm/vsa-orchestrator v0.0.0-20260916071839-91a01a70866d

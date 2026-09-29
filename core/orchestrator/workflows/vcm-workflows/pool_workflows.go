@@ -4,6 +4,7 @@ package vcm_workflows
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
@@ -42,8 +43,21 @@ const (
 	jobStepCreateCluster   = "create-cluster-deployment"
 	jobStepCreateSVM       = "create-svm"
 	jobStepCreateQoSPolicy = "create-qos-policy"
+	jobStepGetCluster      = "get-cluster-deployment"
+	jobStepIdentifyVMs     = "identify-vms"
+	jobStepUpdateCluster   = "update-cluster-deployment"
 	jobStepCompleted       = "completed"
 )
+
+// Change types PATCH /v1/clusters accepts. COMPUTE rotates the cluster onto a
+// new SKU; SCALE resizes the storage pool on the current SKU.
+const (
+	ClusterComputeChangeType = "COMPUTE"
+	ClusterScaleChangeType   = "SCALE"
+)
+
+// vlmSkipAutoTierThreshold tells VLM not to rewrite the auto-tier threshold.
+const vlmSkipAutoTierThreshold = int64(-1)
 
 var (
 	runningEnv            = env.GetString("ENV", "")
@@ -77,6 +91,416 @@ type createPoolWorkflow struct {
 	vlmCfg vlm.VLMConfig
 	// svmName is the data SVM created during pool provisioning.
 	svmName string
+}
+
+// updatePoolWorkflow holds the raw request and orchestrator-derived inputs plus
+// the durable job identity for COMPUTE / SCALE pool updates.
+type updatePoolWorkflow struct {
+	// baseWorkflow carries the durable job id and state helpers.
+	baseWorkflow
+
+	req    *commonparams.VCMUpdatePoolParams
+	inputs *commonparams.VCMDerivedPoolInputs
+
+	// currentStep is the last entered step, recorded on terminal ERROR.
+	currentStep string
+
+	// vlmCfg is the latest VLM config returned by the cluster child workflows.
+	vlmCfg vlm.VLMConfig
+	// svmName is the data SVM associated with the pool being updated.
+	svmName string
+}
+
+// PoolUpdateWorkflow applies COMPUTE / SCALE pool updates and drives the
+// durable job through NEW -> PROCESSING -> DONE/ERROR. The job row is created
+// (in NEW) by the orchestrator factory before the workflow starts.
+func PoolUpdateWorkflow(ctx *orchestrator.Context, params *commonparams.UpdatePoolParams) (*commonparams.VCMPoolWorkflowResult, error) {
+	if params == nil || params.VCM == nil {
+		return nil, fmt.Errorf("pool update workflow: VCM params missing from request")
+	}
+	// Prefer orchestrator-derived inputs; fall back to deriving here.
+	inputs := params.VCM.Derived
+	if inputs == nil {
+		inputs = params.VCM.DeriveInputs()
+	}
+
+	wf := &updatePoolWorkflow{req: params.VCM, inputs: inputs}
+	wf.ID = params.VCM.RequestID
+
+	logger := wfLogger(ctx)
+	logger.Info("workflow: starting update pool",
+		"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "deadline", wf.req.Deadline,
+		"updateMask", wf.req.UpdateMask, "changeType", wf.req.ChangeType)
+
+	// Fail an already-expired job before marking it PROCESSING. Crash recovery
+	// re-dispatches NEW/PROCESSING jobs; without this gate an expired COMPUTE
+	// rotation would resume past the client's timeout.
+	wf.Status = workflowStatusRunning
+	wf.currentStep = jobStepStarting
+	if err := checkDeadline(ctx, wf.req.Deadline, "mark-processing"); err != nil {
+		return wf.fail(ctx, err)
+	}
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, jobStepStarting, nil, nil); err != nil {
+		logger.Error("workflow: failed to mark job PROCESSING",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
+		return nil, err
+	}
+
+	if err := wf.apply(ctx); err != nil {
+		return wf.fail(ctx, err)
+	}
+
+	donePayload, marshalErr := poolCreateOperationResponsePayloadFn(&wf.req.VCMCreatePoolParams, wf.vlmCfg, wf.svmName)
+	if marshalErr != nil {
+		logger.Warn("workflow: failed to marshal pool operation response; marking job DONE without response payload",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", marshalErr)
+		donePayload = nil
+	}
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateDone, jobStepCompleted, nil, donePayload); err != nil {
+		logger.Error("workflow: failed to mark job DONE", "deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
+		return nil, err
+	}
+	wf.Status = workflowStatusCompleted
+
+	return &commonparams.VCMPoolWorkflowResult{
+		DeploymentID: wf.req.DeploymentID,
+		Status:       "READY",
+		Message:      "pool update workflow completed",
+	}, nil
+}
+
+// fail records a terminal ERROR on the durable job and returns that error.
+func (wf *updatePoolWorkflow) fail(ctx *orchestrator.Context, err error) (*commonparams.VCMPoolWorkflowResult, error) {
+	logger := wfLogger(ctx)
+	logger.Error("workflow: update pool failed",
+		"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", err)
+	wf.Status = workflowStatusFailed
+	if uerr := wf.UpdateJobStatus(ctx, vcmdb.JobStateError, wf.currentStep, err, nil); uerr != nil {
+		logger.Error("workflow: failed to mark job ERROR",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "error", uerr)
+		return nil, uerr
+	}
+	return nil, err
+}
+
+// apply loads the live cluster, selects the target SKU from the desired shape,
+// then runs exactly one of COMPUTE or SCALE. VCM does not chain the two.
+func (wf *updatePoolWorkflow) apply(ctx *orchestrator.Context) error {
+	if wf.inputs == nil {
+		return fmt.Errorf("pool update workflow: derived inputs missing")
+	}
+	logger := wfLogger(ctx)
+	p := wf.req
+	deploymentID := p.DeploymentID
+
+	ontapCreds, err := resolveOntapCredentials(ctx, wf.inputs.OntapCredentials)
+	if err != nil {
+		logger.Error("workflow: resolve ONTAP admin password failed",
+			"deploymentName", deploymentID, "error", err)
+		return err
+	}
+
+	if err := checkDeadline(ctx, p.Deadline, "get-cluster"); err != nil {
+		return err
+	}
+	wf.setStep(ctx, jobStepGetCluster)
+	current, err := wf.getCurrentVLMConfig(ctx, ontapCreds)
+	if err != nil {
+		return err
+	}
+	wf.vlmCfg = current
+	if svmName, derr := commonparams.DeriveVCMSvmName(deploymentID); derr == nil {
+		wf.svmName = svmName
+	}
+
+	if err := checkDeadline(ctx, p.Deadline, "identify-vms"); err != nil {
+		return err
+	}
+	wf.setStep(ctx, jobStepIdentifyVMs)
+	target, err := wf.identifyTargetVLMConfig(ctx, current.Deployment.VSAInstanceType)
+	if err != nil {
+		return err
+	}
+
+	updateReq, skipVLMUpdate, err := buildVCMUpdateDeploymentRequest(current, target, ontapCreds, p.ChangeType)
+	if err != nil {
+		return err
+	}
+
+	switch p.ChangeType {
+	case ClusterComputeChangeType:
+		// Same SKU: VLM has nothing to do.
+		if skipVLMUpdate {
+			logger.Info("workflow: COMPUTE no-op; current SKU already hosts the desired shape",
+				"deploymentName", deploymentID, "instanceType", current.Deployment.VSAInstanceType)
+			return nil
+		}
+		return wf.applyCompute(ctx, target, updateReq)
+	case ClusterScaleChangeType:
+		return wf.applyScale(ctx, current, updateReq)
+	default:
+		return fmt.Errorf("pool update workflow: unsupported changeType %q", p.ChangeType)
+	}
+}
+
+// getCurrentVLMConfig reads the live cluster's VLM config, which is the only
+// source for what the pool is currently running with.
+func (wf *updatePoolWorkflow) getCurrentVLMConfig(ctx *orchestrator.Context, creds vlm.OntapCredentials) (vlm.VLMConfig, error) {
+	p := wf.req
+	region := ""
+	if wf.inputs != nil {
+		region = wf.inputs.Region
+	}
+	if region == "" {
+		region = env.Region
+	}
+
+	resp, err := vcmclient.InvokeGetClusterDeployment(ctx, &vlm.GetVSAClusterDeploymentRequest{
+		DeploymentID:     p.DeploymentID,
+		CloudProvider:    env.Hyperscaler,
+		ProjectID:        p.ServiceTenantProject,
+		Region:           region,
+		Zone1:            p.PrimaryZone,
+		Zone2:            p.SecondaryZone,
+		MediatorZone:     p.MediatorZone,
+		DeploymentType:   vlm.DeploymentTypeNonSharedHA,
+		OntapCredentials: creds,
+	})
+	if err != nil {
+		wfLogger(ctx).Error("workflow: VLM get-cluster failed",
+			"deploymentName", p.DeploymentID, "error", err)
+		return vlm.VLMConfig{}, fmt.Errorf("VLM get cluster deployment: %w", err)
+	}
+
+	configureVCMVLMConfigForPoolUpdate(&resp.VLMConfig)
+	return resp.VLMConfig, nil
+}
+
+// identifyTargetVLMConfig asks VMRS for the shape that satisfies the requested
+// performance, passing the current SKU so the selection can stay on it.
+func (wf *updatePoolWorkflow) identifyTargetVLMConfig(ctx *orchestrator.Context, currentInstanceType string) (vlm.VLMConfig, error) {
+	if wf.inputs == nil {
+		return vlm.VLMConfig{}, fmt.Errorf("pool update workflow: derived inputs missing")
+	}
+	var pa *activities.PoolActivity
+	p := wf.req
+
+	var target vlm.VLMConfig
+	if err := orchestrator.ExecuteActivity(ctx, pa.IdentifyVMs, activities.IdentifyVMsRequest{
+		VMRSConfigPath: vmrsConfigPath,
+		CustomerRequest: vmrs.CustomerRequestedPerformance{
+			DesiredThroughputInMiBs: p.ThroughputMibps,
+			DesiredIOPS:             p.Iops,
+			DesiredCapacityInGiB:    wf.inputs.DesiredCapacityInGiB,
+			CurrentInstanceType:     currentInstanceType,
+		},
+		DeploymentName:      p.DeploymentID,
+		RegionIdentifier:    p.RegionIdentifier,
+		LocationInfo:        wf.inputs.LocationInfo,
+		TenancyInfo:         wf.inputs.TenancyInfo,
+		ServiceAccountEmail: p.ServiceAccountEmail,
+		AutoTierBucket:      p.AutoTierBucketName,
+		IsLargeCapacityPool: wf.inputs.IsLargeCapacityPool,
+		IsOntapMode:         wf.inputs.IsOntapMode,
+		AccountID:           p.ProjectID,
+	}).Get(ctx, &target); err != nil {
+		wfLogger(ctx).Error("workflow: identify VMs / populate VLM config failed",
+			"deploymentName", p.DeploymentID, "vmrsConfigPath", vmrsConfigPath, "error", err)
+		return vlm.VLMConfig{}, fmt.Errorf("identify VMs / populate VLM config: %w", err)
+	}
+	return target, nil
+}
+
+// applyCompute rotates the cluster onto target.Deployment.VSAInstanceType.
+// Disks stay on the current cluster until a later SCALE call.
+func (wf *updatePoolWorkflow) applyCompute(ctx *orchestrator.Context, target vlm.VLMConfig, updateReq *vlm.UpdateVSAClusterDeploymentRequest) error {
+	logger := wfLogger(ctx)
+	newType := target.Deployment.VSAInstanceType
+	logger.Info("workflow: COMPUTE pool update",
+		"deploymentName", wf.req.DeploymentID, "newInstanceType", newType)
+
+	var pa *activities.PoolActivity
+	if err := orchestrator.ExecuteActivity(ctx, pa.ValidateZonesForMachineTypes,
+		wf.req.ServiceTenantProject, wf.req.PrimaryZone, wf.req.SecondaryZone, newType).Get(ctx, nil); err != nil {
+		logger.Error("workflow: zone validation for new instance type failed",
+			"deploymentName", wf.req.DeploymentID, "newInstanceType", newType, "error", err)
+		return fmt.Errorf("validate zones for machine type: %w", err)
+	}
+
+	return wf.invokeVLMUpdate(ctx, updateReq)
+}
+
+// applyScale sends the SPConfig update to VLM on the current SKU.
+func (wf *updatePoolWorkflow) applyScale(ctx *orchestrator.Context, current vlm.VLMConfig, updateReq *vlm.UpdateVSAClusterDeploymentRequest) error {
+	logger := wfLogger(ctx)
+	logger.Info("workflow: SCALE pool update",
+		"deploymentName", wf.req.DeploymentID, "instanceType", current.Deployment.VSAInstanceType)
+
+	// TODO: Rewrite SVM-wide QoS ({svm}-qos-policy) on SCALE to match
+	// requested throughput/IOPS, including auto->manual (remove QPG) for
+	// vcp-worker parity. Create still installs the QPG when qosType is auto.
+	return wf.invokeVLMUpdate(ctx, updateReq)
+}
+
+func (wf *updatePoolWorkflow) invokeVLMUpdate(ctx *orchestrator.Context, updateReq *vlm.UpdateVSAClusterDeploymentRequest) error {
+	if err := checkDeadline(ctx, wf.req.Deadline, "update-cluster"); err != nil {
+		return err
+	}
+	wf.setStep(ctx, jobStepUpdateCluster)
+	resp, err := vcmclient.InvokeUpdateClusterDeployment(ctx, updateReq)
+	if err != nil {
+		wfLogger(ctx).Error("workflow: VLM cluster update failed",
+			"deploymentName", wf.req.DeploymentID, "changeType", wf.req.ChangeType, "error", err)
+		return fmt.Errorf("VLM cluster update: %w", err)
+	}
+	wf.vlmCfg = resp.VLMConfig
+	return nil
+}
+
+// setStep updates the durable job's current_step (best-effort; a failed update
+// is logged but does not abort the update).
+func (wf *updatePoolWorkflow) setStep(ctx *orchestrator.Context, step string) {
+	wf.currentStep = step
+	if err := wf.UpdateJobStatus(ctx, vcmdb.JobStateProcessing, step, nil, nil); err != nil {
+		wfLogger(ctx).Warn("workflow: failed to update job step",
+			"deploymentName", wf.req.DeploymentID, "requestId", wf.req.RequestID, "step", step, "error", err)
+	}
+}
+
+// buildVCMUpdateDeploymentRequest builds a single VLM update from the live
+// cluster plus the IdentifyVMs target.
+//
+// UpdateVSAClusterDeploymentWorkflow treats req.VLMConfig as the live cluster
+// and reads the desired change only from the top-level fields:
+//   - NewInstanceType against VLMConfig.Deployment.VSAInstanceType
+//   - SPConfig against VLMConfig.Deployment.SPConfig (CapacityOrPerfChanged)
+//
+// The embedded deployment must keep the current SKU and SPConfig. Writing the
+// target into VLMConfig.Deployment would make both sides of that diff equal,
+// so COMPUTE would skip instance-type change and SCALE would skip the disk
+// update.
+//
+// COMPUTE sets NewInstanceType and keeps the current SPConfig so disks stay
+// put. SCALE sets SPConfig to the target and leaves NewInstanceType empty so
+// VLM does not rotate VMs. The SCALE size is first rounded up to whole GiB
+// per data disk, which is the size VLM will provision. SCALE always calls
+// VLM; VLM is responsible for treating an unchanged layout as a no-op.
+// skipVLMUpdate is true only for COMPUTE when the SKU is already current.
+func buildVCMUpdateDeploymentRequest(current, target vlm.VLMConfig, creds vlm.OntapCredentials, changeType string) (*vlm.UpdateVSAClusterDeploymentRequest, bool, error) {
+	req := &vlm.UpdateVSAClusterDeploymentRequest{
+		VLMConfig:         current,
+		NumHAPair:         current.Deployment.NumHAPair,
+		SPConfig:          current.Deployment.SPConfig,
+		OntapCredentials:  creds,
+		HAPairIndices:     haPairIndices(current.Deployment.NumHAPair),
+		AutoTierThreshold: vlmSkipAutoTierThreshold,
+	}
+	if req.NumHAPair <= 0 {
+		req.NumHAPair = 1
+		req.HAPairIndices = haPairIndices(1)
+	}
+
+	switch changeType {
+	case ClusterComputeChangeType:
+		if current.Deployment.VSAInstanceType == target.Deployment.VSAInstanceType {
+			return req, true, nil
+		}
+		req.NewInstanceType = target.Deployment.VSAInstanceType
+		return req, false, nil
+	case ClusterScaleChangeType:
+		req.SPConfig = target.Deployment.SPConfig
+		// VLM sizes each data disk in whole GiB and stores the sum. Sending the
+		// pre-round VMRS size (1229Gi vs 1232Gi on disk) is rejected as a shrink.
+		// TODO: move this rounding into VLM so the update request can keep the
+		// VMRS size and VLM compares the size it will actually provision.
+		if rounded, ok := roundSPSizeToDataDisks(target.Deployment.SPConfig.Size, scaleDataDiskCount(current)); ok {
+			req.SPConfig.Size = rounded
+		}
+		return req, false, nil
+	default:
+		return nil, false, fmt.Errorf("pool update workflow: unsupported changeType %q", changeType)
+	}
+}
+
+// haPairIndices returns the 1-based indices VLM expects for a targeted update
+// across all HA pairs in the cluster.
+func haPairIndices(n int) []int {
+	if n <= 0 {
+		n = 1
+	}
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i + 1
+	}
+	return out
+}
+
+// vlmDefaultDataDisksPerNode matches vlmconfig.DefaultDisksPerNode. Get-cluster
+// can report 0 when the live deployment never persisted a disk count.
+const vlmDefaultDataDisksPerNode = 8
+
+// scaleDataDiskCount is the disk count used to round a SCALE size. Multi-HA
+// and heterogeneous layouts are left unchanged; VLM owns those splits.
+func scaleDataDiskCount(current vlm.VLMConfig) int {
+	if current.Deployment.SPConfig.IsHeterogeneous || current.Deployment.NumHAPair > 1 {
+		return 0
+	}
+	if current.Deployment.DataDiskCount > 0 {
+		return current.Deployment.DataDiskCount
+	}
+	return vlmDefaultDataDisksPerNode
+}
+
+// roundSPSizeToDataDisks rounds a VMRS SP size up to whole GiB per data disk,
+// matching VLM getPerDiskSizeGB. 1229Gi across 8 disks becomes 1232Gi.
+func roundSPSizeToDataDisks(size string, diskCount int) (string, bool) {
+	if diskCount <= 0 {
+		return "", false
+	}
+	spBytes, err := parseSPSizeBytes(size)
+	if err != nil {
+		return "", false
+	}
+	rounded := roundedDataDiskTotalBytes(spBytes, diskCount)
+	if rounded <= 0 {
+		return "", false
+	}
+	return fmt.Sprintf("%dGi", rounded/int64(bytesPerGiB)), true
+}
+
+// roundedDataDiskTotalBytes is VLM getPerDiskSizeGB applied across every data
+// disk: each disk is a whole number of GiB, rounded up.
+func roundedDataDiskTotalBytes(spBytes int64, diskCount int) int64 {
+	if diskCount <= 0 || spBytes <= 0 {
+		return 0
+	}
+	bytesPerDiskSet := int64(diskCount) * int64(bytesPerGiB)
+	perDiskGiB := spBytes / bytesPerDiskSet
+	if spBytes%bytesPerDiskSet != 0 {
+		perDiskGiB++
+	}
+	return perDiskGiB * int64(diskCount) * int64(bytesPerGiB)
+}
+
+// parseSPSizeBytes parses a VLM size such as "1229Gi" or "2Ti".
+func parseSPSizeBytes(size string) (int64, error) {
+	if len(size) < 3 || size[len(size)-1] != 'i' {
+		return 0, fmt.Errorf("invalid size %q", size)
+	}
+	var multiplier int64
+	switch size[len(size)-2] {
+	case 'G':
+		multiplier = int64(bytesPerGiB)
+	case 'T':
+		multiplier = int64(bytesPerGiB) << 10
+	default:
+		return 0, fmt.Errorf("invalid size %q", size)
+	}
+	n, err := strconv.ParseInt(size[:len(size)-2], 10, 64)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid size %q", size)
+	}
+	return n * multiplier, nil
 }
 
 // PoolWorkflow provisions an ONTAP cluster (storage pool) and drives the
