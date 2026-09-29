@@ -18,6 +18,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
+	"google.golang.org/api/cloudresourcemanager/v1"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -3277,8 +3278,41 @@ func Test_getProjectIDFromNumber(t *testing.T) {
 	projectNumber := "123456789"
 	projectName := "test-project"
 
-	t.Run("WhenGetProjectSucceeds", func(tt *testing.T) {
+	// serviceDisabledBody mirrors the real GCP 403 returned when Compute Engine is not
+	// enabled on a project: googleapi surfaces reason "accessNotConfigured" plus
+	// a SERVICE_DISABLED ErrorInfo detail.
+	serviceDisabledBody := `{"error":{"code":403,"message":"Compute Engine API has not been used in project ` +
+		projectNumber + ` before or it is disabled.","errors":[{"message":"Compute Engine API has not been used.",` +
+		`"domain":"usageLimits","reason":"accessNotConfigured"}],"status":"PERMISSION_DENIED",` +
+		`"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED",` +
+		`"domain":"googleapis.com","metadata":{"service":"compute.googleapis.com"}}]}}`
+
+	// newServices builds a GcpServices whose compute and CRM clients both target the test server.
+	newServices := func(tt *testing.T, serverURL string) *GcpServices {
+		tt.Helper()
+		computeSvc, err := compute.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(serverURL))
+		if err != nil {
+			tt.Fatalf("Error getting service up: '%s'", err.Error())
+		}
+		crmSvc, err := cloudresourcemanager.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(serverURL))
+		if err != nil {
+			tt.Fatalf("Error getting service up: '%s'", err.Error())
+		}
+		return &GcpServices{
+			AdminGCPService: &AdminGCPService{computeService: computeSvc, cloudProjectsService: crmSvc},
+			Ctx:             ctx,
+			Logger:          util.GetLogger(ctx),
+		}
+	}
+
+	t.Run("WhenComputeGetProjectSucceeds", func(tt *testing.T) {
+		crmCalled := false
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if strings.HasPrefix(req.URL.Path, "/v1/projects/") {
+				crmCalled = true
+			}
 			if strings.Contains(req.URL.Path, "/projects/"+projectNumber) {
 				resp := &compute.Project{Name: projectName}
 				_ = json.NewEncoder(rw).Encode(resp)
@@ -3288,18 +3322,32 @@ func Test_getProjectIDFromNumber(t *testing.T) {
 		}))
 		defer server.Close()
 
-		computeSvc, err := compute.NewService(
-			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		name, err := _getProjectIDFromNumber(newServices(tt, server.URL), projectNumber)
 		if err != nil {
-			t.Errorf("Error getting service up: '%s'", err.Error())
+			tt.Fatalf("unexpected error: %v", err)
 		}
-
-		gService := &GcpServices{
-			AdminGCPService: &AdminGCPService{computeService: computeSvc},
-			Ctx:             ctx,
+		if name != projectName {
+			tt.Errorf("expected %s, got %s", projectName, name)
 		}
+		if crmCalled {
+			tt.Error("expected no fallback to cloud resource manager when compute succeeds")
+		}
+	})
 
-		name, err := _getProjectIDFromNumber(gService, projectNumber)
+	t.Run("WhenComputeDisabledFallsBackToCloudResourceManager", func(tt *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if strings.HasPrefix(req.URL.Path, "/v1/projects/") {
+				resp := &cloudresourcemanager.Project{ProjectId: projectName}
+				_ = json.NewEncoder(rw).Encode(resp)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusForbidden)
+			_, _ = rw.Write([]byte(serviceDisabledBody))
+		}))
+		defer server.Close()
+
+		name, err := _getProjectIDFromNumber(newServices(tt, server.URL), projectNumber)
 		if err != nil {
 			tt.Fatalf("unexpected error: %v", err)
 		}
@@ -3308,26 +3356,76 @@ func Test_getProjectIDFromNumber(t *testing.T) {
 		}
 	})
 
-	t.Run("WhenGetProjectFails", func(tt *testing.T) {
+	t.Run("WhenComputeDisabledAndCloudResourceManagerFails", func(tt *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if strings.HasPrefix(req.URL.Path, "/v1/projects/") {
+				http.Error(rw, "crm boom", http.StatusInternalServerError)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusForbidden)
+			_, _ = rw.Write([]byte(serviceDisabledBody))
+		}))
+		defer server.Close()
+
+		_, err := _getProjectIDFromNumber(newServices(tt, server.URL), projectNumber)
+		if err == nil {
+			tt.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "cloud resource manager lookup failed") {
+			tt.Errorf("expected combined fallback error, got: %v", err)
+		}
+	})
+
+	t.Run("WhenComputeFailsForOtherReasonNoFallback", func(tt *testing.T) {
+		crmCalled := false
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if strings.HasPrefix(req.URL.Path, "/v1/projects/") {
+				crmCalled = true
+			}
 			http.Error(rw, "internal error", http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		_, err := _getProjectIDFromNumber(newServices(tt, server.URL), projectNumber)
+		if err == nil {
+			tt.Fatal("expected error, got nil")
+		}
+		if crmCalled {
+			tt.Error("expected no fallback for a non service-disabled error")
+		}
+	})
+
+	t.Run("WhenComputeDisabledAndCRMServiceIsNilNoFallback", func(tt *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusForbidden)
+			_, _ = rw.Write([]byte(serviceDisabledBody))
 		}))
 		defer server.Close()
 
 		computeSvc, err := compute.NewService(
 			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
 		if err != nil {
-			t.Errorf("Error getting service up: '%s'", err.Error())
+			tt.Fatalf("Error getting compute service: %s", err.Error())
 		}
 
 		gService := &GcpServices{
-			AdminGCPService: &AdminGCPService{computeService: computeSvc},
-			Ctx:             ctx,
+			AdminGCPService: &AdminGCPService{
+				computeService:       computeSvc,
+				cloudProjectsService: nil, // CRM client not initialised
+			},
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
 		}
 
 		_, err = _getProjectIDFromNumber(gService, projectNumber)
 		if err == nil {
-			tt.Error("expected error, got nil")
+			tt.Fatal("expected error when CRM service is nil, got nil")
+		}
+		// Must return the original Compute error, not a CRM-combined error
+		if strings.Contains(err.Error(), "cloud resource manager lookup failed") {
+			tt.Errorf("expected original compute error, got CRM error: %v", err)
 		}
 	})
 }
@@ -3361,8 +3459,14 @@ func Test_IsMachineTypeAvailable(t *testing.T) {
 			t.Errorf("Error getting service up: '%s'", err.Error())
 		}
 
+		crmSvc, err := cloudresourcemanager.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
 		gService := &GcpServices{
-			AdminGCPService: &AdminGCPService{computeService: computeSvc},
+			AdminGCPService: &AdminGCPService{computeService: computeSvc, cloudProjectsService: crmSvc},
 			Ctx:             ctx,
 			Logger:          util.GetLogger(ctx),
 			Retry:           NewExponentialRetryStrategy(time.Millisecond, 1),
@@ -3398,8 +3502,14 @@ func Test_IsMachineTypeAvailable(t *testing.T) {
 			t.Errorf("Error getting service up: '%s'", err.Error())
 		}
 
+		crmSvc, err := cloudresourcemanager.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
 		gService := &GcpServices{
-			AdminGCPService: &AdminGCPService{computeService: computeSvc},
+			AdminGCPService: &AdminGCPService{computeService: computeSvc, cloudProjectsService: crmSvc},
 			Ctx:             ctx,
 			Logger:          util.GetLogger(ctx),
 			Retry:           NewExponentialRetryStrategy(time.Millisecond, 1),
@@ -3427,8 +3537,14 @@ func Test_IsMachineTypeAvailable(t *testing.T) {
 			t.Errorf("Error getting service up: '%s'", err.Error())
 		}
 
+		crmSvc, err := cloudresourcemanager.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
 		gService := &GcpServices{
-			AdminGCPService: &AdminGCPService{computeService: computeSvc},
+			AdminGCPService: &AdminGCPService{computeService: computeSvc, cloudProjectsService: crmSvc},
 			Ctx:             ctx,
 			Logger:          util.GetLogger(ctx),
 			Retry:           NewExponentialRetryStrategy(time.Millisecond, 1),

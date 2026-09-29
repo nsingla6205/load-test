@@ -2769,6 +2769,7 @@ func TestGcpServices_DeleteServiceAccount(t *testing.T) {
 		name         string
 		statusCode   int
 		responseBody string
+		computeOff   bool
 		wantErr      bool
 		errorType    int
 	}{
@@ -2789,6 +2790,12 @@ func TestGcpServices_DeleteServiceAccount(t *testing.T) {
 			wantErr:    true,
 			errorType:  vsaerrors.ErrGCPServiceAccountDeletionNonRetriableError,
 		},
+		{
+			name:       "compute disabled falls back to cloud resource manager",
+			statusCode: http.StatusNotFound,
+			computeOff: true,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2797,15 +2804,36 @@ func TestGcpServices_DeleteServiceAccount(t *testing.T) {
 			projectNumber := "534737369447"
 			saEmail := "test-sa@test-project.iam.gserviceaccount.com"
 
-			// Mock both compute and IAM services
+			// Mock compute (primary), cloud resource manager (fallback) and IAM services
 			urlPathCompute := "/projects/" + projectNumber
+			urlPathCRM := "/v1/projects/" + projectNumber
 			urlPathIAM := "/v1/projects/" + projectID + "/serviceAccounts/" + saEmail
 
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				if req.URL.Path == urlPathCompute {
+					if tt.computeOff {
+						rw.Header().Set("Content-Type", "application/json")
+						rw.WriteHeader(http.StatusForbidden)
+						_, _ = rw.Write([]byte(`{"error":{"code":403,"message":"Compute Engine API has not been used",` +
+							`"errors":[{"message":"disabled","domain":"usageLimits","reason":"accessNotConfigured"}],` +
+							`"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED",` +
+							`"domain":"googleapis.com"}]}}`))
+						return
+					}
 					// Mock compute service response for project ID resolution
 					project := map[string]interface{}{
 						"name": projectID,
+					}
+					response, _ := json.Marshal(project)
+					rw.Header().Set("Content-Type", "application/json")
+					rw.WriteHeader(http.StatusOK)
+					_, _ = rw.Write(response)
+					return
+				}
+				if req.URL.Path == urlPathCRM {
+					// Mock cloud resource manager response for project ID resolution
+					project := map[string]interface{}{
+						"projectId": projectID,
 					}
 					response, _ := json.Marshal(project)
 					rw.Header().Set("Content-Type", "application/json")
@@ -2827,8 +2855,11 @@ func TestGcpServices_DeleteServiceAccount(t *testing.T) {
 
 			ctx := context.Background()
 
-			// Create compute and IAM services with mock server
+			// Create compute, cloud resource manager and IAM services with mock server
 			computeSvc, err := compute.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+			assert.NoError(t, err)
+
+			crmSvc, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
 			assert.NoError(t, err)
 
 			iamSvc, err := iam.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
@@ -2837,8 +2868,9 @@ func TestGcpServices_DeleteServiceAccount(t *testing.T) {
 			gcp := &GcpServices{
 				Ctx: ctx,
 				AdminGCPService: &AdminGCPService{
-					iamService:     iamSvc,
-					computeService: computeSvc,
+					iamService:           iamSvc,
+					computeService:       computeSvc,
+					cloudProjectsService: crmSvc,
 				},
 			}
 

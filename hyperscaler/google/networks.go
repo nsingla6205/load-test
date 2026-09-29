@@ -643,13 +643,25 @@ func (gcpService *GcpServices) IsMachineTypeAvailable(projectNumber, zone, machi
 	return true, nil
 }
 
-// _getProjectIDFromNumber retrieves the project ID from the project number using compute API. Reference : https://cloud.google.com/compute/docs/reference/rest/v1/projects/get
+// _getProjectIDFromNumber retrieves the project ID from the project number using the compute API, falling back to
+// the Cloud Resource Manager API when Compute Engine is disabled on the project.
+// References : https://cloud.google.com/compute/docs/reference/rest/v1/projects/get
+// and https://cloud.google.com/resource-manager/reference/rest/v1/projects/get
 func _getProjectIDFromNumber(gcpService *GcpServices, projectNumber string) (string, error) {
 	project, err := gcpService.AdminGCPService.computeService.Projects.Get(projectNumber).Context(gcpService.Ctx).Do()
-	if err != nil {
+	if err == nil {
+		return project.Name, nil
+	}
+	if !isServiceDisabledError(err) || gcpService.AdminGCPService.cloudProjectsService == nil {
 		return "", err
 	}
-	return project.Name, nil
+
+	gcpService.GetLogger().Debugf("Compute API disabled for project number %s, resolving project ID via Cloud Resource Manager", projectNumber)
+	crmProject, crmErr := gcpService.AdminGCPService.cloudProjectsService.Projects.Get(projectNumber).Context(gcpService.Ctx).Do()
+	if crmErr != nil {
+		return "", fmt.Errorf("compute lookup failed (%v), cloud resource manager lookup failed: %w", err, crmErr)
+	}
+	return crmProject.ProjectId, nil
 }
 
 // ResolveProjectNumberToName resolves a GCP project number to its project name/ID
