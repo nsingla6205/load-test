@@ -40,6 +40,7 @@ workerConfig:
   ociVsaUserBootargs: "bootarg.oci.cloud_proxy_lb_endpoint=http://10.0.20.248;bootarg.node_add.max_parallel=24"
   enableOciVsaCertificateRotation: "true"
   ociCertificateRotationCronExpression: "0 0 * * *"
+  ontapRestFastHostSelect: "true"
 
 # Image configuration (OCIR)
 images:
