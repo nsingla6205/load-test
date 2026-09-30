@@ -4657,3 +4657,75 @@ func Test_ListAddressesByDeployment(t *testing.T) {
 		assert.Nil(t, result)
 	})
 }
+
+func Test_ResolveProjectIDToNumber(t *testing.T) {
+	ctx := context.Background()
+	projectID := "test-sn-host"
+	const projectNumber int64 = 333333333333
+
+	newService := func(tt *testing.T, serverURL string, withCRM bool) *GcpServices {
+		tt.Helper()
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{},
+			Ctx:             ctx,
+			Logger:          util.GetLogger(ctx),
+		}
+		if !withCRM {
+			return gService
+		}
+		crmSvc, err := cloudresourcemanager.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(serverURL))
+		if err != nil {
+			tt.Fatalf("Error getting service up: %s", err.Error())
+		}
+		gService.AdminGCPService.cloudProjectsService = crmSvc
+		return gService
+	}
+
+	t.Run("WhenCloudResourceManagerReturnsProjectNumber", func(tt *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == "/v1/projects/"+projectID {
+				_ = json.NewEncoder(rw).Encode(&cloudresourcemanager.Project{
+					ProjectId:     projectID,
+					ProjectNumber: projectNumber,
+				})
+				return
+			}
+			http.Error(rw, "not found", http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		got, err := newService(tt, server.URL, true).ResolveProjectIDToNumber(projectID)
+		if err != nil {
+			tt.Fatalf("unexpected error: %v", err)
+		}
+		if got != projectNumber {
+			tt.Errorf("expected %d, got %d", projectNumber, got)
+		}
+	})
+
+	t.Run("WhenCloudResourceManagerClientMissing", func(tt *testing.T) {
+		_, err := newService(tt, "", false).ResolveProjectIDToNumber(projectID)
+		if err == nil {
+			tt.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "not initialized") {
+			tt.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("WhenProjectNumberEmpty", func(tt *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			_ = json.NewEncoder(rw).Encode(&cloudresourcemanager.Project{ProjectId: projectID})
+		}))
+		defer server.Close()
+
+		_, err := newService(tt, server.URL, true).ResolveProjectIDToNumber(projectID)
+		if err == nil {
+			tt.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "empty project number") {
+			tt.Errorf("unexpected error: %v", err)
+		}
+	})
+}

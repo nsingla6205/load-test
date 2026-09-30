@@ -670,6 +670,22 @@ func (gcpService *GcpServices) ResolveProjectNumberToName(projectNumber string) 
 	return getProjectIDFromNumber(gcpService, projectNumber)
 }
 
+// ResolveProjectIDToNumber resolves a GCP project id to its numeric project number
+// via Cloud Resource Manager. The id may also be a project number; CRM accepts both.
+func (gcpService *GcpServices) ResolveProjectIDToNumber(projectID string) (int64, error) {
+	if gcpService.AdminGCPService == nil || gcpService.AdminGCPService.cloudProjectsService == nil {
+		return 0, fmt.Errorf("cloud resource manager client is not initialized")
+	}
+	project, err := gcpService.AdminGCPService.cloudProjectsService.Projects.Get(projectID).Context(gcpService.Ctx).Do()
+	if err != nil {
+		return 0, fmt.Errorf("resolve project number for %s: %w", projectID, err)
+	}
+	if project.ProjectNumber <= 0 {
+		return 0, fmt.Errorf("resolve project number for %s: empty project number", projectID)
+	}
+	return project.ProjectNumber, nil
+}
+
 // ListAddressesWithFilter retrieves a list of addresses with optional filtering
 // Parameters:
 //   - projectName: GCP project name
