@@ -6,6 +6,7 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -29,7 +30,29 @@ func (c apiContext) extractLogger() (log.Logger, error) {
 		logger := log.NewLogger().WithFields("requestFields", requestFieldsForStructuredLog(loggerFields))
 		return logger, nil
 	}
+
+	// go-workflows dispatches activities with a plain context.Context carrying
+	// only the propagator's string keys, so none of the lookups above match.
+	// Rebuild the request fields from those keys instead of falling through to
+	// a bare global logger.
+	if fields := propagatedRequestFields(c.ctx); len(fields) > 0 {
+		return log.NewLogger().WithFields("requestFields", fields), nil
+	}
 	return nil, errors.New("no logger found in api context")
+}
+
+// propagatedRequestFields builds the request-field map from the ids carried by
+// the workflow context propagators. It returns an empty map when the context
+// carries none of them.
+func propagatedRequestFields(ctx context.Context) log.Fields {
+	fields := log.Fields{}
+	if id, ok := ctx.Value(vlmCorrelationIDKey).(string); ok && id != "" {
+		fields[orchestrator.RequestCorrelationID] = id
+	}
+	if id, ok := ctx.Value(vlmDeploymentIDKey).(string); ok && id != "" {
+		fields[orchestrator.RequestDeploymentID] = id
+	}
+	return fields
 }
 
 type workflowContext struct {

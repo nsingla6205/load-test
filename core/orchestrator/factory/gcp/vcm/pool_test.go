@@ -16,7 +16,9 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // fakeStarter is a hand-written GoWorkflowStarter stub. It records what it was
@@ -25,13 +27,15 @@ import (
 type fakeStarter struct {
 	called      bool
 	gotInstance string
+	gotCtx      context.Context
 	gotArgs     []any
 	err         error
 }
 
-func (f *fakeStarter) Start(_ context.Context, instanceID string, _ interface{}, args ...any) (*gowf.Instance, error) {
+func (f *fakeStarter) Start(ctx context.Context, instanceID string, _ interface{}, args ...any) (*gowf.Instance, error) {
 	f.called = true
 	f.gotInstance = instanceID
+	f.gotCtx = ctx
 	f.gotArgs = args
 	return nil, f.err
 }
@@ -502,4 +506,40 @@ func TestCreatePool_AttachedToExistingRun_StillSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "3fa85f64-5717-4562-b3fc-2c963f66afa6", operationID)
 	assert.Empty(t, store.updated, "attach is a success; no ERROR cleanup expected")
+}
+
+// CreatePool must hand the workflow starter a context carrying the inbound
+// correlation id and the deployment id on the propagator keys, so workflow,
+// activity and VLM child logs are all attributable.
+func TestCreatePool_PropagatesCorrelationAndDeployment(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	ctx := context.WithValue(context.Background(), middleware.CorrelationContextKey, "corr-abc")
+
+	_, _, err := o.CreatePool(ctx, validParams())
+	require.NoError(t, err)
+
+	require.NotNil(t, starter.gotCtx)
+	assert.Equal(t, "corr-abc", orchestrator.CorrelationIDFromContext(starter.gotCtx))
+	assert.Equal(t, "gcnv-123", orchestrator.DeploymentIDFromContext(starter.gotCtx))
+}
+
+// UpdatePool must hand the workflow starter the same request context as
+// CreatePool: the inbound correlation id plus the deployment id on the
+// propagator key.
+func TestUpdatePool_PropagatesCorrelationAndDeployment(t *testing.T) {
+	starter := &fakeStarter{}
+	store := &fakeStore{}
+	o := newTestOrchestrator(store, starter)
+
+	ctx := context.WithValue(context.Background(), middleware.CorrelationContextKey, "corr-abc")
+
+	_, _, err := o.UpdatePool(ctx, validUpdateParams())
+	require.NoError(t, err)
+
+	require.NotNil(t, starter.gotCtx)
+	assert.Equal(t, "corr-abc", orchestrator.CorrelationIDFromContext(starter.gotCtx))
+	assert.Equal(t, "gcnv-123", orchestrator.DeploymentIDFromContext(starter.gotCtx))
 }

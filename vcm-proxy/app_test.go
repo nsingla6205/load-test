@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/cschleiden/go-workflows/backend/sqlite"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -34,6 +36,23 @@ func firstStaticAssetPath(html string) (string, bool) {
 		return "", false
 	}
 	return match, true
+}
+
+func TestConfigureInProcessVLMLogging_UsesVLMJSONFormatterOnStdout(t *testing.T) {
+	std := logrus.StandardLogger()
+	origOut := std.Out
+	origFormatter := std.Formatter
+	t.Cleanup(func() {
+		logrus.SetOutput(origOut)
+		logrus.SetFormatter(origFormatter)
+	})
+
+	configureInProcessVLMLogging(log.NewLogger())
+
+	formatter, ok := logrus.StandardLogger().Formatter.(*logrus.JSONFormatter)
+	require.True(t, ok)
+	assert.Equal(t, "severity", formatter.FieldMap[logrus.FieldKeyLevel])
+	assert.Equal(t, os.Stdout, logrus.StandardLogger().Out)
 }
 
 func TestFilteredBackendHandler_DropsMigrationLine(t *testing.T) {

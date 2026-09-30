@@ -16,6 +16,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
@@ -34,6 +35,7 @@ import (
 	vcmmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 	"golang.org/x/sync/errgroup"
+	vlmlog "netapp.com/vsa/lifecycle-manager/pkg/log"
 	vlmclient "netapp.com/vsa/lifecycle-manager/pkg/vlmclient"
 	vlmgowf "netapp.com/vsa/vsa-orchestrator/gowfbackend"
 )
@@ -43,6 +45,18 @@ import (
 const vcmCloudProvider = "gcp"
 
 const workflowUIPath = "/workflow-ui"
+
+// configureInProcessVLMLogging points the process-wide logrus logger at VLM's
+// JSON formatter on stdout. lifecycle-manager's log.GetLogger writes through
+// that global logger. The standalone vlm-worker configures it in its own main;
+// VCM hosts the library in-process, so it has to do the same or those lines
+// arrive as unstructured text and Cloud Logging treats every one of them as
+// ERROR. VLM's formatter maps level to severity, matching vlm-worker.
+func configureInProcessVLMLogging(logger log.Logger) {
+	logrus.SetFormatter(vlmlog.NewJSONFormatter())
+	logrus.SetOutput(os.Stdout)
+	logger.Info("Routed in-process VLM logging through the VLM JSON formatter on stdout")
+}
 
 func main() {
 	ctx := context.WithValue(context.Background(), utilsmiddleware.CorrelationContextKey, uuid.NewString())
@@ -70,6 +84,8 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("PROVIDER env set for in-process VLM workflows", "provider", vcmCloudProvider)
+
+	configureInProcessVLMLogging(logger)
 
 	cfg := vcmconfig.LoadServerConfig()
 	if err := env.ValidateVCMEnvironmentVariables(); err != nil {
@@ -201,9 +217,11 @@ func setupWorkflowEngine(ctx context.Context, logger log.Logger, store *vcmconfi
 	// Surface the go-workflows engine's own logs (workflow/activity failures and
 	// retries) so problems at the VLM child-workflow boundary are visible;
 	// cschleiden otherwise logs to slog.Default() which the JSON logger drops.
+	// Route them through the shared JSON handler so they are queryable
+	// alongside every other line instead of landing as unstructured text.
 	// Drop the noisy "Applying migrations" startup line.
 	backendLogger := slog.New(filteredBackendHandler{
-		Handler: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		Handler: log.NewSlogHandler(slog.LevelDebug),
 	})
 	backendOpts = append(backendOpts, cbackend.WithLogger(backendLogger))
 	backend := sqlite.NewInMemoryBackend(sqlite.WithBackendOptions(backendOpts...))

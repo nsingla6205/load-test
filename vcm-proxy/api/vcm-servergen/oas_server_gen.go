@@ -71,7 +71,7 @@ type Handler interface {
 	// this before issuing any pool operation.
 	//
 	// POST /v1/config
-	SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error
+	SetConfigV1(ctx context.Context, req *SetConfigRequestV1, params SetConfigV1Params) error
 	// V1CreateIgroup implements v1_createIgroup operation.
 	//
 	// Create a new igroup.

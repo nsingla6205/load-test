@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -152,6 +153,42 @@ func (s *LoggerExtractorTestSuite) TestWorkflowContextExtractLoggerFromTemporalF
 	})
 	s.True(env.IsWorkflowCompleted())
 	s.NoError(env.GetWorkflowError())
+}
+
+// TestAPIContextFromGoWorkflowsActivityContext covers the gap that left VCM
+// activity logs with no fields at all: go-workflows dispatches activities with
+// a plain context carrying only the propagator's string keys, which none of the
+// earlier lookups match.
+func (s *LoggerExtractorTestSuite) TestAPIContextFromGoWorkflowsActivityContext() {
+	ctx := context.WithValue(context.Background(), vlmCorrelationIDKey, "corr-1")
+	ctx = context.WithValue(ctx, vlmDeploymentIDKey, "deploy-1")
+
+	ac := apiContext{ctx: ctx}
+	l, err := ac.extractLogger()
+	s.NoError(err)
+	s.NotNil(l)
+
+	fields := propagatedRequestFields(ctx)
+	s.Equal("corr-1", fields[orchestrator.RequestCorrelationID])
+	s.Equal("deploy-1", fields[orchestrator.RequestDeploymentID])
+}
+
+func (s *LoggerExtractorTestSuite) TestPropagatedRequestFieldsEmptyWithoutIDs() {
+	s.Empty(propagatedRequestFields(context.Background()))
+	s.Empty(propagatedRequestFields(context.WithValue(context.Background(), vlmCorrelationIDKey, "")))
+}
+
+// The propagated-id fallback is last, so a context that already carries a bound
+// request logger (the Temporal-backed VCP path) keeps resolving to that logger.
+func (s *LoggerExtractorTestSuite) TestAPIContextPrefersBoundLoggerOverPropagatedIDs() {
+	bound := log.NewLogger().WithFields("requestFields", log.Fields{"requestCorrelationID": "corr-bound"})
+
+	ctx := context.WithValue(context.Background(), vlmCorrelationIDKey, "corr-propagated")
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, bound)
+
+	l, err := apiContext{ctx: ctx}.extractLogger()
+	s.NoError(err)
+	s.Same(bound, l)
 }
 
 func (s *LoggerExtractorTestSuite) TestAPIContextTemporalFieldsWithOPC() {

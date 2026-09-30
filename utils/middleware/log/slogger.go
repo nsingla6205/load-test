@@ -23,16 +23,27 @@ func getSlogger(config Config) (*Slogger, error) {
 }
 
 func getSloggerObject(loglevel string, addSource bool) *Slogger {
+	return &Slogger{
+		slogger: slog.New(newSlogHandler(convertLogLevel(loglevel), addSource)),
+	}
+}
+
+func newSlogHandler(level slog.Leveler, addSource bool) slog.Handler {
 	options := slog.HandlerOptions{
 		AddSource:   addSource,
-		Level:       convertLogLevel(loglevel),
+		Level:       level,
 		ReplaceAttr: replacer,
 	}
-	jsonHandler := slog.NewJSONHandler(defaultOutputStream, &options)
-	logger := slog.New(handlerWithSpanContext(jsonHandler))
-	return &Slogger{
-		slogger: logger,
-	}
+	return handlerWithSpanContext(slog.NewJSONHandler(defaultOutputStream, &options))
+}
+
+// NewSlogHandler returns the shared structured-logging handler at the given
+// level: JSON output with Cloud Logging field names plus OpenTelemetry trace
+// attributes. Use it to route a third-party library that requires a
+// *slog.Logger through the same format as the rest of the service, instead of
+// letting it write its own ad-hoc format.
+func NewSlogHandler(level slog.Leveler) slog.Handler {
+	return newSlogHandler(level, config.AddSource)
 }
 
 // replacer customizes log attribute keys to align with Google Cloud Logging conventions.

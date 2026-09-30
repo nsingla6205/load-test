@@ -22,7 +22,7 @@ func TestSetConfigV1_ReturnsNilError(t *testing.T) {
 			Instance: "i",
 			Database: "d",
 		},
-	})
+	}, vcmserver.SetConfigV1Params{})
 	require.NoError(t, err)
 }
 
@@ -34,6 +34,6 @@ func TestSetConfigV1_NilConfigStoreStillSucceeds(t *testing.T) {
 			Instance: "i",
 			Database: "d",
 		},
-	})
+	}, vcmserver.SetConfigV1Params{})
 	assert.NoError(t, err)
 }

@@ -91,7 +91,7 @@ func (UnimplementedHandler) OperationGetV1(ctx context.Context, params Operation
 // this before issuing any pool operation.
 //
 // POST /v1/config
-func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error {
+func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigRequestV1, params SetConfigV1Params) error {
 	return ht.ErrNotImplemented
 }
 

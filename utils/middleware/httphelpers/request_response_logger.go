@@ -186,7 +186,16 @@ func LoggingHttpHandler(next http.Handler) http.Handler {
 		}
 		ctx := context.WithValue(r.Context(), middleware.CorrelationContextKey, xCorrID)
 		r = r.WithContext(ctx)
-		logger := log.NewLogger()
+		// This handler runs ahead of log.LoggingMiddleware, so there is no
+		// request logger in context yet. Bind the same requestFields the
+		// middleware will build, otherwise the request/response access lines —
+		// the highest-volume lines per request — carry no correlation id.
+		logger := log.NewLogger().WithFields("requestFields", log.Fields{
+			"requestCorrelationID": xCorrID,
+			"requestID":            log.GetRequestID(r),
+			"traceMethod":          r.Method,
+			"traceURL":             r.URL.String(),
+		})
 
 		requestURL := r.RequestURI
 		serverIP := ""

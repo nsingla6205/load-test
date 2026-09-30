@@ -12,6 +12,7 @@ import (
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 func poolUpdateRecoveryPayload(t *testing.T) string {
@@ -58,6 +59,7 @@ func TestUpdatePoolRecoveryHandler_Resume_ReDispatchesUnderJobID(t *testing.T) {
 	assert.Equal(t, commonparams.VCMUpdateMaskProvisionedSizeInBytes, params.VCM.UpdateMask)
 	require.NotNil(t, params.VCM.Derived, "derived inputs must be recomputed from the persisted request")
 	assert.Equal(t, "us-central1", params.VCM.Derived.Region)
+	assert.Equal(t, "gcnv-1", orchestrator.DeploymentIDFromContext(starter.gotCtx))
 }
 
 func TestUpdatePoolRecoveryHandler_Resume_AlreadyRunning_IsNoOp(t *testing.T) {

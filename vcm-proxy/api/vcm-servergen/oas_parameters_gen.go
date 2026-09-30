@@ -25,6 +25,8 @@ type ClusterCreateV1Params struct {
 	// before timing out. Encoded as a google.protobuf.Duration JSON value
 	// (seconds with an "s" suffix), for example `600s` or `1.5s`.
 	Timeout string
+	// Correlation identifier.
+	XCorrelationID OptString
 }
 
 func unpackClusterCreateV1Params(packed middleware.Parameters) (params ClusterCreateV1Params) {
@@ -42,11 +44,21 @@ func unpackClusterCreateV1Params(packed middleware.Parameters) (params ClusterCr
 		}
 		params.Timeout = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
 	return params
 }
 
 func decodeClusterCreateV1Params(args [0]string, argsEscaped bool, r *http.Request) (params ClusterCreateV1Params, _ error) {
 	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
 	// Decode query: requestId.
 	if err := func() error {
 		cfg := uri.QueryParameterDecodingConfig{
@@ -151,6 +163,45 @@ func decodeClusterCreateV1Params(args [0]string, argsEscaped bool, r *http.Reque
 			Err:  err,
 		}
 	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
 	return params, nil
 }
 
@@ -176,6 +227,8 @@ type ClusterUpdateV1Params struct {
 	// before timing out. Encoded as a google.protobuf.Duration JSON value
 	// (seconds with an "s" suffix), for example `600s` or `1.5s`.
 	Timeout string
+	// Correlation identifier.
+	XCorrelationID OptString
 }
 
 func unpackClusterUpdateV1Params(packed middleware.Parameters) (params ClusterUpdateV1Params) {
@@ -209,11 +262,21 @@ func unpackClusterUpdateV1Params(packed middleware.Parameters) (params ClusterUp
 		}
 		params.Timeout = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
 	return params
 }
 
 func decodeClusterUpdateV1Params(args [0]string, argsEscaped bool, r *http.Request) (params ClusterUpdateV1Params, _ error) {
 	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
 	// Decode query: requestId.
 	if err := func() error {
 		cfg := uri.QueryParameterDecodingConfig{
@@ -431,6 +494,45 @@ func decodeClusterUpdateV1Params(args [0]string, argsEscaped bool, r *http.Reque
 			Err:  err,
 		}
 	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
 	return params, nil
 }
 
@@ -438,6 +540,8 @@ func decodeClusterUpdateV1Params(args [0]string, argsEscaped bool, r *http.Reque
 type OperationGetV1Params struct {
 	// UUID returned when the asynchronous operation was created.
 	OperationId string
+	// Correlation identifier.
+	XCorrelationID OptString
 }
 
 func unpackOperationGetV1Params(packed middleware.Parameters) (params OperationGetV1Params) {
@@ -448,10 +552,20 @@ func unpackOperationGetV1Params(packed middleware.Parameters) (params OperationG
 		}
 		params.OperationId = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
 	return params
 }
 
 func decodeOperationGetV1Params(args [1]string, argsEscaped bool, r *http.Request) (params OperationGetV1Params, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: operationId.
 	if err := func() error {
 		param := args[0]
@@ -510,6 +624,108 @@ func decodeOperationGetV1Params(args [1]string, argsEscaped bool, r *http.Reques
 		return params, &ogenerrors.DecodeParamError{
 			Name: "operationId",
 			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// SetConfigV1Params is parameters of setConfig_v1 operation.
+type SetConfigV1Params struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+func unpackSetConfigV1Params(packed middleware.Parameters) (params SetConfigV1Params) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Correlation-ID",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeSetConfigV1Params(args [0]string, argsEscaped bool, r *http.Request) (params SetConfigV1Params, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Correlation-ID.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Correlation-ID",
+			In:   "header",
 			Err:  err,
 		}
 	}

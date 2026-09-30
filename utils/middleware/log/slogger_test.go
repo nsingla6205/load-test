@@ -7,8 +7,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 )
+
+func TestNewSlogHandler_HonorsLevel(t *testing.T) {
+	handler := NewSlogHandler(slog.LevelInfo)
+	require.NotNil(t, handler)
+	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
+}
 
 // TestGetSlogger tests the getSlogger function
 func TestGetSlogger(t *testing.T) {

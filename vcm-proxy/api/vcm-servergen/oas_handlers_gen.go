@@ -156,6 +156,10 @@ func (s *Server) handleClusterCreateV1Request(args [0]string, argsEscaped bool, 
 					Name: "timeout",
 					In:   "query",
 				}: params.Timeout,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
 			},
 			Raw: r,
 		}
@@ -341,6 +345,10 @@ func (s *Server) handleClusterUpdateV1Request(args [0]string, argsEscaped bool, 
 					Name: "timeout",
 					In:   "query",
 				}: params.Timeout,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
 			},
 			Raw: r,
 		}
@@ -766,6 +774,10 @@ func (s *Server) handleOperationGetV1Request(args [1]string, argsEscaped bool, w
 					Name: "operationId",
 					In:   "path",
 				}: params.OperationId,
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
 			},
 			Raw: r,
 		}
@@ -899,6 +911,16 @@ func (s *Server) handleSetConfigV1Request(args [0]string, argsEscaped bool, w ht
 			ID:   "setConfig_v1",
 		}
 	)
+	params, err := decodeSetConfigV1Params(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
 
 	var rawBody []byte
 	request, rawBody, close, err := s.decodeSetConfigV1Request(r)
@@ -926,13 +948,18 @@ func (s *Server) handleSetConfigV1Request(args [0]string, argsEscaped bool, w ht
 			OperationID:      "setConfig_v1",
 			Body:             request,
 			RawBody:          rawBody,
-			Params:           middleware.Parameters{},
-			Raw:              r,
+			Params: middleware.Parameters{
+				{
+					Name: "X-Correlation-ID",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
 		}
 
 		type (
 			Request  = *SetConfigRequestV1
-			Params   = struct{}
+			Params   = SetConfigV1Params
 			Response = *SetConfigV1OK
 		)
 		response, err = middleware.HookMiddleware[
@@ -942,14 +969,14 @@ func (s *Server) handleSetConfigV1Request(args [0]string, argsEscaped bool, w ht
 		](
 			m,
 			mreq,
-			nil,
+			unpackSetConfigV1Params,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				err = s.h.SetConfigV1(ctx, request)
+				err = s.h.SetConfigV1(ctx, request, params)
 				return response, err
 			},
 		)
 	} else {
-		err = s.h.SetConfigV1(ctx, request)
+		err = s.h.SetConfigV1(ctx, request, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorResponseV1StatusCode](err); ok {

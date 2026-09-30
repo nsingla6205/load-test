@@ -87,6 +87,8 @@ paths:
         not exposed on this response. Supplied nested fields use
         last-write-wins semantics; stateDbConfig is always replaced. CLH must call
         this before issuing any pool operation.
+      parameters:
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         required: true
         content:
@@ -555,6 +557,7 @@ paths:
         failure is returned in the operation error field.
       parameters:
         - $ref: "#/components/parameters/operationIdPath"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
       responses:
         "200":
           description: Operation status
@@ -592,6 +595,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/requestIdQueryParameter"
         - $ref: "#/components/parameters/timeoutQueryParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         required: true
         content:
@@ -634,6 +638,7 @@ paths:
         - $ref: "#/components/parameters/clusterUpdateMaskQuery"
         - $ref: "#/components/parameters/clusterChangeTypeQuery"
         - $ref: "#/components/parameters/timeoutQueryParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
       requestBody:
         required: true
         description: |

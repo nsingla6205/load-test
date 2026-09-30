@@ -11,6 +11,7 @@ import (
 	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // UpdatePoolRecoveryHandler resumes an interrupted POOL_UPDATE job after a
@@ -51,6 +52,8 @@ func (h *UpdatePoolRecoveryHandler) Resume(ctx context.Context, job *vcmdb.Job) 
 	vcm.Derived = vcm.DeriveInputs()
 
 	params := &commonparams.UpdatePoolParams{VCM: &vcm}
+
+	ctx = orchestrator.WithDeploymentID(ctx, vcm.DeploymentID)
 
 	if h.logger != nil {
 		h.logger.InfoContext(ctx, "resuming update-pool job",

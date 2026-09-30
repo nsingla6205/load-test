@@ -13,6 +13,7 @@ import (
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // CreatePool persists a durable pool-create job (in NEW), starts the VCM pool
@@ -31,6 +32,11 @@ func (o *VCMOrchestrator) CreatePool(ctx context.Context, params *commonparams.C
 
 	deploymentID := params.VCM.DeploymentID
 	operationID := params.VCM.RequestID
+
+	// Carry the deployment id on the propagator key so workflow, activity and
+	// VLM child-workflow logs are all attributable to this deployment. The
+	// correlation id is bridged by the workflow starter.
+	ctx = orchestrator.WithDeploymentID(ctx, deploymentID)
 
 	// Derive the workflow inputs before dispatch so they stay stable across replays.
 	params.VCM.Derived = params.VCM.DeriveInputs()
@@ -106,6 +112,11 @@ func (o *VCMOrchestrator) UpdatePool(ctx context.Context, params *commonparams.U
 
 	deploymentID := params.VCM.DeploymentID
 	operationID := params.VCM.RequestID
+
+	// Carry the deployment id on the propagator key so workflow, activity and
+	// VLM child-workflow logs are all attributable to this deployment. The
+	// correlation id is bridged by the workflow starter, the same as CreatePool.
+	ctx = orchestrator.WithDeploymentID(ctx, deploymentID)
 
 	inFlight, err := o.store.GetOngoingJobByResource(ctx, deploymentID, vcmdb.JobTypePoolUpdate)
 	if err != nil {

@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/ogen-go/ogen v1.15.1
 	github.com/prometheus/client_golang v1.24.1
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.12.1
 	github.com/vcp-vsa-control-Plane/vsa-control-plane v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/core v0.0.0
@@ -160,7 +161,6 @@ require (
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
