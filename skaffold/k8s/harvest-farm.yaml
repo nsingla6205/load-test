@@ -41,7 +41,7 @@ spec:
       serviceAccountName: vcp-service-account
       containers:
         - name: harvest-farm
-          image: ghcr.io/vcp-vsa-control-plane/harvest-multi:25.09.24-1
+          image: ghcr.io/vcp-vsa-control-plane/harvest-multi:26.09.30-1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

@@ -93,10 +93,12 @@ func TestDataStoreRepository_ListOntapModePoolsForResourceData(t *testing.T) {
 			Name:      "ontap-active-pool",
 			AccountID: account.ID,
 			PoolAttributes: &datamodel.PoolAttributes{
-				AccountName: "ontap-account",
+				AccountName:  "ontap-account",
+				ServiceLevel: "EXTREME",
 			},
 			DeploymentName: "ontap-deployment-active",
 			APIAccessMode:  "ONTAP",
+			ServiceLevel:   "PREMIUM",
 		}
 		deletedAt := &gorm.DeletedAt{Time: now.Add(-10 * time.Minute), Valid: true}
 		deletedOntapPool := &datamodel.Pool{
@@ -142,6 +144,8 @@ func TestDataStoreRepository_ListOntapModePoolsForResourceData(t *testing.T) {
 		assert.Equal(t, activeOntapPool.DeploymentName, actualByUUID[activeOntapPool.UUID].DeploymentName)
 		require.NotNil(t, actualByUUID[activeOntapPool.UUID].PoolAttributes)
 		assert.Equal(t, "ontap-account", actualByUUID[activeOntapPool.UUID].PoolAttributes.AccountName)
+		assert.Equal(t, "PREMIUM", actualByUUID[activeOntapPool.UUID].ServiceLevel)
+		assert.Equal(t, "EXTREME", actualByUUID[activeOntapPool.UUID].GetEffectiveServiceLevel())
 
 		require.Contains(t, actualByUUID, deletedOntapPool.UUID)
 		assert.NotContains(t, actualByUUID, nonOntapPool.UUID)
@@ -6278,6 +6282,65 @@ func TestPoolResourceData_IsZoneSwitched(t *testing.T) {
 		}
 		assert.True(t, p.IsZoneSwitched())
 	})
+}
+
+func TestPoolResourceData_GetEffectiveServiceLevel(t *testing.T) {
+	t.Run("UsesPoolAttributes", func(tt *testing.T) {
+		pool := &PoolResourceData{
+			ServiceLevel: "EXTREME",
+			PoolAttributes: &datamodel.PoolAttributes{
+				ServiceLevel: "PREMIUM",
+			},
+		}
+
+		assert.Equal(tt, "PREMIUM", pool.GetEffectiveServiceLevel())
+	})
+
+	t.Run("FallsBackWhenPoolAttributesServiceLevelIsEmpty", func(tt *testing.T) {
+		pool := &PoolResourceData{
+			ServiceLevel:   "EXTREME",
+			PoolAttributes: &datamodel.PoolAttributes{},
+		}
+
+		assert.Equal(tt, "EXTREME", pool.GetEffectiveServiceLevel())
+	})
+
+	t.Run("FallsBackWhenPoolAttributesAreNil", func(tt *testing.T) {
+		pool := &PoolResourceData{ServiceLevel: "PREMIUM"}
+
+		assert.Equal(tt, "PREMIUM", pool.GetEffectiveServiceLevel())
+	})
+}
+
+func TestListPoolsForResourceData_ServiceLevel(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "service-level-account-uuid"},
+		Name:      "service_level_account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "service-level-pool-uuid"},
+		Name:           "service_level_pool",
+		AccountID:      account.ID,
+		DeploymentName: "deployment-service-level",
+		ServiceLevel:   "PREMIUM",
+		APIAccessMode:  "ONTAP",
+		PoolAttributes: &datamodel.PoolAttributes{
+			AccountName:  "service_level_account",
+			ServiceLevel: "EXTREME",
+		},
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	results, err := store.ListPoolsForResourceData(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), nil)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "PREMIUM", results[0].ServiceLevel)
+	assert.Equal(t, "EXTREME", results[0].GetEffectiveServiceLevel())
 }
 
 func TestPoolMetricsData_GetEffectiveServiceLevel(t *testing.T) {

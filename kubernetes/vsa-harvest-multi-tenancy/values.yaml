@@ -14,8 +14,8 @@ image:
   # Keep the default on the Artifact Registry mirror used by vsa-harvest-otel;
   # GKE environments do not have credentials for this private ghcr.io image.
   repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-container-images-us/harvest-multi
-  tag: "26.08.24-1"
-  digest: "sha256:ecf871de1328c914a98ff1ee72d1f831da5df432587def1e4ac36f32a223ecb9"
+  tag: "26.09.30-1"
+  digest: "sha256:58a581fd0a7033f182a97c27b5a121aca1c45ba78fb33b8f34dde0b9e2a571ed"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

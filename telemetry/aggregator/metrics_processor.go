@@ -85,6 +85,7 @@ type ResourceData struct {
 	VolumeStyle           string // Track volume style (FLEXVOL/FLEXGROUP)
 	HasOnlyBlockVolumes   bool
 	IsONTAPMode           bool    // True if pool has APIAccessMode == "ONTAP" (expert mode)
+	ServiceLevel          string  // Effective pool service level
 	PrimaryZone           string  // Pool's primary zone for AT billing location label
 	BackupRegionName      *string // Destination region for cross-region backups
 	CreatedAt             *time.Time
@@ -330,7 +331,7 @@ func (p *BillingProvider) aggregationJobDefinitions() map[metadata.CombinedKeyRe
 	}
 
 	jobDefinitions[metadata.CombinedKeyResourceTypeMeasuredType{
-		ResourceType: metadata.Volume,
+		ResourceType: metadata.VolumeRegionalHA,
 		MeasuredType: metadata.SnapshotSize,
 	}] = common.AggregationJobDefinition{
 		AggregationType: common.IntegralAggregation,
@@ -587,6 +588,7 @@ func (p *BillingProvider) fetchPoolData(ctx context.Context, aggregationStartTim
 				VolumeStyle:         "",                        // Empty for pools
 				HasOnlyBlockVolumes: blockOnlyPoolIDs[pool.ID], // Set based on block-only pool IDs map
 				IsONTAPMode:         pool.APIAccessMode == commonparams.ONTAPMode,
+				ServiceLevel:        pool.GetEffectiveServiceLevel(),
 				PrimaryZone:         primaryZone,
 				CreatedAt:           &pool.CreatedAt,
 				FreeTrialEndAt:      freeTrialEnd,
@@ -840,6 +842,8 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, aggrega
 				UUID:           resourceUUID,
 				AccountID:      volume.AccountID,
 				FreeTrialEndAt: freeTrialEnd,
+				IsONTAPMode:    volume.PoolAPIAccessMode == commonparams.ONTAPMode,
+				ServiceLevel:   volume.PoolServiceLevel,
 			}
 			addVolumeDataEntry(
 				resourceCollection,
@@ -853,23 +857,6 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, aggrega
 				volume.BackupVaultAccountName,
 				volume.BackupVaultAccountID,
 			)
-			if p.config.EnableMTHarvestVolumeMetrics &&
-				resourceType != metadata.Volume &&
-				volume.PoolAPIAccessMode == commonparams.ONTAPMode &&
-				commonparams.IsPOServiceLevel(volume.PoolServiceLevel) {
-				addVolumeDataEntry(
-					resourceCollection,
-					metadata.Volume,
-					resourceUUID,
-					volume.Name,
-					volume.DeploymentName,
-					volume.AccountName,
-					resourceData,
-					volume.BackupVaultServiceType,
-					volume.BackupVaultAccountName,
-					volume.BackupVaultAccountID,
-				)
-			}
 		}
 
 		totalProcessed += len(volumes)
@@ -1987,7 +1974,7 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 	// billability lookup behavior.
 	isBillable := common.IsBillableMetric(ctx, metrics.Metadata.ResourceType, metrics.MeasuredType)
 	if p.config.EnableMTHarvestVolumeMetrics &&
-		metrics.Metadata.ResourceType == metadata.Volume &&
+		metrics.Metadata.ResourceType == metadata.VolumeRegionalHA &&
 		metrics.MeasuredType == metadata.SnapshotSize {
 		isBillable = jobDef.IsBillable
 	}
@@ -2040,7 +2027,7 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 		IsBillable:             isBillable,
 		BillingMode:            billingMode,
 		AggregationType:        string(jobDef.AggregationType),
-		ServiceLevel:           unifiedServiceType,
+		ServiceLevel:           aggregatedUsageServiceLevel(resourceData.IsONTAPMode, resourceData.ServiceLevel),
 		VolumeStyle:            resourceData.VolumeStyle,
 	}
 
@@ -2262,6 +2249,23 @@ func (p *BillingProvider) fetchAllHydratedMetricsWithPagination(ctx context.Cont
 func BytesToMiB(bytes float64) float64 {
 	const bytesInMiB = 1024 * 1024 // 1024^2
 	return bytes / float64(bytesInMiB)
+}
+
+// aggregatedUsageServiceLevel returns EXTREME or PREMIUM for expert-mode pools and volumes.
+// Other resources keep the unified billing service level. Backup mode and replication
+// frequency still overwrite this value later in processMetricsWithJobDef.
+func aggregatedUsageServiceLevel(isONTAPMode bool, serviceLevel string) string {
+	if isExpertModeServiceLevel(isONTAPMode, serviceLevel) {
+		return serviceLevel
+	}
+	return unifiedServiceType
+}
+
+// isExpertModeServiceLevel reports whether an ONTAP-mode resource uses the Extreme or Premium tier.
+func isExpertModeServiceLevel(isONTAPMode bool, serviceLevel string) bool {
+	return isONTAPMode &&
+		(serviceLevel == commonparams.ServiceLevelExtreme ||
+			serviceLevel == commonparams.ServiceLevelPremium)
 }
 
 func setServiceLevelForCRR(schedule string) string {

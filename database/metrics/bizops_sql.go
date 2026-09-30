@@ -230,6 +230,8 @@ continent VARCHAR (255) NOT NULL
      $1 as report_start,
      $2 as report_end,
  	case
+ 		when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' and puc.service_level = 'EXTREME' then 'netapp.googleapis.com/pool/Allocation/Extreme'
+ 		when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' and puc.service_level = 'PREMIUM' then 'netapp.googleapis.com/pool/Allocation/Premium'
  		when puc.resource_type = 'VOLUME_POOL' then 'netapp.googleapis.com/pool/Allocation/Flex/Zonal/Unified'
  	    
  	    when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' then 'netapp.googleapis.com/pool/Allocation/Flex/Regional/Unified'

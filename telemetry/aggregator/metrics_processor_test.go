@@ -6274,6 +6274,384 @@ func TestFetchPoolData_AllowAutoTieringField(t *testing.T) {
 	mockVcpDB.AssertExpectations(t)
 }
 
+func TestFetchPoolData_SetsExpertModeServiceLevel(t *testing.T) {
+	ctx := context.Background()
+	mockVcpDB := database2.NewMockStorage(t)
+	provider := &BillingProvider{
+		vcpDataStore: mockVcpDB,
+		config:       &common.TelemetryConfig{PoolVolumeLabelPageSize: 10},
+	}
+	rc := &ResourceCollection{
+		PoolData:                 make(map[ResourceKey]ResourceData),
+		DeploymentNameToPoolName: make(map[string]string),
+	}
+
+	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{
+		{
+			UUID:           "extreme-pool-uuid",
+			Name:           "extreme-pool",
+			AccountID:      1,
+			DeploymentName: "dep-extreme",
+			APIAccessMode:  commonparams.ONTAPMode,
+			ServiceLevel:   commonparams.ServiceLevelPremium,
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName:  "account-extreme",
+				ServiceLevel: commonparams.ServiceLevelExtreme,
+				IsRegionalHA: true,
+			},
+		},
+		{
+			UUID:           "premium-pool-uuid",
+			Name:           "premium-pool",
+			AccountID:      2,
+			DeploymentName: "dep-premium",
+			APIAccessMode:  commonparams.ONTAPMode,
+			ServiceLevel:   commonparams.ServiceLevelPremium,
+			PoolAttributes: &datamodel.PoolAttributes{
+				AccountName:  "account-premium",
+				IsRegionalHA: true,
+			},
+		},
+		{
+			UUID:           "flex-pool-uuid",
+			Name:           "flex-pool",
+			AccountID:      3,
+			DeploymentName: "dep-flex",
+			APIAccessMode:  commonparams.DEFAULTMode,
+			ServiceLevel:   "FLEX",
+			PoolAttributes: &datamodel.PoolAttributes{AccountName: "account-flex"},
+		},
+	}, nil).Once()
+	mockVcpDB.On("ListPoolsForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.PoolResourceData{}, nil).Once()
+
+	err := provider.fetchPoolData(ctx, time.Now().Add(-time.Hour), rc)
+	require.NoError(t, err)
+
+	extreme := rc.PoolData[ResourceKey{
+		ResourceType:   metadata.VolumePoolRegionalHA,
+		ResourceName:   "extreme-pool",
+		DeploymentName: "dep-extreme",
+		ConsumerID:     "account-extreme",
+	}]
+	assert.True(t, extreme.IsONTAPMode)
+	assert.Equal(t, commonparams.ServiceLevelExtreme, extreme.ServiceLevel)
+
+	premium := rc.PoolData[ResourceKey{
+		ResourceType:   metadata.VolumePoolRegionalHA,
+		ResourceName:   "premium-pool",
+		DeploymentName: "dep-premium",
+		ConsumerID:     "account-premium",
+	}]
+	assert.True(t, premium.IsONTAPMode)
+	assert.Equal(t, commonparams.ServiceLevelPremium, premium.ServiceLevel)
+
+	flex := rc.PoolData[ResourceKey{
+		ResourceType:   metadata.VolumePool,
+		ResourceName:   "flex-pool",
+		DeploymentName: "dep-flex",
+		ConsumerID:     "account-flex",
+	}]
+	assert.False(t, flex.IsONTAPMode)
+	assert.Equal(t, "FLEX", flex.ServiceLevel)
+}
+
+func TestAggregatedUsageServiceLevel(t *testing.T) {
+	tests := []struct {
+		name         string
+		isONTAPMode  bool
+		serviceLevel string
+		want         string
+	}{
+		{name: "expert mode extreme", isONTAPMode: true, serviceLevel: commonparams.ServiceLevelExtreme, want: commonparams.ServiceLevelExtreme},
+		{name: "expert mode premium", isONTAPMode: true, serviceLevel: commonparams.ServiceLevelPremium, want: commonparams.ServiceLevelPremium},
+		{name: "ontap mode other tier stays unified", isONTAPMode: true, serviceLevel: "FLEX", want: unifiedServiceType},
+		{name: "non ontap extreme stays unified", isONTAPMode: false, serviceLevel: commonparams.ServiceLevelExtreme, want: unifiedServiceType},
+		{name: "empty service level stays unified", isONTAPMode: true, serviceLevel: "", want: unifiedServiceType},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, aggregatedUsageServiceLevel(tt.isONTAPMode, tt.serviceLevel))
+		})
+	}
+}
+
+func TestProcessMetricsWithJobDef_ExpertModeServiceLevel(t *testing.T) {
+	now := time.Now()
+	start := now.Add(-time.Hour)
+	backupMode := backupModeOntap
+	repName := "replication1"
+	srcLoc := "us-west"
+	dstLoc := "us-east"
+	dstVolUUID := "dst-vol-uuid"
+
+	tests := []struct {
+		name             string
+		resourceType     metadata.ResourceType
+		measuredType     metadata.MeasuredType
+		resourceData     ResourceData
+		metadataLevel    *string
+		wantServiceLevel string
+	}{
+		{
+			name:         "extreme regional ha pool",
+			resourceType: metadata.VolumePoolRegionalHA,
+			measuredType: metadata.PoolAllocatedSize,
+			resourceData: ResourceData{
+				UUID:         "pool-uuid",
+				AccountID:    1,
+				IsONTAPMode:  true,
+				ServiceLevel: commonparams.ServiceLevelExtreme,
+			},
+			wantServiceLevel: commonparams.ServiceLevelExtreme,
+		},
+		{
+			name:         "premium regional ha pool",
+			resourceType: metadata.VolumePoolRegionalHA,
+			measuredType: metadata.PoolAllocatedSize,
+			resourceData: ResourceData{
+				UUID:         "pool-uuid-premium",
+				AccountID:    2,
+				IsONTAPMode:  true,
+				ServiceLevel: commonparams.ServiceLevelPremium,
+			},
+			wantServiceLevel: commonparams.ServiceLevelPremium,
+		},
+		{
+			name:         "flex pool stays unified",
+			resourceType: metadata.VolumePool,
+			measuredType: metadata.PoolAllocatedSize,
+			resourceData: ResourceData{
+				UUID:         "flex-pool-uuid",
+				AccountID:    3,
+				IsONTAPMode:  false,
+				ServiceLevel: "FLEX",
+			},
+			wantServiceLevel: unifiedServiceType,
+		},
+		{
+			name:         "backup mode still overrides expert mode tier",
+			resourceType: metadata.Volume,
+			measuredType: metadata.BackupEnabledVolumeAllocatedSize,
+			resourceData: ResourceData{
+				UUID:         "backup-volume-uuid",
+				AccountID:    4,
+				IsONTAPMode:  true,
+				ServiceLevel: commonparams.ServiceLevelExtreme,
+			},
+			metadataLevel:    &backupMode,
+			wantServiceLevel: backupModeOntap,
+		},
+		{
+			name:         "replication frequency still overrides expert mode tier",
+			resourceType: metadata.VolumeReplicationRelationship,
+			measuredType: metadata.XregionReplicationTotalTransferBytes,
+			resourceData: ResourceData{
+				UUID:         "replication-uuid",
+				AccountID:    5,
+				IsONTAPMode:  true,
+				ServiceLevel: commonparams.ServiceLevelExtreme,
+				VolumeReplicationInfo: &VolumeReplicationInfo{
+					ReplicationSchedule:   "hourly",
+					ReplicationName:       &repName,
+					SourceLocation:        &srcLoc,
+					DestinationLocation:   &dstLoc,
+					DestinationVolumeUUID: &dstVolUUID,
+				},
+			},
+			wantServiceLevel: "2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			processor := &BillingProvider{config: &common.TelemetryConfig{}}
+			resourceKey := ResourceKey{
+				ResourceType:   tt.resourceType,
+				ResourceName:   "resource",
+				DeploymentName: "dep",
+				ConsumerID:     "customer",
+			}
+			collection := &ResourceCollection{
+				PoolData:              map[ResourceKey]ResourceData{},
+				VolumeData:            map[ResourceKey]ResourceData{},
+				VolumeReplicationData: map[ResourceKey]ResourceData{},
+			}
+			switch tt.resourceType {
+			case metadata.VolumePool, metadata.VolumePoolRegionalHA:
+				collection.PoolData[resourceKey] = tt.resourceData
+			case metadata.Volume, metadata.VolumeRegionalHA:
+				collection.VolumeData[resourceKey] = tt.resourceData
+			case metadata.VolumeReplicationRelationship:
+				collection.VolumeReplicationData[resourceKey] = tt.resourceData
+			}
+
+			series := common.TimeSeries{
+				Metadata: metadata.ResourceMetadata{
+					ResourceType: tt.resourceType,
+					ServiceLevel: tt.metadataLevel,
+				},
+				MeasuredType: tt.measuredType,
+				DataPoints:   []common.DataPoint{{Timestamp: now, Quantity: 1024 * 1024}},
+			}
+
+			var records []datamodel2.AggregatedUsage
+			err := processor.processMetricsWithJobDef(
+				context.Background(),
+				resourceKey,
+				series,
+				common.AggregationJobDefinition{AggregationType: common.SumAggregation},
+				start,
+				now,
+				collection,
+				&records,
+				make(CounterAggregationCache),
+				util.GetLogger(context.Background()),
+			)
+			require.NoError(t, err)
+			require.Len(t, records, 1)
+			assert.Equal(t, string(tt.resourceType), records[0].ResourceType)
+			assert.Equal(t, tt.wantServiceLevel, records[0].ServiceLevel)
+		})
+	}
+}
+
+func TestDryRun_AggregatedUsageForSingleAndMultiTenant(t *testing.T) {
+	now := time.Now()
+	start := now.Add(-time.Hour)
+
+	tests := []struct {
+		name             string
+		tenancy          string
+		resourceType     metadata.ResourceType
+		measuredType     metadata.MeasuredType
+		isONTAPMode      bool
+		serviceLevel     string
+		mtSnapshotJob    bool
+		wantServiceLevel string
+		wantBillable     bool
+	}{
+		{
+			name:             "single tenant zonal volume stays unified",
+			tenancy:          "ST",
+			resourceType:     metadata.Volume,
+			measuredType:     metadata.AllocatedSize,
+			serviceLevel:     "FLEX",
+			wantServiceLevel: unifiedServiceType,
+			wantBillable:     false,
+		},
+		{
+			name:             "single tenant zonal pool stays unified",
+			tenancy:          "ST",
+			resourceType:     metadata.VolumePool,
+			measuredType:     metadata.PoolAllocatedSize,
+			serviceLevel:     "FLEX",
+			wantServiceLevel: unifiedServiceType,
+			wantBillable:     false,
+		},
+		{
+			name:             "single tenant regional volume stays unified",
+			tenancy:          "ST",
+			resourceType:     metadata.VolumeRegionalHA,
+			measuredType:     metadata.LogicalSize,
+			serviceLevel:     "FLEX",
+			wantServiceLevel: unifiedServiceType,
+			wantBillable:     false,
+		},
+		{
+			name:             "multi tenant extreme pool",
+			tenancy:          "MT",
+			resourceType:     metadata.VolumePoolRegionalHA,
+			measuredType:     metadata.PoolAllocatedSize,
+			isONTAPMode:      true,
+			serviceLevel:     commonparams.ServiceLevelExtreme,
+			wantServiceLevel: commonparams.ServiceLevelExtreme,
+			wantBillable:     false,
+		},
+		{
+			name:             "multi tenant premium pool",
+			tenancy:          "MT",
+			resourceType:     metadata.VolumePoolRegionalHA,
+			measuredType:     metadata.PoolAllocatedSize,
+			isONTAPMode:      true,
+			serviceLevel:     commonparams.ServiceLevelPremium,
+			wantServiceLevel: commonparams.ServiceLevelPremium,
+			wantBillable:     false,
+		},
+		{
+			name:             "multi tenant snapshot keeps tier and is not billable",
+			tenancy:          "MT",
+			resourceType:     metadata.VolumeRegionalHA,
+			measuredType:     metadata.SnapshotSize,
+			isONTAPMode:      true,
+			serviceLevel:     commonparams.ServiceLevelExtreme,
+			mtSnapshotJob:    true,
+			wantServiceLevel: commonparams.ServiceLevelExtreme,
+			wantBillable:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			processor := &BillingProvider{config: &common.TelemetryConfig{
+				EnableMTHarvestVolumeMetrics: tt.mtSnapshotJob,
+			}}
+			resourceKey := ResourceKey{
+				ResourceType:   tt.resourceType,
+				ResourceName:   "resource",
+				DeploymentName: "dep",
+				ConsumerID:     "customer",
+			}
+			resourceData := ResourceData{
+				UUID:         "resource-uuid",
+				AccountID:    11,
+				IsONTAPMode:  tt.isONTAPMode,
+				ServiceLevel: tt.serviceLevel,
+			}
+			collection := &ResourceCollection{
+				PoolData:   map[ResourceKey]ResourceData{},
+				VolumeData: map[ResourceKey]ResourceData{},
+			}
+			if isPoolResourceType(tt.resourceType) {
+				collection.PoolData[resourceKey] = resourceData
+			} else {
+				collection.VolumeData[resourceKey] = resourceData
+			}
+
+			jobDef := common.AggregationJobDefinition{AggregationType: common.SumAggregation}
+			if tt.mtSnapshotJob {
+				jobDef = common.AggregationJobDefinition{AggregationType: common.IntegralAggregation, IsBillable: false}
+			}
+
+			var records []datamodel2.AggregatedUsage
+			err := processor.processMetricsWithJobDef(
+				context.Background(),
+				resourceKey,
+				common.TimeSeries{
+					Metadata:     metadata.ResourceMetadata{ResourceType: tt.resourceType},
+					MeasuredType: tt.measuredType,
+					DataPoints:   []common.DataPoint{{Timestamp: now, Quantity: 1024 * 1024}},
+				},
+				jobDef,
+				start,
+				now,
+				collection,
+				&records,
+				make(CounterAggregationCache),
+				util.GetLogger(context.Background()),
+			)
+			require.NoError(t, err)
+			require.Len(t, records, 1)
+			assert.Equal(t, string(tt.resourceType), records[0].ResourceType)
+			assert.Equal(t, metadata.MeasuredTypeValue(tt.measuredType), records[0].MeasuredType)
+			assert.Equal(t, tt.wantServiceLevel, records[0].ServiceLevel)
+			assert.Equal(t, tt.wantBillable, records[0].IsBillable)
+			t.Logf("%s aggregated %s %s service_level=%s billable=%t",
+				tt.tenancy, records[0].ResourceType, records[0].MeasuredType, records[0].ServiceLevel, records[0].IsBillable)
+		})
+	}
+}
+
 // TestProcessMetricsWithJobDef_DisableBillingForLargeVolumes_CRR verifies that CRR billing
 // is disabled for Large Volumes when EnableLargeVolumesBilling feature flag is false
 func TestProcessMetricsWithJobDef_DisableBillingForLargeVolumes_CRR(t *testing.T) {
@@ -9425,12 +9803,14 @@ func TestFetchExpertModeVolumeData_PopulatesStandardVolume(t *testing.T) {
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{
-			UUID:             "vol-uuid-1",
-			Name:             "vol1",
-			AccountID:        42,
-			AccountName:      "account1",
-			DeploymentName:   "dep1",
-			PoolIsRegionalHA: false,
+			UUID:              "vol-uuid-1",
+			Name:              "vol1",
+			AccountID:         42,
+			AccountName:       "account1",
+			DeploymentName:    "dep1",
+			PoolIsRegionalHA:  false,
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
 		},
 	}
 	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
@@ -9450,6 +9830,8 @@ func TestFetchExpertModeVolumeData_PopulatesStandardVolume(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "vol-uuid-1", data.UUID)
 	assert.Equal(t, int64(42), data.AccountID)
+	assert.True(t, data.IsONTAPMode)
+	assert.Equal(t, commonparams.ServiceLevelExtreme, data.ServiceLevel)
 	assert.Equal(t, "dep1", rc.VolumeToDeploymentName["vol-uuid-1"])
 }
 
@@ -9467,12 +9849,14 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{
-			UUID:             "vol-ha-uuid",
-			Name:             "vol-ha",
-			AccountID:        7,
-			AccountName:      "account1",
-			DeploymentName:   "dep1",
-			PoolIsRegionalHA: true,
+			UUID:              "vol-ha-uuid",
+			Name:              "vol-ha",
+			AccountID:         7,
+			AccountName:       "account1",
+			DeploymentName:    "dep1",
+			PoolIsRegionalHA:  true,
+			PoolAPIAccessMode: commonparams.ONTAPMode,
+			PoolServiceLevel:  commonparams.ServiceLevelPremium,
 		},
 	}
 	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
@@ -9492,59 +9876,14 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "vol-ha-uuid", data.UUID)
 	assert.Equal(t, int64(7), data.AccountID)
+	assert.True(t, data.IsONTAPMode)
+	assert.Equal(t, commonparams.ServiceLevelPremium, data.ServiceLevel)
 	assert.Equal(t, "dep1", rc.VolumeToDeploymentName["vol-ha-uuid"])
-}
-
-func TestFetchExpertModeVolumeData_AddsMTVolumeAliasForPORegionalHA(t *testing.T) {
-	ctx := context.Background()
-	mockVCPDB := database2.NewMockStorage(t)
-	provider := &BillingProvider{
-		vcpDataStore: mockVCPDB,
-		config: &common.TelemetryConfig{
-			EnableMTHarvestVolumeMetrics: true,
-		},
-	}
-	rc := &ResourceCollection{
-		VolumeData:             make(map[ResourceKey]ResourceData),
-		VolumeToDeploymentName: make(map[string]string),
-	}
-
-	volumes := []*database2.ExpertModeVolumeMetricsData{
-		{
-			UUID:              "internal-uuid",
-			ExternalUUID:      "ontap-uuid",
-			Name:              "vol-ha",
-			AccountID:         7,
-			AccountName:       "account1",
-			DeploymentName:    "dep1",
-			PoolIsRegionalHA:  true,
-			PoolAPIAccessMode: commonparams.ONTAPMode,
-			PoolServiceLevel:  commonparams.ServiceLevelExtreme,
-		},
-	}
-	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volumes, nil).Once()
-	mockVCPDB.On("ListExpertModeVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
-
-	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
-	require.NoError(t, err)
-	require.Len(t, rc.VolumeData, 2)
-
-	for _, resourceType := range []metadata.ResourceType{metadata.Volume, metadata.VolumeRegionalHA} {
-		key := ResourceKey{
-			ResourceType:   resourceType,
-			ResourceName:   "vol-ha",
-			DeploymentName: "dep1",
-			ConsumerID:     "account1",
-		}
-		data, ok := rc.VolumeData[key]
-		require.True(t, ok)
-		assert.Equal(t, "ontap-uuid", data.UUID)
-	}
 }
 
 func TestAggregationJobDefinitions_MTSnapshotIsFlagGated(t *testing.T) {
 	key := metadata.CombinedKeyResourceTypeMeasuredType{
-		ResourceType: metadata.Volume,
+		ResourceType: metadata.VolumeRegionalHA,
 		MeasuredType: metadata.SnapshotSize,
 	}
 
@@ -9563,6 +9902,13 @@ func TestAggregationJobDefinitions_MTSnapshotIsFlagGated(t *testing.T) {
 	assert.Equal(t, common.IntegralAggregation, job.AggregationType)
 	assert.False(t, job.IsBillable)
 	assert.Equal(t, 45*time.Minute, job.TimeSeriesFormatter.GetBackfillLimit())
+
+	volumeKey := metadata.CombinedKeyResourceTypeMeasuredType{
+		ResourceType: metadata.Volume,
+		MeasuredType: metadata.SnapshotSize,
+	}
+	_, exists = enabled[volumeKey]
+	assert.False(t, exists)
 }
 
 func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
@@ -9589,6 +9935,8 @@ func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 			AccountID:              42,
 			AccountName:            "volume-owner",
 			DeploymentName:         "dep1",
+			PoolAPIAccessMode:      commonparams.ONTAPMode,
+			PoolServiceLevel:       commonparams.ServiceLevelExtreme,
 			BackupVaultServiceType: datamodel.ServiceTypeCrossProject,
 			BackupVaultAccountName: "vault-owner",
 			BackupVaultAccountID:   99,
@@ -9615,8 +9963,10 @@ func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
 	}
 	assert.Equal(t, &trialEnd, rc.VolumeData[ownerKey].FreeTrialEndAt)
 	assert.Equal(t, int64(42), rc.VolumeData[ownerKey].AccountID)
+	assert.Equal(t, commonparams.ServiceLevelExtreme, rc.VolumeData[ownerKey].ServiceLevel)
 	assert.Nil(t, rc.VolumeData[vaultKey].FreeTrialEndAt)
 	assert.Equal(t, int64(99), rc.VolumeData[vaultKey].AccountID)
+	assert.Equal(t, commonparams.ServiceLevelExtreme, rc.VolumeData[vaultKey].ServiceLevel)
 }
 
 func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
@@ -9633,9 +9983,9 @@ func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		// valid standard volume
-		{UUID: "vol-std", Name: "std", AccountName: "acct", DeploymentName: "dep", PoolIsRegionalHA: false},
+		{UUID: "vol-std", Name: "std", AccountName: "acct", DeploymentName: "dep", PoolIsRegionalHA: false, PoolAPIAccessMode: commonparams.ONTAPMode, PoolServiceLevel: commonparams.ServiceLevelExtreme},
 		// valid HA volume
-		{UUID: "vol-ha", Name: "ha", AccountName: "acct", DeploymentName: "dep", PoolIsRegionalHA: true},
+		{UUID: "vol-ha", Name: "ha", AccountName: "acct", DeploymentName: "dep", PoolIsRegionalHA: true, PoolAPIAccessMode: commonparams.ONTAPMode, PoolServiceLevel: commonparams.ServiceLevelPremium},
 		// skipped: empty account
 		{UUID: "vol-noacct", Name: "noacct", AccountName: "", DeploymentName: "dep"},
 		// skipped: empty deployment
@@ -9647,10 +9997,14 @@ func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
 	err := provider.fetchExpertModeVolumeData(ctx, time.Now().Add(-time.Hour), rc)
 	require.NoError(t, err)
 	assert.Len(t, rc.VolumeData, 2)
-	_, hasStd := rc.VolumeData[ResourceKey{ResourceType: metadata.Volume, ResourceName: "std", DeploymentName: "dep", ConsumerID: "acct"}]
-	_, hasHA := rc.VolumeData[ResourceKey{ResourceType: metadata.VolumeRegionalHA, ResourceName: "ha", DeploymentName: "dep", ConsumerID: "acct"}]
+	stdKey := ResourceKey{ResourceType: metadata.Volume, ResourceName: "std", DeploymentName: "dep", ConsumerID: "acct"}
+	haKey := ResourceKey{ResourceType: metadata.VolumeRegionalHA, ResourceName: "ha", DeploymentName: "dep", ConsumerID: "acct"}
+	stdData, hasStd := rc.VolumeData[stdKey]
+	haData, hasHA := rc.VolumeData[haKey]
 	assert.True(t, hasStd)
 	assert.True(t, hasHA)
+	assert.Equal(t, commonparams.ServiceLevelExtreme, stdData.ServiceLevel)
+	assert.Equal(t, commonparams.ServiceLevelPremium, haData.ServiceLevel)
 	assert.Equal(t, "dep", rc.VolumeToDeploymentName["vol-std"])
 	assert.Equal(t, "dep", rc.VolumeToDeploymentName["vol-ha"])
 }

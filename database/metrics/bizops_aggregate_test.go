@@ -190,6 +190,107 @@ func TestDataStoreRepository_AggregateUsageForBizOps(t *testing.T) {
 	})
 }
 
+func TestDataStoreRepository_AggregateUsageForBizOps_ExpertModeServiceLevelSKUs(t *testing.T) {
+	extremePool := "when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' and puc.service_level = 'EXTREME' then 'netapp.googleapis.com/pool/Allocation/Extreme'"
+	premiumPool := "when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' and puc.service_level = 'PREMIUM' then 'netapp.googleapis.com/pool/Allocation/Premium'"
+	flexRegionalPool := "when puc.resource_type = 'VOLUME_POOL_REGIONAL_HA' then 'netapp.googleapis.com/pool/Allocation/Flex/Regional/Unified'"
+
+	for _, clause := range []string{extremePool, premiumPool} {
+		assert.Contains(t, finalReport, clause)
+		assert.Less(t, strings.Index(finalReport, clause), strings.Index(finalReport, flexRegionalPool))
+	}
+	assert.NotContains(t, finalReport, "netapp.googleapis.com/volume/Allocation/Extreme")
+	assert.NotContains(t, finalReport, "netapp.googleapis.com/volume/Allocation/Premium")
+}
+
+func TestDryRun_BizOpsSKUForSingleAndMultiTenant(t *testing.T) {
+	tests := []struct {
+		name         string
+		tenancy      string
+		resourceType string
+		serviceLevel string
+		wantSKU      string
+	}{
+		{name: "single tenant zonal volume", tenancy: "ST", resourceType: "VOLUME", serviceLevel: "unified", wantSKU: "netapp.googleapis.com/volume/Allocation/Flex/Zonal/Unified"},
+		{name: "single tenant zonal pool", tenancy: "ST", resourceType: "VOLUME_POOL", serviceLevel: "unified", wantSKU: "netapp.googleapis.com/pool/Allocation/Flex/Zonal/Unified"},
+		{name: "single tenant regional volume", tenancy: "ST", resourceType: "VOLUME_REGIONAL_HA", serviceLevel: "unified", wantSKU: "netapp.googleapis.com/volume/Allocation/Flex/Regional/Unified"},
+		{name: "single tenant regional pool", tenancy: "ST", resourceType: "VOLUME_POOL_REGIONAL_HA", serviceLevel: "unified", wantSKU: "netapp.googleapis.com/pool/Allocation/Flex/Regional/Unified"},
+		{name: "multi tenant extreme volume stays flex regional", tenancy: "MT", resourceType: "VOLUME_REGIONAL_HA", serviceLevel: "EXTREME", wantSKU: "netapp.googleapis.com/volume/Allocation/Flex/Regional/Unified"},
+		{name: "multi tenant premium volume stays flex regional", tenancy: "MT", resourceType: "VOLUME_REGIONAL_HA", serviceLevel: "PREMIUM", wantSKU: "netapp.googleapis.com/volume/Allocation/Flex/Regional/Unified"},
+		{name: "multi tenant extreme pool", tenancy: "MT", resourceType: "VOLUME_POOL_REGIONAL_HA", serviceLevel: "EXTREME", wantSKU: "netapp.googleapis.com/pool/Allocation/Extreme"},
+		{name: "multi tenant premium pool", tenancy: "MT", resourceType: "VOLUME_POOL_REGIONAL_HA", serviceLevel: "PREMIUM", wantSKU: "netapp.googleapis.com/pool/Allocation/Premium"},
+		{name: "zonal pool extreme stays flex zonal", tenancy: "MT", resourceType: "VOLUME_POOL", serviceLevel: "EXTREME", wantSKU: "netapp.googleapis.com/pool/Allocation/Flex/Zonal/Unified"},
+		{name: "historical extreme volume stays flex zonal", tenancy: "MT", resourceType: "VOLUME", serviceLevel: "EXTREME", wantSKU: "netapp.googleapis.com/volume/Allocation/Flex/Zonal/Unified"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := reportedServiceLevelSKU(tt.resourceType, tt.serviceLevel)
+			assert.Equal(t, tt.wantSKU, got)
+			t.Logf("%s %s service_level=%s -> %s", tt.tenancy, tt.resourceType, tt.serviceLevel, got)
+		})
+	}
+}
+
+// reportedServiceLevelSKU applies the finalReport service_level CASE in order.
+func reportedServiceLevelSKU(resourceType, serviceLevel string) string {
+	end := strings.Index(finalReport, "end as service_level")
+	if end < 0 {
+		return ""
+	}
+	block := finalReport[:end]
+	start := strings.LastIndex(block, "case")
+	if start < 0 {
+		return ""
+	}
+	for _, line := range strings.Split(block[start:end], "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "when "):
+			if serviceLevelWhenMatches(line, resourceType, serviceLevel) {
+				return thenLiteral(line)
+			}
+		case strings.HasPrefix(line, "else "):
+			return thenLiteral(line)
+		}
+	}
+	return ""
+}
+
+func serviceLevelWhenMatches(line, resourceType, serviceLevel string) bool {
+	if strings.Contains(line, "puc.service_level = '") {
+		if serviceLevel != quotedAfter(line, "puc.service_level = '") {
+			return false
+		}
+	}
+	if strings.Contains(line, "puc.resource_type in (") {
+		return strings.Contains(quotedList(line, "puc.resource_type in (", ")"), "'"+resourceType+"'")
+	}
+	if strings.Contains(line, "puc.resource_type = '") {
+		return quotedAfter(line, "puc.resource_type = '") == resourceType
+	}
+	return false
+}
+
+func thenLiteral(line string) string {
+	_, after, ok := strings.Cut(line, " then ")
+	if !ok {
+		return ""
+	}
+	after = strings.TrimSpace(strings.TrimSuffix(after, ","))
+	return strings.Trim(after, "'")
+}
+
+func quotedAfter(line, marker string) string {
+	rest := line[strings.Index(line, marker)+len(marker):]
+	return rest[:strings.Index(rest, "'")]
+}
+
+func quotedList(line, startMarker, endMarker string) string {
+	rest := line[strings.Index(line, startMarker)+len(startMarker):]
+	return rest[:strings.Index(rest, endMarker)]
+}
+
 func TestDataStoreRepository_AggregateUsageForBizOps_ReplicationTypeLabels(t *testing.T) {
 	intraZoneClause := "when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTRA_ZONE_REPLICATION' then 'Intra Zone Replication'"
 	interZoneClause := "when puc.resource_type = 'VOLUME_REPLICATION_RELATIONSHIP' and puc.replication_type = 'INTER_ZONE_REPLICATION' then 'Inter Zone Replication'"

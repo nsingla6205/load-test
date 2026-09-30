@@ -1913,6 +1913,139 @@ func TestSetupHydratedMetrics_RegionalHAPool(t *testing.T) {
 }
 
 // TestSetupHydratedMetrics_EmptyResourceName tests that metrics with empty resource names are skipped
+func TestDryRun_HarvestLabelsToHydratedMetrics(t *testing.T) {
+	timestamp := time.Now()
+	projectID := "customer-project"
+
+	tests := []struct {
+		name             string
+		tenancy          string
+		metricType       string
+		baseResourceType metadata.ResourceType
+		measuredType     metadata.MeasuredType
+		labels           map[string]string
+		wantResourceType metadata.ResourceType
+		wantResourceName string
+	}{
+		{
+			name:             "single tenant zonal volume",
+			tenancy:          "ST",
+			metricType:       "custom.googleapis.com/volume_space_logical_used",
+			baseResourceType: metadata.Volume,
+			measuredType:     metadata.LogicalSize,
+			labels: map[string]string{
+				"volume":          "flex-vol",
+				"project":         projectID,
+				"datacenter":      "us-central1",
+				"deployment_name": "st-dep",
+			},
+			wantResourceType: metadata.Volume,
+			wantResourceName: "flex-vol",
+		},
+		{
+			name:             "single tenant zonal pool",
+			tenancy:          "ST",
+			metricType:       "custom.googleapis.com/pool_allocated_size",
+			baseResourceType: metadata.VolumePool,
+			measuredType:     metadata.PoolAllocatedSize,
+			labels: map[string]string{
+				"pool_name":       "flex-pool",
+				"project":         projectID,
+				"datacenter":      "us-central1",
+				"deployment_name": "st-dep",
+			},
+			wantResourceType: metadata.VolumePool,
+			wantResourceName: "flex-pool",
+		},
+		{
+			name:             "single tenant regional volume",
+			tenancy:          "ST",
+			metricType:       "custom.googleapis.com/volume_capacity",
+			baseResourceType: metadata.Volume,
+			measuredType:     metadata.AllocatedSize,
+			labels: map[string]string{
+				"volume":          "flex-regional-vol",
+				"project":         projectID,
+				"datacenter":      "us-central1",
+				"deployment_name": "st-dep",
+				"is_regional_ha":  "true",
+			},
+			wantResourceType: metadata.VolumeRegionalHA,
+			wantResourceName: "flex-regional-vol",
+		},
+		{
+			name:             "multi tenant extreme volume",
+			tenancy:          "MT",
+			metricType:       "custom.googleapis.com/volume_capacity",
+			baseResourceType: metadata.Volume,
+			measuredType:     metadata.AllocatedSize,
+			labels: map[string]string{
+				"volume":          "extreme-vol",
+				"project":         projectID,
+				"pool_name":       "extreme-pool",
+				"tenant_project":  "tenant-project",
+				"datacenter":      "us-central1",
+				"deployment_name": "mt-dep",
+				"is_regional_ha":  "true",
+			},
+			wantResourceType: metadata.VolumeRegionalHA,
+			wantResourceName: "extreme-vol",
+		},
+		{
+			name:             "multi tenant premium pool",
+			tenancy:          "MT",
+			metricType:       "custom.googleapis.com/pool_allocated_size",
+			baseResourceType: metadata.VolumePool,
+			measuredType:     metadata.PoolAllocatedSize,
+			labels: map[string]string{
+				"pool_name":       "premium-pool",
+				"project":         projectID,
+				"tenant_project":  "tenant-project",
+				"datacenter":      "us-central1",
+				"deployment_name": "mt-dep",
+				"is_regional_ha":  "true",
+			},
+			wantResourceType: metadata.VolumePoolRegionalHA,
+			wantResourceName: "premium-pool",
+		},
+		{
+			name:             "multi tenant snapshot",
+			tenancy:          "MT",
+			metricType:       "custom.googleapis.com/volume_snapshots_size_used",
+			baseResourceType: metadata.Volume,
+			measuredType:     metadata.SnapshotSize,
+			labels: map[string]string{
+				"volume":          "extreme-vol",
+				"project":         projectID,
+				"tenant_project":  "tenant-project",
+				"datacenter":      "us-central1",
+				"deployment_name": "mt-dep",
+				"is_regional_ha":  "true",
+			},
+			wantResourceType: metadata.VolumeRegionalHA,
+			wantResourceName: "extreme-vol",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &monitoringpb.TimeSeries{
+				Metric: &metric.Metric{Type: tt.metricType, Labels: tt.labels},
+				Points: []*monitoringpb.Point{{
+					Value: &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_Int64Value{Int64Value: 4096}},
+				}},
+			}
+
+			hydrated := setupHydratedMetrics(tt.measuredType, tt.baseResourceType, projectID, resp, timestamp)
+			require.NotNil(t, hydrated)
+			assert.Equal(t, string(tt.wantResourceType), hydrated.ResourceType)
+			assert.Equal(t, tt.wantResourceName, hydrated.ResourceName)
+			assert.Equal(t, metadata.MeasuredTypeValue(tt.measuredType), hydrated.MeasuredType)
+			t.Logf("%s harvest %s -> hydrated %s %s", tt.tenancy, tt.metricType, hydrated.ResourceType, hydrated.MeasuredType)
+		})
+	}
+}
+
 func TestSetupHydratedMetrics_EmptyResourceName(t *testing.T) {
 	timestamp := time.Now()
 	projectID := "test-project"

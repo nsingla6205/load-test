@@ -1280,6 +1280,7 @@ type PoolResourceData struct {
 	AllowAutoTiering bool                      `gorm:"column:allow_auto_tiering"`
 	LargeCapacity    bool                      `gorm:"column:large_capacity"`
 	APIAccessMode    string                    `gorm:"column:api_access_mode"`
+	ServiceLevel     string                    `gorm:"column:service_level"`
 	CreatedAt        time.Time                 `gorm:"column:created_at"`
 }
 
@@ -1315,6 +1316,15 @@ func (p *PoolResourceData) IsZoneSwitched() bool {
 	return false
 }
 
+// GetEffectiveServiceLevel returns the service level persisted in pool attributes
+// when available, falling back to the pool column for older records.
+func (p *PoolResourceData) GetEffectiveServiceLevel() string {
+	if p.PoolAttributes != nil && p.PoolAttributes.ServiceLevel != "" {
+		return p.PoolAttributes.ServiceLevel
+	}
+	return p.ServiceLevel
+}
+
 // ListPoolsForResourceData retrieves pools with only the fields required for aggregator resource data collection.
 // This is an optimized query with pagination support for fetchPoolData in telemetry aggregator.
 // Includes support for deleted_at filter to include recently deleted pools.
@@ -1336,6 +1346,7 @@ func (d *DataStoreRepository) ListPoolsForResourceData(ctx context.Context, star
 			allow_auto_tiering,
 			large_capacity,
 			api_access_mode,
+			service_level,
 			created_at
 		`).
 		Where("(deleted_at IS NULL OR (deleted_at >= ? AND deleted_at <= ?))", startTime, endTime)
@@ -1374,7 +1385,8 @@ func (d *DataStoreRepository) ListOntapModePoolsForResourceData(ctx context.Cont
 			account_id,
 			deployment_name,	
 			pool_attributes,
-			api_access_mode
+			api_access_mode,
+			service_level
 		`).
 		Where("api_access_mode = ?", "ONTAP").
 		Where("(deleted_at IS NULL OR (deleted_at >= ? AND deleted_at <= ?))", startTime, endTime).
