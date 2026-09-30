@@ -1261,9 +1261,10 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSA(ctx context.
 
 	logger.Debug("Configuring SSL to use the new certificate")
 
-	if cert.SerialNumber == "" {
-		logger.Warnf("Certificate serial number is empty, cannot configure SSL. Certificate ID: %s", cert.CertificateID)
-		return fmt.Errorf("certificate serial number is empty, cannot configure SSL")
+	serialForSSL, serialErr := certificateSerialForSSLModify(cert)
+	if serialErr != nil {
+		logger.Warnf("Cannot derive certificate serial for SSL modify. Certificate ID: %s, error: %v", cert.CertificateID, serialErr)
+		return fmt.Errorf("derive certificate serial for SSL modify: %w", serialErr)
 	}
 
 	caForSSL := deriveCANameFromPEM(cert.PemCertificate)
@@ -1282,7 +1283,7 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSA(ctx context.
 		SvmName:       vserverName,
 		ServerEnabled: true,
 		CA:            caForSSL,
-		Serial:        strings.ToUpper(cert.SerialNumber),
+		Serial:        serialForSSL,
 	}
 
 	sslResponse, sslErr := provider.ModifySSL(sslParams)
@@ -1637,9 +1638,10 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 
 	logger.Debug("Configuring SSL to use the new certificate")
 
-	if cert.SerialNumber == "" {
-		logger.Warnf("Certificate serial number is empty, cannot configure SSL. Certificate ID: %s", cert.CertificateID)
-		return fmt.Errorf("certificate serial number is empty, cannot configure SSL")
+	serialForSSL, serialErr := certificateSerialForSSLModify(cert)
+	if serialErr != nil {
+		logger.Warnf("Cannot derive certificate serial for SSL modify. Certificate ID: %s, error: %v", cert.CertificateID, serialErr)
+		return fmt.Errorf("derive certificate serial for SSL modify: %w", serialErr)
 	}
 
 	caForSSL := deriveCANameFromPEM(cert.PemCertificate)
@@ -1658,7 +1660,7 @@ func (a *RotateVcpToVsaCertificateActivity) installCertificateOnVSAWithPasswordA
 		SvmName:       vserverName,
 		ServerEnabled: true,
 		CA:            caForSSL,
-		Serial:        strings.ToUpper(cert.SerialNumber),
+		Serial:        serialForSSL,
 	}
 
 	sslResponse, sslErr := provider.ModifySSL(sslParams)
@@ -1880,6 +1882,24 @@ func serialHexFromPEM(pemCertificate string) (string, error) {
 		hexSerial = "0" + hexSerial
 	}
 	return hexSerial, nil
+}
+
+// certificateSerialForSSLModify returns the serial ONTAP records for security ssl modify.
+// A parsed PEM serial is zero-padded to an even number of hex digits. The certificate
+// object's SerialNumber is used only when the PEM cannot be parsed.
+func certificateSerialForSSLModify(cert *hyperscalermodels.CustomCertificate) (string, error) {
+	if cert == nil {
+		return "", fmt.Errorf("certificate is nil")
+	}
+	serial, err := serialHexFromPEM(cert.PemCertificate)
+	if err == nil {
+		return serial, nil
+	}
+	fallback := strings.ToUpper(strings.TrimSpace(cert.SerialNumber))
+	if fallback == "" {
+		return "", fmt.Errorf("certificate serial number is empty, cannot configure SSL")
+	}
+	return fallback, nil
 }
 
 // certificateNeedsRotation determines if a certificate needs to be rotated

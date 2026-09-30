@@ -598,6 +598,69 @@ func TestSerialHexFromPEM(t *testing.T) {
 	})
 }
 
+func TestInstallCertificateOnVSAWithPasswordAuth_OddSerialUsesPaddedPEMSerial(t *testing.T) {
+	ctx := context.Background()
+	unpaddedSerial := "8B496277355BDDD295E16B3843513F6E31253"
+	paddedSerial := "08B496277355BDDD295E16B3843513F6E31253"
+	serial, ok := new(big.Int).SetString(unpaddedSerial, 16)
+	require.True(t, ok)
+	issuer := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "praveen-intermediate-us-c1"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+	}
+	leaf := &x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "gcnv-df8683407f30170-cert"},
+		Issuer:       issuer.Subject,
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, leaf, issuer, &testPrivateKey.PublicKey, testPrivateKey)
+	require.NoError(t, err)
+	pemCert := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+
+	mockSE := database.NewMockStorage(t)
+	activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid", ID: 1},
+		DeploymentName: "gcnv-df8683407f30170",
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "test-password",
+			AuthType: env.USERNAME_PWD_SEC_MGR,
+		},
+	}
+	cert := &hyperscalermodels.CustomCertificate{
+		CertificateID:     "gcnv-df8683407f30170-cert-20260930-113528",
+		PemCertificate:    pemCert,
+		SerialNumber:      unpaddedSerial,
+		CaName:            "praveen-intermediate-us-c1",
+		SubjectCommonName: "gcnv-df8683407f30170-cert",
+	}
+	secret := &hyperscalermodels.CustomSecret{
+		SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: "private-key"},
+	}
+	mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{
+		{BaseModel: datamodel.BaseModel{ID: 1}, EndpointAddress: "1.2.3.4"},
+	}, nil)
+
+	mockProvider := &vsa.MockProvider{}
+	originalGetProvider := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProvider })
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	mockProvider.On("InstallServerCertificate", mock.Anything).Return(&vsa.ServerCertificateResponse{}, nil).Once()
+	mockProvider.On("ModifySSL", mock.MatchedBy(func(params vsa.ModifySSLParams) bool {
+		return params.CA == "praveen-intermediate-us-c1" && params.Serial == paddedSerial
+	})).Return(&vsa.ModifySSLResponse{Success: true}, nil).Once()
+
+	err = activity.installCertificateOnVSAWithPasswordAuth(ctx, pool, cert, secret)
+	require.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+}
+
 func TestRotateVcpToVsaCertificateActivity_checkPoolHasNodes(t *testing.T) {
 	ctx := context.Background()
 
