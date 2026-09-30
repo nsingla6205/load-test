@@ -81,6 +81,15 @@ build:
       requires:
         - image: base
           alias: BASE
+    - image: vcm-prepool
+      context: .
+      docker:
+        dockerfile: tools/vcm-prepool/Dockerfile
+        buildArgs:
+          GHVSA_PAT: "{{.GHVSA_PAT}}"
+      requires:
+        - image: base
+          alias: BASE
 manifests:
   rawYaml:
     - skaffold/*
@@ -261,6 +270,75 @@ profiles:
           context: .
           docker:
             dockerfile: telemetry/Dockerfile.dev
+          requires:
+            - image: base
+              alias: BASE
+  # VCM-only local stack (prepool + proxy + Spanner emulator). Does not deploy
+  # postgres/temporal/core/google-proxy.
+  # Run via Make with a region selector:
+  #   make skaffold-dev-vcm VCM_REGION=au-se1   (or us-c1, us-e4)
+  # The after-deploy hook patches regional env (LOCAL_REGION, metadata host,
+  # secret-manager project) into the vcm-env ConfigMap from VCM_REGION, and
+  # writes VSA_NODE_PASSWORD / VCM_LOCAL_ONTAP_* into the vcm-credentials Secret.
+  - name: vcm
+    manifests:
+      rawYaml:
+        - skaffold/k8s/vcm.yaml
+      helm:
+        releases: []
+    portForward:
+      - resourceType: service
+        resourceName: vcm-prepool-service
+        namespace: vcm
+        port: 8090
+        localPort: 8090
+      - resourceType: service
+        resourceName: vcm-proxy-service
+        namespace: vcm
+        port: 8092
+        localPort: 8092
+      - resourceType: service
+        resourceName: spanner-emulator-service
+        namespace: vcm
+        port: 9010
+        localPort: 9010
+      - resourceType: service
+        resourceName: spanner-emulator-service
+        namespace: vcm
+        port: 9020
+        localPort: 9020
+    # Patch regional ConfigMap values and the credentials Secret after kubectl apply.
+    deploy:
+      kubectl:
+        hooks:
+          after:
+            - host:
+                command: [ "sh", "-c", "./skaffold/scripts/after_deploy_vcm.sh" ]
+    build:
+      artifacts:
+        - image: base
+          context: .
+          docker:
+            dockerfile: common/Dockerfile.dev
+        - image: vcm-proxy
+          context: .
+          sync:
+            manual:
+              - src: app/vcm-proxy
+                dest: "/app"
+          docker:
+            dockerfile: vcm-proxy/Dockerfile.dev
+          requires:
+            - image: base
+              alias: BASE
+        - image: vcm-prepool
+          context: .
+          sync:
+            manual:
+              - src: app/vcm-prepool
+                dest: "/app"
+          docker:
+            dockerfile: tools/vcm-prepool/Dockerfile.dev
           requires:
             - image: base
               alias: BASE

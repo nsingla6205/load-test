@@ -164,6 +164,7 @@ build-all-binaries-dev:
 		go build -gcflags="all=-N -l" -o /src/app/core ./vcp-core/cmd && \
 		go build -gcflags="all=-N -l" -o /src/app/telemetry ./telemetry/ && \
 		go build -gcflags="all=-N -l" -o /src/app/vcm-proxy ./vcm-proxy/ && \
+		go build -gcflags="all=-N -l" -o /src/app/vcm-prepool ./tools/vcm-prepool/cmd && \
 		go build -gcflags="all=-N -l" -o /src/app/ontap-proxy ./ontap-proxy/'
 
 .PHONY: build-all-binaries-test
@@ -184,6 +185,7 @@ build-all-binaries-test:
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/core ./vcp-core/cmd && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/telemetry ./telemetry/ && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/vcm-proxy ./vcm-proxy/ && \
+		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/vcm-prepool ./tools/vcm-prepool/cmd && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/ontap-proxy ./ontap-proxy/'
 
 .PHONY: skaffold-dev
@@ -201,6 +203,34 @@ skaffold-dev-oci:
 		exit 1; \
 	fi; \
 	skaffold dev -p dev
+
+# VCM local stack — one region at a time (defaults to au-se1).
+# Usage: make skaffold-dev-vcm                    (au-se1)
+#        make skaffold-dev-vcm VCM_REGION=us-c1
+#        make skaffold-dev-vcm-us-e4              (convenience alias)
+VCM_REGION ?= au-se1
+VCM_SUPPORTED_REGIONS := au-se1 us-c1 us-e4
+
+.PHONY: skaffold-dev-vcm
+skaffold-dev-vcm: build-vcm-proxy build-vcm-prepool
+ifeq ($(filter $(VCM_REGION),$(VCM_SUPPORTED_REGIONS)),)
+	$(error Unsupported VCM_REGION=$(VCM_REGION). Supported: $(VCM_SUPPORTED_REGIONS))
+endif
+	export $$(cat skaffold.env | xargs) && \
+	export VCM_REGION=$(VCM_REGION) && \
+	skaffold dev -p vcm
+
+.PHONY: skaffold-dev-vcm-au-se1
+skaffold-dev-vcm-au-se1:
+	$(MAKE) skaffold-dev-vcm VCM_REGION=au-se1
+
+.PHONY: skaffold-dev-vcm-us-c1
+skaffold-dev-vcm-us-c1:
+	$(MAKE) skaffold-dev-vcm VCM_REGION=us-c1
+
+.PHONY: skaffold-dev-vcm-us-e4
+skaffold-dev-vcm-us-e4:
+	$(MAKE) skaffold-dev-vcm VCM_REGION=us-e4
 
 .PHONY: build-all-binaries-prod
 build-all-binaries-prod:
@@ -221,6 +251,7 @@ build-all-binaries-prod:
 		go build -o /src/artifacts/core ./vcp-core/cmd && \
 		go build -o /src/artifacts/telemetry ./telemetry/ && \
 		go build -o /src/artifacts/vcm-proxy ./vcm-proxy/ && \
+		go build -o /src/artifacts/vcm-prepool ./tools/vcm-prepool/cmd && \
         go build -o /src/artifacts/ontap-proxy ./ontap-proxy/'
 	docker cp vsa-binaries-builder-run:/src/artifacts/. ./artifacts/
 	ls artifacts
@@ -245,6 +276,7 @@ build-all-binaries-prod-on-mac:
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/core ./vcp-core/cmd && \
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/telemetry ./telemetry/ && \
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/vcm-proxy ./vcm-proxy/ && \
+		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/vcm-prepool ./tools/vcm-prepool/cmd && \
         GOOS=linux GOARCH=amd64  go build -o /src/artifacts/ontap-proxy ./ontap-proxy/'
 	docker cp vsa-binaries-builder-run:/src/artifacts/. ./artifacts/
 	ls artifacts
@@ -298,6 +330,20 @@ build-vcm-proxy:
 		-e GOCACHE=/go-build-cache \
 		-e GOMODCACHE=/go/pkg/mod \
 		vsa-binaries-builder sh -c 'go build -gcflags="all=-N -l" -o /src/app/vcm-proxy ./vcm-proxy'
+
+.PHONY: build-vcm-prepool
+build-vcm-prepool:
+	@echo "Building vcm-prepool service..."
+	docker build --build-arg GHVSA_PAT=$(GHVSA_PAT) -f builder/Dockerfile.build-all.dev -t vsa-binaries-builder builder
+	mkdir -p app
+	docker run --rm \
+		-e GHVSA_PAT=$(GHVSA_PAT) \
+		-v $(PWD):/src \
+		-v $(GOCACHE):/go-build-cache \
+		-v $(GOMODCACHE):/go/pkg/mod \
+		-e GOCACHE=/go-build-cache \
+		-e GOMODCACHE=/go/pkg/mod \
+		vsa-binaries-builder sh -c 'go build -gcflags="all=-N -l" -o /src/app/vcm-prepool ./tools/vcm-prepool/cmd'
 
 .PHONY: build-ontap-proxy
 build-ontap-proxy:
@@ -371,6 +417,11 @@ vcm-proxy-dev-image: build-vcm-proxy base-image
 	@echo "Building vcm-proxy development Docker image..."
 	docker build --build-arg BASE=base:dev --build-arg GHVSA_PAT=$(GHVSA_PAT) -f vcm-proxy/Dockerfile.dev -t $(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG) .
 
+.PHONY: vcm-prepool-dev-image
+vcm-prepool-dev-image: build-vcm-prepool base-image
+	@echo "Building vcm-prepool development Docker image..."
+	docker build --build-arg BASE=base:dev --build-arg GHVSA_PAT=$(GHVSA_PAT) -f tools/vcm-prepool/Dockerfile.dev -t $(DEV_REGISTRY)/vcm-prepool:$(IMAGE_TAG) .
+
 .PHONY: oci-proxy-dev-image
 oci-proxy-dev-image: build-oci-proxy base-image
 	@echo "Building oci-proxy development Docker image..."
@@ -417,6 +468,12 @@ vcm-proxy-image: build-vcm-proxy base-distroless-image
 	@echo "Building vcm-proxy image ($(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG))..."
 	mkdir -p artifacts && cp app/vcm-proxy artifacts/vcm-proxy
 	docker build --build-arg BASE=base:distroless --build-arg GHVSA_PAT=$(GHVSA_PAT) -f vcm-proxy/Dockerfile -t $(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG) .
+
+.PHONY: vcm-prepool-image
+vcm-prepool-image: build-vcm-prepool base-distroless-image
+	@echo "Building vcm-prepool image ($(DEV_REGISTRY)/vcm-prepool:$(IMAGE_TAG))..."
+	mkdir -p artifacts && cp app/vcm-prepool artifacts/vcm-prepool
+	docker build --build-arg BASE=base:distroless --build-arg GHVSA_PAT=$(GHVSA_PAT) -f tools/vcm-prepool/Dockerfile -t $(DEV_REGISTRY)/vcm-prepool:$(IMAGE_TAG) .
 
 # Error Framework Validation
 .PHONY: validate-errors

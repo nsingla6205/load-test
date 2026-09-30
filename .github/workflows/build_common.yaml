@@ -35,7 +35,7 @@ on:
         description: "A list of images to build. If not provided, all images will be built"
         required: false
         type: string
-        default: "core,google-proxy,vcp-db-migrate,vcp-iam-lifecycle,vcp-worker,telemetry,vcp-cloudrun-deployer,ontap-proxy,vcm-proxy"
+        default: "core,google-proxy,vcp-db-migrate,vcp-iam-lifecycle,vcp-worker,telemetry,vcp-cloudrun-deployer,ontap-proxy,vcm-proxy,vcm-prepool"
       additional_images_toscan:
         description: "A list of additional images to scan. If not provided, no additional images will be scanned"
         required: false

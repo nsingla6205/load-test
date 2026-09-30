@@ -1,0 +1,310 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vcm
+  labels:
+    name: vcm
+---
+# Superset of the env consumed by vcm-prepool and vcm-proxy. Both app containers
+# load it via envFrom.
+#
+# Regional values (LOCAL_REGION, GCE_METADATA_HOST, SECRET_MANAGER_PROJECT_ID)
+# are placeholder defaults overwritten by skaffold/scripts/after_deploy_vcm.sh
+# from the VCM_REGION selected at deploy time (au-se1 | us-c1 | us-e4).
+# Credentials live in the vcm-credentials Secret below, not in this ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vcm-env
+  namespace: vcm
+  labels:
+    app: vcm
+data:
+  ENV: "local"
+  HYPERSCALER: "gcp"
+  LOCAL_REGION: "<<VCM_REGION>>"
+  SPANNER_EMULATOR_HOST: "localhost:9010"
+  GCE_METADATA_HOST: "<<VCM_REGION>>"
+  VCM_PREP_PORT: "8090"
+  VCM_PROXY_PORT: "8092"
+  VCM_WORKFLOW_UI_ENABLED: "true"
+  VSA_AUTH_TYPE: "0"
+  SECRET_MANAGER_PROJECT_ID: "<<VCM_REGION>>"
+  GCP_CONSUMER_MGMT_ENDPOINT_URL: "autopush-netapp.sandbox.googleapis.com"
+  GCP_SERVICE_NETWORKING_ENDPOINT_URL: "netapp-tst-autopush-endpoint.appspot.com"
+  GCP_SERVICE_URL: "https://cloudvolumesgcp-api.netapp.com"
+  VSA_IMAGE_NAME: "x-9-18-1x29"
+  VSA_IMAGE_PROJECT: "gcnv-autopush-images"
+  VSA_MEDIATOR_IMAGE_NAME: "cvo-mediator-x-9-18-1x29"
+  VSA_MEDIATOR_IMAGE_PROJECT: "gcnv-autopush-images"
+  MGMT_REGIONAL_NAT_IP: "34.0.0.0/8,35.0.0.0/8,202.3.112.0/20,216.240.16.0/20,217.70.208.0/20,167.103.0.0/16,136.226.0.0/16,202.3.0.0/16"
+  VMRS_CONFIG_PATH: "/config/vmrs_gcp.yaml"
+  VLM_CONFIG_FILE_PATH: "/common/vsa_config/vlm-config.json"
+---
+# Placeholder values let the pods become ready before the after-deploy hook
+# runs. The hook requires real VSA_NODE_PASSWORD / VCM_LOCAL_ONTAP_* values,
+# replaces this Secret, and restarts the deployments. ENV=local treats any
+# non-empty string as a credential, including these placeholders.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vcm-credentials
+  namespace: vcm
+  labels:
+    app: vcm
+type: Opaque
+stringData:
+  VSA_NODE_PASSWORD: "<<VSA_NODE_PASSWORD>>"
+  VCM_LOCAL_ONTAP_USERNAME: "<<VCM_LOCAL_ONTAP_USERNAME>>"
+  VCM_LOCAL_ONTAP_PASSWORD: "<<VCM_LOCAL_ONTAP_PASSWORD>>"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spanner-emulator
+  namespace: vcm
+  labels:
+    app: spanner-emulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spanner-emulator
+  template:
+    metadata:
+      labels:
+        app: spanner-emulator
+    spec:
+      containers:
+        - name: spanner-emulator
+          image: gcr.io/cloud-spanner-emulator/emulator
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9010
+              name: grpc
+            - containerPort: 9020
+              name: rest
+          readinessProbe:
+            tcpSocket:
+              port: 9010
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spanner-emulator-service
+  namespace: vcm
+  labels:
+    app: spanner-emulator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9010
+      targetPort: 9010
+      name: grpc
+    - port: 9020
+      targetPort: 9020
+      name: rest
+  selector:
+    app: spanner-emulator
+---
+# go-sql-spanner auto_config_emulator always dials localhost:9010, so each
+# app pod runs a localhost forwarder to spanner-emulator-service (same role as
+# docker-db-emulator.json network_mode: service:spanner-emulator).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vcm-prepool
+  namespace: vcm
+  labels:
+    app: vcm-prepool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vcm-prepool
+  template:
+    metadata:
+      labels:
+        app: vcm-prepool
+    spec:
+      initContainers:
+        - name: wait-for-emulator
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z spanner-emulator-service 9010; do echo waiting for emulator; sleep 1; done
+      containers:
+        - name: spanner-emulator-proxy
+          image: alpine/socat:1.8.0.0
+          args:
+            - TCP-LISTEN:9010,fork,reuseaddr
+            - TCP:spanner-emulator-service:9010
+          ports:
+            - containerPort: 9010
+              name: grpc
+          resources:
+            limits:
+              cpu: 50m
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+        - name: vcm-prepool
+          image: vcm-prepool
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+              name: http
+          envFrom:
+            - configMapRef:
+                name: vcm-env
+          env:
+            - name: VSA_NODE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VSA_NODE_PASSWORD
+            - name: VCM_LOCAL_ONTAP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VCM_LOCAL_ONTAP_USERNAME
+            - name: VCM_LOCAL_ONTAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VCM_LOCAL_ONTAP_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vcm-prepool-service
+  namespace: vcm
+  labels:
+    app: vcm-prepool
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8090
+      targetPort: 8090
+      name: http
+  selector:
+    app: vcm-prepool
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vcm-proxy
+  namespace: vcm
+  labels:
+    app: vcm-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vcm-proxy
+  template:
+    metadata:
+      labels:
+        app: vcm-proxy
+    spec:
+      initContainers:
+        - name: wait-for-emulator
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z spanner-emulator-service 9010; do echo waiting for emulator; sleep 1; done
+      containers:
+        - name: spanner-emulator-proxy
+          image: alpine/socat:1.8.0.0
+          args:
+            - TCP-LISTEN:9010,fork,reuseaddr
+            - TCP:spanner-emulator-service:9010
+          ports:
+            - containerPort: 9010
+              name: grpc
+          resources:
+            limits:
+              cpu: 50m
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+        - name: vcm-proxy
+          image: vcm-proxy
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8092
+              name: http
+          envFrom:
+            - configMapRef:
+                name: vcm-env
+          env:
+            - name: VSA_NODE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VSA_NODE_PASSWORD
+            - name: VCM_LOCAL_ONTAP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VCM_LOCAL_ONTAP_USERNAME
+            - name: VCM_LOCAL_ONTAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vcm-credentials
+                  key: VCM_LOCAL_ONTAP_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8092
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vcm-proxy-service
+  namespace: vcm
+  labels:
+    app: vcm-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8092
+      targetPort: 8092
+      name: http
+  selector:
+    app: vcm-proxy

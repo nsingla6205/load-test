@@ -10,12 +10,10 @@ import (
 )
 
 func (p *provisioner) createServiceAccount(ctx context.Context, deploymentName, tenantProjectNumber string) (string, error) {
-	tenantProjectID, err := p.GCPService.ResolveProjectNumberToName(tenantProjectNumber)
-	if err != nil {
-		return "", fmt.Errorf("resolve tenant project ID from number %s: %w", tenantProjectNumber, err)
-	}
-
-	saID, expectedSAEmail, err := names.GenerateServiceAccountInfo(deploymentName, tenantProjectID)
+	// Match pool workflow: tenant-project service account emails use the numeric
+	// tenant project (e.g. vcm-r-xxx@821829061496.iam.gserviceaccount.com), not
+	// the opaque tenant project ID (e.g. m453c8dff8a05cc69-tp).
+	saID, expectedSAEmail, err := names.GenerateServiceAccountInfo(deploymentName, tenantProjectNumber)
 	if err != nil {
 		return "", fmt.Errorf("generate service account info: %w", err)
 	}
@@ -45,28 +43,20 @@ func (p *provisioner) createServiceAccount(ctx context.Context, deploymentName, 
 		return "", fmt.Errorf("create service account %s: response email is empty", saID)
 	}
 
-	// Google determines the canonical service-account email domain from the
-	// project ID, even when the account is created under a project number.
-	saEmail := sa.Email
 	roles := []string{"roles/storage.objectUser"}
-	err = retryTransient(ctx, "attach role to "+saEmail, func() error {
-		return svc.AttachOrUpdateRolesForServiceAccounts(roles, saEmail, tenantProjectNumber)
+	err = retryTransient(ctx, "attach role to "+expectedSAEmail, func() error {
+		return svc.AttachOrUpdateRolesForServiceAccounts(roles, expectedSAEmail, tenantProjectNumber)
 	})
 	if err != nil {
-		return "", fmt.Errorf("attach role to %s: %w", saEmail, err)
+		return "", fmt.Errorf("attach role to %s: %w", expectedSAEmail, err)
 	}
 
-	slog.Info("service account created", "serviceAccountID", saID, "serviceAccountEmail", saEmail)
-	return saEmail, nil
+	slog.Info("service account created", "serviceAccountID", saID, "serviceAccountEmail", expectedSAEmail)
+	return expectedSAEmail, nil
 }
 
 func (p *provisioner) deleteServiceAccount(deploymentName string, tenantProjectNumber string) error {
-	tenantProjectID, err := p.GCPService.ResolveProjectNumberToName(tenantProjectNumber)
-	if err != nil {
-		return fmt.Errorf("resolve tenant project ID from number %s: %w", tenantProjectNumber, err)
-	}
-
-	_, saEmail, err := names.GenerateServiceAccountInfo(deploymentName, tenantProjectID)
+	_, saEmail, err := names.GenerateServiceAccountInfo(deploymentName, tenantProjectNumber)
 	if err != nil {
 		return fmt.Errorf("generate service account info: %w", err)
 	}

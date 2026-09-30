@@ -48,7 +48,8 @@ func GenerateBucketName(deploymentName string) string {
 	return fmt.Sprintf("%s-vcm-at-bucket", deploymentName)
 }
 
-// GenerateServiceAccountInfo produces a service account info from deployment name and tenant project.
+// GenerateServiceAccountInfo produces a service account ID and email from deployment
+// name and tenant project number (GCNV convention, same as pool workflow).
 func GenerateServiceAccountInfo(deploymentName, tenantProject string) (string, string, error) {
 	if err := ValidateDeploymentName(deploymentName); err != nil {
 		return "", "", fmt.Errorf("invalid deployment name %q: %w", deploymentName, err)

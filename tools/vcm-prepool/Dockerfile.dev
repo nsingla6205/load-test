@@ -1,0 +1,11 @@
+ARG BASE
+FROM $BASE
+
+COPY app/vcm-prepool /app
+COPY tools/vcm-prepool/air.toml /app/air.toml
+
+ENV GOTRACEBACK=all
+ENTRYPOINT ["air", "-c", "/app/air.toml"]
+
+# Set ownership and permissions
+# USER nonroot:nonroot
