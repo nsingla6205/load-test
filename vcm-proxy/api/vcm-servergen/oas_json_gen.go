@@ -8111,10 +8111,6 @@ func (s *VolumeUpdateV1) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *VolumeUpdateV1) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("uuid")
-		e.Str(s.UUID)
-	}
-	{
 		if s.SizeInBytes.Set {
 			e.FieldStart("sizeInBytes")
 			s.SizeInBytes.Encode(e)
@@ -8168,16 +8164,15 @@ func (s *VolumeUpdateV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfVolumeUpdateV1 = [9]string{
-	0: "uuid",
-	1: "sizeInBytes",
-	2: "snapReserve",
-	3: "snapshotDirectory",
-	4: "snapshotPolicy",
-	5: "exportPolicy",
-	6: "blockDevices",
-	7: "shareName",
-	8: "unixPermissions",
+var jsonFieldsNameOfVolumeUpdateV1 = [8]string{
+	0: "sizeInBytes",
+	1: "snapReserve",
+	2: "snapshotDirectory",
+	3: "snapshotPolicy",
+	4: "exportPolicy",
+	5: "blockDevices",
+	6: "shareName",
+	7: "unixPermissions",
 }
 
 // Decode decodes VolumeUpdateV1 from json.
@@ -8185,22 +8180,9 @@ func (s *VolumeUpdateV1) Decode(d *jx.Decoder) error {
 	if s == nil {
 		return errors.New("invalid: unable to decode VolumeUpdateV1 to nil")
 	}
-	var requiredBitSet [2]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "uuid":
-			requiredBitSet[0] |= 1 << 0
-			if err := func() error {
-				v, err := d.Str()
-				s.UUID = string(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"uuid\"")
-			}
 		case "sizeInBytes":
 			if err := func() error {
 				s.SizeInBytes.Reset()
@@ -8294,39 +8276,6 @@ func (s *VolumeUpdateV1) Decode(d *jx.Decoder) error {
 		return nil
 	}); err != nil {
 		return errors.Wrap(err, "decode VolumeUpdateV1")
-	}
-	// Validate required fields.
-	var failures []validate.FieldError
-	for i, mask := range [2]uint8{
-		0b00000001,
-		0b00000000,
-	} {
-		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
-			// Mask only required fields and check equality to mask using XOR.
-			//
-			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
-			// Bits of fields which would be set are actually bits of missed fields.
-			missed := bits.OnesCount8(result)
-			for bitN := 0; bitN < missed; bitN++ {
-				bitIdx := bits.TrailingZeros8(result)
-				fieldIdx := i*8 + bitIdx
-				var name string
-				if fieldIdx < len(jsonFieldsNameOfVolumeUpdateV1) {
-					name = jsonFieldsNameOfVolumeUpdateV1[fieldIdx]
-				} else {
-					name = strconv.Itoa(fieldIdx)
-				}
-				failures = append(failures, validate.FieldError{
-					Name:  name,
-					Error: validate.ErrFieldRequired,
-				})
-				// Reset bit.
-				result &^= 1 << bitIdx
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
 	}
 
 	return nil

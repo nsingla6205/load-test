@@ -729,7 +729,6 @@ func TestV1DeleteVolume_RejectsWhitespaceUUID(t *testing.T) {
 
 func testVolumeUpdateRequest() *vcmserver.VolumeUpdateV1 {
 	return &vcmserver.VolumeUpdateV1{
-		UUID:        testVolumeUUID,
 		SizeInBytes: vcmserver.NewOptNilFloat64(214748364800),
 	}
 }
@@ -895,7 +894,7 @@ func TestV1UpdateVolume_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 
 func TestV1UpdateVolume_ReturnsOKWhenNoMutableFields(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1UpdateVolume(context.Background(), &vcmserver.VolumeUpdateV1{UUID: testVolumeUUID}, testOperationUpdateParams())
+	result, err := handler.V1UpdateVolume(context.Background(), &vcmserver.VolumeUpdateV1{}, testOperationUpdateParams())
 	require.NoError(t, err)
 
 	okResponse, ok := result.(*vcmserver.V1UpdateVolumeOK)
@@ -990,13 +989,43 @@ func TestV1UpdateVolume_RejectsNilRequestBody(t *testing.T) {
 
 func TestV1UpdateVolume_RejectsEmptyUUID(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	req := testVolumeUpdateRequest()
-	req.UUID = ""
-	result, err := handler.V1UpdateVolume(context.Background(), req, testOperationUpdateParams())
+	params := testOperationUpdateParams()
+	params.UUID = ""
+	result, err := handler.V1UpdateVolume(context.Background(), testVolumeUpdateRequest(), params)
 	require.NoError(t, err)
 	badRequest, ok := result.(*vcmserver.V1UpdateVolumeBadRequest)
 	require.True(t, ok)
 	assert.Equal(t, "uuid is required", badRequest.Message)
+}
+
+func TestV1UpdateVolume_RejectsWhitespaceUUID(t *testing.T) {
+	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
+	params := testOperationUpdateParams()
+	params.UUID = "   "
+	result, err := handler.V1UpdateVolume(context.Background(), testVolumeUpdateRequest(), params)
+	require.NoError(t, err)
+	badRequest, ok := result.(*vcmserver.V1UpdateVolumeBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, "uuid is required", badRequest.Message)
+}
+
+func TestV1UpdateVolume_TrimsPathUUID(t *testing.T) {
+	ctx := context.Background()
+	orch := factory.NewMockOrchestratorFactory(t)
+	orch.EXPECT().
+		UpdateVolumeV2(mock.Anything, mock.MatchedBy(func(params *commonparams.UpdateVolumeParams) bool {
+			return params.VolumeId == testVolumeUUID
+		})).
+		RunAndReturn(func(_ context.Context, params *commonparams.UpdateVolumeParams) (*models.Volume, string, error) {
+			return nil, params.OperationID, nil
+		})
+
+	params := testOperationUpdateParams()
+	params.UUID = "  " + testVolumeUUID + "  "
+	handler := &Handler{Orchestrator: orch}
+	result, err := handler.V1UpdateVolume(ctx, testVolumeUpdateRequest(), params)
+	require.NoError(t, err)
+	assert.IsType(t, &vcmserver.V1UpdateVolumeAccepted{}, result)
 }
 
 func TestV1UpdateVolume_OrchestratorErrorReturns500(t *testing.T) {

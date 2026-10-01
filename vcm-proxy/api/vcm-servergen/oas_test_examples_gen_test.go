@@ -1478,7 +1478,7 @@ func TestVolumeUpdateV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"sizeInBytes\":214748364800,\"uuid\":\"9760acf5-4638-11e7-9bdb-020073ca0001\"}"},
+		{Input: "{\"sizeInBytes\":214748364800}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {

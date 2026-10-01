@@ -132,9 +132,9 @@ type Handler interface {
 	// V1UpdateVolume implements v1_updateVolume operation.
 	//
 	// Updates specific fields of an existing volume using an update mask. The target volume is
-	// identified by uuid in the request body.
+	// identified by uuid in the request path.
 	//
-	// PATCH /v1/volumes
+	// PATCH /v1/volumes/{uuid}
 	V1UpdateVolume(ctx context.Context, req *VolumeUpdateV1, params V1UpdateVolumeParams) (V1UpdateVolumeRes, error)
 	// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
 	//

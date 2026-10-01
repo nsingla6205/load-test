@@ -38,7 +38,6 @@ func TestParseVolumeUpdateMask(t *testing.T) {
 
 func TestApplyVolumeUpdateMask_FiltersUnmaskedFields(t *testing.T) {
 	req := &vcmserver.VolumeUpdateV1{
-		UUID:        testVolumeUUID,
 		SizeInBytes: vcmserver.NewOptNilFloat64(214748364800),
 		ShareName:   vcmserver.NewOptNilString("my-share"),
 	}
@@ -47,7 +46,6 @@ func TestApplyVolumeUpdateMask_FiltersUnmaskedFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, masked.SizeInBytes.IsSet())
 	assert.False(t, masked.ShareName.IsSet())
-	assert.Equal(t, testVolumeUUID, masked.UUID)
 }
 
 func TestApplyVolumeUpdateMask_RejectsMissingOrEmptyMask(t *testing.T) {
@@ -63,7 +61,6 @@ func TestApplyVolumeUpdateMask_RejectsMissingOrEmptyMask(t *testing.T) {
 
 func TestApplyVolumeUpdateMask_MaskWithoutMatchingBodyField(t *testing.T) {
 	masked, err := applyVolumeUpdateMask(&vcmserver.VolumeUpdateV1{
-		UUID:      testVolumeUUID,
 		ShareName: vcmserver.NewOptNilString("my-share"),
 	}, "sizeInBytes")
 	require.NoError(t, err)

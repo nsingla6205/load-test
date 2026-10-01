@@ -182,9 +182,9 @@ func (UnimplementedHandler) V1UpdateIgroup(ctx context.Context, req *IgroupUpdat
 // V1UpdateVolume implements v1_updateVolume operation.
 //
 // Updates specific fields of an existing volume using an update mask. The target volume is
-// identified by uuid in the request body.
+// identified by uuid in the request path.
 //
-// PATCH /v1/volumes
+// PATCH /v1/volumes/{uuid}
 func (UnimplementedHandler) V1UpdateVolume(ctx context.Context, req *VolumeUpdateV1, params V1UpdateVolumeParams) (r V1UpdateVolumeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }

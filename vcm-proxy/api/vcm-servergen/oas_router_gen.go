@@ -274,12 +274,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						switch r.Method {
 						case "GET":
 							s.handleV1ListVolumesRequest([0]string{}, elemIsEscaped, w, r)
-						case "PATCH":
-							s.handleV1UpdateVolumeRequest([0]string{}, elemIsEscaped, w, r)
 						case "POST":
 							s.handleV1CreateVolumeRequest([0]string{}, elemIsEscaped, w, r)
 						default:
-							s.notAllowed(w, r, "GET,PATCH,POST")
+							s.notAllowed(w, r, "GET,POST")
 						}
 
 						return
@@ -313,8 +311,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								s.handleV1DescribeVolumeRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
+							case "PATCH":
+								s.handleV1UpdateVolumeRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
 							default:
-								s.notAllowed(w, r, "DELETE,GET")
+								s.notAllowed(w, r, "DELETE,GET,PATCH")
 							}
 
 							return
@@ -681,14 +683,6 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							r.args = args
 							r.count = 0
 							return r, true
-						case "PATCH":
-							r.name = V1UpdateVolumeOperation
-							r.summary = "Update a volume"
-							r.operationID = "v1_updateVolume"
-							r.pathPattern = "/v1/volumes"
-							r.args = args
-							r.count = 0
-							return r, true
 						case "POST":
 							r.name = V1CreateVolumeOperation
 							r.summary = "Create a new volume"
@@ -734,6 +728,14 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								r.name = V1DescribeVolumeOperation
 								r.summary = "Describe a volume"
 								r.operationID = "v1_describeVolume"
+								r.pathPattern = "/v1/volumes/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "PATCH":
+								r.name = V1UpdateVolumeOperation
+								r.summary = "Update a volume"
+								r.operationID = "v1_updateVolume"
 								r.pathPattern = "/v1/volumes/{uuid}"
 								r.args = args
 								r.count = 1

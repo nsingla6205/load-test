@@ -2483,16 +2483,16 @@ func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w
 // handleV1UpdateVolumeRequest handles v1_updateVolume operation.
 //
 // Updates specific fields of an existing volume using an update mask. The target volume is
-// identified by uuid in the request body.
+// identified by uuid in the request path.
 //
-// PATCH /v1/volumes
-func (s *Server) handleV1UpdateVolumeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// PATCH /v1/volumes/{uuid}
+func (s *Server) handleV1UpdateVolumeRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("v1_updateVolume"),
 		semconv.HTTPRequestMethodKey.String("PATCH"),
-		semconv.HTTPRouteKey.String("/v1/volumes"),
+		semconv.HTTPRouteKey.String("/v1/volumes/{uuid}"),
 	}
 
 	// Start a span for this request.
@@ -2593,6 +2593,10 @@ func (s *Server) handleV1UpdateVolumeRequest(args [0]string, argsEscaped bool, w
 			Body:             request,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
+				{
+					Name: "uuid",
+					In:   "path",
+				}: params.UUID,
 				{
 					Name: "requestId",
 					In:   "query",

@@ -672,7 +672,7 @@ func (h Handler) V1UpdateVolume(ctx context.Context, req *vcmserver.VolumeUpdate
 		}, nil
 	}
 
-	volumeUUID := strings.TrimSpace(req.UUID)
+	volumeUUID := strings.TrimSpace(queryParams.UUID)
 	if volumeUUID == "" {
 		return &vcmserver.V1UpdateVolumeBadRequest{
 			Code:    400,

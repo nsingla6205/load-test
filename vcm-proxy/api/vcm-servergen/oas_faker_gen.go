@@ -1726,11 +1726,6 @@ func (s *VolumeReadV1SecurityStyle) SetFake() {
 func (s *VolumeUpdateV1) SetFake() {
 	{
 		{
-			s.UUID = "string"
-		}
-	}
-	{
-		{
 			s.SizeInBytes.SetFake()
 		}
 	}

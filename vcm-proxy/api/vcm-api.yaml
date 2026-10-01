@@ -402,60 +402,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
-    patch:
-      tags:
-        - volumes
-      summary: Update a volume
-      description: Updates specific fields of an existing volume using an update mask.
-        The target volume is identified by uuid in the request body.
-      operationId: v1_updateVolume
-      parameters:
-        - $ref: "#/components/parameters/requestIdQueryParameter"
-        - $ref: "#/components/parameters/timeoutQueryParameter"
-        - $ref: "#/components/parameters/xCorrelationIdHeader"
-        - $ref: "#/components/parameters/updateMaskQueryParameter"
-      requestBody:
-        required: true
-        description: The volume fields to update, including the target volume uuid.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VolumeUpdate_v1"
-            example:
-              uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
-              sizeInBytes: 214748364800
-      responses:
-        "200":
-          description: No update required (request contained no mutable fields)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Operation_v1"
-              example:
-                done: true
-                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
-        "202":
-          description: Updating volume
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Operation_v1"
-              example:
-                done: false
-                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
-        "400":
-          $ref: "#/components/responses/StandardError-400"
-        "401":
-          $ref: "#/components/responses/StandardError-401"
-        "500":
-          $ref: "#/components/responses/StandardError-500"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse_v1"
-
   /v1/volumes/{uuid}:
     get:
       tags:
@@ -501,6 +447,60 @@ paths:
           $ref: "#/components/responses/StandardError-401"
         "404":
           $ref: "#/components/responses/StandardError-404"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+    patch:
+      tags:
+        - volumes
+      summary: Update a volume
+      description: Updates specific fields of an existing volume using an update mask.
+        The target volume is identified by uuid in the request path.
+      operationId: v1_updateVolume
+      parameters:
+        - $ref: "#/components/parameters/volumeUuidPathParameter"
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+        - $ref: "#/components/parameters/updateMaskQueryParameter"
+      requestBody:
+        required: true
+        description: The volume fields to update. The target volume uuid is taken from the path.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolumeUpdate_v1"
+            example:
+              sizeInBytes: 214748364800
+      responses:
+        "200":
+          description: No update required (request contained no mutable fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: true
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "202":
+          description: Updating volume
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -1317,22 +1317,13 @@ components:
     VolumeUpdate_v1:
       title: Volume update v1 model definition
       type: object
-      required:
-        - uuid
       description: >
-        Patch body for volume update. The target volume uuid is required in the body.
-        `updateMask` is required, and only listed fields present in the body are
-        applied. A request that selects no mutable body fields returns HTTP 200 with
-        done true and does not start a workflow.
+        Patch body for volume update. The target volume uuid is taken from the
+        request path (`/v1/volumes/{uuid}`). `updateMask` is required, and only
+        listed fields present in the body are applied. A request that selects no
+        mutable body fields returns HTTP 200 with done true and does not start a
+        workflow.
       properties:
-        uuid:
-          title: uuid
-          type: string
-          description: UUID of the volume to update.
-          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
-          maxLength: 36
-          minLength: 36
-          example: 12345678-1234-1234-1234-123456789012
         sizeInBytes:
           title: sizeInBytes
           type: number

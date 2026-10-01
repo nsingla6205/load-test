@@ -32,6 +32,7 @@ func testOperationUpdateParams() vcmserver.V1UpdateVolumeParams {
 
 func testOperationUpdateParamsWithMask(mask string) vcmserver.V1UpdateVolumeParams {
 	return vcmserver.V1UpdateVolumeParams{
+		UUID:       testVolumeUUID,
 		RequestId:  testOperationRequestID,
 		Timeout:    testOperationTimeout,
 		UpdateMask: mask,

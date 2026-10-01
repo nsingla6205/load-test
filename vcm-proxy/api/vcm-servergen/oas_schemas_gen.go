@@ -4651,13 +4651,12 @@ func (s *VolumeReadV1SecurityStyle) UnmarshalText(data []byte) error {
 	}
 }
 
-// Patch body for volume update. The target volume uuid is required in the body. `updateMask` is
-// required, and only listed fields present in the body are applied. A request that selects no
-// mutable body fields returns HTTP 200 with done true and does not start a workflow.
+// Patch body for volume update. The target volume uuid is taken from the request path
+// (`/v1/volumes/{uuid}`). `updateMask` is required, and only listed fields present in the body are
+// applied. A request that selects no mutable body fields returns HTTP 200 with done true and does
+// not start a workflow.
 // Ref: #/components/schemas/VolumeUpdate_v1
 type VolumeUpdateV1 struct {
-	// UUID of the volume to update.
-	UUID string `json:"uuid"`
 	// Maximum storage quota allowed for a volume in bytes. This is a soft quota used for alerting only.
 	// Upper limit is 100TB.
 	SizeInBytes OptNilFloat64 `json:"sizeInBytes"`
@@ -4679,11 +4678,6 @@ type VolumeUpdateV1 struct {
 	// same group. the fourth for other users not in the group. "0755" - gives read/write/execute
 	// permissions to owner and read/execute to group and other users.
 	UnixPermissions OptNilString `json:"unixPermissions"`
-}
-
-// GetUUID returns the value of UUID.
-func (s *VolumeUpdateV1) GetUUID() string {
-	return s.UUID
 }
 
 // GetSizeInBytes returns the value of SizeInBytes.
@@ -4724,11 +4718,6 @@ func (s *VolumeUpdateV1) GetShareName() OptNilString {
 // GetUnixPermissions returns the value of UnixPermissions.
 func (s *VolumeUpdateV1) GetUnixPermissions() OptNilString {
 	return s.UnixPermissions
-}
-
-// SetUUID sets the value of UUID.
-func (s *VolumeUpdateV1) SetUUID(val string) {
-	s.UUID = val
 }
 
 // SetSizeInBytes sets the value of SizeInBytes.

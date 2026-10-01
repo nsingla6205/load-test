@@ -68,9 +68,7 @@ func applyVolumeUpdateMask(req *vcmserver.VolumeUpdateV1, updateMask string) (*v
 		return nil, err
 	}
 
-	masked := &vcmserver.VolumeUpdateV1{
-		UUID: req.UUID,
-	}
+	masked := &vcmserver.VolumeUpdateV1{}
 
 	if fields["sizeInBytes"] && req.SizeInBytes.IsSet() {
 		masked.SizeInBytes = req.SizeInBytes
