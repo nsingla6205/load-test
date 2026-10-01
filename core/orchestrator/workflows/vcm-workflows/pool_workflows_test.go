@@ -18,6 +18,41 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 )
 
+func TestOntapLicenseForCreate(t *testing.T) {
+	tests := []struct {
+		name      string
+		secretURI string
+		want      vlm.OntapLicense
+	}{
+		{
+			name:      "empty uri falls back to VLM default license",
+			secretURI: "",
+			want:      vlm.OntapLicense{},
+		},
+		{
+			name:      "unversioned secret uri is pinned to latest version",
+			secretURI: "projects/237071556299/secrets/ontap-license-secret",
+			want:      vlm.OntapLicense{SecretUri: []string{"projects/237071556299/secrets/ontap-license-secret/versions/latest"}},
+		},
+		{
+			name:      "versioned secret uri is passed through unchanged",
+			secretURI: "projects/237071556299/secrets/ontap-license-secret/versions/3",
+			want:      vlm.OntapLicense{SecretUri: []string{"projects/237071556299/secrets/ontap-license-secret/versions/3"}},
+		},
+		{
+			name:      "explicit latest version is not duplicated",
+			secretURI: "projects/237071556299/secrets/ontap-license-secret/versions/latest",
+			want:      vlm.OntapLicense{SecretUri: []string{"projects/237071556299/secrets/ontap-license-secret/versions/latest"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ontapLicenseForCreate(tt.secretURI))
+		})
+	}
+}
+
 func TestJobErrorFields(t *testing.T) {
 	t.Run("nil error yields zero values", func(t *testing.T) {
 		tid, msg, retriable := jobErrorFields(nil)

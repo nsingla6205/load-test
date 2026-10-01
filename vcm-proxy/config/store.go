@@ -233,6 +233,7 @@ func (s *Store) mergeLocked(req *vcmserver.SetConfigRequestV1) {
 	if s.config.ClusterConfig.IsSet() {
 		stored = s.config.ClusterConfig.Value
 	}
+	overwriteOptInt64IfSet(&stored.Version, incoming.Version)
 	overwriteSeedConfigIfSet(&stored.SeedConfig, incoming.SeedConfig)
 	if incoming.RequiredShape.IsSet() {
 		stored.RequiredShape.SetTo(incoming.RequiredShape.Value)

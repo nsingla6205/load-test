@@ -49,6 +49,13 @@ const (
 	jobStepCompleted       = "completed"
 )
 
+// VLM's AccessSecretVersion call rejects secret resource names without a
+// version, so unversioned license URIs are pinned to the latest version.
+const (
+	secretVersionSegment      = "/versions/"
+	latestSecretVersionSuffix = secretVersionSegment + "latest"
+)
+
 // Change types PATCH /v1/clusters accepts. COMPUTE rotates the cluster onto a
 // new SKU; SCALE resizes the storage pool on the current SKU.
 const (
@@ -648,12 +655,14 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	}
 
 	wf.setStep(ctx, jobStepCreateCluster)
+	ontapLicense := ontapLicenseForCreate(p.OntapLicenseSecretURI)
 	logger.Info("workflow: invoking VLM create-cluster deployment child workflow",
 		"deploymentName", deploymentID, "numHAPair", vlmCfg.Deployment.NumHAPair)
 	depRes, err := vcmclient.InvokeCreateClusterDeployment(ctx,
 		&vlm.CreateVSAClusterDeploymentRequest{
 			VLMConfig:        vlmCfg,
 			OntapCredentials: ontapCreds,
+			OntapLicense:     ontapLicense,
 		},
 	)
 	if err != nil {
@@ -809,6 +818,20 @@ func resolveOntapCredentials(ctx *orchestrator.Context, poolCreds *datamodel.Poo
 		return vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP admin password: resolved value is empty")
 	}
 	return creds, nil
+}
+
+// ontapLicenseForCreate returns the license VLM installs at cluster create.
+// An empty secret URI yields an empty license so VLM falls back to its
+// built-in default license. A URI that already names a version is passed
+// through unchanged; an unversioned URI is pinned to its latest version.
+func ontapLicenseForCreate(secretURI string) vlm.OntapLicense {
+	if secretURI == "" {
+		return vlm.OntapLicense{}
+	}
+	if !strings.Contains(secretURI, secretVersionSegment) {
+		secretURI += latestSecretVersionSuffix
+	}
+	return vlm.OntapLicense{SecretUri: []string{secretURI}}
 }
 
 // mapQosType maps FIXED/MANUAL to manual QoS and everything else to auto.

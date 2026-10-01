@@ -627,6 +627,61 @@ func TestPoolWorkflowE2E_MarshalFailureStillMarksJobDone(t *testing.T) {
 	assert.Empty(t, job.ResponsePayload)
 }
 
+func TestPoolWorkflowE2E_CreateClusterOntapLicense(t *testing.T) {
+	tests := []struct {
+		name          string
+		licenseURI    string
+		wantSecretURI []string
+	}{
+		{
+			name:          "configured secret uri is passed to VLM pinned to latest version",
+			licenseURI:    "projects/237071556299/secrets/ontap-license-secret",
+			wantSecretURI: []string{"projects/237071556299/secrets/ontap-license-secret/versions/latest"},
+		},
+		{
+			name:          "empty secret uri leaves VLM on its default license",
+			licenseURI:    "",
+			wantSecretURI: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("PROVIDER", vlm.GCPCloud)
+
+			origEnv, origPw := runningEnv, vcmLocalOntapPassword
+			runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+			t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
+
+			var mu sync.Mutex
+			var gotLicense vlm.OntapLicense
+			captureCreateCluster := func(ctx *orchestrator.Context, req *vlm.CreateVSAClusterDeploymentRequest) (*vlm.CreateVSAClusterDeploymentResponse, error) {
+				mu.Lock()
+				gotLicense = req.OntapLicense
+				mu.Unlock()
+				return childCreateCluster(ctx, req)
+			}
+
+			reqID := uuid.NewString()
+			store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+			params := newPoolParams(reqID)
+			params.VCM.OntapLicenseSecretURI = tt.licenseURI
+
+			err := runPoolWorkflowE2EWithReg(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+				reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+				reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+				reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, captureCreateCluster)
+				reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+			})
+			require.NoError(t, err)
+
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(t, tt.wantSecretURI, gotLicense.SecretUri)
+		})
+	}
+}
+
 func newPoolParams(requestID string) *commonparams.CreatePoolParams {
 	return &commonparams.CreatePoolParams{
 		VCM: &commonparams.VCMCreatePoolParams{

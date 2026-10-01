@@ -28,6 +28,7 @@ func poolSeedStore(t *testing.T, mutate func(*vcmserver.SeedConfigV1)) *Store {
 		seed.SnHostProjectNum = vcmserver.NewOptInt64(303030303030)
 		seed.ServiceAccountEmail = vcmserver.NewOptString("sa@example.iam.gserviceaccount.com")
 		seed.CaUri = vcmserver.NewOptString("ca-uri")
+		seed.OntapLicenseSecret = vcmserver.NewOptString("projects/237071556299/secrets/ontap-license-secret")
 		seed.NetConfig = vcmserver.NewOptNetConfigV1(vcmserver.NetConfigV1{
 			Nodemgmt: vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "mgmt-vpc", Subnet: "mgmt-subnet"}),
 			Data:     vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "data-vpc", Subnet: "data-subnet"}),
@@ -68,6 +69,7 @@ func TestStore_SeedPoolParams_MapsConfiguredInputs(t *testing.T) {
 	assert.Equal(t, "303030303030", params.SNHostProject)
 	assert.Equal(t, "sa@example.iam.gserviceaccount.com", params.ServiceAccountEmail)
 	assert.Equal(t, "ca-uri", params.CaURI)
+	assert.Equal(t, "projects/237071556299/secrets/ontap-license-secret", params.OntapLicenseSecretURI)
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "mgmt-vpc", Subnet: "mgmt-subnet"}, params.NodeMgmt)
 	require.NotNil(t, params.Data)
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "data-vpc", Subnet: "data-subnet"}, *params.Data)
@@ -99,6 +101,15 @@ func TestStore_SeedPoolParams_AbsentDataNetStaysNil(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, params.Data)
+}
+
+func TestStore_SeedPoolParams_AbsentOntapLicenseStaysEmpty(t *testing.T) {
+	store := poolSeedStore(t, func(seed *vcmserver.SeedConfigV1) { seed.OntapLicenseSecret.Reset() })
+
+	params, err := store.SeedPoolParams()
+
+	require.NoError(t, err, "ontapLicenseSecret is optional for pool create")
+	assert.Empty(t, params.OntapLicenseSecretURI)
 }
 
 func TestStore_SeedPoolParams_RejectsIncompleteConfig(t *testing.T) {

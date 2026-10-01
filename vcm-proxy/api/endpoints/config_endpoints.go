@@ -15,3 +15,11 @@ func (h Handler) SetConfigV1(ctx context.Context, req *vcmserver.SetConfigReques
 	}
 	return nil
 }
+
+// GetConfigV1 returns the configuration VCM currently holds in memory as an exact
+// replica of the last accepted set-config payload. The configured gate blocks this
+// route until VCM is configured, so a reached request always has an in-memory config.
+func (h Handler) GetConfigV1(ctx context.Context) (*vcmserver.SetConfigRequestV1, error) {
+	cfg := h.ConfigStore.CurrentSetConfig()
+	return &cfg, nil
+}

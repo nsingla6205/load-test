@@ -44,6 +44,20 @@ func (UnimplementedHandler) ClusterUpdateV1(ctx context.Context, req *ClusterV1,
 	return r, ht.ErrNotImplemented
 }
 
+// GetConfigV1 implements getConfig_v1 operation.
+//
+// Returns the configuration VCM currently holds in memory: the last
+// payload accepted via POST /v1/config after last-write-wins merge,
+// including the version(s) it last accepted. This is an exact replica of
+// the set-config payload. Access is gated until VCM is configured; once
+// configured the in-memory config is always present. Reflects in-memory
+// state only and carries secret resource IDs/URIs, never secret material.
+//
+// GET /v1/config
+func (UnimplementedHandler) GetConfigV1(ctx context.Context) (r *SetConfigRequestV1, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetHealth implements getHealth operation.
 //
 // Liveness check for the VCM process. Returns HTTP 200 while the process

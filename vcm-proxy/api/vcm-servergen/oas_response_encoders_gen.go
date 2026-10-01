@@ -236,6 +236,28 @@ func encodeClusterUpdateV1Response(response ClusterUpdateV1Res, w http.ResponseW
 	}
 }
 
+func encodeGetConfigV1Response(response *SetConfigRequestV1, w http.ResponseWriter, span trace.Span) error {
+	if err := func() error {
+		if err := response.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "validate")
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(200)
+	span.SetStatus(codes.Ok, http.StatusText(200))
+
+	e := new(jx.Encoder)
+	response.Encode(e)
+	if _, err := e.WriteTo(w); err != nil {
+		return errors.Wrap(err, "write")
+	}
+
+	return nil
+}
+
 func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *HealthResponse:

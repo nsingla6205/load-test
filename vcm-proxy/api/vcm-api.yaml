@@ -73,6 +73,30 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
   /v1/config:
+    get:
+      operationId: getConfig_v1
+      tags: [config]
+      summary: Get the current in-memory VCM configuration
+      description: |
+        Returns the configuration VCM currently holds in memory: the last
+        payload accepted via POST /v1/config after last-write-wins merge,
+        including the version(s) it last accepted. This is an exact replica of
+        the set-config payload. Access is gated until VCM is configured; once
+        configured the in-memory config is always present. Reflects in-memory
+        state only and carries secret resource IDs/URIs, never secret material.
+      responses:
+        "200":
+          description: Current in-memory configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetConfigRequest_v1"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
     post:
       operationId: setConfig_v1
       tags: [config]

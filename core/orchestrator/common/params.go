@@ -155,9 +155,13 @@ type VCMCreatePoolParams struct {
 	Iops                 int64
 	SizeInBytes          int64
 	CaURI                string
-	NodeMgmt             VCMNetConfig
-	Data                 *VCMNetConfig
-	OntapCredentials     []VCMOntapCredential
+	// OntapLicenseSecretURI is the Secret Manager resource path of the ONTAP
+	// license handed to VLM at cluster create. Empty makes VLM install its
+	// built-in default license.
+	OntapLicenseSecretURI string
+	NodeMgmt              VCMNetConfig
+	Data                  *VCMNetConfig
+	OntapCredentials      []VCMOntapCredential
 
 	// Derived carries the values computed from the request fields above,
 	// populated in the orchestrator before dispatch (nil until then).

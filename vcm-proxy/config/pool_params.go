@@ -38,17 +38,18 @@ func (s *Store) SeedPoolParams() (*commonparams.VCMCreatePoolParams, error) {
 
 	netConfig := seed.NetConfig.Value
 	params := &commonparams.VCMCreatePoolParams{
-		DeploymentID:         seed.DeploymentId.Value,
-		PrimaryZone:          seed.Zone1.Value,
-		SecondaryZone:        seed.Zone2.Or(""),
-		MediatorZone:         seed.MediatorZone.Or(""),
-		ProjectID:            optionalInt64String(seed.ConsumerProjectNum),
-		ServiceTenantProject: optionalInt64String(seed.ServiceTenantProjectNum),
-		SNHostProject:        optionalInt64String(seed.SnHostProjectNum),
-		ServiceAccountEmail:  seed.ServiceAccountEmail.Or(""),
-		CaURI:                seed.CaUri.Or(""),
-		NodeMgmt:             toVCMNetConfig(netConfig.Nodemgmt.Value),
-		OntapCredentials:     ToVCMOntapCredentials(seed.OntapCredentials),
+		DeploymentID:          seed.DeploymentId.Value,
+		PrimaryZone:           seed.Zone1.Value,
+		SecondaryZone:         seed.Zone2.Or(""),
+		MediatorZone:          seed.MediatorZone.Or(""),
+		ProjectID:             optionalInt64String(seed.ConsumerProjectNum),
+		ServiceTenantProject:  optionalInt64String(seed.ServiceTenantProjectNum),
+		SNHostProject:         optionalInt64String(seed.SnHostProjectNum),
+		ServiceAccountEmail:   seed.ServiceAccountEmail.Or(""),
+		CaURI:                 seed.CaUri.Or(""),
+		OntapLicenseSecretURI: seed.OntapLicenseSecret.Or(""),
+		NodeMgmt:              toVCMNetConfig(netConfig.Nodemgmt.Value),
+		OntapCredentials:      ToVCMOntapCredentials(seed.OntapCredentials),
 	}
 	if data, ok := netConfig.Data.Get(); ok {
 		dataNet := toVCMNetConfig(data)

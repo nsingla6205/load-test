@@ -8,6 +8,7 @@ type OperationName = string
 const (
 	ClusterCreateV1Operation  OperationName = "ClusterCreateV1"
 	ClusterUpdateV1Operation  OperationName = "ClusterUpdateV1"
+	GetConfigV1Operation      OperationName = "GetConfigV1"
 	GetHealthOperation        OperationName = "GetHealth"
 	GetReadyOperation         OperationName = "GetReady"
 	OperationGetV1Operation   OperationName = "OperationGetV1"
