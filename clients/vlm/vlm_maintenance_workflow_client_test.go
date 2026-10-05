@@ -71,7 +71,7 @@ func TestMaintenanceWorkflow_ValidationErrors(t *testing.T) {
 			vlmManager := NewVSAClientWorkflowManager()
 
 			env.ExecuteWorkflow(func(ctx workflow.Context) error {
-				_, err := vlmManager.MaintenanceWorkflow(ctx, req)
+				_, err := vlmManager.MaintenanceWorkflow(ctx, req, routingTestOntapVersion)
 				return err
 			})
 
@@ -96,7 +96,7 @@ func TestMaintenanceWorkflow_Success(t *testing.T) {
 	var resp *MaintenanceResponse
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		var err error
-		resp, err = vlmManager.MaintenanceWorkflow(ctx, validMaintenanceRequest())
+		resp, err = vlmManager.MaintenanceWorkflow(ctx, validMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -118,7 +118,7 @@ func TestMaintenanceWorkflow_ChildWorkflowError(t *testing.T) {
 
 	vlmManager := NewVSAClientWorkflowManager()
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		_, err := vlmManager.MaintenanceWorkflow(ctx, validMaintenanceRequest())
+		_, err := vlmManager.MaintenanceWorkflow(ctx, validMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -149,7 +149,7 @@ func TestVSAMediatorMaintenanceWorkflow_ValidationErrors(t *testing.T) {
 			vlmManager := NewVSAClientWorkflowManager()
 
 			env.ExecuteWorkflow(func(ctx workflow.Context) error {
-				_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, req)
+				_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, req, routingTestOntapVersion)
 				return err
 			})
 
@@ -174,7 +174,7 @@ func TestVSAMediatorMaintenanceWorkflow_Success(t *testing.T) {
 	var resp *VLMConfig
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		var err error
-		resp, err = vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest())
+		resp, err = vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -194,7 +194,7 @@ func TestVSAMediatorMaintenanceWorkflow_MissingWrappedConfig(t *testing.T) {
 
 	vlmManager := NewVSAClientWorkflowManager()
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest())
+		_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -214,7 +214,7 @@ func TestVSAMediatorMaintenanceWorkflow_ChildWorkflowError(t *testing.T) {
 
 	vlmManager := NewVSAClientWorkflowManager()
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest())
+		_, err := vlmManager.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -245,7 +245,7 @@ func TestVSAMediatorITCWorkflow_ValidationErrors(t *testing.T) {
 			vlmManager := NewVSAClientWorkflowManager()
 
 			env.ExecuteWorkflow(func(ctx workflow.Context) error {
-				_, err := vlmManager.VSAMediatorITCWorkflow(ctx, req)
+				_, err := vlmManager.VSAMediatorITCWorkflow(ctx, req, routingTestOntapVersion)
 				return err
 			})
 
@@ -273,7 +273,7 @@ func TestVSAMediatorITCWorkflow_Success(t *testing.T) {
 	var resp *VLMConfig
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		var err error
-		resp, err = vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest())
+		resp, err = vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -295,7 +295,7 @@ func TestVSAMediatorITCWorkflow_MissingWrappedConfig(t *testing.T) {
 
 	vlmManager := NewVSAClientWorkflowManager()
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		_, err := vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest())
+		_, err := vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 
@@ -315,7 +315,7 @@ func TestVSAMediatorITCWorkflow_ChildWorkflowError(t *testing.T) {
 
 	vlmManager := NewVSAClientWorkflowManager()
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		_, err := vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest())
+		_, err := vlmManager.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
 		return err
 	})
 

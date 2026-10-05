@@ -1865,7 +1865,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-	ontapVersion := ResolveVLMWorkerVersionForDelete(dbPool)
+	ontapVersion := ResolveVLMWorkerVersion(dbPool)
 
 	// Calculate batch plan using activity
 	batchPlanInput := &activities.CalculateBatchPlanActivityInput{
@@ -2128,7 +2128,7 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 		// Resolve the VLM worker version (feature-flag aware) so delete routes to the same VLM worker
 		// that created the pool.
-		ontapVersion := ResolveVLMWorkerVersionForDelete(dbPool)
+		ontapVersion := ResolveVLMWorkerVersion(dbPool)
 
 		if !disableVsaCleanupOnVLMFailure {
 			deleteVSAClusterDeploymentRequest := &vlm.DeleteVSAClusterDeploymentRequest{}
@@ -2947,11 +2947,11 @@ func ResolveVLMWorkerQueueForPool(logger log.Logger, pool *datamodel.Pool) (queu
 	return vlm.GetVLMWorkerQueue(logger, account), "", utils.VLMWorkerFeatureConfig{}
 }
 
-// ResolveVLMWorkerVersionForDelete returns the VLM worker task queue version used to route a pool
+// ResolveVLMWorkerVersion returns the VLM worker task queue version used to route a pool
 // delete to the same VLM worker that created the pool. It prefers the version persisted in BuildInfo,
 // then the persisted feature name or a re-resolved feature against the current feature-flag map, and
 // finally falls back to the legacy account-allowlist ONTAP version.
-func ResolveVLMWorkerVersionForDelete(pool *datamodel.Pool) string {
+func ResolveVLMWorkerVersion(pool *datamodel.Pool) string {
 	if pool != nil && pool.BuildInfo != nil && pool.BuildInfo.VLMWorkerVersion != "" {
 		return pool.BuildInfo.VLMWorkerVersion
 	}

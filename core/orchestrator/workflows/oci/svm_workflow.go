@@ -200,6 +200,17 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		OntapCredentials: credConfig,
 		SvmAdminPassword: svmAdminPassword,
 	}
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route the OCI SVM create; buildInfo=%+v", pool.BuildInfo))
+		logger.Errorf("OCI SVM create stopped: could not resolve a VLM worker version: poolOCID=%s, svmOCID=%s, buildInfo=%+v: %v",
+			pool.PoolExternalIdentifier, params.SvmExternalIdentifier, pool.BuildInfo, err)
+		emitStage(ctx, wfCreateSVM, queueCustomer, stageVLMCreateSVM, resultFailure)
+		return nil, workflows.ConvertToVSAError(err)
+	}
+	ctx = vlm.WithCreateSVMWorkerQueueVersion(ctx, ontapVersion)
+
 	vsaClientWorkflowManager := workflows.GetNewVSAClientWorkflowManager()
 	createSVMResponse, vlmErr := vsaClientWorkflowManager.CreateVSASVM(ctx, createSVMRequest)
 	if vlmErr != nil {
@@ -221,7 +232,7 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		VLMConfig:        createSVMResponse.VLMConfig,
 		OntapCredentials: credConfig,
 	}
-	vlmWorkerQueue := vlm.GetVLMWorkerQueue(logger, pool.Account.Name)
+	vlmWorkerQueue := vlm.GetVLMWorkerQueueForVersion(ontapVersion)
 	rollbackManager.AddWorkflow(vlmWorkerQueue, vlm.DeleteVSASVMWorkflowName, deleteSVMRequest)
 
 	err = workflow.ExecuteActivity(dbHbCtx, svmActivity.SaveSVMAndLifDataWithOCID, pool, createSVMResponse.VLMConfig, svmName, params.SvmExternalIdentifier).Get(dbHbCtx, svm)
@@ -442,13 +453,23 @@ func (wf *ociDeleteSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	}
 	emitStage(ctx, wfDeleteSVM, queueCustomer, stageGetOntapAdminCreds, resultSuccess)
 
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route the OCI SVM delete; buildInfo=%+v", pool.BuildInfo))
+		logger.Errorf("OCI SVM delete stopped: could not resolve a VLM worker version: poolOCID=%s, svmOCID=%s, buildInfo=%+v: %v",
+			pool.PoolExternalIdentifier, svm.SvmExternalIdentifier, pool.BuildInfo, err)
+		emitStage(ctx, wfDeleteSVM, queueCustomer, stageVLMDeleteSVM, resultFailure)
+		return nil, workflows.ConvertToVSAError(err)
+	}
+
 	deleteSVMRequest := &vlm.DeleteSVMRequest{
 		Name:             svm.Name,
 		VLMConfig:        *vlmConfig,
 		OntapCredentials: credConfig,
 	}
 	vsaClientWorkflowManager := workflows.GetNewVSAClientWorkflowManager()
-	deleteSVMResponse, vlmErr := vsaClientWorkflowManager.DeleteVSASVM(ctx, deleteSVMRequest)
+	deleteSVMResponse, vlmErr := vsaClientWorkflowManager.DeleteVSASVM(ctx, deleteSVMRequest, ontapVersion)
 	if vlmErr != nil {
 		err = vlmErr
 		logger.Errorf("Failed to delete SVM via VLM child workflow: %v", err)

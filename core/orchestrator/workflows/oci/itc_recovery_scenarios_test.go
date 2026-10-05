@@ -61,6 +61,7 @@ func newITCScenarioHarness(t *testing.T, haPairs int, itcEnabled bool) *itcScena
 			Account:                &datamodel.Account{Name: "test-account"},
 			PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 			PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+			BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
 		},
 		params: &common.UpdatePoolParams{
 			AccountName:          "test-account",

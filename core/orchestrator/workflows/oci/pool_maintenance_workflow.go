@@ -164,6 +164,15 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 	}
 	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageOntapCredentials, resultSuccess)
 
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		runErr = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route OCI pool maintenance; buildInfo=%+v", pool.BuildInfo))
+		logger.Error("OCI pool maintenance stopped: could not resolve a VLM worker version",
+			"poolOCID", pool.PoolExternalIdentifier, "buildInfo", pool.BuildInfo, "error", runErr)
+		return nil, workflows.ConvertToVSAError(runErr)
+	}
+
 	vsaClient := workflows.GetNewVSAClientWorkflowManager()
 
 	// For non_shared_ha deployments the mediator maintenance/recovery must run
@@ -183,9 +192,9 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 
 		var updatedVlmConfig *vlm.VLMConfig
 		if params.OperationType == common.MaintenanceOperationRecreate {
-			updatedVlmConfig, runErr = vsaClient.VSAMediatorITCWorkflow(ctx, mediatorReq)
+			updatedVlmConfig, runErr = vsaClient.VSAMediatorITCWorkflow(ctx, mediatorReq, ontapVersion)
 		} else {
-			updatedVlmConfig, runErr = vsaClient.VSAMediatorMaintenanceWorkflow(ctx, mediatorReq)
+			updatedVlmConfig, runErr = vsaClient.VSAMediatorMaintenanceWorkflow(ctx, mediatorReq, ontapVersion)
 		}
 		if runErr != nil {
 			logger.Error("VLM-side mediator maintenance failed",
@@ -278,7 +287,7 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 			)
 
 			var vlmResp *vlm.MaintenanceResponse
-			vlmResp, runErr = vsaClient.MaintenanceWorkflow(ctx, vlmReq)
+			vlmResp, runErr = vsaClient.MaintenanceWorkflow(ctx, vlmReq, ontapVersion)
 			if runErr != nil {
 				logger.Error("VLM-side pool maintenance batch failed",
 					"poolUUID", pool.UUID,

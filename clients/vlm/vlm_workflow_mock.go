@@ -67,7 +67,7 @@ func (vlmManager *VSAClientWorkflowManagerMock) CreateVSASVM(ctx workflow.Contex
 	return createSVMResponse, nil
 }
 
-func (vlmManager *VSAClientWorkflowManagerMock) DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest) (*DeleteSVMResponse, error) {
+func (vlmManager *VSAClientWorkflowManagerMock) DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest, ontapVersion string) (*DeleteSVMResponse, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock DeleteVSASVM")
 	deleteSVMResponse := &DeleteSVMResponse{
@@ -155,7 +155,7 @@ func (vlmManager *VSAClientWorkflowManagerMock) ZoneSwitch(ctx workflow.Context,
 	return zoneSwitchResponse, nil
 }
 
-func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
+func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest, ontapVersion string) (*MaintenanceResponse, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock Maintenance")
 	resp := &MaintenanceResponse{VLMConfig: req.VLMConfig}
@@ -171,21 +171,21 @@ func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow
 	return resp, nil
 }
 
-func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock VSAMediatorMaintenance")
 	updatedConfig := req.VLMConfig
 	return &updatedConfig, nil
 }
 
-func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock VSAMediatorITC")
 	updatedConfig := req.VLMConfig
 	return &updatedConfig, nil
 }
 
-func (vlmManager *VSAClientWorkflowManagerMock) RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
+func (vlmManager *VSAClientWorkflowManagerMock) RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest, ontapVersion string) (*RotateFabricPoolKeysResponse, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock RotateFabricPoolKeys")
 	resp := &RotateFabricPoolKeysResponse{VLMConfig: req.VLMConfig}

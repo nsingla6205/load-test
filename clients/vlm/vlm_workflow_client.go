@@ -75,7 +75,7 @@ type WorkflowRetryPolicy struct {
 type VlmWorkflowClient interface {
 	CreateVSAClusterDeployment(ctx workflow.Context, createVSAClusterDeploymentRequest *CreateVSAClusterDeploymentRequest, taskQueue string) (*CreateVSAClusterDeploymentResponse, error)
 	CreateVSASVM(ctx workflow.Context, createSVMRequest *CreateSVMRequest) (*CreateSVMResponse, error)
-	DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest) (*DeleteSVMResponse, error)
+	DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest, ontapVersion string) (*DeleteSVMResponse, error)
 	ModifyVSASVMWorkflow(ctx workflow.Context, req *ModifySVMRequest) (*ModifySVMResponse, error)
 	DeleteVSAClusterDeployment(ctx workflow.Context, deleteVSAClusterDeploymentRequest *DeleteVSAClusterDeploymentRequest, ontapVersion string) error
 	UpdateVSAClusterDeployment(ctx workflow.Context, updateVSAClusterDeploymentRequest *UpdateVSAClusterDeploymentRequest, ontapVersion string) (*UpdateVSAClusterDeploymentResponse, error)
@@ -87,10 +87,10 @@ type VlmWorkflowClient interface {
 	GetClusterZiZsDetails(ctx workflow.Context, req *GetResourceInfoReq) (*GetResourceInfoResp, error)
 	CreateVSAExpertModeUser(ctx workflow.Context, createVSAExpertModeUserRequest *OntapExpertModeUserConfig) (OntapExpertModeUserResponse, error)
 	ZoneSwitch(ctx workflow.Context, req *ZoneSwitchRequest) (*ZoneSwitchResponse, error)
-	RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error)
-	MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error)
-	VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error)
-	VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error)
+	RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest, ontapVersion string) (*RotateFabricPoolKeysResponse, error)
+	MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest, ontapVersion string) (*MaintenanceResponse, error)
+	VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error)
+	VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error)
 }
 
 type VSAClientWorkflowManager struct {
@@ -156,6 +156,7 @@ func ResolveVLMWorkerQueueForCreateSVM(ctx workflow.Context, logger log.Logger, 
 	}
 	return GetVLMWorkerQueue(logger, "")
 }
+
 func (vlmManager *VSAClientWorkflowManager) CreateVSAExpertModeUser(ctx workflow.Context, createVSAExpertModeUserRequest *OntapExpertModeUserConfig) (OntapExpertModeUserResponse, error) {
 	ontapExpertModeUserResponse := OntapExpertModeUserResponse{}
 	logger := util.GetLogger(ctx)
@@ -402,7 +403,7 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSASVM(ctx workflow.Context, c
 	return createSVMResponse, nil
 }
 
-func (vlmManager *VSAClientWorkflowManager) DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest) (*DeleteSVMResponse, error) {
+func (vlmManager *VSAClientWorkflowManager) DeleteVSASVM(ctx workflow.Context, deleteSVMRequest *DeleteSVMRequest, ontapVersion string) (*DeleteSVMResponse, error) {
 	logger := util.GetLogger(ctx)
 
 	if deleteSVMRequest == nil {
@@ -425,15 +426,15 @@ func (vlmManager *VSAClientWorkflowManager) DeleteVSASVM(ctx workflow.Context, d
 		return nil, err
 	}
 
-	accountID := deleteSVMRequest.VLMConfig.Deployment.Labels[accountIDLabelKey]
-
 	workflowExecutionTimeout := temporalUtils.GetWorkflowGlobalTimeout()
 	if timeout, ok := WorkflowExecutionTimeoutMap[DeleteVSASVMWorkflowName]; ok {
 		workflowExecutionTimeout = timeout
 	}
+	taskQueue := GetVLMWorkerQueueForVersion(ontapVersion)
+	logger.Info("Deleting SVM", "ontapVersion", ontapVersion, "taskQueue", taskQueue)
 
 	childWorkflowContxt := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             taskQueue,
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -1092,7 +1093,7 @@ func (vlmManager *VSAClientWorkflowManager) ZoneSwitch(ctx workflow.Context, req
 	return zoneSwitchResponse, nil
 }
 
-func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
+func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest, ontapVersion string) (*RotateFabricPoolKeysResponse, error) {
 	logger := util.GetLogger(ctx)
 
 	if req == nil {
@@ -1114,6 +1115,12 @@ func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Co
 	}
 
 	accountID := req.VLMConfig.Deployment.Labels[accountIDLabelKey]
+	ontapVersion = strings.TrimSpace(ontapVersion)
+	if ontapVersion == "" {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("ontap version is required to route fabric pool key rotation to a VLM worker")))
+	}
+	taskQueue := GetVLMWorkerQueueForVersion(ontapVersion)
 
 	workflowExecutionTimeout := temporalUtils.GetWorkflowGlobalTimeout()
 	if timeout, ok := WorkflowExecutionTimeoutMap[RotateFabricPoolKeysWorkflowName]; ok {
@@ -1126,11 +1133,13 @@ func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Co
 		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
 		"childWorkflowID", childWorkflowID,
 		"accountID", accountID,
+		"ontapVersion", ontapVersion,
+		"taskQueue", taskQueue,
 		"newSecretOcid", req.NewSecretOcid)
 
 	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:            childWorkflowID,
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             taskQueue,
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -1167,7 +1176,7 @@ func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Co
 	return rotateResp, nil
 }
 
-func (vlmManager *VSAClientWorkflowManager) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
+func (vlmManager *VSAClientWorkflowManager) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest, ontapVersion string) (*MaintenanceResponse, error) {
 	logger := util.GetLogger(ctx)
 
 	if req == nil {
@@ -1197,15 +1206,19 @@ func (vlmManager *VSAClientWorkflowManager) MaintenanceWorkflow(ctx workflow.Con
 
 	childWorkflowID := fmt.Sprintf("%s-maintenance-%d-%s",
 		req.VLMConfig.Deployment.DeploymentID, workflow.Now(ctx).UnixNano(), workflow.GetInfo(ctx).WorkflowExecution.ID)
+
+	taskQueue := GetVLMWorkerQueueForVersion(ontapVersion)
 	logger.Info("Creating Maintenance child workflow",
 		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
 		"childWorkflowID", childWorkflowID,
 		"accountID", accountID,
+		"ontapVersion", ontapVersion,
+		"taskQueue", taskQueue,
 		"maintenanceType", req.MaintenanceType)
 
 	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:            childWorkflowID,
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             taskQueue,
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -1245,7 +1258,7 @@ func (vlmManager *VSAClientWorkflowManager) MaintenanceWorkflow(ctx workflow.Con
 // VSAMediatorMaintenanceWorkflow dispatches the VLM mediator maintenance/recovery
 // workflow for the requested HA pairs and returns the updated VLMConfig. On
 // non_shared_ha deployments this must run before instance maintenance.
-func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
 	logger := util.GetLogger(ctx)
 
 	if req == nil {
@@ -1273,17 +1286,21 @@ func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx w
 		workflowExecutionTimeout = timeout
 	}
 
+	taskQueue := GetVLMWorkerQueueForVersion(ontapVersion)
+
 	childWorkflowID := fmt.Sprintf("%s-mediator-maintenance-%d-%s",
 		req.VLMConfig.Deployment.DeploymentID, workflow.Now(ctx).UnixNano(), workflow.GetInfo(ctx).WorkflowExecution.ID)
 	logger.Info("Creating VSAMediatorMaintenance child workflow",
 		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
 		"childWorkflowID", childWorkflowID,
 		"accountID", accountID,
+		"ontapVersion", ontapVersion,
+		"taskQueue", taskQueue,
 		"haPairIndices", req.HAPairIndices)
 
 	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:            childWorkflowID,
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             taskQueue,
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -1324,7 +1341,7 @@ func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx w
 	return &mediatorResp.VLMConfig, nil
 }
 
-func (vlmManager *VSAClientWorkflowManager) VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+func (vlmManager *VSAClientWorkflowManager) VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
 	logger := util.GetLogger(ctx)
 
 	if req == nil {
@@ -1352,17 +1369,21 @@ func (vlmManager *VSAClientWorkflowManager) VSAMediatorITCWorkflow(ctx workflow.
 		workflowExecutionTimeout = timeout
 	}
 
+	taskQueue := GetVLMWorkerQueueForVersion(ontapVersion)
+
 	childWorkflowID := fmt.Sprintf("%s-mediator-itc-%d-%s",
 		req.VLMConfig.Deployment.DeploymentID, workflow.Now(ctx).UnixNano(), workflow.GetInfo(ctx).WorkflowExecution.ID)
 	logger.Info("Creating VSAMediatorITC child workflow",
 		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
 		"childWorkflowID", childWorkflowID,
 		"accountID", accountID,
+		"ontapVersion", ontapVersion,
+		"taskQueue", taskQueue,
 		"haPairIndices", req.HAPairIndices)
 
 	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:            childWorkflowID,
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             taskQueue,
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{

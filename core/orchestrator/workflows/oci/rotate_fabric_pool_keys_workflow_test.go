@@ -59,6 +59,7 @@ func defaultRotatePool() *datamodel.Pool {
 		Name:            "test-pool",
 		VLMConfig:       `{"deployment":{"ociconfig":{"fabric_pool_config":{"secret_ocid":"ocid1.vaultsecret..old"}}}}`,
 		PoolCredentials: &datamodel.PoolCredentials{Password: "ontap-pw"},
+		BuildInfo:       &datamodel.PoolBuildInfo{OntapVersion: "9.19.1"},
 	}
 }
 
@@ -163,7 +164,7 @@ func vlmRotateResponse(newSecretOCID string) *vlm.RotateFabricPoolKeysResponse {
 
 func TestOCIRotateFabricPoolKeysWorkflow_VLMClientFails(t *testing.T) {
 	mockVlm := installMockVlmForRotate(t)
-	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, errors.New("vlm down"))
 
 	env := newRotateFabricPoolKeysTestEnv(t)
@@ -189,7 +190,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMClientFails(t *testing.T) {
 // silently succeed without a confirmed post-rotation VLMConfig.
 func TestOCIRotateFabricPoolKeysWorkflow_VLMNilResponse(t *testing.T) {
 	mockVlm := installMockVlmForRotate(t)
-	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).
 		Return((*vlm.RotateFabricPoolKeysResponse)(nil), nil)
 
 	env := newRotateFabricPoolKeysTestEnv(t)
@@ -225,7 +226,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMRequestShape(t *testing.T) {
 			req.NewSecretVersion == nil && // params omit the version -> nil (VLM fetches current)
 			req.VLMConfig.Deployment.DeploymentID == "deployment-xyz" &&
 			req.OntapCredentials.AdminPassword == "vault-pw"
-	})).Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
+	}), "9.19.1").Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
 
 	env := newRotateFabricPoolKeysTestEnv(t)
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
@@ -254,7 +255,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_ForwardsSecretVersion(t *testing.T) {
 		return req != nil &&
 			req.NewSecretVersion != nil &&
 			*req.NewSecretVersion == wantVersion
-	})).Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
+	}), mock.Anything).Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
 
 	params := defaultRotateParams()
 	params.NewSecretVersion = &wantVersion
@@ -294,7 +295,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_PersistReceivesVLMConfig(t *testing.T) 
 			},
 		},
 	}
-	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything).Return(vlmReturned, nil)
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).Return(vlmReturned, nil)
 
 	env := newRotateFabricPoolKeysTestEnv(t)
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
@@ -332,7 +333,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_PersistReceivesVLMConfig(t *testing.T) 
 
 func TestOCIRotateFabricPoolKeysWorkflow_HappyPath(t *testing.T) {
 	mockVlm := installMockVlmForRotate(t)
-	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).
 		Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
 
 	env := newRotateFabricPoolKeysTestEnv(t)
@@ -355,7 +356,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_HappyPath(t *testing.T) {
 
 func TestOCIRotateFabricPoolKeysWorkflow_PersistFails_RollsBackToError(t *testing.T) {
 	mockVlm := installMockVlmForRotate(t)
-	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).
 		Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
 
 	env := newRotateFabricPoolKeysTestEnv(t)
@@ -377,5 +378,54 @@ func TestOCIRotateFabricPoolKeysWorkflow_PersistFails_RollsBackToError(t *testin
 
 	assert.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+func TestOCIRotateFabricPoolKeysWorkflow_StopsWhenBuildInfoOntapVersionMissing(t *testing.T) {
+	withOCIOntapVersionDetails(t, "")
+	mockVlm := installMockVlmForRotate(t)
+	env := newRotateFabricPoolKeysTestEnv(t)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).
+		Return((*datamodel.Pool)(nil), nil)
+
+	pool := defaultRotatePool()
+	pool.BuildInfo = nil
+
+	env.ExecuteWorkflow(OCIRotateFabricPoolKeysWorkflow, defaultRotateParams(), pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "buildInfo=")
+	mockVlm.AssertNotCalled(t, "RotateFabricPoolKeys", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOCIRotateFabricPoolKeysWorkflow_StoredBuildInfoRoutesToExpectedQueue(t *testing.T) {
+	withHostileVLMRoutingEnv(t)
+	mockVlm := installMockVlmForRotate(t)
+
+	var capturedVersion string
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.Anything, mock.Anything).
+		Run(func(_ workflow.Context, _ *vlm.RotateFabricPoolKeysRequest, ontapVersion string) {
+			capturedVersion = ontapVersion
+		}).
+		Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
+
+	env := newRotateFabricPoolKeysTestEnv(t)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
+		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
+		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}, nil)
+
+	pool := defaultRotatePool()
+	pool.BuildInfo = storedOCIRoutingBuildInfo(t)
+
+	env.ExecuteWorkflow(OCIRotateFabricPoolKeysWorkflow, defaultRotateParams(), pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(capturedVersion))
 	env.AssertExpectations(t)
 }

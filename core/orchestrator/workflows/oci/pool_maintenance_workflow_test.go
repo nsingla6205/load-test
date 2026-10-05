@@ -61,6 +61,7 @@ func defaultMaintenancePool() *datamodel.Pool {
 		Name:            "test-pool",
 		VLMConfig:       `{"deployment":{"deployment_id":"deployment-xyz"}}`,
 		PoolCredentials: &datamodel.PoolCredentials{Password: "ontap-pw"},
+		BuildInfo:       &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 }
 
@@ -208,7 +209,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_GetOnTapCredsFails(t *testing.T) {
 
 func TestOCIExecutePoolMaintenanceWorkflow_VLMClientFails(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, errors.New("vlm down"))
 
 	env := newMaintenanceTestEnv(t)
@@ -228,7 +229,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_VLMClientFails(t *testing.T) {
 
 func TestOCIExecutePoolMaintenanceWorkflow_VLMNilResponse(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return((*vlm.MaintenanceResponse)(nil), nil)
 
 	env := newMaintenanceTestEnv(t)
@@ -250,7 +251,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_VLMNilResponse(t *testing.T) {
 // pool back to ERROR; the pool must never be marked READY.
 func TestOCIExecutePoolMaintenanceWorkflow_NodeResultFailed(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 1, NodeName: "node2", Succeeded: false, Error: "takeover stuck"},
@@ -288,7 +289,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_VLMRequestShape(t *testing.T) {
 			len(req.Targets[0].NodeNames) == 2 &&
 			req.Targets[0].NodeNames[0] == "node1" &&
 			req.Targets[0].NodeNames[1] == "node2"
-	})).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 		{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 		{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
 	}, VLMConfig: *twoPairVLMConfig()}, nil)
@@ -318,14 +319,14 @@ func TestOCIExecutePoolMaintenanceWorkflow_BatchesAcrossHAPairs(t *testing.T) {
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && len(req.Targets) == 1 &&
 			req.Targets[0].HaPairIndex == 0 && req.Targets[0].NodeNames[0] == "node1"
-	})).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 		{HaPairIndex: 0, NodeName: "node1", Succeeded: true},
 	}, VLMConfig: vlm.VLMConfig{Deployment: vlm.DeploymentConfig{DeploymentID: "deployment-updated-1"}}}, nil).Once()
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && len(req.Targets) == 1 &&
 			req.Targets[0].HaPairIndex == 1 && req.Targets[0].NodeNames[0] == "node3" &&
 			req.VLMConfig.Deployment.DeploymentID == "deployment-updated-1"
-	})).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 		{HaPairIndex: 1, NodeName: "node3", Succeeded: true},
 	}, VLMConfig: vlm.VLMConfig{Deployment: vlm.DeploymentConfig{DeploymentID: "deployment-updated-2"}}}, nil).Once()
 
@@ -351,7 +352,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_DoesNotPersistPartialBatchSuccess(t *
 	mockVlm := installMockVlmForMaintenance(t)
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && req.Targets[0].HaPairIndex == 0
-	})).Return(&vlm.MaintenanceResponse{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{
 		Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 0, NodeName: "node1", Succeeded: true},
 		},
@@ -359,7 +360,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_DoesNotPersistPartialBatchSuccess(t *
 	}, nil).Once()
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && req.Targets[0].HaPairIndex == 1
-	})).Return(&vlm.MaintenanceResponse{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{
 		Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node3", Succeeded: false, Error: "recreate failed"},
 		},
@@ -389,7 +390,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_DoesNotPersistPartialBatchSuccess(t *
 
 func TestOCIExecutePoolMaintenanceWorkflow_HappyPath(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 2, NodeName: "node3", Succeeded: true},
@@ -412,7 +413,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_HappyPath(t *testing.T) {
 
 func TestOCIExecutePoolMaintenanceWorkflow_NodeVLMConfigPersistFails(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{
 			Results: []vlm.PairMaintenanceResult{
 				{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
@@ -449,8 +450,8 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_RunsMediatorFirst(t *test
 			req.VLMConfig.Deployment.DeploymentID == "deployment-xyz" &&
 			req.OntapCredentials.AdminPassword == "vault-pw" &&
 			len(req.HAPairIndices) == 1 && req.HAPairIndices[0] == 1
-	})).Return(nonSharedHAVLMConfig(), nil).Once()
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	}), mock.Anything).Return(nonSharedHAVLMConfig(), nil).Once()
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
@@ -483,10 +484,10 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_RecreateRunsMediatorITCFi
 			req.VLMConfig.Deployment.DeploymentID == "deployment-xyz" &&
 			req.OntapCredentials.AdminPassword == "vault-pw" &&
 			len(req.HAPairIndices) == 1 && req.HAPairIndices[0] == 1
-	})).Return(nonSharedHAVLMConfig(), nil).Once()
+	}), mock.Anything).Return(nonSharedHAVLMConfig(), nil).Once()
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && req.MaintenanceType == string(common.MaintenanceOperationRecreate)
-	})).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 		{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 		{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
 	}, VLMConfig: *nonSharedHAVLMConfig()}, nil).Once()
@@ -520,7 +521,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_MediatorOnly_SkipsMaintenanceWorkflow
 	mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MediatorMaintenanceRequest) bool {
 		return req != nil &&
 			len(req.HAPairIndices) == 1 && req.HAPairIndices[0] == 1
-	})).Return(updatedCfg, nil).Once()
+	}), mock.Anything).Return(updatedCfg, nil).Once()
 
 	env := newMaintenanceTestEnv(t)
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
@@ -547,7 +548,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_MediatorOnly_SkipsMaintenanceWorkflow
 
 func TestOCIExecutePoolMaintenanceWorkflow_MediatorOnly_RebootMigrate_SkipsMaintenanceWorkflow(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nonSharedHAVLMConfig(), nil).Once()
 
 	env := newMaintenanceTestEnv(t)
@@ -577,11 +578,11 @@ func TestOCIExecutePoolMaintenanceWorkflow_UsesMediatorConfigForNodesAndSavesNod
 	finalCfg.Deployment.Labels = map[string]string{"result": "nodes"}
 
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(mediatorCfg, nil).Once()
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil && req.VLMConfig.Deployment.Labels["result"] == "mediator"
-	})).Return(&vlm.MaintenanceResponse{
+	}), mock.Anything).Return(&vlm.MaintenanceResponse{
 		Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
@@ -617,7 +618,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_NodeTargetsMissingFromMediatorResultF
 	mediatorCfg.Cloud.HAPairs = nil
 
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(mediatorCfg, nil).Once()
 
 	env := newMaintenanceTestEnv(t)
@@ -645,9 +646,9 @@ func TestOCIExecutePoolMaintenanceWorkflow_NodeTargetsMissingFromMediatorResultF
 
 func TestOCIExecutePoolMaintenanceWorkflow_PersistsMediatorConfigWhenNodeBatchFails(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nonSharedHAVLMConfig(), nil).Once()
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{
 			Results: []vlm.PairMaintenanceResult{
 				{HaPairIndex: 1, NodeName: "node1", Succeeded: false, Error: "maintenance failed"},
@@ -676,7 +677,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_PersistsMediatorConfigWhenNodeBatchFa
 
 func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_SaveVLMConfigFails(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nonSharedHAVLMConfig(), nil).Once()
 
 	env := newMaintenanceTestEnv(t)
@@ -706,7 +707,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_SaveVLMConfigFails(t *tes
 // AssertExpectations catches an unexpected call).
 func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_MediatorFails(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, errors.New("mediator recovery failed")).Once()
 
 	env := newMaintenanceTestEnv(t)
@@ -733,7 +734,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_MediatorFails(t *testing.
 // catches an unexpected call.
 func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_SkipsMediatorWhenNotRequested(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 0, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 0, NodeName: "node2", Succeeded: true},
@@ -759,7 +760,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_SkipsMediatorWhenNotReque
 
 func TestOCIExecutePoolMaintenanceWorkflow_PersistFails_RollsBackToError(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 			{HaPairIndex: 2, NodeName: "node3", Succeeded: true},
@@ -784,7 +785,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_PersistFails_RollsBackToError(t *test
 
 func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_MediatorNilConfig(t *testing.T) {
 	mockVlm := installMockVlmForMaintenance(t)
-	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything).
+	mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, nil).Once()
 
 	env := newMaintenanceTestEnv(t)
@@ -847,4 +848,250 @@ func TestFailedMaintenanceResults(t *testing.T) {
 	require.Len(t, failures, 1)
 	assert.Contains(t, failures[0], "node3")
 	assert.Contains(t, failures[0], "boom")
+}
+
+func maintenancePoolWithBuildInfo(buildInfo *datamodel.PoolBuildInfo) *datamodel.Pool {
+	pool := defaultMaintenancePool()
+	pool.BuildInfo = buildInfo
+	return pool
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_RoutesMaintenanceUsingBuildInfoOntapVersion(t *testing.T) {
+	withOCIOntapVersionDetails(t, testOCIOntapVersion)
+	mockVlm := installMockVlmForMaintenance(t)
+
+	var capturedVersion string
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+		Run(func(_ workflow.Context, _ *vlm.MaintenanceRequest, ontapVersion string) {
+			capturedVersion = ontapVersion
+		}).
+		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
+			{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
+		}, VLMConfig: *twoPairVLMConfig()}, nil).Once()
+
+	env := newMaintenanceTestEnv(t)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(twoPairVLMConfig(), nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+	env.OnActivity("CompletePoolMaintenance", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, defaultMaintenanceParams(), maintenancePoolWithBuildInfo(deployedBuildInfo()))
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, deployedOCIOntapVersion, capturedVersion)
+	env.AssertExpectations(t)
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_RoutesEveryBatchUsingBuildInfoOntapVersion(t *testing.T) {
+	withOCIOntapVersionDetails(t, testOCIOntapVersion)
+	mockVlm := installMockVlmForMaintenance(t)
+
+	var capturedVersions []string
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(_ workflow.Context, req *vlm.MaintenanceRequest, ontapVersion string) (*vlm.MaintenanceResponse, error) {
+			capturedVersions = append(capturedVersions, ontapVersion)
+			nodeName := "node1"
+			if req.Targets[0].HaPairIndex == 1 {
+				nodeName = "node3"
+			}
+			return &vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+				{HaPairIndex: req.Targets[0].HaPairIndex + 1, NodeName: nodeName, Succeeded: true},
+			}, VLMConfig: *twoPairVLMConfig()}, nil
+		}).Twice()
+
+	env := newMaintenanceTestEnv(t)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(twoPairVLMConfig(), nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+	env.OnActivity("CompletePoolMaintenance", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	params := defaultMaintenanceParams()
+	params.InstanceOCIDs = []string{"ocid1.instance..a", "ocid1.instance..c"}
+
+	env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, params, maintenancePoolWithBuildInfo(deployedBuildInfo()))
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, []string{deployedOCIOntapVersion, deployedOCIOntapVersion}, capturedVersions)
+	env.AssertExpectations(t)
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_RoutesMediatorUsingBuildInfoOntapVersion(t *testing.T) {
+	cases := []struct {
+		name          string
+		operationType common.MaintenanceOperationType
+		expectITC     bool
+	}{
+		{name: "reboot migrate uses mediator maintenance", operationType: common.MaintenanceOperationRebootMigrate},
+		{name: "recreate uses mediator ITC", operationType: common.MaintenanceOperationRecreate, expectITC: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withOCIOntapVersionDetails(t, testOCIOntapVersion)
+			mockVlm := installMockVlmForMaintenance(t)
+
+			var mediatorVersion, nodeVersion string
+			captureMediator := func(_ workflow.Context, _ *vlm.MediatorMaintenanceRequest, ontapVersion string) {
+				mediatorVersion = ontapVersion
+			}
+			if c.expectITC {
+				mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything, mock.Anything).
+					Run(captureMediator).Return(nonSharedHAVLMConfig(), nil).Once()
+			} else {
+				mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+					Run(captureMediator).Return(nonSharedHAVLMConfig(), nil).Once()
+			}
+			mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+				Run(func(_ workflow.Context, _ *vlm.MaintenanceRequest, ontapVersion string) { nodeVersion = ontapVersion }).
+				Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+					{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
+					{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
+				}, VLMConfig: *nonSharedHAVLMConfig()}, nil).Once()
+
+			env := newMaintenanceTestEnv(t)
+			env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(nonSharedHAVLMConfig(), nil)
+			env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+				Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+			env.OnActivity("SavePoolVLMConfig", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+			env.OnActivity("CompletePoolMaintenance", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+			params := defaultMaintenanceParams()
+			params.OperationType = c.operationType
+			params.InstanceOCIDs = []string{"ocid1.instance..a", "ocid1.instance..b", "ocid1.instance..m"}
+
+			env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, params, maintenancePoolWithBuildInfo(deployedBuildInfo()))
+
+			require.True(t, env.IsWorkflowCompleted())
+			require.NoError(t, env.GetWorkflowError())
+			assert.Equal(t, deployedOCIOntapVersion, mediatorVersion)
+			assert.Equal(t, deployedOCIOntapVersion, nodeVersion)
+			env.AssertExpectations(t)
+		})
+	}
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_StopsWhenBuildInfoOntapVersionMissing(t *testing.T) {
+	cases := []struct {
+		name      string
+		vlmConfig *vlm.VLMConfig
+		instances []string
+	}{
+		{name: "shared HA", vlmConfig: twoPairVLMConfig(), instances: []string{"ocid1.instance..a", "ocid1.instance..b"}},
+		{name: "non shared HA", vlmConfig: nonSharedHAVLMConfig(), instances: []string{"ocid1.instance..a", "ocid1.instance..m"}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withOCIOntapVersionDetails(t, "")
+			mockVlm := installMockVlmForMaintenance(t)
+
+			env := newMaintenanceTestEnv(t)
+			env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(c.vlmConfig, nil)
+			env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+				Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+			env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).
+				Return((*datamodel.Pool)(nil), nil)
+
+			params := defaultMaintenanceParams()
+			params.InstanceOCIDs = c.instances
+
+			env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, params, maintenancePoolWithBuildInfo(nil))
+
+			require.True(t, env.IsWorkflowCompleted())
+			err := env.GetWorkflowError()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "buildInfo=")
+			mockVlm.AssertNotCalled(t, "MaintenanceWorkflow", mock.Anything, mock.Anything, mock.Anything)
+			mockVlm.AssertNotCalled(t, "VSAMediatorMaintenanceWorkflow", mock.Anything, mock.Anything, mock.Anything)
+			mockVlm.AssertNotCalled(t, "VSAMediatorITCWorkflow", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_StoredBuildInfoRoutesToExpectedQueue(t *testing.T) {
+	withHostileVLMRoutingEnv(t)
+	mockVlm := installMockVlmForMaintenance(t)
+
+	var capturedVersion string
+	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+		Run(func(_ workflow.Context, _ *vlm.MaintenanceRequest, ontapVersion string) {
+			capturedVersion = ontapVersion
+		}).
+		Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+			{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
+			{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
+		}, VLMConfig: *twoPairVLMConfig()}, nil).Once()
+
+	env := newMaintenanceTestEnv(t)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(twoPairVLMConfig(), nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+	env.OnActivity("CompletePoolMaintenance", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, defaultMaintenanceParams(),
+		maintenancePoolWithBuildInfo(storedOCIRoutingBuildInfo(t)))
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(capturedVersion))
+	env.AssertExpectations(t)
+}
+
+func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_StoredBuildInfoRoutesToExpectedQueue(t *testing.T) {
+	cases := []struct {
+		name          string
+		operationType common.MaintenanceOperationType
+		expectITC     bool
+	}{
+		{name: "reboot migrate uses mediator maintenance", operationType: common.MaintenanceOperationRebootMigrate},
+		{name: "recreate uses mediator ITC", operationType: common.MaintenanceOperationRecreate, expectITC: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withHostileVLMRoutingEnv(t)
+			mockVlm := installMockVlmForMaintenance(t)
+
+			var mediatorVersion, nodeVersion string
+			captureMediator := func(_ workflow.Context, _ *vlm.MediatorMaintenanceRequest, ontapVersion string) {
+				mediatorVersion = ontapVersion
+			}
+			if c.expectITC {
+				mockVlm.EXPECT().VSAMediatorITCWorkflow(mock.Anything, mock.Anything, mock.Anything).
+					Run(captureMediator).Return(nonSharedHAVLMConfig(), nil).Once()
+			} else {
+				mockVlm.EXPECT().VSAMediatorMaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+					Run(captureMediator).Return(nonSharedHAVLMConfig(), nil).Once()
+			}
+			mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.Anything, mock.Anything).
+				Run(func(_ workflow.Context, _ *vlm.MaintenanceRequest, ontapVersion string) { nodeVersion = ontapVersion }).
+				Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
+					{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
+					{HaPairIndex: 1, NodeName: "node2", Succeeded: true},
+				}, VLMConfig: *nonSharedHAVLMConfig()}, nil).Once()
+
+			env := newMaintenanceTestEnv(t)
+			env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(nonSharedHAVLMConfig(), nil)
+			env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+				Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+			env.OnActivity("SavePoolVLMConfig", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+			env.OnActivity("CompletePoolMaintenance", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+			params := defaultMaintenanceParams()
+			params.OperationType = c.operationType
+			params.InstanceOCIDs = []string{"ocid1.instance..a", "ocid1.instance..b", "ocid1.instance..m"}
+
+			env.ExecuteWorkflow(OCIExecutePoolMaintenanceWorkflow, params,
+				maintenancePoolWithBuildInfo(storedOCIRoutingBuildInfo(t)))
+
+			require.True(t, env.IsWorkflowCompleted())
+			require.NoError(t, env.GetWorkflowError())
+			assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(mediatorVersion))
+			assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(nodeVersion))
+			env.AssertExpectations(t)
+		})
+	}
 }

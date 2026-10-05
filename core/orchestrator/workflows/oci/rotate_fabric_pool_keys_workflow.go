@@ -131,6 +131,15 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 		}
 	}()
 
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		runErr = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route OCI fabric pool key rotation; buildInfo=%+v", pool.BuildInfo))
+		logger.Error("OCI fabric pool key rotation stopped: could not resolve a VLM worker version",
+			"poolOCID", pool.PoolExternalIdentifier, "buildInfo", pool.BuildInfo, "error", runErr)
+		return nil, workflows.ConvertToVSAError(runErr)
+	}
+
 	var currentVlmConfig *vlm.VLMConfig
 	if runErr = workflow.ExecuteActivity(actCtx, poolActivity.ParseVlmConfig, pool).Get(actCtx, &currentVlmConfig); runErr != nil {
 		logger.Error("Failed to parse stored VLM config for fabric pool key rotation",
@@ -149,7 +158,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 		actCtx, poolActivity.ValidateOCIFabricPoolSecret, newSecretOCID, newSecretVersion,
 	).Get(actCtx, nil); runErr != nil {
 		logger.Error("New fabric pool secret failed validation",
-			"poolUUID", pool.UUID,
+			"poolOCID", pool.PoolExternalIdentifier,
 			"newSecretOCID", newSecretOCID,
 			"newSecretVersion", newSecretVersion,
 			"error", runErr)
@@ -163,8 +172,12 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 		NewSecretVersion: newSecretVersion,
 		OntapCredentials: *ontapCreds,
 	}
+	logger.Info("Routing fabric pool key rotation to the pool's deployed VLM worker",
+		"poolOCID", pool.PoolExternalIdentifier,
+		"ontapVersion", ontapVersion,
+	)
 	var vlmResp *vlm.RotateFabricPoolKeysResponse
-	vlmResp, runErr = vsaClient.RotateFabricPoolKeys(ctx, vlmReq)
+	vlmResp, runErr = vsaClient.RotateFabricPoolKeys(ctx, vlmReq, ontapVersion)
 	if runErr != nil {
 		logger.Error("VLM-side fabric pool key rotation failed",
 			"poolUUID", pool.UUID,

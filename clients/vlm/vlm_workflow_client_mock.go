@@ -291,9 +291,9 @@ func (_c *MockVlmWorkflowClient_DeleteVSAClusterDeployment_Call) RunAndReturn(ru
 	return _c
 }
 
-// DeleteVSASVM provides a mock function with given fields: ctx, deleteSVMRequest
-func (_m *MockVlmWorkflowClient) DeleteVSASVM(ctx internal.Context, deleteSVMRequest *DeleteSVMRequest) (*DeleteSVMResponse, error) {
-	ret := _m.Called(ctx, deleteSVMRequest)
+// DeleteVSASVM provides a mock function with given fields: ctx, deleteSVMRequest, ontapVersion
+func (_m *MockVlmWorkflowClient) DeleteVSASVM(ctx internal.Context, deleteSVMRequest *DeleteSVMRequest, ontapVersion string) (*DeleteSVMResponse, error) {
+	ret := _m.Called(ctx, deleteSVMRequest, ontapVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteVSASVM")
@@ -301,19 +301,19 @@ func (_m *MockVlmWorkflowClient) DeleteVSASVM(ctx internal.Context, deleteSVMReq
 
 	var r0 *DeleteSVMResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(internal.Context, *DeleteSVMRequest) (*DeleteSVMResponse, error)); ok {
-		return rf(ctx, deleteSVMRequest)
+	if rf, ok := ret.Get(0).(func(internal.Context, *DeleteSVMRequest, string) (*DeleteSVMResponse, error)); ok {
+		return rf(ctx, deleteSVMRequest, ontapVersion)
 	}
-	if rf, ok := ret.Get(0).(func(internal.Context, *DeleteSVMRequest) *DeleteSVMResponse); ok {
-		r0 = rf(ctx, deleteSVMRequest)
+	if rf, ok := ret.Get(0).(func(internal.Context, *DeleteSVMRequest, string) *DeleteSVMResponse); ok {
+		r0 = rf(ctx, deleteSVMRequest, ontapVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*DeleteSVMResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(internal.Context, *DeleteSVMRequest) error); ok {
-		r1 = rf(ctx, deleteSVMRequest)
+	if rf, ok := ret.Get(1).(func(internal.Context, *DeleteSVMRequest, string) error); ok {
+		r1 = rf(ctx, deleteSVMRequest, ontapVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -329,13 +329,14 @@ type MockVlmWorkflowClient_DeleteVSASVM_Call struct {
 // DeleteVSASVM is a helper method to define mock.On call
 //   - ctx internal.Context
 //   - deleteSVMRequest *DeleteSVMRequest
-func (_e *MockVlmWorkflowClient_Expecter) DeleteVSASVM(ctx interface{}, deleteSVMRequest interface{}) *MockVlmWorkflowClient_DeleteVSASVM_Call {
-	return &MockVlmWorkflowClient_DeleteVSASVM_Call{Call: _e.mock.On("DeleteVSASVM", ctx, deleteSVMRequest)}
+//   - ontapVersion string
+func (_e *MockVlmWorkflowClient_Expecter) DeleteVSASVM(ctx interface{}, deleteSVMRequest interface{}, ontapVersion interface{}) *MockVlmWorkflowClient_DeleteVSASVM_Call {
+	return &MockVlmWorkflowClient_DeleteVSASVM_Call{Call: _e.mock.On("DeleteVSASVM", ctx, deleteSVMRequest, ontapVersion)}
 }
 
-func (_c *MockVlmWorkflowClient_DeleteVSASVM_Call) Run(run func(ctx internal.Context, deleteSVMRequest *DeleteSVMRequest)) *MockVlmWorkflowClient_DeleteVSASVM_Call {
+func (_c *MockVlmWorkflowClient_DeleteVSASVM_Call) Run(run func(ctx internal.Context, deleteSVMRequest *DeleteSVMRequest, ontapVersion string)) *MockVlmWorkflowClient_DeleteVSASVM_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(internal.Context), args[1].(*DeleteSVMRequest))
+		run(args[0].(internal.Context), args[1].(*DeleteSVMRequest), args[2].(string))
 	})
 	return _c
 }
@@ -345,7 +346,7 @@ func (_c *MockVlmWorkflowClient_DeleteVSASVM_Call) Return(_a0 *DeleteSVMResponse
 	return _c
 }
 
-func (_c *MockVlmWorkflowClient_DeleteVSASVM_Call) RunAndReturn(run func(internal.Context, *DeleteSVMRequest) (*DeleteSVMResponse, error)) *MockVlmWorkflowClient_DeleteVSASVM_Call {
+func (_c *MockVlmWorkflowClient_DeleteVSASVM_Call) RunAndReturn(run func(internal.Context, *DeleteSVMRequest, string) (*DeleteSVMResponse, error)) *MockVlmWorkflowClient_DeleteVSASVM_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -409,9 +410,9 @@ func (_c *MockVlmWorkflowClient_GetClusterZiZsDetails_Call) RunAndReturn(run fun
 	return _c
 }
 
-// MaintenanceWorkflow provides a mock function with given fields: ctx, req
-func (_m *MockVlmWorkflowClient) MaintenanceWorkflow(ctx internal.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
-	ret := _m.Called(ctx, req)
+// MaintenanceWorkflow provides a mock function with given fields: ctx, req, ontapVersion
+func (_m *MockVlmWorkflowClient) MaintenanceWorkflow(ctx internal.Context, req *MaintenanceRequest, ontapVersion string) (*MaintenanceResponse, error) {
+	ret := _m.Called(ctx, req, ontapVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MaintenanceWorkflow")
@@ -419,19 +420,19 @@ func (_m *MockVlmWorkflowClient) MaintenanceWorkflow(ctx internal.Context, req *
 
 	var r0 *MaintenanceResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest) (*MaintenanceResponse, error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest, string) (*MaintenanceResponse, error)); ok {
+		return rf(ctx, req, ontapVersion)
 	}
-	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest) *MaintenanceResponse); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest, string) *MaintenanceResponse); ok {
+		r0 = rf(ctx, req, ontapVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*MaintenanceResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(internal.Context, *MaintenanceRequest) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(internal.Context, *MaintenanceRequest, string) error); ok {
+		r1 = rf(ctx, req, ontapVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -447,13 +448,14 @@ type MockVlmWorkflowClient_MaintenanceWorkflow_Call struct {
 // MaintenanceWorkflow is a helper method to define mock.On call
 //   - ctx internal.Context
 //   - req *MaintenanceRequest
-func (_e *MockVlmWorkflowClient_Expecter) MaintenanceWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
-	return &MockVlmWorkflowClient_MaintenanceWorkflow_Call{Call: _e.mock.On("MaintenanceWorkflow", ctx, req)}
+//   - ontapVersion string
+func (_e *MockVlmWorkflowClient_Expecter) MaintenanceWorkflow(ctx interface{}, req interface{}, ontapVersion interface{}) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+	return &MockVlmWorkflowClient_MaintenanceWorkflow_Call{Call: _e.mock.On("MaintenanceWorkflow", ctx, req, ontapVersion)}
 }
 
-func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MaintenanceRequest)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MaintenanceRequest, ontapVersion string)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(internal.Context), args[1].(*MaintenanceRequest))
+		run(args[0].(internal.Context), args[1].(*MaintenanceRequest), args[2].(string))
 	})
 	return _c
 }
@@ -463,7 +465,7 @@ func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) Return(_a0 *Maintenanc
 	return _c
 }
 
-func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MaintenanceRequest) (*MaintenanceResponse, error)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MaintenanceRequest, string) (*MaintenanceResponse, error)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -527,9 +529,9 @@ func (_c *MockVlmWorkflowClient_ModifyVSASVMWorkflow_Call) RunAndReturn(run func
 	return _c
 }
 
-// RotateFabricPoolKeys provides a mock function with given fields: ctx, req
-func (_m *MockVlmWorkflowClient) RotateFabricPoolKeys(ctx internal.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
-	ret := _m.Called(ctx, req)
+// RotateFabricPoolKeys provides a mock function with given fields: ctx, req, ontapVersion
+func (_m *MockVlmWorkflowClient) RotateFabricPoolKeys(ctx internal.Context, req *RotateFabricPoolKeysRequest, ontapVersion string) (*RotateFabricPoolKeysResponse, error) {
+	ret := _m.Called(ctx, req, ontapVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RotateFabricPoolKeys")
@@ -537,19 +539,19 @@ func (_m *MockVlmWorkflowClient) RotateFabricPoolKeys(ctx internal.Context, req 
 
 	var r0 *RotateFabricPoolKeysResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(internal.Context, *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *RotateFabricPoolKeysRequest, string) (*RotateFabricPoolKeysResponse, error)); ok {
+		return rf(ctx, req, ontapVersion)
 	}
-	if rf, ok := ret.Get(0).(func(internal.Context, *RotateFabricPoolKeysRequest) *RotateFabricPoolKeysResponse); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *RotateFabricPoolKeysRequest, string) *RotateFabricPoolKeysResponse); ok {
+		r0 = rf(ctx, req, ontapVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*RotateFabricPoolKeysResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(internal.Context, *RotateFabricPoolKeysRequest) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(internal.Context, *RotateFabricPoolKeysRequest, string) error); ok {
+		r1 = rf(ctx, req, ontapVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -565,13 +567,14 @@ type MockVlmWorkflowClient_RotateFabricPoolKeys_Call struct {
 // RotateFabricPoolKeys is a helper method to define mock.On call
 //   - ctx internal.Context
 //   - req *RotateFabricPoolKeysRequest
-func (_e *MockVlmWorkflowClient_Expecter) RotateFabricPoolKeys(ctx interface{}, req interface{}) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
-	return &MockVlmWorkflowClient_RotateFabricPoolKeys_Call{Call: _e.mock.On("RotateFabricPoolKeys", ctx, req)}
+//   - ontapVersion string
+func (_e *MockVlmWorkflowClient_Expecter) RotateFabricPoolKeys(ctx interface{}, req interface{}, ontapVersion interface{}) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
+	return &MockVlmWorkflowClient_RotateFabricPoolKeys_Call{Call: _e.mock.On("RotateFabricPoolKeys", ctx, req, ontapVersion)}
 }
 
-func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) Run(run func(ctx internal.Context, req *RotateFabricPoolKeysRequest)) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
+func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) Run(run func(ctx internal.Context, req *RotateFabricPoolKeysRequest, ontapVersion string)) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(internal.Context), args[1].(*RotateFabricPoolKeysRequest))
+		run(args[0].(internal.Context), args[1].(*RotateFabricPoolKeysRequest), args[2].(string))
 	})
 	return _c
 }
@@ -581,7 +584,7 @@ func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) Return(_a0 *RotateFab
 	return _c
 }
 
-func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) RunAndReturn(run func(internal.Context, *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error)) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
+func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) RunAndReturn(run func(internal.Context, *RotateFabricPoolKeysRequest, string) (*RotateFabricPoolKeysResponse, error)) *MockVlmWorkflowClient_RotateFabricPoolKeys_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -811,9 +814,9 @@ func (_c *MockVlmWorkflowClient_UpgradeVSAMediatorWorkflow_Call) RunAndReturn(ru
 	return _c
 }
 
-// VSAMediatorITCWorkflow provides a mock function with given fields: ctx, req
-func (_m *MockVlmWorkflowClient) VSAMediatorITCWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
-	ret := _m.Called(ctx, req)
+// VSAMediatorITCWorkflow provides a mock function with given fields: ctx, req, ontapVersion
+func (_m *MockVlmWorkflowClient) VSAMediatorITCWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
+	ret := _m.Called(ctx, req, ontapVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for VSAMediatorITCWorkflow")
@@ -821,19 +824,19 @@ func (_m *MockVlmWorkflowClient) VSAMediatorITCWorkflow(ctx internal.Context, re
 
 	var r0 *VLMConfig
 	var r1 error
-	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest, string) (*VLMConfig, error)); ok {
+		return rf(ctx, req, ontapVersion)
 	}
-	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) *VLMConfig); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest, string) *VLMConfig); ok {
+		r0 = rf(ctx, req, ontapVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*VLMConfig)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest, string) error); ok {
+		r1 = rf(ctx, req, ontapVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -849,13 +852,14 @@ type MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call struct {
 // VSAMediatorITCWorkflow is a helper method to define mock.On call
 //   - ctx internal.Context
 //   - req *MediatorMaintenanceRequest
-func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorITCWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
-	return &MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call{Call: _e.mock.On("VSAMediatorITCWorkflow", ctx, req)}
+//   - ontapVersion string
+func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorITCWorkflow(ctx interface{}, req interface{}, ontapVersion interface{}) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+	return &MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call{Call: _e.mock.On("VSAMediatorITCWorkflow", ctx, req, ontapVersion)}
 }
 
-func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest, ontapVersion string)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest))
+		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest), args[2].(string))
 	})
 	return _c
 }
@@ -865,14 +869,14 @@ func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) Return(_a0 *VLMConf
 	return _c
 }
 
-func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest, string) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// VSAMediatorMaintenanceWorkflow provides a mock function with given fields: ctx, req
-func (_m *MockVlmWorkflowClient) VSAMediatorMaintenanceWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
-	ret := _m.Called(ctx, req)
+// VSAMediatorMaintenanceWorkflow provides a mock function with given fields: ctx, req, ontapVersion
+func (_m *MockVlmWorkflowClient) VSAMediatorMaintenanceWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest, ontapVersion string) (*VLMConfig, error) {
+	ret := _m.Called(ctx, req, ontapVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for VSAMediatorMaintenanceWorkflow")
@@ -880,19 +884,19 @@ func (_m *MockVlmWorkflowClient) VSAMediatorMaintenanceWorkflow(ctx internal.Con
 
 	var r0 *VLMConfig
 	var r1 error
-	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest, string) (*VLMConfig, error)); ok {
+		return rf(ctx, req, ontapVersion)
 	}
-	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) *VLMConfig); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest, string) *VLMConfig); ok {
+		r0 = rf(ctx, req, ontapVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*VLMConfig)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest, string) error); ok {
+		r1 = rf(ctx, req, ontapVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -908,13 +912,14 @@ type MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call struct {
 // VSAMediatorMaintenanceWorkflow is a helper method to define mock.On call
 //   - ctx internal.Context
 //   - req *MediatorMaintenanceRequest
-func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorMaintenanceWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
-	return &MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call{Call: _e.mock.On("VSAMediatorMaintenanceWorkflow", ctx, req)}
+//   - ontapVersion string
+func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorMaintenanceWorkflow(ctx interface{}, req interface{}, ontapVersion interface{}) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+	return &MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call{Call: _e.mock.On("VSAMediatorMaintenanceWorkflow", ctx, req, ontapVersion)}
 }
 
-func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest, ontapVersion string)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest))
+		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest), args[2].(string))
 	})
 	return _c
 }
@@ -924,7 +929,7 @@ func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) Return(_a0 
 	return _c
 }
 
-func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest, string) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
 	_c.Call.Return(run)
 	return _c
 }

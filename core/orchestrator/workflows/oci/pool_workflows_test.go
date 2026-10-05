@@ -948,6 +948,7 @@ func TestOCIDeletePoolWorkflow_Success(t *testing.T) {
 
 	pool := &datamodel.Pool{
 		BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-del"},
+		BuildInfo:      &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 		Name:           "p",
 		DeploymentName: "dep-ocnv-abc",
 		ClusterDetails: datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
@@ -986,6 +987,7 @@ func TestOCIDeletePoolWorkflow_VLMDeleteFailure(t *testing.T) {
 	}
 	pool := &datamodel.Pool{
 		BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-del"},
+		BuildInfo:      &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 		Name:           "p",
 		DeploymentName: "dep-ocnv-abc",
 		ClusterDetails: datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
@@ -1022,6 +1024,7 @@ func TestOCIDeletePoolWorkflow_DBCleanupFailure(t *testing.T) {
 	}
 	pool := &datamodel.Pool{
 		BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-del"},
+		BuildInfo:      &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 		Name:           "p",
 		DeploymentName: "dep-ocnv-abc",
 		ClusterDetails: datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
@@ -1068,6 +1071,7 @@ func TestOCIDeletePoolWorkflow_CertAuth_CleansUpDNS(t *testing.T) {
 
 	pool := &datamodel.Pool{
 		BaseModel:       datamodel.BaseModel{ID: 99, UUID: "pool-uuid-del-cert"},
+		BuildInfo:       &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 		Name:            "p-cert",
 		DeploymentName:  "dep-cert",
 		ClusterDetails:  datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
@@ -1134,6 +1138,7 @@ func TestOCIDeletePoolWorkflow_CertAuth_SNIOverride_StillCleansUpDNS(t *testing.
 
 	pool := &datamodel.Pool{
 		BaseModel:       datamodel.BaseModel{ID: 101, UUID: "pool-uuid-del-cert-sni"},
+		BuildInfo:       &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 		Name:            "p-cert-sni",
 		DeploymentName:  "dep-cert-sni",
 		ClusterDetails:  datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
@@ -2757,6 +2762,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoveryRerunsBatches(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	storedCfg := storedVLMConfigWithHAPairs(2)
@@ -2849,6 +2855,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoveryBatch1FailureRerunsOneBatch(t *testing
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(2), nil)
@@ -2918,6 +2925,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoverySuccessCompletesWithoutWorkflowError(t
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -2977,6 +2985,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoveryPartialFailureRerunsAllBatches(t *test
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	storedCfg := storedVLMConfigWithHAPairs(2)
@@ -3054,6 +3063,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoveryDisabledSkipsRecovery(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3119,6 +3129,7 @@ func TestOCIUpdatePoolWorkflow_ITCRecoveryFailureMarksPoolError(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3183,6 +3194,7 @@ func TestOCIUpdatePoolWorkflow_RejectsEmptyStoredCloudHAPairs(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigEmptyCloud(), nil)
@@ -3224,6 +3236,7 @@ func TestOCIUpdatePoolWorkflow_NilPoolCredentialsRejected(t *testing.T) {
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3273,6 +3286,7 @@ func TestOCIUpdatePoolWorkflow_FetchCredentialsFails(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{AuthType: envs.USERNAME_PWD_SEC_MGR},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3329,6 +3343,7 @@ func TestOCIUpdatePoolWorkflow_UsesFetchedCredentials(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{AuthType: envs.USERNAME_PWD_SEC_MGR},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3389,6 +3404,7 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFields(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "secret-ontap-pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3452,6 +3468,7 @@ func TestOCIUpdatePoolWorkflow_ScaleOutSetsTargetNumHAPair(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3520,6 +3537,7 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFieldsFromStoredConfig(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "secret-ontap-pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(3), nil)
@@ -3598,6 +3616,7 @@ func TestOCIUpdatePoolWorkflow_VLMConfigIsPristineOnTheWire(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 256},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	// Stored config mirrors what a real cluster row looks like: a populated Cloud.HAPairs
@@ -3713,6 +3732,7 @@ func TestOCIUpdatePoolWorkflow_UpdateStatusPartialFailureRejected(t *testing.T) 
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	// 3-HA-pair cluster so we can also prove subsequent batches are NOT issued after
@@ -3830,6 +3850,7 @@ func TestOCIUpdatePoolWorkflow_PerBatchVLMFailure_EmitsStageVLMUpdate(t *testing
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3855,6 +3876,115 @@ func TestOCIUpdatePoolWorkflow_PerBatchVLMFailure_EmitsStageVLMUpdate(t *testing
 	assert.InDelta(t, 1.0, vlmUpdateAfter-vlmUpdateBefore, 0,
 		"per-batch VLM call failure must emit stage=vlm_update,result=failure exactly once (from the inner emit site, no double-count)")
 	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOCIUpdatePoolWorkflow_RoutesVLMUsingBuildInfoOntapVersion(t *testing.T) {
+	setTestOCIImageEnv(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+		TotalThroughputMibps:     256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-upd"},
+		Name:                   "p",
+		DeploymentName:         "dep-upd",
+		PoolExternalIdentifier: "ocid1.pool.oc1..upd",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion:       "9.19.1",
+			VSABuildImage:      "ocid1.image.oc1.iad.aaaaaaaay4yblv3s7l7zltsksv5a33gbvuj2nn6vprcboaqdmhuysskdg44q",
+			MediatorBuildImage: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva",
+		},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	var capturedVersion string
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			capturedVersion = args.String(2)
+		}).
+		Return(&vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	registerOCIUpdatePoolNodePersistMocks(env, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, "9.19.1", capturedVersion,
+		"VLM update must target the worker for build_info.ontapVersion, not ONTAP_VERSION_DETAILS (%s)", testOCIOntapVersion)
+	env.AssertExpectations(t)
+}
+
+func TestOCIUpdatePoolWorkflow_StopsWhenBuildInfoOntapVersionMissing(t *testing.T) {
+	setTestOCIImageEnv(t)
+	// ResolveVLMWorkerVersion falls back to the allowlist. Clear it so an empty
+	// resolution is what stops the workflow, and the error carries buildInfo.
+	withOCIOntapVersionDetails(t, "")
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+		TotalThroughputMibps:     256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-no-build-info"},
+		Name:                   "p",
+		DeploymentName:         "dep-upd",
+		PoolExternalIdentifier: "ocid1.pool.oc1..nobuild",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+	env.OnActivity("RestorePoolPreUpdatePoolLevelFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "buildInfo=")
+	mockVlm.AssertNotCalled(t, "UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestOCIUpdatePoolWorkflow_Success(t *testing.T) {
@@ -3885,6 +4015,7 @@ func TestOCIUpdatePoolWorkflow_Success(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3934,6 +4065,7 @@ func TestOCIUpdatePoolWorkflow_PersistsNodeSizeAndInstanceType(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -4005,6 +4137,7 @@ func TestOCIUpdatePoolWorkflow_NodeSizePersistFails(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -4078,6 +4211,7 @@ func TestOCIUpdatePoolWorkflow_VLMUpdateFails(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -4128,6 +4262,7 @@ func TestOCIUpdatePoolWorkflow_PersistFails(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -4183,6 +4318,7 @@ func TestOCIUpdatePoolWorkflow_FinalPersistUsesLastBatchVLMConfig(t *testing.T) 
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	// 3 HA pairs with default ITC parallelism = 4 → 3 batches of 1 pair each.
@@ -4255,6 +4391,7 @@ func TestOCIUpdatePoolWorkflow_BatchFailureLeavesVLMConfigUnchanged(t *testing.T
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(3), nil)
@@ -4334,6 +4471,7 @@ func TestOCIUpdatePoolWorkflow_DBPersistFailureCompensates(t *testing.T) {
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -4436,6 +4574,7 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHostNamedHAPairs(1), nil)
@@ -4504,6 +4643,7 @@ func TestOCIUpdatePoolWorkflow_HeterogeneousNodeCapacities_PerPairSPConfig(t *te
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 	stored := storedVLMConfigWithHostNamedHAPairs(2)
 	stored.Deployment.VSAInstanceType = "VM.DenseIO.E5.Flex"
@@ -6747,6 +6887,7 @@ func TestOCIUpdatePoolWorkflow_VMRSEnabled_RunsVMRSAndPersistsResolvedIOPS(t *te
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 800, Iops: 12500},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	stored := storedVLMConfigWithHAPairs(1)
@@ -6808,6 +6949,7 @@ func TestOCIUpdatePoolWorkflow_VMRSEnabled_SkipsVMRSForMetadataOnly(t *testing.T
 		Account:                &datamodel.Account{Name: "test-account"},
 		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 800, Iops: 12500},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              &datamodel.PoolBuildInfo{OntapVersion: testOCIOntapVersion},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -6831,5 +6973,436 @@ func TestOCIUpdatePoolWorkflow_VMRSEnabled_SkipsVMRSForMetadataOnly(t *testing.T
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertNotCalled(t, "DecideOCIVMRS", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// deployedOCIOntapVersion is the version stamped in the pool's build_info. It
+// differs from testOCIOntapVersion (ONTAP_VERSION_DETAILS) so each test proves
+// routing follows build_info rather than the control-plane allowlist.
+const deployedOCIOntapVersion = "9.19.1P2"
+
+func deployedBuildInfo() *datamodel.PoolBuildInfo {
+	return &datamodel.PoolBuildInfo{OntapVersion: deployedOCIOntapVersion}
+}
+
+func newDeletePoolRoutingEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
+	t.Helper()
+	setTestOCIImageEnv(t)
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	return env
+}
+
+func deletePoolRoutingFixture(buildInfo *datamodel.PoolBuildInfo) (*common.DeletePoolParams, *datamodel.Pool) {
+	params := &common.DeletePoolParams{AccountName: "test-account", PoolID: "pool-uuid-del-route"}
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-del-route"},
+		BuildInfo:      buildInfo,
+		Name:           "p",
+		DeploymentName: "dep-ocnv-route",
+		ClusterDetails: datamodel.ClusterDetails{CompartmentOCID: "comp-ocid"},
+		Account:        &datamodel.Account{Name: "test-account"},
+	}
+	return params, pool
+}
+
+func TestOCIDeletePoolWorkflow_RoutesVLMDeleteUsingBuildInfoOntapVersion(t *testing.T) {
+	env := newDeletePoolRoutingEnv(t)
+	params, pool := deletePoolRoutingFixture(deployedBuildInfo())
+
+	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(nil, nil)
+
+	var capturedVersion string
+	mockVlm := installMockVlmForDelete(t)
+	mockVlm.On("DeleteVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { capturedVersion = args.String(2) }).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIDeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, deployedOCIOntapVersion, capturedVersion,
+		"VLM delete must target the worker for build_info.ontapVersion, not ONTAP_VERSION_DETAILS (%s)", testOCIOntapVersion)
+	env.AssertExpectations(t)
+}
+
+func TestOCIDeletePoolWorkflow_StopsWhenBuildInfoOntapVersionInvalid(t *testing.T) {
+	cases := []struct {
+		name      string
+		buildInfo *datamodel.PoolBuildInfo
+		wantErr   string
+	}{
+		{name: "nil build info", buildInfo: nil, wantErr: "buildInfo="},
+		{name: "empty ontap version", buildInfo: &datamodel.PoolBuildInfo{OntapVersion: "  "}, wantErr: "buildInfo="},
+		{name: "unparseable ontap version", buildInfo: &datamodel.PoolBuildInfo{OntapVersion: "latest"}, wantErr: "OntapVersion:latest"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newDeletePoolRoutingEnv(t)
+			withOCIOntapVersionDetails(t, "")
+			params, pool := deletePoolRoutingFixture(c.buildInfo)
+			env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+			mockVlm := installMockVlmForDelete(t)
+
+			env.ExecuteWorkflow(OCIDeletePoolWorkflow, params, pool)
+
+			require.True(t, env.IsWorkflowCompleted())
+			err := env.GetWorkflowError()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), c.wantErr)
+			mockVlm.AssertNotCalled(t, "DeleteVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// ociStoredBuildInfoJSON is pools.build_info exactly as the OCI control plane
+// persists it today. Only ontapVersion may influence VLM worker routing.
+const ociStoredBuildInfoJSON = `{
+  "rbacFileUrl": "",
+  "ontapVersion": "9.19.1P1",
+  "rbacFileHash": "",
+  "vsaBuildImage": "ocid1.image.oc1.iad.aaaaaaaakxrywtkyboc5tke4ucxkd2djrbafs6ok7tykohsa5gr4luy5ykta",
+  "buildTimestamp": "2026-09-29T08:48:02.322440119Z",
+  "mediatorBuildImage": "ocid1.image.oc1.iad.aaaaaaaa2delfglt4txfjbxoy7ez2hyvngnfbr3uq5p3ruoorsclelpyzfoa"
+}`
+
+const (
+	ociStoredOntapVersion = "9.19.1P1"
+	// ociStoredOntapVersionQueue is the VLM worker queue the stored record must
+	// route to. It is a literal so a change to queue naming or version
+	// extraction breaks the routing tests.
+	ociStoredOntapVersionQueue = "vsa-lifecycle-manager-9.19.1P1"
+	ociRoutingAccount          = "ocid1.compartment.oc1..routing"
+
+	// Every fallback the shared resolver could take points at a distinct
+	// version, so a result other than build_info.ontapVersion names its source.
+	hostileCurrentOntapVersion      = "9.18.1"
+	hostileExperimentalOntapVersion = "9.20.1"
+	hostileTrueZonalWorkerVersion   = "9.99.1"
+	hostileLabelWorkerVersion       = "9.99.2"
+	hostileLabelFeature             = "ociLabelFeature"
+)
+
+// scanOCIBuildInfo decodes build_info through the same Scan path a DB read uses.
+func scanOCIBuildInfo(t *testing.T, raw string) *datamodel.PoolBuildInfo {
+	t.Helper()
+	buildInfo := &datamodel.PoolBuildInfo{}
+	require.NoError(t, buildInfo.Scan([]byte(raw)))
+	return buildInfo
+}
+
+func storedOCIRoutingBuildInfo(t *testing.T) *datamodel.PoolBuildInfo {
+	t.Helper()
+	return scanOCIBuildInfo(t, ociStoredBuildInfoJSON)
+}
+
+// storedBuildInfoWith returns the stored record with ontapVersion replaced, or
+// removed entirely when remove is true.
+func storedBuildInfoWith(t *testing.T, ontapVersion string, remove bool) *datamodel.PoolBuildInfo {
+	t.Helper()
+	fields := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(ociStoredBuildInfoJSON), &fields))
+	if remove {
+		delete(fields, "ontapVersion")
+	} else {
+		fields["ontapVersion"] = ontapVersion
+	}
+	raw, err := json.Marshal(fields)
+	require.NoError(t, err)
+	return scanOCIBuildInfo(t, string(raw))
+}
+
+func ociRoutingPool(buildInfo *datamodel.PoolBuildInfo) *datamodel.Pool {
+	return &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-routing"},
+		Name:                   "oci-pool",
+		DeploymentName:         "dep-oci-routing",
+		PoolExternalIdentifier: "ocid1.pool.oc1..routing",
+		Account:                &datamodel.Account{Name: ociRoutingAccount},
+		BuildInfo:              buildInfo,
+	}
+}
+
+// withHostileVLMRoutingEnv arms every non-build_info branch of
+// workflows.ResolveVLMWorkerVersionForDelete with a different answer.
+func withHostileVLMRoutingEnv(t *testing.T) {
+	t.Helper()
+	withOCIOntapVersionDetails(t, hostileCurrentOntapVersion)
+	envs.ExperimentalOntapVersionDetails = hostileExperimentalOntapVersion
+	utils.SetExperimentalVersionAllowlistedAccountsForTesting(ociRoutingAccount)
+	t.Cleanup(func() { utils.SetExperimentalVersionAllowlistedAccountsForTesting("") })
+
+	flags, err := json.Marshal(map[string]utils.VLMWorkerFeatureConfig{
+		"trueZonal":         {VlmWorkerVersion: hostileTrueZonalWorkerVersion},
+		hostileLabelFeature: {VlmWorkerVersion: hostileLabelWorkerVersion},
+	})
+	require.NoError(t, err)
+	t.Setenv(utils.VLMWorkerFeatureFlagEnv, string(flags))
+	t.Setenv("ENABLE_TRUE_ZONAL_LV", "true")
+}
+
+func TestResolveVLMWorkerVersion_StoredOCIRecordRoutesToItsOntapVersion(t *testing.T) {
+	buildInfo := scanOCIBuildInfo(t, ociStoredBuildInfoJSON)
+
+	got := workflows.ResolveVLMWorkerVersion(ociRoutingPool(buildInfo))
+
+	assert.Equal(t, ociStoredOntapVersion, got)
+	assert.Equal(t, "vsa-lifecycle-manager-9.19.1P1", vlm.GetVLMWorkerQueueForVersion(got),
+		"the stored record must select the 9.19.1P1 VLM worker queue")
+}
+
+// The OCI record never carries the fields the shared resolver prefers over
+// ontapVersion. If OCI starts persisting them, routing silently changes.
+func TestResolveVLMWorkerVersion_OCIBuildInfoHasNoHigherPriorityRoutingFields(t *testing.T) {
+	t.Run("stored record", func(t *testing.T) {
+		buildInfo := scanOCIBuildInfo(t, ociStoredBuildInfoJSON)
+		assert.Empty(t, buildInfo.VLMWorkerVersion)
+		assert.Empty(t, buildInfo.VLMWorkerFeature)
+	})
+
+	t.Run("NewPoolBuildInfo", func(t *testing.T) {
+		withOCIOntapVersionDetails(t, ociStoredOntapVersion)
+		buildInfo := NewPoolBuildInfo(time.Now(), vlm.VLMConfig{}, ociRoutingAccount)
+		require.NotNil(t, buildInfo)
+		assert.Empty(t, buildInfo.VLMWorkerVersion, "OCI must not persist vlmWorkerVersion; it overrides ontapVersion routing")
+		assert.Empty(t, buildInfo.VLMWorkerFeature, "OCI must not persist vlmWorkerFeature; it overrides ontapVersion routing")
+	})
+}
+
+func TestResolveVLMWorkerVersion_IgnoresEnvironmentFallbacks(t *testing.T) {
+	withHostileVLMRoutingEnv(t)
+	pool := ociRoutingPool(scanOCIBuildInfo(t, ociStoredBuildInfoJSON))
+
+	got := workflows.ResolveVLMWorkerVersion(pool)
+
+	assert.Equal(t, ociStoredOntapVersion, got,
+		"routing must come from build_info.ontapVersion, not ONTAP_VERSION_DETAILS (%s), the experimental allowlist (%s), or VLM_WORKER_FEATURE_FLAG",
+		hostileCurrentOntapVersion, hostileExperimentalOntapVersion)
+}
+
+// OCI never sets VLM_WORKER_FEATURE_FLAG, so a "vlm-feature" label on the pool
+// must not change routing.
+func TestResolveVLMWorkerVersion_IgnoresPoolFeatureLabelWhenFeatureFlagUnset(t *testing.T) {
+	t.Setenv(utils.VLMWorkerFeatureFlagEnv, "")
+	pool := ociRoutingPool(scanOCIBuildInfo(t, ociStoredBuildInfoJSON))
+	pool.PoolAttributes = &datamodel.PoolAttributes{
+		Labels: &datamodel.JSONB{"vlm-feature": hostileLabelFeature},
+	}
+
+	got := workflows.ResolveVLMWorkerVersion(pool)
+
+	assert.Equal(t, ociStoredOntapVersion, got)
+}
+
+// Expectations are literals, not utils.ExtractOntapVersion(input), so a change
+// to the shared extraction or resolver breaks this table.
+func TestResolveVLMWorkerVersion_NormalizesStoredOntapVersion(t *testing.T) {
+	cases := []struct {
+		name         string
+		ontapVersion string
+		want         string
+	}{
+		{name: "stored OCI value", ontapVersion: "9.19.1P1", want: "9.19.1P1"},
+		{name: "GA release", ontapVersion: "9.19.1", want: "9.19.1"},
+		{name: "multi-digit patch", ontapVersion: "9.19.1P12", want: "9.19.1P12"},
+		{name: "strips X build suffix", ontapVersion: "9.19.1P1X23", want: "9.19.1P1"},
+		{name: "strips RC suffix", ontapVersion: "9.19.1RC1", want: "9.19.1"},
+		{name: "strips D suffix", ontapVersion: "9.19.1D5", want: "9.19.1"},
+		{name: "surrounding whitespace", ontapVersion: " 9.19.1P1 \n", want: "9.19.1P1"},
+		{name: "full release string", ontapVersion: "NetApp Release 9.19.1P1: Tue Sep 29 08:48:02 UTC 2026", want: "9.19.1P1"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withHostileVLMRoutingEnv(t)
+			pool := ociRoutingPool(storedBuildInfoWith(t, c.ontapVersion, false))
+
+			got := workflows.ResolveVLMWorkerVersion(pool)
+
+			assert.Equal(t, c.want, got)
+		})
+	}
+}
+
+// Only ontapVersion may drive routing: changing any other stored or pool field
+// leaves the result unchanged, while changing ontapVersion changes it.
+func TestResolveVLMWorkerVersion_OnlyOntapVersionAffectsRouting(t *testing.T) {
+	mutations := []struct {
+		name   string
+		mutate func(pool *datamodel.Pool)
+	}{
+		{name: "vsa build image", mutate: func(p *datamodel.Pool) { p.BuildInfo.VSABuildImage = "ocid1.image.oc1.iad.other" }},
+		{name: "mediator build image", mutate: func(p *datamodel.Pool) { p.BuildInfo.MediatorBuildImage = "ocid1.image.oc1.iad.other" }},
+		{name: "build timestamp", mutate: func(p *datamodel.Pool) { p.BuildInfo.BuildTimestamp = time.Time{} }},
+		{name: "rbac file url", mutate: func(p *datamodel.Pool) { p.BuildInfo.RbacFileUrl = "https://objectstorage.example/rbac" }},
+		{name: "rbac file hash", mutate: func(p *datamodel.Pool) { p.BuildInfo.RbacFileHash = "sha256-abc" }},
+		{name: "vmrs version", mutate: func(p *datamodel.Pool) { p.BuildInfo.VMRSVersion = "vmrs_oci.yaml" }},
+		{name: "no account", mutate: func(p *datamodel.Pool) { p.Account = nil }},
+		{name: "different account", mutate: func(p *datamodel.Pool) { p.Account = &datamodel.Account{Name: "ocid1.compartment.oc1..other"} }},
+		{name: "pool identity", mutate: func(p *datamodel.Pool) {
+			p.Name, p.DeploymentName, p.PoolExternalIdentifier = "renamed", "dep-renamed", "ocid1.pool.oc1..renamed"
+		}},
+	}
+
+	for _, m := range mutations {
+		t.Run(m.name, func(t *testing.T) {
+			withHostileVLMRoutingEnv(t)
+			pool := ociRoutingPool(scanOCIBuildInfo(t, ociStoredBuildInfoJSON))
+			m.mutate(pool)
+
+			got := workflows.ResolveVLMWorkerVersion(pool)
+
+			assert.Equal(t, ociStoredOntapVersion, got)
+		})
+	}
+
+	t.Run("changing ontapVersion changes routing", func(t *testing.T) {
+		withHostileVLMRoutingEnv(t)
+		pool := ociRoutingPool(scanOCIBuildInfo(t, ociStoredBuildInfoJSON))
+		pool.BuildInfo.OntapVersion = "9.19.1P3"
+
+		got := workflows.ResolveVLMWorkerVersion(pool)
+
+		assert.Equal(t, "9.19.1P3", got)
+	})
+}
+
+func TestResolveVLMWorkerVersion_FallsBackWhenOCIOntapVersionUnusable(t *testing.T) {
+	cases := []struct {
+		name string
+		pool func(t *testing.T) *datamodel.Pool
+		want string
+	}{
+		{name: "nil pool", pool: func(*testing.T) *datamodel.Pool { return nil }, want: hostileCurrentOntapVersion},
+		{name: "nil build info", pool: func(*testing.T) *datamodel.Pool { return ociRoutingPool(nil) }, want: hostileExperimentalOntapVersion},
+		{name: "null build info column", pool: func(t *testing.T) *datamodel.Pool {
+			buildInfo := &datamodel.PoolBuildInfo{}
+			require.NoError(t, buildInfo.Scan(nil))
+			return ociRoutingPool(buildInfo)
+		}, want: hostileExperimentalOntapVersion},
+		{name: "ontapVersion key absent from stored record", pool: func(t *testing.T) *datamodel.Pool {
+			return ociRoutingPool(storedBuildInfoWith(t, "", true))
+		}, want: hostileExperimentalOntapVersion},
+		{name: "ontapVersion empty", pool: func(t *testing.T) *datamodel.Pool {
+			return ociRoutingPool(storedBuildInfoWith(t, "", false))
+		}, want: hostileExperimentalOntapVersion},
+		{name: "ontapVersion whitespace", pool: func(t *testing.T) *datamodel.Pool {
+			return ociRoutingPool(storedBuildInfoWith(t, " \t\n ", false))
+		}, want: hostileExperimentalOntapVersion},
+		{name: "ontapVersion not a version", pool: func(t *testing.T) *datamodel.Pool {
+			return ociRoutingPool(storedBuildInfoWith(t, "latest", false))
+		}, want: hostileExperimentalOntapVersion},
+		{name: "ontapVersion missing patch component", pool: func(t *testing.T) *datamodel.Pool {
+			return ociRoutingPool(storedBuildInfoWith(t, "9.19", false))
+		}, want: hostileExperimentalOntapVersion},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withHostileVLMRoutingEnv(t)
+			assert.Equal(t, c.want, workflows.ResolveVLMWorkerVersion(c.pool(t)))
+		})
+	}
+}
+
+func TestResolveVLMWorkerVersion_EmptyWhenNoVersionSource(t *testing.T) {
+	withOCIOntapVersionDetails(t, "")
+	t.Setenv(utils.VLMWorkerFeatureFlagEnv, "")
+
+	assert.Empty(t, workflows.ResolveVLMWorkerVersion(nil))
+	assert.Empty(t, workflows.ResolveVLMWorkerVersion(ociRoutingPool(nil)))
+	assert.Empty(t, workflows.ResolveVLMWorkerVersion(ociRoutingPool(&datamodel.PoolBuildInfo{OntapVersion: "latest"})))
+}
+
+func TestStoredOCIBuildInfo_ResolvesToExpectedQueue(t *testing.T) {
+	withHostileVLMRoutingEnv(t)
+	pool := ociRoutingPool(storedOCIRoutingBuildInfo(t))
+
+	version := workflows.ResolveVLMWorkerVersion(pool)
+
+	assert.Equal(t, ociStoredOntapVersion, version)
+	assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(version))
+}
+
+func TestOCIDeletePoolWorkflow_StoredBuildInfoRoutesToExpectedQueue(t *testing.T) {
+	env := newDeletePoolRoutingEnv(t)
+	withHostileVLMRoutingEnv(t)
+	params, pool := deletePoolRoutingFixture(storedOCIRoutingBuildInfo(t))
+
+	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(nil, nil)
+
+	var capturedVersion string
+	mockVlm := installMockVlmForDelete(t)
+	mockVlm.On("DeleteVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { capturedVersion = args.String(2) }).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIDeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(capturedVersion))
+	env.AssertExpectations(t)
+}
+
+func TestOCIUpdatePoolWorkflow_StoredBuildInfoRoutesToExpectedQueue(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withHostileVLMRoutingEnv(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:              ociRoutingAccount,
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+		TotalThroughputMibps:     256,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-upd-stored"},
+		Name:                   "p",
+		DeploymentName:         "dep-upd-stored",
+		PoolExternalIdentifier: "ocid1.pool.oc1..updstored",
+		SizeInBytes:            1024 * 1024 * 1024 * 1024,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: ociRoutingAccount},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+		BuildInfo:              storedOCIRoutingBuildInfo(t),
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	var capturedVersion string
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { capturedVersion = args.String(2) }).
+		Return(&vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	t.Cleanup(func() { workflows.GetNewVSAClientWorkflowManager = orig })
+
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	registerOCIUpdatePoolNodePersistMocks(env, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, ociStoredOntapVersionQueue, vlm.GetVLMWorkerQueueForVersion(capturedVersion))
 	env.AssertExpectations(t)
 }

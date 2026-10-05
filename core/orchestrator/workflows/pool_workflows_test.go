@@ -21567,5 +21567,5 @@ func TestResolveVLMWorkerVersionForDelete_UsesFeatureVersionForTrueZonal(t *test
 			OntapVersion: "9.19.1",
 		},
 	}
-	assert.Equal(t, "9.19.1X22", ResolveVLMWorkerVersionForDelete(pool))
+	assert.Equal(t, "9.19.1X22", ResolveVLMWorkerVersion(pool))
 }

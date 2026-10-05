@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -2806,4 +2807,194 @@ func TestUpdateVSAMediatorWorkflow(t *testing.T) {
 		assert.NotNil(t, env.GetWorkflowError())
 		env.AssertExpectations(t)
 	})
+}
+
+// routingTestOntapVersion is deliberately not a version any env allowlist would
+// produce, so a queue built from it proves routing came from the request.
+const routingTestOntapVersion = "9.99.9P9"
+
+func validRotateFabricPoolKeysRequest() *RotateFabricPoolKeysRequest {
+	cfg := VLMConfig{}
+	cfg.Deployment.DeploymentID = "dep-1"
+	cfg.Deployment.Labels = map[string]string{accountIDLabelKey: "acct-1"}
+	return &RotateFabricPoolKeysRequest{
+		VLMConfig:     cfg,
+		NewSecretOcid: "ocid1.vaultsecret.oc1..new",
+	}
+}
+
+func validDeleteSVMRequest() *DeleteSVMRequest {
+	cfg := VLMConfig{}
+	cfg.Deployment.DeploymentID = "dep-1"
+	cfg.Deployment.Labels = map[string]string{accountIDLabelKey: "acct-1"}
+	return &DeleteSVMRequest{
+		VLMConfig: cfg,
+		Name:      "svm1",
+	}
+}
+
+func TestVLMClient_RoutesChildWorkflowToOntapVersionQueue(t *testing.T) {
+	expectedQueue := GetVLMWorkerQueueForVersion(routingTestOntapVersion)
+
+	cases := []struct {
+		name         string
+		childName    string
+		registerStub func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context))
+		run          func(ctx workflow.Context, m VlmWorkflowClient) error
+	}{
+		{
+			name:      "DeleteVSASVM",
+			childName: DeleteVSASVMWorkflowName,
+			registerStub: func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context)) {
+				env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ DeleteSVMRequest) (*DeleteSVMResponse, error) {
+					capture(ctx)
+					return &DeleteSVMResponse{}, nil
+				}, workflow.RegisterOptions{Name: DeleteVSASVMWorkflowName})
+			},
+			run: func(ctx workflow.Context, m VlmWorkflowClient) error {
+				_, err := m.DeleteVSASVM(ctx, validDeleteSVMRequest(), routingTestOntapVersion)
+				return err
+			},
+		},
+		{
+			name:      "RotateFabricPoolKeys",
+			childName: RotateFabricPoolKeysWorkflowName,
+			registerStub: func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context)) {
+				env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
+					capture(ctx)
+					return &RotateFabricPoolKeysResponse{}, nil
+				}, workflow.RegisterOptions{Name: RotateFabricPoolKeysWorkflowName})
+			},
+			run: func(ctx workflow.Context, m VlmWorkflowClient) error {
+				_, err := m.RotateFabricPoolKeys(ctx, validRotateFabricPoolKeysRequest(), routingTestOntapVersion)
+				return err
+			},
+		},
+		{
+			name:      "MaintenanceWorkflow",
+			childName: MaintenanceWorkflowName,
+			registerStub: func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context)) {
+				env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ MaintenanceRequest) (*MaintenanceResponse, error) {
+					capture(ctx)
+					return &MaintenanceResponse{}, nil
+				}, workflow.RegisterOptions{Name: MaintenanceWorkflowName})
+			},
+			run: func(ctx workflow.Context, m VlmWorkflowClient) error {
+				_, err := m.MaintenanceWorkflow(ctx, validMaintenanceRequest(), routingTestOntapVersion)
+				return err
+			},
+		},
+		{
+			name:      "VSAMediatorMaintenanceWorkflow",
+			childName: MediatorMaintenanceRebootMigrateWorkflowName,
+			registerStub: func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context)) {
+				env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
+					capture(ctx)
+					updated := VLMConfig{}
+					updated.Deployment.DeploymentID = "dep-1"
+					return &UpdateMediatorResponse{VLMConfig: updated}, nil
+				}, workflow.RegisterOptions{Name: MediatorMaintenanceRebootMigrateWorkflowName})
+			},
+			run: func(ctx workflow.Context, m VlmWorkflowClient) error {
+				_, err := m.VSAMediatorMaintenanceWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
+				return err
+			},
+		},
+		{
+			name:      "VSAMediatorITCWorkflow",
+			childName: MediatorMaintenanceRecreateWorkflowName,
+			registerStub: func(env *testsuite.TestWorkflowEnvironment, capture func(ctx workflow.Context)) {
+				env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
+					capture(ctx)
+					updated := VLMConfig{}
+					updated.Deployment.DeploymentID = "dep-1"
+					return &UpdateMediatorResponse{VLMConfig: updated}, nil
+				}, workflow.RegisterOptions{Name: MediatorMaintenanceRecreateWorkflowName})
+			},
+			run: func(ctx workflow.Context, m VlmWorkflowClient) error {
+				_, err := m.VSAMediatorITCWorkflow(ctx, validMediatorMaintenanceRequest(), routingTestOntapVersion)
+				return err
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newVLMMaintenanceEnv()
+			var gotQueue string
+			childCalled := false
+			c.registerStub(env, func(ctx workflow.Context) {
+				childCalled = true
+				gotQueue = workflow.GetInfo(ctx).TaskQueueName
+			})
+
+			vlmManager := NewVSAClientWorkflowManager()
+			env.ExecuteWorkflow(func(ctx workflow.Context) error {
+				return c.run(ctx, vlmManager)
+			})
+
+			require.True(t, env.IsWorkflowCompleted())
+			require.NoError(t, env.GetWorkflowError())
+			require.True(t, childCalled, "child workflow %s was not started", c.childName)
+			assert.Equal(t, expectedQueue, gotQueue)
+		})
+	}
+}
+
+func TestRotateFabricPoolKeys_RequiresOntapVersion(t *testing.T) {
+	cases := []struct {
+		name         string
+		ontapVersion string
+	}{
+		{name: "empty", ontapVersion: ""},
+		{name: "whitespace only", ontapVersion: "   "},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newVLMMaintenanceEnv()
+			childCalled := false
+			env.RegisterWorkflowWithOptions(func(_ workflow.Context, _ RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
+				childCalled = true
+				return &RotateFabricPoolKeysResponse{}, nil
+			}, workflow.RegisterOptions{Name: RotateFabricPoolKeysWorkflowName})
+
+			vlmManager := NewVSAClientWorkflowManager()
+			env.ExecuteWorkflow(func(ctx workflow.Context) error {
+				_, err := vlmManager.RotateFabricPoolKeys(ctx, validRotateFabricPoolKeysRequest(), c.ontapVersion)
+				return err
+			})
+
+			require.True(t, env.IsWorkflowCompleted())
+			wfErr := env.GetWorkflowError()
+			require.Error(t, wfErr)
+			var appErr *temporal.ApplicationError
+			require.True(t, errors.As(wfErr, &appErr))
+			var trackingID int
+			var originalMsg string
+			require.NoError(t, appErr.Details(&trackingID, &originalMsg))
+			assert.Equal(t, vsaerrors.ErrMissingRequiredInputError, trackingID)
+			assert.Contains(t, originalMsg, "ontap version is required")
+			assert.False(t, childCalled, "child workflow must not start without an ontap version")
+		})
+	}
+}
+
+func TestRotateFabricPoolKeys_TrimsOntapVersionBeforeRouting(t *testing.T) {
+	env := newVLMMaintenanceEnv()
+	var gotQueue string
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, _ RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
+		gotQueue = workflow.GetInfo(ctx).TaskQueueName
+		return &RotateFabricPoolKeysResponse{}, nil
+	}, workflow.RegisterOptions{Name: RotateFabricPoolKeysWorkflowName})
+
+	vlmManager := NewVSAClientWorkflowManager()
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		_, err := vlmManager.RotateFabricPoolKeys(ctx, validRotateFabricPoolKeysRequest(), "  "+routingTestOntapVersion+"  ")
+		return err
+	})
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, GetVLMWorkerQueueForVersion(routingTestOntapVersion), gotQueue)
 }

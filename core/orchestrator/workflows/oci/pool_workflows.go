@@ -1130,7 +1130,14 @@ func (wf *ociDeletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	vsaClientWorkflowManager := workflows.GetNewVSAClientWorkflowManager()
 	deleteRequest := &vlm.DeleteVSAClusterDeploymentRequest{}
 	prepareOCIDeleteVSAClusterDeploymentRequest(deleteRequest, pool, params.AccountName)
-	ontapVersion := utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(params.AccountName))
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route the OCI pool delete; buildInfo=%+v", pool.BuildInfo))
+		wf.Logger.Error("OCI pool delete stopped: could not resolve a VLM worker version",
+			"pool", pool.Name, "poolOCID", pool.PoolExternalIdentifier, "buildInfo", pool.BuildInfo, "error", err)
+		return nil, workflows.ConvertToVSAError(err)
+	}
 	err = vsaClientWorkflowManager.DeleteVSAClusterDeployment(hyperscalerCtx, deleteRequest, ontapVersion)
 	if err != nil {
 		emitStage(ctx, wfDeletePool, queueCustomer, stageVLMDelete, resultFailure)
@@ -1341,7 +1348,19 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	)
 
 	vsaClientWorkflowManager := workflows.GetNewVSAClientWorkflowManager()
-	ontapVersion := utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(params.AccountName))
+
+	ontapVersion := workflows.ResolveVLMWorkerVersion(pool)
+	if ontapVersion == "" {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("could not resolve a VLM worker version to route the OCI pool update; buildInfo=%+v", pool.BuildInfo))
+		logger.Error("OCI pool update stopped: could not resolve a VLM worker version",
+			"error", err,
+			"pool", pool.Name,
+			"poolOCID", pool.PoolExternalIdentifier,
+			"buildInfo", pool.BuildInfo,
+		)
+		return nil, workflows.ConvertToVSAError(err)
+	}
 	logger.Info("Starting batched VLM update for OCI pool",
 		"pool", pool.Name,
 		"ontapVersion", ontapVersion,
