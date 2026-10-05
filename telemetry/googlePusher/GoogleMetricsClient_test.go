@@ -302,6 +302,50 @@ func Test_getMetricName(t *testing.T) {
 	})
 }
 
+func TestPoolLimitMetricNamesAndLabels(t *testing.T) {
+	client := NewGoogleMetricsClient(context.Background(), "", common.LoadConfig())
+	tests := []struct {
+		measuredType metadata.MeasuredType
+		expectedName string
+		typeLabel    string
+	}{
+		{measuredType: metadata.PoolTotalThroughputMibps, expectedName: "netapp.googleapis.com/storage_pool/throughput_limit", typeLabel: "allocated"},
+		{measuredType: metadata.PoolTotalIops, expectedName: "netapp.googleapis.com/storage_pool/iops_limit", typeLabel: "allocated"},
+		{measuredType: metadata.PoolUsedThroughputMibps, expectedName: "netapp.googleapis.com/storage_pool/throughput_limit", typeLabel: "used"},
+		{measuredType: metadata.PoolUsedIops, expectedName: "netapp.googleapis.com/storage_pool/iops_limit", typeLabel: "used"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.measuredType.String(), func(t *testing.T) {
+			hydratedMetric := &entity.HydratedMetric{
+				Metadata: metadata.ResourceMetadata{
+					ResourceName:        nillable.ToPointer("pool-1"),
+					ResourceDisplayName: nillable.ToPointer("pool-1"),
+					AccountName:         nillable.ToPointer("project-1"),
+					RegionName:          nillable.ToPointer("us-central1"),
+					DeploymentName:      nillable.ToPointer("deployment-1"),
+					ResourceType:        metadata.VolumePool,
+				},
+				MeasuredType: tt.measuredType,
+				Quantity:     42,
+				Timestamp:    entity.UnixNano(time.Now().UnixNano()),
+			}
+			googleMetric := *common.NewGoogleMetric(hydratedMetric)
+
+			metricName, err := client.GetMetricName(googleMetric)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedName, metricName)
+
+			metricValue, err := client.CreateMetricValue(googleMetric)
+			require.NoError(t, err)
+			assert.Equal(t, tt.typeLabel, metricValue.Labels["type"])
+			require.NotNil(t, metricValue.Int64Value)
+			assert.Equal(t, int64(42), *metricValue.Int64Value)
+			assert.Nil(t, metricValue.DoubleValue)
+		})
+	}
+}
+
 // Test GetMetricName with unsupported resource type/measured type combination
 func Test_GetMetricName_UnsupportedCombination(t *testing.T) {
 	config := common.LoadConfig()

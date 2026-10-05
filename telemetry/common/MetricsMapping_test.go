@@ -187,6 +187,8 @@ func TestMetricsMappingMapCompleteness(t *testing.T) {
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.AllocatedUsed},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolTotalThroughputMibps},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolTotalIops},
+		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolUsedThroughputMibps},
+		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolUsedIops},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.CoolTierDataReadSize},
 		{ResourceType: metadata.VolumePool, MeasuredType: metadata.CoolTierDataWriteSize},
 
@@ -195,6 +197,8 @@ func TestMetricsMappingMapCompleteness(t *testing.T) {
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.AllocatedUsed},
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolTotalThroughputMibps},
 		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolTotalIops},
+		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolUsedThroughputMibps},
+		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolUsedIops},
 
 		// Volume mappings
 		{ResourceType: metadata.Volume, MeasuredType: metadata.VolumeAllocatedThroughput},
@@ -264,5 +268,37 @@ func TestBackupVaultCMEKKeyRotationStateMapping(t *testing.T) {
 
 	if result.Right != "" {
 		t.Fatalf("Expected Right to be empty, got '%s'", result.Right)
+	}
+}
+
+func TestPoolLimitMetricMappings(t *testing.T) {
+	metricsMappingMap := CreateMetricsMappingMap()
+	tests := []struct {
+		resourceType metadata.ResourceType
+		measuredType metadata.MeasuredType
+		left         string
+		right        string
+	}{
+		{metadata.VolumePool, metadata.PoolTotalThroughputMibps, "throughput_limit", "allocated"},
+		{metadata.VolumePool, metadata.PoolTotalIops, "iops_limit", "allocated"},
+		{metadata.VolumePool, metadata.PoolUsedThroughputMibps, "throughput_limit", "used"},
+		{metadata.VolumePool, metadata.PoolUsedIops, "iops_limit", "used"},
+		{metadata.VolumePoolRegionalHA, metadata.PoolTotalThroughputMibps, "throughput_limit", "allocated"},
+		{metadata.VolumePoolRegionalHA, metadata.PoolTotalIops, "iops_limit", "allocated"},
+		{metadata.VolumePoolRegionalHA, metadata.PoolUsedThroughputMibps, "throughput_limit", "used"},
+		{metadata.VolumePoolRegionalHA, metadata.PoolUsedIops, "iops_limit", "used"},
+	}
+
+	for _, tt := range tests {
+		mapping, exists := metricsMappingMap[metadata.CombinedKeyResourceTypeMeasuredType{
+			ResourceType: tt.resourceType,
+			MeasuredType: tt.measuredType,
+		}]
+		if !exists {
+			t.Fatalf("Expected mapping for %s/%s", tt.resourceType, tt.measuredType)
+		}
+		if mapping != (Triple{Left: tt.left, Middle: "type", Right: tt.right}) {
+			t.Fatalf("Unexpected mapping for %s/%s: %+v", tt.resourceType, tt.measuredType, mapping)
+		}
 	}
 }

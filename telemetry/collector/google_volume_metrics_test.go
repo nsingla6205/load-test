@@ -16,6 +16,7 @@ import (
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/performance"
@@ -2327,4 +2328,105 @@ func TestSetupHydratedMetrics_VolumeReplicationRelationship_StoresReplicationDet
 		"source_details":      "source=us-east4:vol-a",
 		"destination_details": "destination=us-central1:vol-b",
 	}, meta)
+}
+
+func TestPoolMetricAggregation(t *testing.T) {
+	timestamp := time.Now()
+	acc := make(map[poolAggregationKey]float64)
+
+	series := func(project, deployment, pool, regionalHA string) *monitoringpb.TimeSeries {
+		return &monitoringpb.TimeSeries{
+			Metric: &metric.Metric{Labels: map[string]string{
+				"project":         project,
+				"deployment_name": deployment,
+				"pool_name":       pool,
+				"is_regional_ha":  regionalHA,
+			}},
+		}
+	}
+
+	alignmentSeconds := metricAlignmentPeriod.Seconds()
+	accumulatePoolMetric(acc, series("project-1", "deployment-1", "pool-1", "false"), metadata.WriteIo, 10*alignmentSeconds*bytesPerMebibyte)
+	accumulatePoolMetric(acc, series("project-1", "deployment-1", "pool-1", "false"), metadata.WriteIo, 20*alignmentSeconds*bytesPerMebibyte)
+	accumulatePoolMetric(acc, series("project-1", "deployment-1", "pool-2", "false"), metadata.WriteOps, 30*alignmentSeconds)
+	accumulatePoolMetric(acc, series("project-1", "deployment-1", "pool-ha", "true"), metadata.WriteIo, 5*alignmentSeconds*bytesPerMebibyte)
+	accumulatePoolMetric(acc, series("project-1", "", "pool-3", "false"), metadata.WriteIo, 40*alignmentSeconds*bytesPerMebibyte)
+	accumulatePoolMetric(acc, series("project-1", "deployment-1", "", "false"), metadata.WriteOps, 50*alignmentSeconds)
+
+	metrics := buildPoolAggregatedMetrics(timestamp, acc, true, true)
+	require.Len(t, metrics, 3)
+
+	byPool := make(map[string]entity.HydratedMetric, len(metrics))
+	for _, hydratedMetric := range metrics {
+		require.NotNil(t, hydratedMetric.Metadata.ResourceName)
+		byPool[*hydratedMetric.Metadata.ResourceName] = hydratedMetric
+	}
+
+	throughput := byPool["pool-1"]
+	assert.Equal(t, metadata.VolumePool, throughput.Metadata.ResourceType)
+	assert.Equal(t, metadata.PoolUsedThroughputMibps, throughput.MeasuredType)
+	assert.Equal(t, 30.0, throughput.Quantity)
+	assert.Equal(t, "deployment-1", *throughput.Metadata.DeploymentName)
+	assert.Equal(t, "project-1", *throughput.Metadata.AccountName)
+
+	operations := byPool["pool-2"]
+	assert.Equal(t, metadata.PoolUsedIops, operations.MeasuredType)
+	assert.Equal(t, 30.0, operations.Quantity)
+
+	regional := byPool["pool-ha"]
+	assert.Equal(t, metadata.VolumePoolRegionalHA, regional.Metadata.ResourceType)
+	assert.Equal(t, metadata.PoolUsedThroughputMibps, regional.MeasuredType)
+	assert.Equal(t, 5.0, regional.Quantity)
+
+	incomplete := buildPoolAggregatedMetrics(timestamp, acc, false, true)
+	require.Len(t, incomplete, 1)
+	assert.Equal(t, metadata.PoolUsedIops, incomplete[0].MeasuredType)
+}
+
+func TestNormalizePoolMetricValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		measuredType metadata.MeasuredType
+		value        float64
+		expected     float64
+		ok           bool
+	}{
+		{
+			name:         "5-minute write byte total to MiB per second",
+			measuredType: metadata.WriteIo,
+			value:        300 * bytesPerMebibyte,
+			expected:     1,
+			ok:           true,
+		},
+		{
+			name:         "5-minute write op total to operations per second",
+			measuredType: metadata.WriteOps,
+			value:        600,
+			expected:     2,
+			ok:           true,
+		},
+		{
+			name:         "unsupported measured type",
+			measuredType: metadata.ReadIo,
+			value:        300,
+			expected:     0,
+			ok:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, ok := normalizePoolMetricValue(tt.measuredType, tt.value)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestWriteOpsIsAggregateOnly(t *testing.T) {
+	assert.True(t, isPoolAggregationSource(metadata.WriteIo))
+	assert.True(t, isPoolAggregationSource(metadata.WriteOps))
+	assert.False(t, isPoolAggregationSource(metadata.ReadIo))
+	assert.True(t, isAggregateOnlyPerformanceMetric(metadata.WriteOps))
+	assert.False(t, isAggregateOnlyPerformanceMetric(metadata.WriteIo))
 }

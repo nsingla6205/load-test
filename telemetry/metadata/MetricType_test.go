@@ -90,6 +90,12 @@ func TestNewMeasuredType(t *testing.T) {
 			expectedExists: true,
 		},
 		{
+			name:           "Valid volume_write_ops metric",
+			input:          "volume_write_ops",
+			expectedType:   WriteOps,
+			expectedExists: true,
+		},
+		{
 			name:           "Valid unknown_measured_type metric",
 			input:          "unknown_measured_type",
 			expectedType:   UnknownMeasuredType,
@@ -165,6 +171,11 @@ func TestCombinedKeyResourceTypeMeasuredTypeMap_Initialization(t *testing.T) {
 		{
 			key:                  "volume_space_logical_used",
 			expectedMeasuredType: LogicalSize,
+			expectedResourceType: Volume,
+		},
+		{
+			key:                  "volume_write_ops",
+			expectedMeasuredType: WriteOps,
 			expectedResourceType: Volume,
 		},
 		{

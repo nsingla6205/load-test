@@ -113,7 +113,7 @@ data:
                   metric_relabel_configs:
                   - source_labels: ['__name__']
                     action: keep
-                    regex: 'volume_space_logical_used|volume_capacity|snapmirror_total_transfer_bytes|volume_read_latency|volume_write_latency|volume_other_latency|volume_read_data|volume_write_data|volume_other_data|wafl_volume_client_protocol_reads|wafl_volume_cloud_bin_operation_size|pool_client_protocol_reads|pool_cloud_bin_operation_size|pool_client_protocol_reads_raw|pool_cloud_bin_operation_size_raw|wafl_volume_client_protocol_reads_raw|wafl_volume_cloud_bin_operation_size_raw|pool_capacity_tier_logical_footprint'
+                    regex: 'volume_space_logical_used|volume_capacity|snapmirror_total_transfer_bytes|volume_read_latency|volume_write_latency|volume_other_latency|volume_read_data|volume_write_data|volume_write_ops|volume_other_data|wafl_volume_client_protocol_reads|wafl_volume_cloud_bin_operation_size|pool_client_protocol_reads|pool_cloud_bin_operation_size|pool_client_protocol_reads_raw|pool_cloud_bin_operation_size_raw|wafl_volume_client_protocol_reads_raw|wafl_volume_cloud_bin_operation_size_raw|pool_capacity_tier_logical_footprint'
                   - source_labels: [source_cluster, source_location, source_volume, source_vserver]
                     separator: '_'
                     target_label: source_details

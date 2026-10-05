@@ -36,6 +36,9 @@ metrics:
   - metric: volume_write_data
     resourceType: custom.googleapis.com
     metricType: performance
+  - metric: volume_write_ops
+    resourceType: custom.googleapis.com
+    metricType: performance
   - metric: volume_other_data
     resourceType: custom.googleapis.com
     metricType: performance
