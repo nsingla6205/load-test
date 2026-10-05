@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -40,14 +41,44 @@ type RolloutTarget struct {
 func main() {
 	log := slog.Default()
 	ctx := context.Background()
+	code := 1
 	switch os.Getenv("MODE") {
 	case "ensure-drain":
-		os.Exit(runEnsureDrain(ctx, log))
+		code = runEnsureDrain(ctx, log)
 	case "promote-and-retire":
-		os.Exit(runPromoteAndRetire(ctx, log))
+		code = runPromoteAndRetire(ctx, log)
 	default:
 		log.Error("unknown or missing MODE")
-		os.Exit(1)
+	}
+	// os.Exit skips defers, so quit the sidecar before exiting. Otherwise a Job
+	// with an Istio proxy stays Running after the rollout container finishes.
+	shutdownIstioSidecar(log)
+	os.Exit(code)
+}
+
+// istioQuitPorts are the pilot-agent admin ports that accept POST /quitquitquit.
+// 15020 is current Istio; 15000 is the older envoy admin port.
+var istioQuitPorts = []string{"15020", "15000"}
+
+// shutdownIstioSidecar asks the injected proxy to exit so the Job pod can complete.
+// A missing sidecar is normal for local runs and is not a failure.
+func shutdownIstioSidecar(log *slog.Logger) {
+	const request = "POST /quitquitquit HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+	for _, port := range istioQuitPorts {
+		address := net.JoinHostPort("127.0.0.1", port)
+		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
+		if err != nil {
+			continue
+		}
+		_ = conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		_, err = conn.Write([]byte(request))
+		_ = conn.Close()
+		if err != nil {
+			log.Warn("failed to quit istio sidecar", "port", port, "error", err)
+			return
+		}
+		log.Info("istio sidecar shutdown signal sent", "port", port)
+		return
 	}
 }
 

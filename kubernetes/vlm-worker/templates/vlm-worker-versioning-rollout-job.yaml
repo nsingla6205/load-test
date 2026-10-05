@@ -19,10 +19,12 @@ spec:
   template:
     metadata:
       annotations:
-        sidecar.istio.io/inject: "false"
+        # STRICT mTLS rejects a sidecar-less client. This mesh injects istio-proxy
+        # as a normal container, so the rollout binary posts /quitquitquit on exit.
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
       labels:
         app: vlm-worker-versioning-ensure-drain
-        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       restartPolicy: Never
@@ -72,10 +74,10 @@ spec:
   template:
     metadata:
       annotations:
-        sidecar.istio.io/inject: "false"
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
       labels:
         app: vlm-worker-versioning-rollout
-        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       restartPolicy: Never

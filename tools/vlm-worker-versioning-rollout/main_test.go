@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -456,6 +458,39 @@ func TestPromoteAndRetireTargetsContinuesAfterTargetFailure(t *testing.T) {
 	assert.Equal(t, []string{"A2"}, rec.drained)
 	assert.Equal(t, []string{"drain-a2"}, k8s.scaled)
 	assert.Equal(t, []string{"A2"}, rec.deleted)
+}
+
+func TestShutdownIstioSidecar(t *testing.T) {
+	original := istioQuitPorts
+	t.Cleanup(func() { istioQuitPorts = original })
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	path := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path <- r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	parsed, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	istioQuitPorts = []string{parsed.Port()}
+
+	shutdownIstioSidecar(log)
+	select {
+	case got := <-path:
+		assert.Equal(t, "/quitquitquit", got)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for sidecar shutdown request")
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	closed := ln.Addr().String()
+	require.NoError(t, ln.Close())
+	_, port, err := net.SplitHostPort(closed)
+	require.NoError(t, err)
+	istioQuitPorts = []string{port}
+	shutdownIstioSidecar(log)
 }
 
 func validRolloutTarget() RolloutTarget {
