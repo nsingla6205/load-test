@@ -80,6 +80,9 @@ func (h Handler) batchListSnapshotsVCPOnly(ctx context.Context, snapshotUUIDs []
 
 	out := make([]gcpgenserver.BatchSnapshotV1beta, 0, len(snapshots))
 	for _, snap := range snapshots {
+		if snap == nil {
+			continue
+		}
 		out = append(out, convertSnapshotToBatchSnapshot(snap, fieldSet))
 	}
 
@@ -125,6 +128,9 @@ func (h Handler) batchListSnapshotsVCPAndCVPParallel(ctx context.Context, snapsh
 	} else {
 		vcpBatch = make([]gcpgenserver.BatchSnapshotV1beta, 0, len(vcpSnaps))
 		for _, snap := range vcpSnaps {
+			if snap == nil {
+				continue
+			}
 			vcpBatch = append(vcpBatch, convertSnapshotToBatchSnapshot(snap, fieldSet))
 		}
 	}

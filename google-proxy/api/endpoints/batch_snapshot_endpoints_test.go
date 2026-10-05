@@ -295,6 +295,32 @@ func TestV1betaBatchListSnapshots_VCPOnly(t *testing.T) {
 		assert.Equal(tt, "snap-1", okRes.Snapshots[0].SnapshotId.Value)
 		assert.False(tt, okRes.Snapshots[0].ResourceId.Set)
 	})
+
+	t.Run("NilSnapshotInResult_IsSkipped", func(tt *testing.T) {
+		restore := stubParseRegionAndZone()
+		defer restore()
+		restoreAuth := stubBatchAuth(true)
+		defer restoreAuth()
+		cvp.CVP_HOST = ""
+
+		mockOrch := factory.NewMockOrchestratorFactory(tt)
+		handler := &Handler{Orchestrator: mockOrch}
+		ctx := authContext()
+
+		snap := makeVCPModelSnapshot("snap-1", "res-1", datamodel.LifeCycleStateREADY)
+		mockOrch.On("GetSnapshotsByUUIDs", mock.Anything, []string{"snap-1"}).
+			Return([]*models.Snapshot{nil, snap}, nil)
+
+		req := &gcpgenserver.BatchSnapshotUUIDListV1beta{SnapshotUuids: []string{"snap-1"}}
+		params := gcpgenserver.V1betaBatchListSnapshotsParams{LocationId: "us-east4"}
+
+		res, err := handler.V1betaBatchListSnapshots(ctx, req, params)
+		require.NoError(tt, err)
+		okRes, ok := res.(*gcpgenserver.V1betaBatchListSnapshotsOK)
+		require.True(tt, ok)
+		require.Len(tt, okRes.Snapshots, 1)
+		assert.Equal(tt, "snap-1", okRes.Snapshots[0].SnapshotId.Value)
+	})
 }
 
 func TestV1betaBatchListSnapshots_Parallel(t *testing.T) {

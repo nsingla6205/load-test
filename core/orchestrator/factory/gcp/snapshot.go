@@ -293,9 +293,21 @@ func (o *GCPOrchestrator) GetSnapshotsByUUIDs(ctx context.Context, snapshotUUIDs
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*models.Snapshot, len(dbSnaps))
-	for i, s := range dbSnaps {
-		out[i] = ConvertDatastoreSnapshotToModel(s)
+	logger := util.GetLogger(ctx)
+	out := make([]*models.Snapshot, 0, len(dbSnaps))
+	for _, s := range dbSnaps {
+		if s == nil {
+			continue
+		}
+		if s.Volume == nil {
+			logger.Warnf("Skipping stale snapshot %s: associated volume is deleted", s.UUID)
+			continue
+		}
+		model := ConvertDatastoreSnapshotToModel(s)
+		if model == nil {
+			continue
+		}
+		out = append(out, model)
 	}
 	return out, nil
 }

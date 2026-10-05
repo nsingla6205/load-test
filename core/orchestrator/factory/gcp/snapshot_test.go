@@ -1580,6 +1580,56 @@ func TestGCPOrchestrator_GetSnapshotsByUUIDs(t *testing.T) {
 		assert.Equal(tt, "vol-name", out[0].VolumeName)
 	})
 
+	t.Run("skips_nil_snapshot", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(tt)
+		ds := &datamodel.Snapshot{
+			BaseModel: datamodel.BaseModel{UUID: "snap-1"},
+			Name:      "snap-name",
+			Volume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
+				Name:      "vol-name",
+			},
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
+		}
+		mockStorage.EXPECT().BatchGetSnapshotsByUUIDs(ctx, []string{"snap-1", "missing"}).
+			Return([]*datamodel.Snapshot{nil, ds}, nil)
+
+		orch := GCPOrchestrator{storage: mockStorage}
+		out, err := orch.GetSnapshotsByUUIDs(ctx, []string{"snap-1", "missing"})
+		require.NoError(tt, err)
+		require.Len(tt, out, 1)
+		assert.Equal(tt, "snap-1", out[0].UUID)
+		assert.Equal(tt, "vol-uuid", out[0].VolumeUUID)
+	})
+
+	t.Run("skips_snapshot_when_volume_is_deleted", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(tt)
+		live := &datamodel.Snapshot{
+			BaseModel: datamodel.BaseModel{UUID: "snap-live"},
+			Name:      "live",
+			Volume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
+				Name:      "vol-name",
+			},
+			SnapshotAttributes: &datamodel.SnapshotAttributes{},
+		}
+		stale := &datamodel.Snapshot{
+			BaseModel: datamodel.BaseModel{UUID: "snap-stale"},
+			Name:      "stale",
+		}
+		mockStorage.EXPECT().BatchGetSnapshotsByUUIDs(ctx, []string{"snap-live", "snap-stale"}).
+			Return([]*datamodel.Snapshot{live, stale}, nil)
+
+		orch := GCPOrchestrator{storage: mockStorage}
+		out, err := orch.GetSnapshotsByUUIDs(ctx, []string{"snap-live", "snap-stale"})
+		require.NoError(tt, err)
+		require.Len(tt, out, 1)
+		assert.Equal(tt, "snap-live", out[0].UUID)
+		assert.Equal(tt, "vol-uuid", out[0].VolumeUUID)
+	})
+
 	t.Run("storage_error", func(tt *testing.T) {
 		ctx := context.Background()
 		mockStorage := database.NewMockStorage(tt)
