@@ -29,12 +29,14 @@ resolve_region() {
       VCM_SECRET_MANAGER_PROJECT_ID="266893635349" # netapp-au-se1-autopush-sde-tst
       ;;
     us-c1)
+      VSA_AUTH_TYPE=0
       VCM_LOCAL_REGION="us-central1"
       VCM_GCE_METADATA_HOST="34.116.66.254:9090" # AU-SE1, VSA image pull will work, but it can't manage secrets of us-c1's secret manager, therefore use VSA_AUTH_TYPE=0 always
       # VCM_GCE_METADATA_HOST="35.209.239.186:9090" #actual, but its not configured for VSA image pull.
       VCM_SECRET_MANAGER_PROJECT_ID="254387308849" # netapp-us-c1-autopush-sde-tst
       ;;
     us-e4)
+      VSA_AUTH_TYPE=0
       VCM_LOCAL_REGION="us-east4"
       VCM_GCE_METADATA_HOST="34.116.66.254:9090" # AU-SE1, VSA image pull will work, but it can't manage secrets of us-e4's secret manager, therefore use VSA_AUTH_TYPE=0 always
       # VCM_GCE_METADATA_HOST="34.48.252.127:9090" #actual, but its not configured for VSA image pull.

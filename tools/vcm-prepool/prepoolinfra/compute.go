@@ -131,6 +131,26 @@ func (p *provisioner) ListInstancesByLabels(ctx context.Context, projectID, zone
 	return instances, nil
 }
 
+func (p *provisioner) ListInstancesByNamePrefix(ctx context.Context, projectID, zone, deploymentName string) ([]*compute.Instance, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if zone == "" {
+		return nil, fmt.Errorf("list instances by prefix: zone is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.Instances.List(projectID, zone).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list instances by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
+}
+
 func (p *provisioner) ShutdownInstance(ctx context.Context, tenantProject string, instance *compute.Instance) error {
 	computeService, err := p.GCPService.GetComputeService(ctx)
 	if err != nil {
@@ -231,6 +251,26 @@ func (p *provisioner) ListDisksByLabels(ctx context.Context, tenantProject, zone
 		return nil, fmt.Errorf("list disks: %w", err)
 	}
 	return disks, nil
+}
+
+func (p *provisioner) ListDisksByNamePrefix(ctx context.Context, tenantProject, zone, deploymentName string) ([]*compute.Disk, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if zone == "" {
+		return nil, fmt.Errorf("list disks by prefix: zone is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.Disks.List(tenantProject, zone).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list disks by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
 }
 
 func (p *provisioner) DeleteDisk(ctx context.Context, tenantProject string, disk *compute.Disk) error {

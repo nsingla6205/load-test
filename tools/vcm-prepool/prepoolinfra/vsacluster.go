@@ -19,9 +19,10 @@ const (
 )
 
 type vsaClusterResources struct {
-	instances   []*compute.Instance
-	disks       []*compute.Disk
-	ipAddresses []*compute.Address
+	instances       []*compute.Instance
+	disks           []*compute.Disk
+	forwardingRules []*compute.ForwardingRule
+	ipAddresses     []*compute.Address
 }
 
 func (p *provisioner) deleteVSACluster(
@@ -32,7 +33,7 @@ func (p *provisioner) deleteVSACluster(
 	zones []string,
 ) error {
 	deploymentLabels := map[string]string{deploymentIDLabelKey: deploymentName}
-	resources, err := p.discoverVSAClusterResources(ctx, tenantProject, region, zones, deploymentLabels)
+	resources, err := p.discoverVSAClusterResources(ctx, tenantProject, region, zones, deploymentName, deploymentLabels)
 	if err != nil {
 		return err
 	}
@@ -42,6 +43,7 @@ func (p *provisioner) deleteVSACluster(
 		"labelSelector", labelFilter(deploymentLabels),
 		"instances", len(resources.instances),
 		"disks", len(resources.disks),
+		"forwardingRules", len(resources.forwardingRules),
 		"ipAddresses", len(resources.ipAddresses),
 		"zones", zones)
 
@@ -68,11 +70,25 @@ func (p *provisioner) deleteVSACluster(
 	}
 
 	if len(resources.ipAddresses) == 0 {
-		slog.Warn("no IP addresses matched deployment label", "deploymentName", deploymentName, "region", region)
+		slog.Warn("no IP addresses matched deployment label or name prefix", "deploymentName", deploymentName, "region", region)
 	}
 
-	// Once instances are gone, their persistent disks and reserved addresses
-	// are independent and can be deleted in the same bounded worker group.
+	// Forwarding rules hold references to IP addresses, so they must be
+	// deleted first. Otherwise Addresses.Delete returns 400
+	// resourceInUseByAnotherResource.
+	if err := runConcurrent(ctx, resources.forwardingRules, func(ctx context.Context, rule *compute.ForwardingRule) error {
+		if err := p.DeleteForwardingRule(ctx, tenantProject, rule); err != nil {
+			return fmt.Errorf("delete forwarding rule %s: %w", rule.Name, err)
+		}
+		slog.Info("forwarding rule deleted", "forwardingRuleName", rule.Name)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Once instances and forwarding rules are gone, their persistent disks
+	// and reserved addresses are independent and can be deleted in the same
+	// bounded worker group.
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(cleanupConcurrency)
 	for _, disk := range resources.disks {
@@ -101,6 +117,7 @@ func (p *provisioner) discoverVSAClusterResources(
 	tenantProject string,
 	region string,
 	zones []string,
+	deploymentName string,
 	labels map[string]string,
 ) (vsaClusterResources, error) {
 	var resources vsaClusterResources
@@ -108,42 +125,50 @@ func (p *provisioner) discoverVSAClusterResources(
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(cleanupConcurrency)
+
+	// --- zonal resources: instances and disks (per zone) ---
 	for _, zone := range zones {
 		group.Go(func() error {
-			instances, err := p.ListInstancesByLabels(groupCtx, tenantProject, zone, labels)
+			instances, err := p.discoverInstances(groupCtx, tenantProject, zone, deploymentName, labels)
 			if err != nil {
-				return fmt.Errorf("list compute instances in zone %s: %w", zone, err)
+				return fmt.Errorf("discover instances in zone %s: %w", zone, err)
 			}
-			if instances != nil {
-				mu.Lock()
-				resources.instances = append(resources.instances, instances.Items...)
-				mu.Unlock()
-			}
+			mu.Lock()
+			resources.instances = append(resources.instances, instances...)
+			mu.Unlock()
 			return nil
 		})
 		group.Go(func() error {
-			disks, err := p.ListDisksByLabels(groupCtx, tenantProject, zone, labels)
+			disks, err := p.discoverDisks(groupCtx, tenantProject, zone, deploymentName, labels)
 			if err != nil {
-				return fmt.Errorf("list compute disks in zone %s: %w", zone, err)
+				return fmt.Errorf("discover disks in zone %s: %w", zone, err)
 			}
-			if disks != nil {
-				mu.Lock()
-				resources.disks = append(resources.disks, disks.Items...)
-				mu.Unlock()
-			}
+			mu.Lock()
+			resources.disks = append(resources.disks, disks...)
+			mu.Unlock()
 			return nil
 		})
 	}
+
+	// --- regional resources: IP addresses and forwarding rules ---
 	group.Go(func() error {
-		ipAddresses, err := p.ListIPAddressesByLabels(groupCtx, tenantProject, region, labels)
+		addrs, err := p.discoverIPAddresses(groupCtx, tenantProject, region, deploymentName, labels)
 		if err != nil {
-			return fmt.Errorf("list IP addresses: %w", err)
+			return fmt.Errorf("discover IP addresses: %w", err)
 		}
-		if ipAddresses != nil {
-			mu.Lock()
-			resources.ipAddresses = append(resources.ipAddresses, ipAddresses.Items...)
-			mu.Unlock()
+		mu.Lock()
+		resources.ipAddresses = append(resources.ipAddresses, addrs...)
+		mu.Unlock()
+		return nil
+	})
+	group.Go(func() error {
+		fwdRules, err := p.discoverForwardingRules(groupCtx, tenantProject, region, deploymentName, labels)
+		if err != nil {
+			return fmt.Errorf("discover forwarding rules: %w", err)
 		}
+		mu.Lock()
+		resources.forwardingRules = append(resources.forwardingRules, fwdRules...)
+		mu.Unlock()
 		return nil
 	})
 
@@ -162,4 +187,112 @@ func runConcurrent[T any](ctx context.Context, items []T, operation func(context
 		})
 	}
 	return group.Wait()
+}
+
+// unionByName merges items from a label-based query and a name-prefix query.
+// Items found only via prefix (unlabeled) are logged as warnings. T must have
+// a Name string field accessible via the getName function.
+func unionByName[T any](resourceType, deploymentName string, labeled, byPrefix []T, getName func(T) string) []T {
+	seen := make(map[string]struct{}, len(labeled))
+	merged := make([]T, 0, len(labeled)+len(byPrefix))
+	for _, item := range labeled {
+		seen[getName(item)] = struct{}{}
+		merged = append(merged, item)
+	}
+	for _, item := range byPrefix {
+		name := getName(item)
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		slog.Warn(resourceType+" matched by name prefix but missing deployment label; include in cleanup as fallback",
+			"resource", name,
+			"deploymentName", deploymentName,
+			"expectedLabel", deploymentIDLabelKey)
+		merged = append(merged, item)
+	}
+	return merged
+}
+
+func (p *provisioner) discoverInstances(
+	ctx context.Context,
+	tenantProject, zone, deploymentName string,
+	labels map[string]string,
+) ([]*compute.Instance, error) {
+	labeled, err := p.ListInstancesByLabels(ctx, tenantProject, zone, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListInstancesByNamePrefix(ctx, tenantProject, zone, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.Instance
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("instance", deploymentName, labeledItems, byPrefix, func(i *compute.Instance) string { return i.Name }), nil
+}
+
+func (p *provisioner) discoverDisks(
+	ctx context.Context,
+	tenantProject, zone, deploymentName string,
+	labels map[string]string,
+) ([]*compute.Disk, error) {
+	labeled, err := p.ListDisksByLabels(ctx, tenantProject, zone, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListDisksByNamePrefix(ctx, tenantProject, zone, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.Disk
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("disk", deploymentName, labeledItems, byPrefix, func(d *compute.Disk) string { return d.Name }), nil
+}
+
+func (p *provisioner) discoverIPAddresses(
+	ctx context.Context,
+	tenantProject, region, deploymentName string,
+	labels map[string]string,
+) ([]*compute.Address, error) {
+	labeled, err := p.ListIPAddressesByLabels(ctx, tenantProject, region, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListIPAddressesByNamePrefix(ctx, tenantProject, region, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.Address
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("IP address", deploymentName, labeledItems, byPrefix, func(a *compute.Address) string { return a.Name }), nil
+}
+
+// discoverForwardingRules returns the union of forwarding rules found by
+// deployment label and by name prefix. VLM currently does not label forwarding
+// rules with deployment_id, so the name-prefix query is a fallback. Rules found
+// only via prefix (unlabeled) are logged as warnings so the gap is visible.
+func (p *provisioner) discoverForwardingRules(
+	ctx context.Context,
+	tenantProject, region, deploymentName string,
+	labels map[string]string,
+) ([]*compute.ForwardingRule, error) {
+	labeled, err := p.ListForwardingRulesByLabels(ctx, tenantProject, region, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListForwardingRulesByNamePrefix(ctx, tenantProject, region, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.ForwardingRule
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("forwarding rule", deploymentName, labeledItems, byPrefix, func(r *compute.ForwardingRule) string { return r.Name }), nil
 }

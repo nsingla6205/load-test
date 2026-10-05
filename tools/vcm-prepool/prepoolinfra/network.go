@@ -362,6 +362,79 @@ func (p *provisioner) ListIPAddressesByLabels(ctx context.Context, tenantProject
 	return ipAddresses, nil
 }
 
+func (p *provisioner) ListIPAddressesByNamePrefix(ctx context.Context, tenantProject, region, deploymentName string) ([]*compute.Address, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if region == "" {
+		return nil, fmt.Errorf("list IP addresses by prefix: region is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.Addresses.List(tenantProject, region).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list IP addresses by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
+}
+
+func (p *provisioner) ListForwardingRulesByLabels(ctx context.Context, tenantProject, region string, m map[string]string) (*compute.ForwardingRuleList, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if region == "" {
+		return nil, fmt.Errorf("list forwarding rules: region is required")
+	}
+	call := computeService.ForwardingRules.List(tenantProject, region)
+	if filter := labelFilter(m); filter != "" {
+		call = call.Filter(filter)
+	}
+	rules, err := call.Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list forwarding rules: %w", err)
+	}
+	return rules, nil
+}
+
+// ListForwardingRulesByNamePrefix returns forwarding rules whose name starts
+// with deploymentName followed by a hyphen. This is a fallback for resources
+// that VLM does not label with deployment_id.
+func (p *provisioner) ListForwardingRulesByNamePrefix(ctx context.Context, tenantProject, region, deploymentName string) ([]*compute.ForwardingRule, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if region == "" {
+		return nil, fmt.Errorf("list forwarding rules by prefix: region is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.ForwardingRules.List(tenantProject, region).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list forwarding rules by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
+}
+
+func (p *provisioner) DeleteForwardingRule(ctx context.Context, tenantProject string, rule *compute.ForwardingRule) error {
+	region := resourceID(rule.Region)
+	return p.deleteAndWaitRegional(ctx, tenantProject, region, "forwarding rule", rule.Name, func() (*compute.Operation, error) {
+		computeService, err := p.GCPService.GetComputeService(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get compute service: %w", err)
+		}
+		return computeService.ForwardingRules.Delete(tenantProject, region, rule.Name).Context(ctx).Do()
+	})
+}
+
 func (p *provisioner) DeleteIPAddress(ctx context.Context, tenantProject string, ipAddress *compute.Address) error {
 	computeService, err := p.GCPService.GetComputeService(ctx)
 	if err != nil {
