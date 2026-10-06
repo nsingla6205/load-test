@@ -1671,7 +1671,7 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 			})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "cannot shrink pool")
+		assert.Contains(tt, err.Error(), "must increase the size of pool")
 		assert.Contains(tt, err.Error(), "current size=1000 GiB")
 		assert.Contains(tt, err.Error(), "requested size=800 GiB")
 	})
@@ -1694,7 +1694,7 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 			})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "cannot shrink pool")
+		assert.Contains(tt, err.Error(), "must increase the size of pool")
 		assert.Contains(tt, err.Error(), "requested size=500 GiB")
 	})
 
@@ -1731,9 +1731,8 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 		assert.NoError(tt, err)
 	})
 
-	t.Run("accepts equal-size update: requested aggregate == current pool size", func(tt *testing.T) {
-		// Shrink guard is strictly less-than; matching sizes pass so callers
-		// may resubmit the current capacity (e.g. throughput-only update).
+	t.Run("rejects equal-size update: requested aggregate == current pool size", func(tt *testing.T) {
+		// A size update must grow the pool. Matching the current total is rejected.
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2"), nil)
@@ -1746,7 +1745,11 @@ func TestValidateUpdatePoolNodeCapacities(t *testing.T) {
 					{NodeUUID: "uuid-2", SizeInGiB: 400},
 				},
 			})
-		assert.NoError(tt, err)
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "must increase the size of pool")
+		assert.Contains(tt, err.Error(), "current size=800 GiB")
+		assert.Contains(tt, err.Error(), "requested size=800 GiB")
 	})
 
 	t.Run("zero current pool size is treated as unknown and never reads as shrink", func(tt *testing.T) {
@@ -1939,6 +1942,50 @@ func TestValidateUpdatePoolNodeCapacities_Heterogeneous(t *testing.T) {
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
 			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
 		pool := makeUpdatePool(poolID, poolOCID, poolUUID, 0, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+		assert.NoError(tt, err)
+		assert.Equal(tt, uint64(24576)*1024*1024*1024, params.SizeInBytes)
+	})
+
+	t.Run("rejects heterogeneous update that does not increase overall size", func(tt *testing.T) {
+		// 4096+4096+8192+8192 = 24576 GiB, matching the stored pool size.
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		currentBytes := int64(24576) * 1024 * 1024 * 1024
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, currentBytes, false)
+		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
+		params := &commonparams.UpdatePoolParams{
+			NodeCapacities: []commonparams.NodeCapacity{
+				{NodeUUID: "uuid-1", SizeInGiB: 4096},
+				{NodeUUID: "uuid-2", SizeInGiB: 4096},
+				{NodeUUID: "uuid-3", SizeInGiB: 8192},
+				{NodeUUID: "uuid-4", SizeInGiB: 8192},
+			},
+		}
+		err := validateUpdatePoolNodeCapacities(ctx, mockStorage, pool, params)
+		assert.Error(tt, err)
+		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "must increase the size of pool")
+		assert.Contains(tt, err.Error(), "current size=24576 GiB")
+		assert.Contains(tt, err.Error(), "requested size=24576 GiB")
+	})
+
+	t.Run("accepts heterogeneous update that increases overall size", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, poolID).
+			Return(poolNodes("uuid-1", "uuid-2", "uuid-3", "uuid-4"), nil)
+		currentBytes := int64(16384) * 1024 * 1024 * 1024
+		pool := makeUpdatePool(poolID, poolOCID, poolUUID, currentBytes, false)
 		setUpdatePoolHATopology(tt, pool, "uuid-1", "uuid-2", "uuid-3", "uuid-4")
 		params := &commonparams.UpdatePoolParams{
 			NodeCapacities: []commonparams.NodeCapacity{

@@ -543,9 +543,9 @@ func validateUpdatePoolNodeCapacities(
 		return err
 	}
 	currentPoolGiB := int64(pool.SizeInBytes / (1024 * 1024 * 1024))
-	if requestedPoolGiB > 0 && currentPoolGiB > requestedPoolGiB {
+	if requestedPoolGiB > 0 && currentPoolGiB >= requestedPoolGiB {
 		return customerrors.NewUserInputValidationErr(
-			fmt.Sprintf("nodeCapacities cannot shrink pool %q: current size=%d GiB, requested size=%d GiB",
+			fmt.Sprintf("nodeCapacities must increase the size of pool %q: current size=%d GiB, requested size=%d GiB",
 				pool.PoolExternalIdentifier, currentPoolGiB, requestedPoolGiB))
 	}
 	params.SizeInBytes = uint64(requestedPoolGiB) * 1024 * 1024 * 1024
