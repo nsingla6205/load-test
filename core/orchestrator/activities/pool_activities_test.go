@@ -4443,33 +4443,38 @@ func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *test
 }
 
 func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
-	// The request below is far below every VM's limits, so the chosen type is the cheapest
-	// candidate the family allows: the active-active floor where one is defined, and the
-	// family's smallest VM where none is.
+	// A new active-active pool takes its family and floor from TRUE_ZONAL_BASE_MACHINE_TYPE.
+	// An update keeps the current instance type and its family, so a c3 pool cannot
+	// move to c4 when the env type changes. Large-capacity pools that are not
+	// active-active still follow MACHINE_FAMILY_TYPE.
 	cases := []struct {
-		name             string
-		family           vmrs.MachineFamilyType
-		isTrueZonal      bool
-		isPreview        bool
-		wantPrefix       string
-		wantLssd         bool
-		wantInstanceType string
+		name                string
+		family              vmrs.MachineFamilyType
+		baseMachineType     string
+		currentInstanceType string
+		isTrueZonal         bool
+		wantPrefix          string
+		wantLssd            bool
+		wantInstanceType    string
+		wantErr             string
 	}{
-		{name: "true-zonal in a c4-lssd region", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-24-lssd"},
-		{name: "true-zonal in a c4-non-lssd region", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, wantPrefix: "c4-", wantLssd: false, wantInstanceType: "c4-standard-24"},
-		{name: "true-zonal in a c3-non-lssd region", family: vmrs.MachineFamilyC3NonLSSD, isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-22"},
-		{name: "true-zonal in a c3-lssd region", family: vmrs.MachineFamilyC3LSSD, isTrueZonal: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
-		{name: "preview true-zonal remains pinned to c3-lssd", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, isPreview: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
-		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: false, wantPrefix: "c4-", wantLssd: true},
+		{name: "create c3-standard-22-lssd selects c3-lssd", family: vmrs.MachineFamilyC4NonLSSD, baseMachineType: "c3-standard-22-lssd", isTrueZonal: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
+		{name: "create c3-standard-22 selects c3-non-lssd", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c3-standard-22", isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-22"},
+		{name: "create c4-standard-24-lssd selects c4-lssd", family: vmrs.MachineFamilyC3NonLSSD, baseMachineType: "c4-standard-24-lssd", isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-24-lssd"},
+		{name: "create c4-standard-24 selects c4-non-lssd", family: vmrs.MachineFamilyC3LSSD, baseMachineType: "c4-standard-24", isTrueZonal: true, wantPrefix: "c4-", wantLssd: false, wantInstanceType: "c4-standard-24"},
+		{name: "update keeps c4-lssd when base type is c3", family: vmrs.MachineFamilyC3NonLSSD, baseMachineType: "c3-standard-22-lssd", currentInstanceType: "c4-standard-8-lssd", isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-8-lssd"},
+		{name: "update keeps c3-non-lssd when base type is c4", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c4-standard-24-lssd", currentInstanceType: "c3-standard-4", isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-4"},
+		{name: "unrecognized base machine type on create", family: vmrs.MachineFamilyC3LSSD, baseMachineType: "n2-standard-8", isTrueZonal: true, wantErr: "does not map to a supported machine family"},
+		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c3-standard-22-lssd", isTrueZonal: false, wantPrefix: "c4-", wantLssd: true},
 	}
 
 	originalFamily := vmrs.MachineFamily
 	originalReadFile := activities.ReadFile
-	originalEnableTrueZonalGA := activities.EnableTrueZonalGA
+	originalBaseMachineType := activities.TrueZonalBaseMachineType
 	defer func() {
 		vmrs.MachineFamily = originalFamily
 		activities.ReadFile = originalReadFile
-		activities.EnableTrueZonalGA = originalEnableTrueZonalGA
+		activities.TrueZonalBaseMachineType = originalBaseMachineType
 	}()
 	activities.ReadFile = func(filename string) ([]byte, error) {
 		return []byte("{}"), nil
@@ -4478,7 +4483,7 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vmrs.MachineFamily = tc.family
-			activities.EnableTrueZonalGA = !tc.isPreview
+			activities.TrueZonalBaseMachineType = tc.baseMachineType
 
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestActivityEnvironment()
@@ -4487,17 +4492,23 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 
 			req := testIdentifyVMsRequest()
 			req.VMRSConfigPath = "../../../config/vmrs_gcp_v2.yaml"
-			// These cases exercise the large-capacity strategy and differ by topology,
-			// rollout phase, and configured machine family.
+			// These cases exercise the large-capacity strategy. Active-active cases
+			// follow TRUE_ZONAL_BASE_MACHINE_TYPE; the others follow MACHINE_FAMILY_TYPE.
 			req.IsLargeCapacityPool = true
 			req.CustomerRequest = vmrs.CustomerRequestedPerformance{
 				DesiredIOPS:             100,
 				DesiredThroughputInMiBs: 10,
 				DesiredCapacityInGiB:    100,
+				CurrentInstanceType:     tc.currentInstanceType,
 				ScalingTopology:         vmrs_decision.ResolveScalingTopology(tc.isTrueZonal, true),
 			}
 
 			val, err := env.ExecuteActivity(activity.IdentifyVMs, req)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 
 			var vlmConfig *vlm.VLMConfig

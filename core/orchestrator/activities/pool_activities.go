@@ -158,11 +158,11 @@ var (
 	OntapModeRBACChecksums   = env.GetString("ONTAP_MODE_RBAC_CHECKSUMS", "{}")
 	ValidateRbacHashFlag     = env.GetBool("VALIDATE_RBAC_HASH", false)
 
-	ValidateImageDigestFlag = env.GetBool("VALIDATE_IMAGE_DIGEST", false)
-	VsaImageChecksums       = env.GetString("VSA_IMAGE_CHECKSUMS", "")
-	VsaImageName            = env.GetString("VSA_IMAGE_NAME", "")
-	MediatorImageName       = env.GetString("VSA_MEDIATOR_IMAGE_NAME", "")
-	EnableTrueZonalGA       = env.GetBool("ENABLE_TRUE_ZONAL_GA", false)
+	ValidateImageDigestFlag  = env.GetBool("VALIDATE_IMAGE_DIGEST", false)
+	VsaImageChecksums        = env.GetString("VSA_IMAGE_CHECKSUMS", "")
+	VsaImageName             = env.GetString("VSA_IMAGE_NAME", "")
+	MediatorImageName        = env.GetString("VSA_MEDIATOR_IMAGE_NAME", "")
+	TrueZonalBaseMachineType = env.GetString("TRUE_ZONAL_BASE_MACHINE_TYPE", "c3-standard-22-lssd")
 )
 
 const (
@@ -2373,10 +2373,11 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	// a different family. On create (no current instance type) we fall back to the
 	// process-wide MACHINE_FAMILY_TYPE.
 	machineFamily := vmrs.MachineFamily
-	if existingFamily := vmrs.MachineFamilyForVMType(req.CustomerRequest.CurrentInstanceType); existingFamily.IsValid() {
+	existingFamily := vmrs.MachineFamilyForVMType(req.CustomerRequest.CurrentInstanceType)
+	if existingFamily.IsValid() {
 		machineFamily = existingFamily
 		logger.Debug("Scoping VM selection to existing pool machine family", "currentInstanceType", req.CustomerRequest.CurrentInstanceType, "machineFamily", machineFamily)
-	} else if req.CustomerRequest.CurrentInstanceType != "" {
+	} else if req.CustomerRequest.CurrentInstanceType != "" && req.CustomerRequest.ScalingTopology.Topology != vmrs.TopologyActiveActive {
 		// Non-empty but unrecognized current instance type (e.g. a corrupted DB
 		// value or a not-yet-supported family). We cannot infer the pool's
 		// original family, so we fall back to the global MACHINE_FAMILY_TYPE.
@@ -2385,13 +2386,21 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	}
 
 	if req.CustomerRequest.ScalingTopology.Topology == vmrs.TopologyActiveActive {
-		if !EnableTrueZonalGA {
-			machineFamily = vmrs.MachineFamilyC3LSSD
-			logger.Info("Pinned preview active-active pool to qualified machine family", "machineFamily", machineFamily)
+		minimumMachineType := req.CustomerRequest.CurrentInstanceType
+		if !existingFamily.IsValid() {
+			baseFamily := vmrs.MachineFamilyForVMType(TrueZonalBaseMachineType)
+			if !baseFamily.IsValid() {
+				err := fmt.Errorf("TRUE_ZONAL_BASE_MACHINE_TYPE %q does not map to a supported machine family", TrueZonalBaseMachineType)
+				logger.Error("Invalid true-zonal base machine type", "error", err)
+				return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+					vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
+			}
+			machineFamily = baseFamily
+			minimumMachineType = TrueZonalBaseMachineType
 		}
-		req.CustomerRequest.ScalingTopology.VMSelectionPolicy = vmrs_decision.ActiveActiveVMSelectionPolicy(machineFamily)
+		req.CustomerRequest.ScalingTopology.VMSelectionPolicy = vmrs.VMSelectionPolicy{MinimumMachineType: minimumMachineType}
 		logger.Info("Applied active-active VM selection policy", "machineFamily", machineFamily,
-			"minimumMachineType", req.CustomerRequest.ScalingTopology.VMSelectionPolicy.MinimumMachineType)
+			"minimumMachineType", minimumMachineType)
 	}
 
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.

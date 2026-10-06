@@ -195,7 +195,7 @@ data:
   ADDRESS_SPACE_MGMT_ENABLED: {{$.Values.workerConfig.addressSpaceMgmtEnabled | quote }}
   SEQUENCE_WORKFLOW_RESILIENCE_ENABLED: {{$.Values.workerConfig.sequenceWorkflowResilienceEnabled | quote }}
   ENABLE_TRUE_ZONAL_LV: {{$.Values.workerConfig.enableTrueZonalLV | quote }}
-  ENABLE_TRUE_ZONAL_GA: {{$.Values.workerConfig.enableTrueZonalGA | quote }}
+  TRUE_ZONAL_BASE_MACHINE_TYPE: {{$.Values.workerConfig.trueZonalBaseMachineType | quote }}
   IC_LIF_ADDRESS_SPACE_ENABLED: {{$.Values.workerConfig.icLifAddressSpaceEnabled | quote }}
   ENABLE_VPG_ENDPOINTS: {{$.Values.workerConfig.enableVpgEndpoints | quote }}
   PROBER_PROJECT_LIST: {{$.Values.workerConfig.proberProjectList | quote }}
