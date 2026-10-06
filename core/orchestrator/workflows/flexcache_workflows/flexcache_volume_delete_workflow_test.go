@@ -73,6 +73,7 @@ func (s *FlexCacheDeleteUnitTestSuite) SetupTest() {
 	s.env.RegisterActivity(volumeDeleteActivity.DeleteExportPolicy)
 	s.env.RegisterActivity(volumeDeleteActivity.DetermineIfVolumeIsLastFilesVolume)
 	s.env.RegisterActivity(volumeDeleteActivity.DeleteLDAPConfiguration)
+	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.DisableFlexCacheWritebackInOntapActivity)
 	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.UnmountVolumeInOntapActivity)
 	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.DeleteFlexCacheVolumeInOntapActivity)
 	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.DeleteSVMPeeringInOntapActivity)
@@ -133,12 +134,21 @@ func (s *FlexCacheDeleteUnitTestSuite) AfterTest() {
 
 func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_Success() {
 	volume := CreateTestVolumeForDelete()
+	writebackEnabled := true
+	volume.CacheParameters = &datamodel.CacheParameters{
+		CacheConfig: &datamodel.CacheConfig{WritebackEnabled: &writebackEnabled},
+	}
+	disableWritebackJobUuid := "disable-writeback-job-uuid"
 	unmountJobUuid := "unmount-job-uuid"
 	deleteJobUuid := "delete-job-uuid"
 
 	s.env.OnActivity(s.commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelPrepopulateJobsForVolume, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.DisableFlexCacheWritebackInOntapActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{
+		DisableWritebackJobResponse: &vsa.OntapAsyncResponse{JobUUID: disableWritebackJobUuid},
+	}, nil)
+	s.env.OnActivity(s.commonActivity.GetOntapJob, mock.Anything, disableWritebackJobUuid, mock.Anything).Return(&vsa.OntapJob{State: "success"}, nil)
 	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.UnmountVolumeInOntapActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{
 		UnmountJobResponse: &vsa.OntapAsyncResponse{JobUUID: unmountJobUuid},
 	}, nil)
@@ -175,6 +185,52 @@ func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_StaleJ
 	volume := CreateTestVolumeForDelete()
 
 	s.getJobState = datamodel.JobsStateERROR
+	s.env.ExecuteWorkflow(DeleteFlexCacheVolumeWorkflow, volume)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+func writebackEnabledVolume() *datamodel.Volume {
+	volume := CreateTestVolumeForDelete()
+	writebackEnabled := true
+	volume.CacheParameters = &datamodel.CacheParameters{
+		CacheConfig: &datamodel.CacheConfig{WritebackEnabled: &writebackEnabled},
+	}
+	return volume
+}
+
+func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_DisableWritebackFailure() {
+	volume := writebackEnabledVolume()
+
+	s.env.OnActivity(s.commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelPrepopulateJobsForVolume, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelFlexCacheCreateWorkflowIfPreparingActivity, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.RefreshDBVolumeForDeleteActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{DBVolume: volume}, nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.DisableFlexCacheWritebackInOntapActivity, mock.Anything, mock.Anything).Return(nil, errors.New("some_error"))
+	s.env.OnActivity(s.volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(DeleteFlexCacheVolumeWorkflow, volume)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_DisableWritebackWaitFailure() {
+	volume := writebackEnabledVolume()
+
+	s.env.OnActivity(s.commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelPrepopulateJobsForVolume, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelFlexCacheCreateWorkflowIfPreparingActivity, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.RefreshDBVolumeForDeleteActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{DBVolume: volume}, nil)
+	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.DisableFlexCacheWritebackInOntapActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{
+		DisableWritebackJobResponse: &vsa.OntapAsyncResponse{JobUUID: "disable-writeback-job-uuid"},
+	}, nil)
+	s.env.OnActivity(s.commonActivity.GetOntapJob, mock.Anything, "disable-writeback-job-uuid", mock.Anything).Return(nil, errors.New("some_error"))
+	s.env.OnActivity(s.volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
 	s.env.ExecuteWorkflow(DeleteFlexCacheVolumeWorkflow, volume)
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())

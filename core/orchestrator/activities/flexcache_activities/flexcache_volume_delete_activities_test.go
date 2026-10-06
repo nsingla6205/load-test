@@ -175,6 +175,101 @@ func TestFlexCacheVolumeDeleteActivity_UnmountVolumeInOntapActivity(t *testing.T
 	})
 }
 
+func TestFlexCacheVolumeDeleteActivity_DisableFlexCacheWritebackInOntapActivity(t *testing.T) {
+	dbVolume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID: "external-uuid",
+		},
+	}
+	node := &models.Node{Name: "test-node"}
+
+	t.Run("Success", func(tt *testing.T) {
+		mm := newMonkeyMockAndPatch(tt)
+		logger := log.NewMockLogger(tt)
+		mockProvider := vsa.NewMockProvider(tt)
+		activity := &FlexCacheVolumeDeleteActivity{SE: database.NewMockStorage(tt)}
+		ctx := context.Background()
+		result := &flexcache.DeleteFlexCacheResult{DBVolume: dbVolume, Node: node}
+		expectedWritebackEnabled := false
+		expectedResponse := &vsa.OntapAsyncResponse{JobUUID: "disable-writeback-job-uuid"}
+
+		mm.EXPECT().utilGetLogger(ctx).Return(logger)
+		mm.EXPECT().hyperscalerGetProviderByNode(ctx, mock.Anything).Return(mockProvider, nil)
+		mockProvider.EXPECT().UpdateFlexCacheVolume(vsa.UpdateFlexCacheVolumeParams{
+			UUID:             "external-uuid",
+			WritebackEnabled: &expectedWritebackEnabled,
+		}).Return(expectedResponse, nil)
+		logger.EXPECT().Debugf("FlexCache writeback disable for volume with UUID %s initiated successfully", "volume-uuid")
+
+		resp, err := activity.DisableFlexCacheWritebackInOntapActivity(ctx, result)
+
+		assert.NoError(tt, err)
+		assert.Same(tt, expectedResponse, resp.DisableWritebackJobResponse)
+	})
+
+	t.Run("WhenUpdateFails", func(tt *testing.T) {
+		mm := newMonkeyMockAndPatch(tt)
+		logger := log.NewMockLogger(tt)
+		mockProvider := vsa.NewMockProvider(tt)
+		activity := &FlexCacheVolumeDeleteActivity{SE: database.NewMockStorage(tt)}
+		ctx := context.Background()
+		result := &flexcache.DeleteFlexCacheResult{DBVolume: dbVolume, Node: node}
+
+		mm.EXPECT().utilGetLogger(ctx).Return(logger)
+		mm.EXPECT().hyperscalerGetProviderByNode(ctx, mock.Anything).Return(mockProvider, nil)
+		mockProvider.EXPECT().UpdateFlexCacheVolume(mock.Anything).Return(nil, assert.AnError)
+
+		resp, err := activity.DisableFlexCacheWritebackInOntapActivity(ctx, result)
+
+		assert.Error(tt, err)
+		assert.Nil(tt, resp)
+	})
+
+	t.Run("WhenGetProviderByNodeFails", func(tt *testing.T) {
+		mm := newMonkeyMockAndPatch(tt)
+		logger := log.NewMockLogger(tt)
+		activity := &FlexCacheVolumeDeleteActivity{SE: database.NewMockStorage(tt)}
+		ctx := context.Background()
+		result := &flexcache.DeleteFlexCacheResult{DBVolume: dbVolume, Node: node}
+
+		mm.EXPECT().utilGetLogger(ctx).Return(logger)
+		mm.EXPECT().hyperscalerGetProviderByNode(ctx, mock.Anything).Return(nil, assert.AnError)
+
+		resp, err := activity.DisableFlexCacheWritebackInOntapActivity(ctx, result)
+
+		assert.Error(tt, err)
+		assert.Nil(tt, resp)
+	})
+
+	t.Run("WhenNoExternalUUID", func(tt *testing.T) {
+		mm := newMonkeyMockAndPatch(tt)
+		logger := log.NewMockLogger(tt)
+		mockProvider := vsa.NewMockProvider(tt)
+		activity := &FlexCacheVolumeDeleteActivity{SE: database.NewMockStorage(tt)}
+		ctx := context.Background()
+		result := &flexcache.DeleteFlexCacheResult{
+			DBVolume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					ExternalUUID: "",
+				},
+			},
+			Node: node,
+		}
+
+		mm.EXPECT().utilGetLogger(ctx).Return(logger)
+		mm.EXPECT().hyperscalerGetProviderByNode(ctx, mock.Anything).Return(mockProvider, nil)
+		logger.EXPECT().Debug("no external UUID found for the volume, skipping writeback disable")
+
+		resp, err := activity.DisableFlexCacheWritebackInOntapActivity(ctx, result)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resp)
+		assert.Nil(tt, resp.DisableWritebackJobResponse)
+	})
+}
+
 func TestFlexCacheVolumeDeleteActivity_DeleteFlexCacheVolumeInOntapActivity(t *testing.T) {
 	dbVolume := &datamodel.Volume{
 		BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},

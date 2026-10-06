@@ -179,6 +179,19 @@ func (wf *flexCacheVolumeDeleteWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 	dbVolume = flexCacheResult.DBVolume
 
+	if dbVolume.CacheParameters != nil &&
+		dbVolume.CacheParameters.CacheConfig != nil &&
+		dbVolume.CacheParameters.CacheConfig.WritebackEnabled != nil &&
+		*dbVolume.CacheParameters.CacheConfig.WritebackEnabled {
+		if err = workflow.ExecuteActivity(ctx, fcDeleteActivity.DisableFlexCacheWritebackInOntapActivity, &flexCacheResult).Get(ctx, &flexCacheResult); err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+
+		if err = workflows.WaitForONTAPJob(ctx, flexCacheResult.DisableWritebackJobResponse, node, 30*time.Minute); err != nil {
+			return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to disable FlexCache writeback: %w", err))
+		}
+	}
+
 	if err = workflow.ExecuteActivity(ctx, fcDeleteActivity.UnmountVolumeInOntapActivity, &flexCacheResult).Get(ctx, &flexCacheResult); err != nil {
 		return nil, workflows.ConvertToVSAError(err)
 	}

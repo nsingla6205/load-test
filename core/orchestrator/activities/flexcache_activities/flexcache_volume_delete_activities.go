@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/flexcache"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -57,6 +58,39 @@ func (a FlexCacheVolumeDeleteActivity) RefreshDBVolumeForDeleteActivity(ctx cont
 	}
 	result.DBVolume = vol
 	logger.Debugf("refreshed volume %s from database for delete workflow", vol.UUID)
+	return result, nil
+}
+
+// DisableFlexCacheWritebackInOntapActivity disables writeback before deleting a FlexCache volume.
+func (a FlexCacheVolumeDeleteActivity) DisableFlexCacheWritebackInOntapActivity(ctx context.Context, result *flexcache.DeleteFlexCacheResult) (*flexcache.DeleteFlexCacheResult, error) {
+	logger := utilGetLogger(ctx)
+	volume := result.DBVolume
+	node := result.Node
+
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider to disable writeback for FlexCache volume %s", volume.UUID))
+	provider, err := hyperscalerGetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	if volume.VolumeAttributes.ExternalUUID == "" {
+		logger.Debug("no external UUID found for the volume, skipping writeback disable")
+		return result, nil
+	}
+
+	writebackEnabled := false
+	recordHeartbeat(ctx, fmt.Sprintf("disabling writeback for FlexCache volume %s in ONTAP", volume.UUID))
+	response, err := provider.UpdateFlexCacheVolume(vsa.UpdateFlexCacheVolumeParams{
+		UUID:             volume.VolumeAttributes.ExternalUUID,
+		WritebackEnabled: &writebackEnabled,
+	})
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrUpdateFlexCacheVolume, err)
+	}
+
+	result.DisableWritebackJobResponse = response
+	logger.Debugf("FlexCache writeback disable for volume with UUID %s initiated successfully", volume.UUID)
+
 	return result, nil
 }
 

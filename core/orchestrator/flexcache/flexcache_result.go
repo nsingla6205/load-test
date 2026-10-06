@@ -35,6 +35,7 @@ type JobActivityInput struct {
 type DeleteFlexCacheResult struct {
 	DBVolume                               *datamodel.Volume
 	Node                                   *models.Node
+	DisableWritebackJobResponse            *vsa.OntapAsyncResponse
 	UnmountJobResponse                     *vsa.OntapAsyncResponse
 	DeleteJobResponse                      *vsa.OntapAsyncResponse
 	ClusterPeeringRow                      *datamodel.ClusterPeerings
