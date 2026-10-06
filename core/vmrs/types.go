@@ -148,6 +148,7 @@ type CustomerRequestedPerformance struct {
 	// VM candidate restrictions). Fields are advisory: each decision maker applies only the
 	// ones it supports (VM candidate restriction is enforced by the large-volume strategy only).
 	ScalingTopology ScalingTopology
+	LvHAPairs       int
 }
 
 // Decision represents the list of VM identifiers that satisfy the CustomerRequestedPerformance based on the VMRS configuration that was input to the decision-making logic.

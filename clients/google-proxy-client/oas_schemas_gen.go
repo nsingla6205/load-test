@@ -21705,6 +21705,69 @@ func (o OptNilPoolInternalV1betaAssetLocationMetadata) Or(d PoolInternalV1betaAs
 	return d
 }
 
+// NewOptNilPoolInternalV1betaLargeCapacityConfig returns new OptNilPoolInternalV1betaLargeCapacityConfig with value set to v.
+func NewOptNilPoolInternalV1betaLargeCapacityConfig(v PoolInternalV1betaLargeCapacityConfig) OptNilPoolInternalV1betaLargeCapacityConfig {
+	return OptNilPoolInternalV1betaLargeCapacityConfig{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilPoolInternalV1betaLargeCapacityConfig is optional nullable PoolInternalV1betaLargeCapacityConfig.
+type OptNilPoolInternalV1betaLargeCapacityConfig struct {
+	Value PoolInternalV1betaLargeCapacityConfig
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilPoolInternalV1betaLargeCapacityConfig was set.
+func (o OptNilPoolInternalV1betaLargeCapacityConfig) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilPoolInternalV1betaLargeCapacityConfig) Reset() {
+	var v PoolInternalV1betaLargeCapacityConfig
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilPoolInternalV1betaLargeCapacityConfig) SetTo(v PoolInternalV1betaLargeCapacityConfig) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilPoolInternalV1betaLargeCapacityConfig) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilPoolInternalV1betaLargeCapacityConfig) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v PoolInternalV1betaLargeCapacityConfig
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilPoolInternalV1betaLargeCapacityConfig) Get() (v PoolInternalV1betaLargeCapacityConfig, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilPoolInternalV1betaLargeCapacityConfig) Or(d PoolInternalV1betaLargeCapacityConfig) PoolInternalV1betaLargeCapacityConfig {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptNilPoolV1betaAssetLocationMetadata returns new OptNilPoolV1betaAssetLocationMetadata with value set to v.
 func NewOptNilPoolV1betaAssetLocationMetadata(v PoolV1betaAssetLocationMetadata) OptNilPoolV1betaAssetLocationMetadata {
 	return OptNilPoolV1betaAssetLocationMetadata{
@@ -21762,6 +21825,69 @@ func (o OptNilPoolV1betaAssetLocationMetadata) Get() (v PoolV1betaAssetLocationM
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilPoolV1betaAssetLocationMetadata) Or(d PoolV1betaAssetLocationMetadata) PoolV1betaAssetLocationMetadata {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilPoolV1betaLargeCapacityConfig returns new OptNilPoolV1betaLargeCapacityConfig with value set to v.
+func NewOptNilPoolV1betaLargeCapacityConfig(v PoolV1betaLargeCapacityConfig) OptNilPoolV1betaLargeCapacityConfig {
+	return OptNilPoolV1betaLargeCapacityConfig{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilPoolV1betaLargeCapacityConfig is optional nullable PoolV1betaLargeCapacityConfig.
+type OptNilPoolV1betaLargeCapacityConfig struct {
+	Value PoolV1betaLargeCapacityConfig
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilPoolV1betaLargeCapacityConfig was set.
+func (o OptNilPoolV1betaLargeCapacityConfig) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilPoolV1betaLargeCapacityConfig) Reset() {
+	var v PoolV1betaLargeCapacityConfig
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilPoolV1betaLargeCapacityConfig) SetTo(v PoolV1betaLargeCapacityConfig) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilPoolV1betaLargeCapacityConfig) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilPoolV1betaLargeCapacityConfig) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v PoolV1betaLargeCapacityConfig
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilPoolV1betaLargeCapacityConfig) Get() (v PoolV1betaLargeCapacityConfig, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilPoolV1betaLargeCapacityConfig) Or(d PoolV1betaLargeCapacityConfig) PoolV1betaLargeCapacityConfig {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -25320,6 +25446,8 @@ type PoolInternalV1beta struct {
 	UnifiedPool OptBool `json:"unifiedPool"`
 	// Indicates if the pool is a large capacity pool.
 	LargeCapacity OptBool `json:"largeCapacity"`
+	// Configuration for large-capacity pools. Set only when largeCapacity is true.
+	LargeCapacityConfig OptNilPoolInternalV1betaLargeCapacityConfig `json:"largeCapacityConfig"`
 	// Total StoragePool Hottier usages.
 	HotTierConsumption OptNilInt64 `json:"hotTierConsumption"`
 	// Total StoragePool Coldtier usages.
@@ -25546,6 +25674,11 @@ func (s *PoolInternalV1beta) GetUnifiedPool() OptBool {
 // GetLargeCapacity returns the value of LargeCapacity.
 func (s *PoolInternalV1beta) GetLargeCapacity() OptBool {
 	return s.LargeCapacity
+}
+
+// GetLargeCapacityConfig returns the value of LargeCapacityConfig.
+func (s *PoolInternalV1beta) GetLargeCapacityConfig() OptNilPoolInternalV1betaLargeCapacityConfig {
+	return s.LargeCapacityConfig
 }
 
 // GetHotTierConsumption returns the value of HotTierConsumption.
@@ -25793,6 +25926,11 @@ func (s *PoolInternalV1beta) SetLargeCapacity(val OptBool) {
 	s.LargeCapacity = val
 }
 
+// SetLargeCapacityConfig sets the value of LargeCapacityConfig.
+func (s *PoolInternalV1beta) SetLargeCapacityConfig(val OptNilPoolInternalV1betaLargeCapacityConfig) {
+	s.LargeCapacityConfig = val
+}
+
 // SetHotTierConsumption sets the value of HotTierConsumption.
 func (s *PoolInternalV1beta) SetHotTierConsumption(val OptNilInt64) {
 	s.HotTierConsumption = val
@@ -25891,6 +26029,55 @@ func (s *PoolInternalV1betaLabels) init() PoolInternalV1betaLabels {
 		*s = m
 	}
 	return m
+}
+
+// Configuration for large-capacity pools. Set only when largeCapacity is true.
+type PoolInternalV1betaLargeCapacityConfig string
+
+const (
+	PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED PoolInternalV1betaLargeCapacityConfig = "CLUSTER_SIZE_UNSPECIFIED"
+	PoolInternalV1betaLargeCapacityConfigNODECOUNT12            PoolInternalV1betaLargeCapacityConfig = "NODE_COUNT_12"
+	PoolInternalV1betaLargeCapacityConfigNODECOUNT24            PoolInternalV1betaLargeCapacityConfig = "NODE_COUNT_24"
+)
+
+// AllValues returns all PoolInternalV1betaLargeCapacityConfig values.
+func (PoolInternalV1betaLargeCapacityConfig) AllValues() []PoolInternalV1betaLargeCapacityConfig {
+	return []PoolInternalV1betaLargeCapacityConfig{
+		PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED,
+		PoolInternalV1betaLargeCapacityConfigNODECOUNT12,
+		PoolInternalV1betaLargeCapacityConfigNODECOUNT24,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolInternalV1betaLargeCapacityConfig) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED:
+		return []byte(s), nil
+	case PoolInternalV1betaLargeCapacityConfigNODECOUNT12:
+		return []byte(s), nil
+	case PoolInternalV1betaLargeCapacityConfigNODECOUNT24:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolInternalV1betaLargeCapacityConfig) UnmarshalText(data []byte) error {
+	switch PoolInternalV1betaLargeCapacityConfig(data) {
+	case PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED:
+		*s = PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED
+		return nil
+	case PoolInternalV1betaLargeCapacityConfigNODECOUNT12:
+		*s = PoolInternalV1betaLargeCapacityConfigNODECOUNT12
+		return nil
+	case PoolInternalV1betaLargeCapacityConfigNODECOUNT24:
+		*s = PoolInternalV1betaLargeCapacityConfigNODECOUNT24
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Flag indicating if the pool supports expert mode.
@@ -26434,6 +26621,8 @@ type PoolV1beta struct {
 	UnifiedPool OptBool `json:"unifiedPool"`
 	// Indicates if the pool is a large capacity pool.
 	LargeCapacity OptBool `json:"largeCapacity"`
+	// Configuration for large-capacity pools. Set only when largeCapacity is true.
+	LargeCapacityConfig OptNilPoolV1betaLargeCapacityConfig `json:"largeCapacityConfig"`
 	// Total StoragePool Hottier usages.
 	HotTierConsumption OptNilInt64 `json:"hotTierConsumption"`
 	// Total StoragePool Coldtier usages.
@@ -26656,6 +26845,11 @@ func (s *PoolV1beta) GetUnifiedPool() OptBool {
 // GetLargeCapacity returns the value of LargeCapacity.
 func (s *PoolV1beta) GetLargeCapacity() OptBool {
 	return s.LargeCapacity
+}
+
+// GetLargeCapacityConfig returns the value of LargeCapacityConfig.
+func (s *PoolV1beta) GetLargeCapacityConfig() OptNilPoolV1betaLargeCapacityConfig {
+	return s.LargeCapacityConfig
 }
 
 // GetHotTierConsumption returns the value of HotTierConsumption.
@@ -26893,6 +27087,11 @@ func (s *PoolV1beta) SetLargeCapacity(val OptBool) {
 	s.LargeCapacity = val
 }
 
+// SetLargeCapacityConfig sets the value of LargeCapacityConfig.
+func (s *PoolV1beta) SetLargeCapacityConfig(val OptNilPoolV1betaLargeCapacityConfig) {
+	s.LargeCapacityConfig = val
+}
+
 // SetHotTierConsumption sets the value of HotTierConsumption.
 func (s *PoolV1beta) SetHotTierConsumption(val OptNilInt64) {
 	s.HotTierConsumption = val
@@ -26981,6 +27180,55 @@ func (s *PoolV1betaLabels) init() PoolV1betaLabels {
 		*s = m
 	}
 	return m
+}
+
+// Configuration for large-capacity pools. Set only when largeCapacity is true.
+type PoolV1betaLargeCapacityConfig string
+
+const (
+	PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED PoolV1betaLargeCapacityConfig = "CLUSTER_SIZE_UNSPECIFIED"
+	PoolV1betaLargeCapacityConfigNODECOUNT12            PoolV1betaLargeCapacityConfig = "NODE_COUNT_12"
+	PoolV1betaLargeCapacityConfigNODECOUNT24            PoolV1betaLargeCapacityConfig = "NODE_COUNT_24"
+)
+
+// AllValues returns all PoolV1betaLargeCapacityConfig values.
+func (PoolV1betaLargeCapacityConfig) AllValues() []PoolV1betaLargeCapacityConfig {
+	return []PoolV1betaLargeCapacityConfig{
+		PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED,
+		PoolV1betaLargeCapacityConfigNODECOUNT12,
+		PoolV1betaLargeCapacityConfigNODECOUNT24,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolV1betaLargeCapacityConfig) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED:
+		return []byte(s), nil
+	case PoolV1betaLargeCapacityConfigNODECOUNT12:
+		return []byte(s), nil
+	case PoolV1betaLargeCapacityConfigNODECOUNT24:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolV1betaLargeCapacityConfig) UnmarshalText(data []byte) error {
+	switch PoolV1betaLargeCapacityConfig(data) {
+	case PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED:
+		*s = PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED
+		return nil
+	case PoolV1betaLargeCapacityConfigNODECOUNT12:
+		*s = PoolV1betaLargeCapacityConfigNODECOUNT12
+		return nil
+	case PoolV1betaLargeCapacityConfigNODECOUNT24:
+		*s = PoolV1betaLargeCapacityConfigNODECOUNT24
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Flag indicating if the pool supports expert mode.

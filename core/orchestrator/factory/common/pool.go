@@ -82,6 +82,7 @@ func CreatePoolInDB(
 		AccountName:     account.Name,
 		IsTrueZonal:     params.IsTrueZonal,
 		ServiceLevel:    params.ServiceLevel,
+		LvHAPairs:       int64(params.LvHAPairs),
 	}
 	if !commonparams.IsPORequest(params) {
 		poolAttrs.IsZoneSwitched = false
@@ -204,6 +205,7 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 			ZoneSwitchState: pool.PoolAttributes.ZoneSwitchState,
 			LdapEnabled:     ldapEnabled,
 			IsTrueZonal:     pool.PoolAttributes.IsTrueZonal,
+			LvHAPairs:       pool.PoolAttributes.LvHAPairs,
 		},
 		AutoTieringConfig: autoTieringConfig,
 		CustomPerformanceParams: &models.CustomPerformanceParams{

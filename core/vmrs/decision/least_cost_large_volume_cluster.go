@@ -34,6 +34,13 @@ func LargeVolumeHAPairs(accountID string) int {
 	return int(utils.LvHaPairsForLargeVolume(accountID, int64(LVHaPair)))
 }
 
+func EffectiveLargeVolumeHAPairs(configured int64, accountID string) int64 {
+	if configured != 0 {
+		return configured
+	}
+	return int64(LargeVolumeHAPairs(accountID))
+}
+
 // LeastCostLargeVolumeClusterDecisionMaker implements the DecisionMaker interface for large volume (FlexGroup) clusters.
 // It uses non-linear scaling factors to account for cluster overhead and selects optimal homogeneous VM configurations.
 type LeastCostLargeVolumeClusterDecisionMaker struct {
@@ -113,8 +120,7 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) FindOptimalVMs(config *vmrs.V
 	if currentConfig != nil && currentConfig.Deployment.Labels != nil {
 		accountID = currentConfig.Deployment.Labels["account_id"]
 	}
-	requiredHAPairs := LargeVolumeHAPairs(accountID)
-
+	requiredHAPairs := int(EffectiveLargeVolumeHAPairs(int64(customerRequest.LvHAPairs), accountID))
 	scaledIOPSPerHaPair, scaledThroughputPerHaPair, err := d.applyNonLinearScaling(customerRequest.DesiredIOPS, customerRequest.DesiredThroughputInMiBs, requiredHAPairs, customerRequest.ScalingTopology.Topology)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply non-linear scaling: %w", err)

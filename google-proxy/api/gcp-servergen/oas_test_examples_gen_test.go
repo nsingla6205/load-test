@@ -4438,6 +4438,47 @@ func TestPoolInternalV1betaLabels_Examples(t *testing.T) {
 		})
 	}
 }
+func TestPoolInternalV1betaLargeCapacityConfig_EncodeDecode(t *testing.T) {
+	var typ PoolInternalV1betaLargeCapacityConfig
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolInternalV1betaLargeCapacityConfig
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestPoolInternalV1betaLargeCapacityConfig_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"NODE_COUNT_12\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ PoolInternalV1betaLargeCapacityConfig
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 PoolInternalV1betaLargeCapacityConfig
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestPoolInternalV1betaMode_EncodeDecode(t *testing.T) {
 	var typ PoolInternalV1betaMode
 	typ.SetFake()
@@ -4765,6 +4806,47 @@ func TestPoolV1betaLabels_Examples(t *testing.T) {
 
 			var typ2 PoolV1betaLabels
 			typ2 = make(PoolV1betaLabels)
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestPoolV1betaLargeCapacityConfig_EncodeDecode(t *testing.T) {
+	var typ PoolV1betaLargeCapacityConfig
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolV1betaLargeCapacityConfig
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestPoolV1betaLargeCapacityConfig_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"NODE_COUNT_12\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ PoolV1betaLargeCapacityConfig
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 PoolV1betaLargeCapacityConfig
 			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
 		})
 	}

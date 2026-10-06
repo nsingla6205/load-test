@@ -189,6 +189,7 @@ workerConfig:
   enableNfsOverTls: "false"
   nfsTlsConnMaxLimit: "100"
   enableTrueZonalLV: "false"
+  enableTrueZonalGA: "false"
   enableMqos: "true"
   largeFileSizeEnabled: "true"
   addressSpaceMgmtEnabled: "false"

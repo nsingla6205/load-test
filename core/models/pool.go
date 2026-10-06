@@ -63,6 +63,7 @@ type PoolAttributes struct {
 	Labels          map[string]string
 	LdapEnabled     bool
 	IsTrueZonal     bool
+	LvHAPairs       int64
 }
 
 // ClusterDetails describes the attributes of a cluster model

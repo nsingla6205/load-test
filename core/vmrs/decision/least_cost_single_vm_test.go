@@ -81,7 +81,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1000,
 				DesiredCapacityInGiB:    1000,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1000 DesiredThroughputInMiBs:1000 DesiredCapacityInGiB:1000 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1000 DesiredThroughputInMiBs:1000 DesiredCapacityInGiB:1000 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}} LvHAPairs:0})",
 			expectedDecision: nil,
 		},
 		{
@@ -92,7 +92,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1,
 				DesiredCapacityInGiB:    1,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:100 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:100 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}} LvHAPairs:0})",
 			expectedDecision: nil,
 		},
 		{
@@ -103,7 +103,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 100,
 				DesiredCapacityInGiB:    1,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:100 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:100 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}} LvHAPairs:0})",
 			expectedDecision: nil,
 		},
 		{
@@ -114,7 +114,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1,
 				DesiredCapacityInGiB:    20,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:20 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:20 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}} LvHAPairs:0})",
 			expectedDecision: nil,
 		},
 	}

@@ -15851,6 +15851,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 			Name:           "true-zonal-pool",
 			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
 			BaseModel:      datamodel.BaseModel{UUID: "true-zonal-uuid"},
+			LargeCapacity:  true,
 		}
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
 
@@ -15865,6 +15866,43 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		assert.Empty(t, req.VLMConfig.Deployment.MediatorInstanceType)
 		assert.Empty(t, req.VLMConfig.Deployment.MediatorDiskType)
 		assert.Equal(t, incomingPlacement, req.VLMConfig.Deployment.PlacementPolicyConfig)
+	})
+
+	t.Run("uses shared HA without AA config or mediator for regular zonal pool", func(t *testing.T) {
+		vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{
+			Labels:               make(map[string]string),
+			MediatorInstanceType: "e2-micro",
+			MediatorDiskType:     "pd-ssd",
+			PlacementPolicyConfig: vlm.PlacementPolicyConfig{
+				GCPPlacementPolicyConfig: vlm.GCPPlacementPolicyConfig{PolicyConfig: "spread_multi"},
+			},
+		}}
+		pool := &datamodel.Pool{
+			Name:           "regular-zonal-pool",
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			BaseModel:      datamodel.BaseModel{UUID: "regular-zonal-uuid"},
+			LargeCapacity:  false,
+		}
+		regularZonalLocation := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-1",
+			Region:        "region-1",
+			MediatorZone:  "zone-1",
+		}
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, regularZonalLocation, utils.VLMWorkerFeatureConfig{})
+
+		assert.Equal(t, vlm.DeploymentTypeSharedHA, req.VLMConfig.Deployment.DeploymentType,
+			"a regular zonal pool still deploys as shared_ha")
+		assert.False(t, req.VLMConfig.Deployment.DeploymentConfigFlags.EnableAAConfig,
+			"only large capacity zonal pools run active-active")
+		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
+		assert.Empty(t, req.VLMConfig.Deployment.Images.MediatorImageName)
+		assert.Empty(t, req.VLMConfig.Deployment.MediatorInstanceType)
+		assert.Empty(t, req.VLMConfig.Deployment.MediatorDiskType)
+		assert.Equal(t, "none", req.VLMConfig.Deployment.PlacementPolicyConfig.GCPPlacementPolicyConfig.PolicyConfig,
+			"a regular zonal pool overwrites an incoming placement policy with none")
 	})
 
 	t.Run("allowlisted account does not set mediator image for true zonal pool", func(t *testing.T) {
@@ -15885,7 +15923,8 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 
 		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
 		assert.Empty(t, req.VLMConfig.Deployment.Images.MediatorImageName)
-		assert.Empty(t, req.VLMConfig.Deployment.PlacementPolicyConfig.GCPPlacementPolicyConfig.PolicyConfig)
+		assert.Equal(t, "none", req.VLMConfig.Deployment.PlacementPolicyConfig.GCPPlacementPolicyConfig.PolicyConfig,
+			"this pool is true-zonal but not large-capacity, so it is not active-active")
 	})
 }
 
@@ -21533,6 +21572,18 @@ func TestResolvePoolVLMFeatureName(t *testing.T) {
 		utils.SetVLMWorkerFeatureFlagsForTesting(flags)
 		_ = os.Unsetenv(enableTrueZonalLVEnv)
 		assert.Empty(t, resolvePoolVLMFeatureName(pool))
+	})
+
+	t.Run("SkipsPreviewFeatureForRegularTrueZonalPool", func(t *testing.T) {
+		utils.SetVLMWorkerFeatureFlagsForTesting(flags)
+		t.Setenv(enableTrueZonalLVEnv, "true")
+		regularTrueZonalPool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{
+				SecondaryZone: "",
+				IsTrueZonal:   true,
+			},
+		}
+		assert.Empty(t, resolvePoolVLMFeatureName(regularTrueZonalPool))
 	})
 	t.Run("PrefersLabelFeatureOverTrueZonalCandidate", func(t *testing.T) {
 		flagsWithBoth := `{"labelFeature":{"vlmWorkerVersion":"9.17.1"},"trueZonal":{"vlmWorkerVersion":"9.18.1X1"}}`

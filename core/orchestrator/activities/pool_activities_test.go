@@ -4443,24 +4443,33 @@ func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *test
 }
 
 func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
+	// The request below is far below every VM's limits, so the chosen type is the cheapest
+	// candidate the family allows: the active-active floor where one is defined, and the
+	// family's smallest VM where none is.
 	cases := []struct {
-		name        string
-		family      vmrs.MachineFamilyType
-		isTrueZonal bool
-		wantPrefix  string
+		name             string
+		family           vmrs.MachineFamilyType
+		isTrueZonal      bool
+		isPreview        bool
+		wantPrefix       string
+		wantLssd         bool
+		wantInstanceType string
 	}{
-		{name: "true-zonal in a c4-lssd region", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: true, wantPrefix: "c3-"},
-		{name: "true-zonal in a c4-non-lssd region", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, wantPrefix: "c3-"},
-		{name: "true-zonal in a c3-non-lssd region", family: vmrs.MachineFamilyC3NonLSSD, isTrueZonal: true, wantPrefix: "c3-"},
-		{name: "true-zonal in a c3-lssd region", family: vmrs.MachineFamilyC3LSSD, isTrueZonal: true, wantPrefix: "c3-"},
-		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: false, wantPrefix: "c4-"},
+		{name: "true-zonal in a c4-lssd region", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-24-lssd"},
+		{name: "true-zonal in a c4-non-lssd region", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, wantPrefix: "c4-", wantLssd: false, wantInstanceType: "c4-standard-24"},
+		{name: "true-zonal in a c3-non-lssd region", family: vmrs.MachineFamilyC3NonLSSD, isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-22"},
+		{name: "true-zonal in a c3-lssd region", family: vmrs.MachineFamilyC3LSSD, isTrueZonal: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
+		{name: "preview true-zonal remains pinned to c3-lssd", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, isPreview: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
+		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: false, wantPrefix: "c4-", wantLssd: true},
 	}
 
 	originalFamily := vmrs.MachineFamily
 	originalReadFile := activities.ReadFile
+	originalEnableTrueZonalGA := activities.EnableTrueZonalGA
 	defer func() {
 		vmrs.MachineFamily = originalFamily
 		activities.ReadFile = originalReadFile
+		activities.EnableTrueZonalGA = originalEnableTrueZonalGA
 	}()
 	activities.ReadFile = func(filename string) ([]byte, error) {
 		return []byte("{}"), nil
@@ -4469,6 +4478,7 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vmrs.MachineFamily = tc.family
+			activities.EnableTrueZonalGA = !tc.isPreview
 
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestActivityEnvironment()
@@ -4477,14 +4487,14 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 
 			req := testIdentifyVMsRequest()
 			req.VMRSConfigPath = "../../../config/vmrs_gcp_v2.yaml"
-			// True-zonal pools are always large capacity, so both cases use the
-			// large-volume cluster strategy and differ only in topology.
+			// These cases exercise the large-capacity strategy and differ by topology,
+			// rollout phase, and configured machine family.
 			req.IsLargeCapacityPool = true
 			req.CustomerRequest = vmrs.CustomerRequestedPerformance{
 				DesiredIOPS:             100,
 				DesiredThroughputInMiBs: 10,
 				DesiredCapacityInGiB:    100,
-				ScalingTopology:         vmrs_decision.ResolveScalingTopology(tc.isTrueZonal),
+				ScalingTopology:         vmrs_decision.ResolveScalingTopology(tc.isTrueZonal, true),
 			}
 
 			val, err := env.ExecuteActivity(activity.IdentifyVMs, req)
@@ -4496,10 +4506,14 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 			instanceType := vlmConfig.Deployment.VSAInstanceType
 			assert.True(t, strings.HasPrefix(instanceType, tc.wantPrefix),
 				"instance type %q should have prefix %q", instanceType, tc.wantPrefix)
-			assert.True(t, strings.HasSuffix(instanceType, vmrs.LssdVMTypeSuffix),
-				"instance type %q should carry %q suffix", instanceType, vmrs.LssdVMTypeSuffix)
-			assert.False(t, vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType,
+			assert.Equal(t, tc.wantLssd, strings.HasSuffix(instanceType, vmrs.LssdVMTypeSuffix),
+				"instance type %q should carry %q suffix: %t", instanceType, vmrs.LssdVMTypeSuffix, tc.wantLssd)
+			assert.Equal(t, !tc.wantLssd, vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType,
 				"EnableNonLssdInstanceType for %s", instanceType)
+			if tc.wantInstanceType != "" {
+				assert.Equal(t, tc.wantInstanceType, instanceType,
+					"active-active pools must not select below their family's floor")
+			}
 		})
 	}
 }

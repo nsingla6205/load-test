@@ -128,7 +128,7 @@ type ClusterUpgradeWorkflowParams struct {
 	// CorrelationID is used for log/trace correlation. For top-level single
 	// upgrades this is the request correlation ID (or job UUID). For batch
 	// children this matches the child Temporal WorkflowID (batchJobID-child-clusterID).
-	CorrelationID     string            `json:"correlationId,omitempty"`
+	CorrelationID string `json:"correlationId,omitempty"`
 }
 
 // UpgradeContext holds the context and state for the upgrade process
@@ -409,7 +409,7 @@ func (wf *clusterUpgradeWorkflow) preUpgradePhase(ctx workflow.Context, params *
 	needsMediatorUpgrade := true
 	needsVSAUpgrade := true
 
-	isTrueZonal := params.Pool.IsActiveActive()
+	isTrueZonal := params.Pool.IsTrueZonal()
 	if isTrueZonal {
 		needsMediatorUpgrade = false
 		wf.Logger.Debug("Skipping mediator upgrade for true-zonal pool", "jobID", params.JobID, "clusterID", params.ClusterID)

@@ -48,10 +48,13 @@ sanVolDeleteProtectionEnabled: false # true: block SAN delete whenever host grou
 refreshAdminJobSpecs: true
 flexCacheEnabled: false
 enableTrueZonalLV: false
+enableTrueZonalGA: false
 enableTrueZonalLVDefaultConstituentCount: false # Double default CV count for true-zonal large volumes (48 -> 96)
 blockTrueZonalAutoTieringAndBackup: true
 trueZonalLVPoolMinSize: "13194139533312" # 12TiB in bytes
 trueZonalLVVolumeMinSize: "10555311626650" # 9.6TiB in bytes
+trueZonalLV24NodePoolMinSize: "21990232555520" # 20TiB in bytes
+trueZonalLV24NodeVolumeMinSize: "21110623253300" # 19.2TiB in bytes
 hybridReplicationEnabled: false
 bidiReplicationEnabled: false
 autoTieringEnabled: false

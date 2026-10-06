@@ -6656,6 +6656,7 @@ func TestGetAggregatesFromOntap(t *testing.T) {
 			Pool: &datamodel.Pool{
 				AllowAutoTiering: false,
 				VLMConfig:        "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-8-lssd\"}}",
+				LargeCapacity:    true,
 				PoolAttributes: &datamodel.PoolAttributes{
 					IsTrueZonal: true,
 				},
@@ -6711,6 +6712,7 @@ func TestGetAggregatesFromOntap(t *testing.T) {
 			Pool: &datamodel.Pool{
 				AllowAutoTiering: false,
 				VLMConfig:        "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-8-lssd\"}}",
+				LargeCapacity:    true,
 				PoolAttributes: &datamodel.PoolAttributes{
 					IsTrueZonal: true,
 				},

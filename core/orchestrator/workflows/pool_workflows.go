@@ -873,7 +873,6 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if !disableVsaCleanupOnVLMFailure {
 		rollbackManager.AddActivity(poolActivity.DeleteOnTapCredentials, pool)
 	}
-
 	sizeInGB := utils.BytesToGigabytes(params.HotTierSizeInBytes)
 	// Convert CustomPerformanceParams to CustomerRequestedPerformance.
 	customerRequestedPerformance := &vmrs.CustomerRequestedPerformance{
@@ -885,6 +884,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			VolLimitPerInstanceMap: nil,
 			CurrentInstanceType:    "",
 		},
+		LvHAPairs: int(params.LvHAPairs),
 	}
 
 	vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
@@ -934,7 +934,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Use resolved zones to identify VMs and build VLM config
 	isOntapMode := params.Mode == common.ONTAPMode
-	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsTrueZonal(), pool.LargeCapacity)
 	customerRequestedPerformance.ScalingTopology = scalingTopology
 	// Pick the VMRS catalog based on the deployed ONTAP version. The version label
 	// is stored on the pool's BuildInfo below to record which catalog sized the VMs.
@@ -964,7 +964,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		return nil, cancelErr
 	}
 	var resolvedLocationInfo *common.LocationInfo
-	if scalingTopology.Topology == vmrs.TopologyActiveActive {
+	if !scalingTopology.Topology.RequiresMediator() {
 		resolvedLocationInfo = locationInfo
 		err = workflow.ExecuteActivity(ctx, poolActivity.ValidateZonesForMachineTypes,
 			tenancyDetails.RegionalTenantProject, resolvedLocationInfo.PrimaryZone, resolvedLocationInfo.SecondaryZone, vlmConfig.Deployment.VSAInstanceType).Get(ctx, nil)
@@ -1750,6 +1750,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		DesiredCapacityInGiB:         int64(utils.BytesToGigabytes(toProvisionPoolSizeInBytes)),
 		CurrentInstanceType:          currentInstanceType,
 		ConfigForPoolInstanceScaling: poolInstanceScalingConfig,
+		LvHAPairs:                    int(pool.PoolAttributes.LvHAPairs),
 	}
 
 	// Identify secondary and mediator zones first
@@ -1769,7 +1770,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		SnHostProject:         pool.ClusterDetails.SnHostProject,
 	}
 	isOntapMode := pool.APIAccessMode == common.ONTAPMode
-	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsTrueZonal(), pool.LargeCapacity)
 	customerRequestedPerformance.ScalingTopology = scalingTopology
 	// Pick the VMRS catalog from the pool's deployed ONTAP version, not the
 	// region's current ONTAP_VERSION_DETAILS. VMRSVersion is set at create and
@@ -1853,6 +1854,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			LdapEnabled:     dbPool.PoolAttributes.LdapEnabled,
 			AccountName:     getPoolAttributesAccountName(dbPool.PoolAttributes),
 			IsTrueZonal:     dbPool.PoolAttributes.IsTrueZonal,
+			LvHAPairs:       dbPool.PoolAttributes.LvHAPairs,
 		}
 		// Update pool in DB to reflect QoS changes
 		if err = orchestrator.RunActivity(dbOrchCtx, poolActivity.UpdatePoolFields, nil, dbPool.UUID, map[string]interface{}{
@@ -3001,7 +3003,7 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 
 	// Set default images
 	vlmConfig.Deployment.Images.VSAImageName = vsaImageName
-	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsTrueZonal(), pool.LargeCapacity)
 	if scalingTopology.Topology.RequiresMediator() {
 		vlmConfig.Deployment.Zone.MediatorZone = resolvedLocationInfo.MediatorZone
 		vlmConfig.Deployment.Images.MediatorImageName = mediatorImage
@@ -3016,7 +3018,7 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	vlmConfig.Deployment.Labels["pool_name"] = pool.Name
 	vlmConfig.Deployment.Labels["pool_uuid"] = pool.UUID
 	vlmConfig.Deployment.DeploymentConfigFlags.EnableAAConfig = scalingTopology.Topology.EnableAAConfig()
-	if scalingTopology.Topology == vmrs.TopologyActiveActive {
+	if scalingTopology.Topology.UsesSharedHADeployment() {
 		vlmConfig.Deployment.DeploymentType = vlm.DeploymentTypeSharedHA
 	}
 	if pool.Account != nil {

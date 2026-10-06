@@ -200,7 +200,7 @@ func Test_CheckInterclusterCarveAvailability_disabled(t *testing.T) {
 
 	// No storage calls are expected: the check must not touch the database when the feature is off.
 	pa := &PoolActivity{SE: database.NewMockStorage(t)}
-	params := commonparams.CreatePoolParams{VendorSubNetID:   "projects/123/global/networks/vpc1",
+	params := commonparams.CreatePoolParams{VendorSubNetID: "projects/123/global/networks/vpc1",
 		SecondaryIpRange: []string{"10.45.0.0/16"}}
 	require.NoError(t, pa.CheckInterclusterCarveAvailability(context.Background(), params))
 }
@@ -274,7 +274,7 @@ func Test_EnsureInterclusterSecondaryRangeOp_disabled(t *testing.T) {
 	icLifAddressSpaceEnabled = func() bool { return false }
 
 	pa := &PoolActivity{SE: database.NewMockStorage(t)}
-	params := commonparams.CreatePoolParams{VendorSubNetID:   "projects/123/global/networks/vpc1",
+	params := commonparams.CreatePoolParams{VendorSubNetID: "projects/123/global/networks/vpc1",
 		SecondaryIpRange: []string{"10.45.0.0/16"}}
 	result, err := pa.EnsureInterclusterSecondaryRangeOp(context.Background(), params, "pool-uuid", "host-project", "vsa-subnet")
 	require.NoError(t, err)
@@ -498,6 +498,10 @@ func Test_resolveLargeCapacityHAPairs_honoursExperimentalAllowlist(t *testing.T)
 	assert.Equal(t, 12, resolveLargeCapacityHAPairs(commonparams.CreatePoolParams{AccountName: "allowlisted-acct"}))
 	assert.Equal(t, vmrs_decision.LVHaPair, resolveLargeCapacityHAPairs(commonparams.CreatePoolParams{AccountName: "other-acct"}))
 	assert.Equal(t, vmrs_decision.LVHaPair, resolveLargeCapacityHAPairs(commonparams.CreatePoolParams{}))
+	assert.Equal(t, 12, resolveLargeCapacityHAPairs(commonparams.CreatePoolParams{
+		AccountName: "other-acct",
+		LvHAPairs:   12,
+	}))
 }
 
 func Test_standardDataSubnetPrefix(t *testing.T) {
@@ -515,6 +519,8 @@ func Test_resolveHAPairsForSecondaryCarve(t *testing.T) {
 	// count. Standard pools share a fixed-size subnet, so the carve covers everything it can hold.
 	assert.Equal(t, vmrs_decision.LVHaPair,
 		resolveHAPairsForSecondaryCarve(commonparams.CreatePoolParams{LargeCapacity: true}))
+	assert.Equal(t, 12,
+		resolveHAPairsForSecondaryCarve(commonparams.CreatePoolParams{LargeCapacity: true, LvHAPairs: 12}))
 	assert.Equal(t, maxHAPairsOnSubnet(standardDataSubnetPrefix()),
 		resolveHAPairsForSecondaryCarve(commonparams.CreatePoolParams{LargeCapacity: false}))
 }

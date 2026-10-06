@@ -4,15 +4,21 @@ package vmrs
 type DeploymentTopology string
 
 const (
-	TopologyActivePassive DeploymentTopology = "active-passive"
-	TopologyActiveActive  DeploymentTopology = "active-active"
+	TopologyActivePassive      DeploymentTopology = "active-passive"
+	TopologyActiveActive       DeploymentTopology = "active-active"
+	TopologyZonalActivePassive DeploymentTopology = "zonal-active-passive"
 )
 
+// UsesSharedHADeployment reports whether a pool with this topology deploys as VLM's
+// shared_ha type.
+func (t DeploymentTopology) UsesSharedHADeployment() bool {
+	return t == TopologyActiveActive || t == TopologyZonalActivePassive
+}
+
 // RequiresMediator reports whether a pool with this topology needs a mediator provisioned.
-// Only active-active (true-zonal) deployments run without a mediator, every other topology
-// (including the unset zero value, which defaults to active-passive) requires one.
+// shared_ha deployments have no mediator VM, so neither single-zone topology uses one.
 func (t DeploymentTopology) RequiresMediator() bool {
-	return t != TopologyActiveActive
+	return !t.UsesSharedHADeployment()
 }
 
 // EnableAAConfig reports whether active-active configuration must be enabled on the deployment.

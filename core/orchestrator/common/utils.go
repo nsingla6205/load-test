@@ -35,6 +35,9 @@ const (
 	StorageClassSoftware = "SOFTWARE"
 	ServiceLevelExtreme  = "EXTREME"
 	ServiceLevelPremium  = "PREMIUM"
+
+	LvHAPairsNodeCount12 int64 = 6
+	LvHAPairsNodeCount24 int64 = 12
 )
 
 var (

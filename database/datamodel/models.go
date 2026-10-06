@@ -56,9 +56,15 @@ type Pool struct {
 	ExternalTempCredentials *ExternalTempCredentials `gorm:"column:external_temp_credentials;type:jsonb"`
 }
 
-// IsActiveActive reports whether the pool is a true-zonal (active-active) deployment.
-func (p *Pool) IsActiveActive() bool {
+// IsTrueZonal reports whether the pool is a true-zonal (single-zone) deployment.
+func (p *Pool) IsTrueZonal() bool {
 	return p != nil && p.PoolAttributes != nil && p.PoolAttributes.IsTrueZonal
+}
+
+// IsActiveActive reports whether the pool runs active-active. Only large-capacity true-zonal
+// pools do as of now.
+func (p *Pool) IsActiveActive() bool {
+	return p.IsTrueZonal() && p.LargeCapacity
 }
 
 // ExternalTempCredentials records the temporary-credential state set on the pool's
@@ -293,6 +299,7 @@ type PoolAttributes struct {
 	AccountName                      string   `json:"account_name"`
 	ServiceAccountPermissionProjects []string `json:"service_account_permission_projects,omitempty"`
 	IsTrueZonal                      bool     `json:"is_true_zonal"`
+	LvHAPairs                        int64    `json:"lv_hapairs"`
 
 	// ServiceLevel is the persisted PO tier (EXTREME or PREMIUM). It is retained
 	// so per-tier QoS and describe/list stay consistent after create.

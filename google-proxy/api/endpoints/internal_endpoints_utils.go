@@ -203,6 +203,11 @@ func convertToPoolInternalV1Beta(pool *models.Pool) *gcpgenserver.PoolInternalV1
 	}
 	if pool.PoolAttributes != nil {
 		poolResp.SecondaryZone = gcpgenserver.NewOptString(pool.PoolAttributes.SecondaryZone)
+		if config, ok := largeCapacityConfigFromLvHAPairs(pool.PoolAttributes.LvHAPairs); ok {
+			poolResp.LargeCapacityConfig = gcpgenserver.NewOptNilPoolInternalV1betaLargeCapacityConfig(
+				gcpgenserver.PoolInternalV1betaLargeCapacityConfig(config),
+			)
+		}
 	}
 	if pool.CustomPerformanceParams != nil {
 		poolResp.CustomPerformanceEnabled = gcpgenserver.NewOptBool(pool.CustomPerformanceParams.Enabled)

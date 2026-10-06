@@ -162,6 +162,7 @@ var (
 	VsaImageChecksums       = env.GetString("VSA_IMAGE_CHECKSUMS", "")
 	VsaImageName            = env.GetString("VSA_IMAGE_NAME", "")
 	MediatorImageName       = env.GetString("VSA_MEDIATOR_IMAGE_NAME", "")
+	EnableTrueZonalGA       = env.GetBool("ENABLE_TRUE_ZONAL_GA", false)
 )
 
 const (
@@ -2383,15 +2384,16 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 		logger.Warn("Could not infer machine family from current instance type; falling back to global MACHINE_FAMILY_TYPE", "currentInstanceType", req.CustomerRequest.CurrentInstanceType, "machineFamily", machineFamily)
 	}
 
-	// A true-zonal pool is only qualified on c3-lssd, so its topology
-	// overrides the region's family: in a c4 region the family filter and the
-	// topology's VM selection policy would otherwise exclude each other and leave no
-	// candidates at all.
-	if topologyFamily := vmrs_decision.MachineFamilyForTopology(req.CustomerRequest.ScalingTopology.Topology, machineFamily); topologyFamily != machineFamily {
-		logger.Info("Overriding machine family with the family required by the pool topology", "topology", req.CustomerRequest.ScalingTopology.Topology, "configuredMachineFamily", machineFamily, "machineFamily", topologyFamily)
-		machineFamily = topologyFamily
+	if req.CustomerRequest.ScalingTopology.Topology == vmrs.TopologyActiveActive {
+		if !EnableTrueZonalGA {
+			machineFamily = vmrs.MachineFamilyC3LSSD
+			logger.Info("Pinned preview active-active pool to qualified machine family", "machineFamily", machineFamily)
+		}
+		req.CustomerRequest.ScalingTopology.VMSelectionPolicy = vmrs_decision.ActiveActiveVMSelectionPolicy(machineFamily)
+		logger.Info("Applied active-active VM selection policy", "machineFamily", machineFamily,
+			"minimumMachineType", req.CustomerRequest.ScalingTopology.VMSelectionPolicy.MinimumMachineType)
 	}
-	logger.Info("Machine family selected", "machineFamily", machineFamily)
+
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
 	// For large capacity pools, force the use of the large volume cluster strategy.
 	var decisionMaker vmrs.DecisionMaker

@@ -6157,7 +6157,19 @@ func (s *OptNilPoolInternalV1betaAssetLocationMetadata) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptNilPoolInternalV1betaLargeCapacityConfig) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
 func (s *OptNilPoolV1betaAssetLocationMetadata) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptNilPoolV1betaLargeCapacityConfig) SetFake() {
 	s.Null = true
 	s.Set = true
 }
@@ -7021,6 +7033,11 @@ func (s *PoolInternalV1beta) SetFake() {
 	}
 	{
 		{
+			s.LargeCapacityConfig.SetFake()
+		}
+	}
+	{
+		{
 			s.HotTierConsumption.SetFake()
 		}
 	}
@@ -7081,6 +7098,11 @@ func (s *PoolInternalV1betaLabels) SetFake() {
 	for i := 0; i < 0; i++ {
 		m[fmt.Sprintf("fake%d", i)] = elem
 	}
+}
+
+// SetFake set fake values.
+func (s *PoolInternalV1betaLargeCapacityConfig) SetFake() {
+	*s = PoolInternalV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED
 }
 
 // SetFake set fake values.
@@ -7407,6 +7429,11 @@ func (s *PoolV1beta) SetFake() {
 	}
 	{
 		{
+			s.LargeCapacityConfig.SetFake()
+		}
+	}
+	{
+		{
 			s.HotTierConsumption.SetFake()
 		}
 	}
@@ -7450,6 +7477,11 @@ func (s *PoolV1betaLabels) SetFake() {
 	for i := 0; i < 0; i++ {
 		m[fmt.Sprintf("fake%d", i)] = elem
 	}
+}
+
+// SetFake set fake values.
+func (s *PoolV1betaLargeCapacityConfig) SetFake() {
+	*s = PoolV1betaLargeCapacityConfigCLUSTERSIZEUNSPECIFIED
 }
 
 // SetFake set fake values.

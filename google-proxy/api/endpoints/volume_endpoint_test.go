@@ -91,33 +91,102 @@ func TestPrepareCreateVolumeParams_SnapshotIdWithLargeVolumeConstituentCount_Ret
 }
 
 func TestPrepareCreateVolumeParams_TrueZonalLargeCapacityMinSize(t *testing.T) {
-	req := &gcpgenserver.VolumeCreateV1beta{
-		Volume: gcpgenserver.VolumeV1beta{
-			ResourceId:    "testvolume",
-			CreationToken: gcpgenserver.NewOptString("test-token"),
-			PoolId:        gcpgenserver.NewNilString("test-pool"),
-			QuotaInBytes:  gcpgenserver.NewOptFloat64(float64(trueZonalLVVolumeMinSize - 1)),
-			Protocols: []gcpgenserver.ProtocolsV1beta{
-				gcpgenserver.ProtocolsV1betaISCSI,
-			},
+	originalEnableTrueZonalGA := enableTrueZonalGA
+	originalTrueZonalLVVolumeMinSize := trueZonalLVVolumeMinSize
+	originalTrueZonalLV24NodeVolumeMinSize := trueZonalLV24NodeVolumeMinSize
+	trueZonalLVVolumeMinSize = 1000
+	trueZonalLV24NodeVolumeMinSize = 2000
+	t.Cleanup(func() {
+		enableTrueZonalGA = originalEnableTrueZonalGA
+		trueZonalLVVolumeMinSize = originalTrueZonalLVVolumeMinSize
+		trueZonalLV24NodeVolumeMinSize = originalTrueZonalLV24NodeVolumeMinSize
+	})
+
+	tests := []struct {
+		name        string
+		gaEnabled   bool
+		lvHAPairs   int64
+		quota       uint64
+		wantMinSize uint64
+	}{
+		{
+			name:        "GA disabled keeps preview minimum",
+			lvHAPairs:   common.LvHAPairsNodeCount12,
+			quota:       trueZonalLVVolumeMinSize - 1,
+			wantMinSize: trueZonalLVVolumeMinSize,
 		},
-	}
-	params := gcpgenserver.V1betaCreateVolumeParams{
-		ProjectNumber: "test-project",
-		LocationId:    "test-location",
-	}
-	pool := &models.Pool{
-		LargeCapacity: true,
-		PoolAttributes: &models.PoolAttributes{
-			IsTrueZonal: true,
+		{
+			name:        "GA legacy pool keeps preview minimum",
+			gaEnabled:   true,
+			quota:       trueZonalLVVolumeMinSize - 1,
+			wantMinSize: trueZonalLVVolumeMinSize,
+		},
+		{
+			name:        "GA 12-node pool rejects volume below half preview minimum",
+			gaEnabled:   true,
+			lvHAPairs:   common.LvHAPairsNodeCount12,
+			quota:       trueZonalLVVolumeMinSize/2 - 1,
+			wantMinSize: trueZonalLVVolumeMinSize / 2,
+		},
+		{
+			name:      "GA 12-node pool accepts half preview minimum",
+			gaEnabled: true,
+			lvHAPairs: common.LvHAPairsNodeCount12,
+			quota:     trueZonalLVVolumeMinSize / 2,
+		},
+		{
+			name:        "GA 24-node pool rejects volume below configured minimum",
+			gaEnabled:   true,
+			lvHAPairs:   common.LvHAPairsNodeCount24,
+			quota:       trueZonalLV24NodeVolumeMinSize - 1,
+			wantMinSize: trueZonalLV24NodeVolumeMinSize,
+		},
+		{
+			name:      "GA 24-node pool accepts configured minimum",
+			gaEnabled: true,
+			lvHAPairs: common.LvHAPairsNodeCount24,
+			quota:     trueZonalLV24NodeVolumeMinSize,
 		},
 	}
 
-	result, err := _prepareCreateVolumeParams(req, params, "test-region", "test-zone", pool)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enableTrueZonalGA = tt.gaEnabled
+			req := &gcpgenserver.VolumeCreateV1beta{
+				Volume: gcpgenserver.VolumeV1beta{
+					ResourceId:    "testvolume",
+					CreationToken: gcpgenserver.NewOptString("test-token"),
+					PoolId:        gcpgenserver.NewNilString("test-pool"),
+					QuotaInBytes:  gcpgenserver.NewOptFloat64(float64(tt.quota)),
+					Protocols: []gcpgenserver.ProtocolsV1beta{
+						gcpgenserver.ProtocolsV1betaISCSI,
+					},
+				},
+			}
+			params := gcpgenserver.V1betaCreateVolumeParams{
+				ProjectNumber: "test-project",
+				LocationId:    "test-location",
+			}
+			pool := &models.Pool{
+				LargeCapacity: true,
+				PoolAttributes: &models.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   tt.lvHAPairs,
+				},
+			}
 
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), fmt.Sprintf("Volume size must be at least %d bytes", trueZonalLVVolumeMinSize))
+			result, err := _prepareCreateVolumeParams(req, params, "test-region", "test-zone", pool)
+
+			if tt.wantMinSize != 0 {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				assert.Contains(t, err.Error(), fmt.Sprintf("Volume size must be at least %d bytes", tt.wantMinSize))
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+		})
+	}
 }
 
 func TestHasCustomLargeVolumeConstituentCount(t *testing.T) {

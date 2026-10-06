@@ -60,6 +60,7 @@ var (
 	exportRulesLimit                  = env.GetInt("EXPORT_POLICY_RULES_LIMIT", 20)
 	enableInferredIops                = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	trueZonalLVVolumeMinSize          = env.GetUint64("TRUE_ZONAL_LV_VOLUME_MIN_SIZE", 10555311626650) // 9.6 TiB in bytes
+	trueZonalLV24NodeVolumeMinSize    = env.GetUint64("TRUE_ZONAL_LV_24_NODE_VOLUME_MIN_SIZE", 21110623253300)
 	sequenceResilienceEnabled         = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
 )
 
@@ -353,8 +354,12 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 		}
 	}
 	if pool != nil && pool.LargeCapacity && models.IsTrueZonalPool(pool) && req.Volume.QuotaInBytes.IsSet() && !hasCustomLargeVolumeConstituentCount(req) {
-		if uint64(req.Volume.QuotaInBytes.Value) < trueZonalLVVolumeMinSize {
-			return nil, errors.NewUserInputValidationErr(fmt.Sprintf("Volume size must be at least %d bytes for true-zonal large-capacity pools when LargeVolumeConstituentCount is not set", trueZonalLVVolumeMinSize))
+		lvHAPairs := int64(0)
+		if pool.PoolAttributes != nil {
+			lvHAPairs = pool.PoolAttributes.LvHAPairs
+		}
+		if err := validateTrueZonalVolumeSize(uint64(req.Volume.QuotaInBytes.Value), lvHAPairs, enableTrueZonalGA); err != nil {
+			return nil, err
 		}
 	}
 
@@ -930,6 +935,23 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 		param.FileProperties.UnixPermissions = unixPermissions
 	}
 	return param, nil
+}
+
+func validateTrueZonalVolumeSize(quotaInBytes uint64, lvHAPairs int64, gaEnabled bool) error {
+	if lvHAPairs == common.LvHAPairsNodeCount24 {
+		if quotaInBytes < trueZonalLV24NodeVolumeMinSize {
+			return errors.NewUserInputValidationErr(fmt.Sprintf("Volume size must be at least %d bytes for true-zonal large-capacity pools when LargeVolumeConstituentCount is not set", trueZonalLV24NodeVolumeMinSize))
+		}
+		return nil
+	}
+	minSize := trueZonalLVVolumeMinSize
+	if gaEnabled && lvHAPairs == common.LvHAPairsNodeCount12 {
+		minSize = trueZonalLVVolumeMinSize / 2
+	}
+	if quotaInBytes < minSize {
+		return errors.NewUserInputValidationErr(fmt.Sprintf("Volume size must be at least %d bytes for true-zonal large-capacity pools when LargeVolumeConstituentCount is not set", minSize))
+	}
+	return nil
 }
 
 func hasCustomLargeVolumeConstituentCount(req *gcpgenserver.VolumeCreateV1beta) bool {

@@ -68,6 +68,7 @@ type CreatePoolParams struct {
 	ADExistsInVCP           bool
 	IsTrueZonal             bool
 	IsPreview               bool
+	LvHAPairs               int64
 	// TrialMode is set when the pool create request includes trialMode (GCP; optional).
 	TrialMode *TrialModeParams
 	// OCI-specific fields (only fields that don't map to existing GCP fields)

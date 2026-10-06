@@ -75,7 +75,7 @@ func requiredSecondaryIPs(haPairs int) int {
 // else here (a numeric account id, a project id, an empty string) carves an allowlisted account's
 // range for the default HA pair count while its cluster is deployed with the larger one.
 func resolveLargeCapacityHAPairs(params commonparams.CreatePoolParams) int {
-	return vmrs_decision.LargeVolumeHAPairs(params.AccountName)
+	return int(vmrs_decision.EffectiveLargeVolumeHAPairs(params.LvHAPairs, params.AccountName))
 }
 
 // resolveHAPairsForSecondaryCarve returns the number of HA pairs the intercluster secondary range

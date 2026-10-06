@@ -25,6 +25,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/flexcache_workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/replicationWorkflows"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs/decision"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbUtils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
@@ -482,7 +483,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		} else {
 			// Set default constituent count: (HA pairs for this account × CVs per aggregate), doubled for true-zonal pools when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is enabled.
 			if params.BackupPath == "" {
-				defaultConstituentCount := int32(defaultLargeVolumeConstituentCount(account.Name, pool.IsActiveActive()))
+				defaultConstituentCount := int32(defaultLargeVolumeConstituentCount(account.Name, pool.PoolAttributes, pool.IsActiveActive()))
 				volumeObj.LargeVolumeAttributes.LargeVolumeConstituentCount = &defaultConstituentCount
 			}
 		}
@@ -1364,16 +1365,20 @@ func isPrime(constituentVolumeCount int) bool {
 	return true
 }
 
-func lvHaPairsForLargeVolumeAccount(accountID string) int64 {
-	return utils.LvHaPairsForLargeVolume(accountID, numOfLvHAPairs)
+func lvHaPairsForLargeVolumeAccount(accountID string, poolAttributes *datamodel.PoolAttributes) int64 {
+	configured := int64(0)
+	if poolAttributes != nil {
+		configured = poolAttributes.LvHAPairs
+	}
+	return decision.EffectiveLargeVolumeHAPairs(configured, accountID)
 }
 
 // defaultLargeVolumeConstituentCount returns the default constituent volume count for a large
 // capacity volume: HA pairs × CVs per aggregate. When the pool is true-zonal (active-active)
 // and ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is enabled, the count is doubled because both
 // nodes in each HA pair host active aggregates.
-func defaultLargeVolumeConstituentCount(accountName string, isActiveActive bool) int64 {
-	count := lvHaPairsForLargeVolumeAccount(accountName) * defaultConstituentsPerAggregate
+func defaultLargeVolumeConstituentCount(accountID string, poolAttributes *datamodel.PoolAttributes, isActiveActive bool) int64 {
+	count := lvHaPairsForLargeVolumeAccount(accountID, poolAttributes) * defaultConstituentsPerAggregate
 	if isActiveActive && enableTrueZonalLVDefaultConstituentCount {
 		count *= 2
 	}
@@ -1483,7 +1488,7 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 	}
 
 	if params.LargeCapacity {
-		lvHaPairs := lvHaPairsForLargeVolumeAccount(params.AccountName)
+		lvHaPairs := lvHaPairsForLargeVolumeAccount(params.AccountName, pool.PoolAttributes)
 		if utils.IsSanProtocols(params.Protocols) {
 			return customerrors.NewUserInputValidationErr("SAN protocols are not supported for large capacity volumes")
 		}
@@ -1535,7 +1540,7 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 		} else {
 			// For default CVs params.LargeVolumeConstituentCount is 0, we need to validate if params.QuotaInBytes/ uint64(defaultConstituentCount) >= minCVSizeInBytes
 			// Set default constituent count: 8 CVs per aggregate × HA pairs for this account (doubled for true-zonal when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is on)
-			cvCount = defaultLargeVolumeConstituentCount(params.AccountName, pool.IsActiveActive())
+			cvCount = defaultLargeVolumeConstituentCount(params.AccountName, pool.PoolAttributes, pool.IsActiveActive())
 			// validate that each constituent volume size is at least 100 GB
 			cvSizeInBytes = params.QuotaInBytes / uint64(cvCount)
 		}

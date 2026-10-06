@@ -18,7 +18,7 @@ const (
 
 var (
 	uuidRegex                          = regexp.MustCompile(uuidPattern)
-	blockTrueZonalAutoTieringAndBackup = env.GetBool("BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP", false)
+	blockTrueZonalAutoTieringAndBackup = env.GetBool("BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP", false) && !env.GetBool("ENABLE_TRUE_ZONAL_GA", false)
 )
 
 func validateUUIDList(uuids []string, fieldName string) string {

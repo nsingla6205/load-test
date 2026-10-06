@@ -276,7 +276,7 @@ func _checkClusterUpgradeStatus(pool *datamodel.Pool, targetVSABuildImage, targe
 		return false
 	}
 	// True-zonal pools have no mediator VM; VSA image match is sufficient.
-	if pool.IsActiveActive() {
+	if pool.IsTrueZonal() {
 		return true
 	}
 	return pool.BuildInfo.MediatorBuildImage == targetMediatorBuildImage

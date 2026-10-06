@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs/config"
@@ -970,6 +971,27 @@ func TestFindOptimalVMs_WithCurrentConfigAccountID(t *testing.T) {
 	assert.NotEmpty(t, decision.ChosenVMs)
 }
 
+func TestFindOptimalVMs_UsesRequestedHAPairs(t *testing.T) {
+	vmrsConfig, err := config.LoadConfig("testdata/valid_large_volume.yaml")
+	require.NoError(t, err)
+
+	dm := NewLeastCostLargeVolumeClusterDecisionMaker(vmrsConfig)
+	customerRequest := vmrs.CustomerRequestedPerformance{
+		DesiredIOPS:             16000,
+		DesiredThroughputInMiBs: 1000,
+		DesiredCapacityInGiB:    100000,
+		LvHAPairs:               12,
+	}
+
+	decision, err := dm.FindOptimalVMs(vmrsConfig, customerRequest, nil)
+	require.NoError(t, err)
+	require.NotNil(t, decision)
+	require.NotNil(t, decision.ClusterMetadata)
+	assert.Equal(t, 12, decision.ClusterMetadata.NumHAPairs)
+	assert.Equal(t, 24, decision.ClusterMetadata.NumNodes)
+	assert.Len(t, decision.ChosenVMs, 24)
+}
+
 // TestFindOptimalVMs_NonLinearScaling verifies that non-linear scaling is applied correctly
 func TestFindOptimalVMs_NonLinearScaling(t *testing.T) {
 	config, err := config.LoadConfig("testdata/valid_large_volume.yaml")
@@ -1327,6 +1349,14 @@ func TestFindOptimalVMs_ClusterLayout(t *testing.T) {
 	}
 }
 
+// activeActiveTopologyFor returns the active-active topology with family's floor applied, which
+// is what IdentifyVMs assembles once it has resolved the pool's machine family.
+func activeActiveTopologyFor(family vmrs.MachineFamilyType) vmrs.ScalingTopology {
+	topology := ResolveScalingTopology(true, true)
+	topology.VMSelectionPolicy = ActiveActiveVMSelectionPolicy(family)
+	return topology
+}
+
 // TestFindOptimalVMs_ActiveActiveMode verifies behavior in active-active mode
 func TestFindOptimalVMs_ActiveActiveMode(t *testing.T) {
 	config, err := config.LoadConfig("testdata/valid_large_volume.yaml")
@@ -1338,7 +1368,7 @@ func TestFindOptimalVMs_ActiveActiveMode(t *testing.T) {
 		DesiredIOPS:             10000,
 		DesiredThroughputInMiBs: 500,
 		DesiredCapacityInGiB:    100000,
-		ScalingTopology:         ResolveScalingTopology(true),
+		ScalingTopology:         activeActiveTopologyFor(vmrs.MachineFamilyC3LSSD),
 	}
 
 	decision, err := dm.FindOptimalVMs(config, customerRequest, nil)
@@ -1360,7 +1390,7 @@ func TestFilterCandidateVMs_ExcludesBelowFloor(t *testing.T) {
 		{VMType: "c3-standard-44-lssd", RelativeCost: 44},
 	}
 
-	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, activeActiveTopologyFor(vmrs.MachineFamilyC3LSSD).VMSelectionPolicy)
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 2)
 	for _, vm := range filtered {
@@ -1368,6 +1398,8 @@ func TestFilterCandidateVMs_ExcludesBelowFloor(t *testing.T) {
 	}
 }
 
+// Other families are excluded by the catalog scoping that runs before the policy, not by the
+// policy itself, so the two are exercised together here.
 func TestFilterCandidateVMs_ExcludesOtherFamilies(t *testing.T) {
 	vms := []vmrs.VMPerfLimit{
 		{VMType: "c3-standard-22-lssd", RelativeCost: 22},
@@ -1375,19 +1407,23 @@ func TestFilterCandidateVMs_ExcludesOtherFamilies(t *testing.T) {
 		{VMType: "c4-standard-22-lssd", RelativeCost: 22},
 	}
 
-	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	scoped := vmrs.FilterVMsByMachineFamily(vms, vmrs.MachineFamilyC3LSSD)
+	filtered, err := vmrs.FilterCandidatesByPolicy(scoped, activeActiveTopologyFor(vmrs.MachineFamilyC3LSSD).VMSelectionPolicy)
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 1)
 	assert.Equal(t, "c3-standard-22-lssd", filtered[0].VMType)
 }
 
+// As above: the -lssd requirement comes from the family-scoped catalog. Both candidates cost the
+// same so only the LSSD scoping can separate them.
 func TestFilterCandidateVMs_RequiresLSSD(t *testing.T) {
 	vms := []vmrs.VMPerfLimit{
-		{VMType: "c3-standard-4", RelativeCost: 4},
+		{VMType: "c3-standard-22", RelativeCost: 22},
 		{VMType: "c3-standard-22-lssd", RelativeCost: 22},
 	}
 
-	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	scoped := vmrs.FilterVMsByMachineFamily(vms, vmrs.MachineFamilyC3LSSD)
+	filtered, err := vmrs.FilterCandidatesByPolicy(scoped, activeActiveTopologyFor(vmrs.MachineFamilyC3LSSD).VMSelectionPolicy)
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 1)
 	assert.Equal(t, "c3-standard-22-lssd", filtered[0].VMType)
@@ -1399,7 +1435,7 @@ func TestFilterCandidateVMs_NoOpWhenNotTrueZonal(t *testing.T) {
 		{VMType: "c4-standard-4", RelativeCost: 4},
 	}
 
-	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(false).VMSelectionPolicy)
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(false, true).VMSelectionPolicy)
 	assert.NoError(t, err)
 	assert.Equal(t, vms, filtered)
 }
@@ -1413,11 +1449,21 @@ func TestFindOptimalVMs_TrueZonal_SelectsAtOrAboveFloor(t *testing.T) {
 		DesiredIOPS:             1600,
 		DesiredThroughputInMiBs: 64,
 		DesiredCapacityInGiB:    12288,
-		ScalingTopology:         ResolveScalingTopology(true),
+		ScalingTopology:         activeActiveTopologyFor(vmrs.MachineFamilyC3LSSD),
 	}
 
 	decision, err := dm.FindOptimalVMs(config, customerRequest, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, decision.ClusterMetadata)
 	assert.Equal(t, "c3-standard-22-lssd", decision.ClusterMetadata.VMType)
+}
+
+func TestEffectiveLargeVolumeHAPairs(t *testing.T) {
+	original := LVHaPair
+	LVHaPair = 6
+	t.Cleanup(func() { LVHaPair = original })
+
+	assert.Equal(t, int64(12), EffectiveLargeVolumeHAPairs(12, "acct"))
+	assert.Equal(t, int64(6), EffectiveLargeVolumeHAPairs(0, ""))
+	assert.Equal(t, int64(6), EffectiveLargeVolumeHAPairs(0, "not-allowlisted"))
 }

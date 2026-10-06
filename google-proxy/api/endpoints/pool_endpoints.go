@@ -39,7 +39,9 @@ var (
 	enableVolumePerformanceGroupAssignment = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	enableLargeCapacityPools               = env.GetBool("ENABLE_LARGE_CAPACITY_POOLS", true)
 	enableTrueZonalLV                      = env.GetBool("ENABLE_TRUE_ZONAL_LV", false)
+	enableTrueZonalGA                      = env.GetBool("ENABLE_TRUE_ZONAL_GA", false)
 	trueZonalLVPoolMinSize                 = env.GetUint64("TRUE_ZONAL_LV_POOL_MIN_SIZE", 12*utils.TiBInBytes)
+	trueZonalLV24NodePoolMinSize           = env.GetUint64("TRUE_ZONAL_LV_24_NODE_POOL_MIN_SIZE", 20*utils.TiBInBytes)
 	enablePOPremiumPools                   = env.GetBool(env.EnvPOPremiumPoolsEnabled, false)
 	enablePOCmek                           = env.GetBool(env.EnvPOCmekEnabled, false)
 )
@@ -170,21 +172,14 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 
 	isPreview := false
 	isTrueZonal := !isPOCreate && isTrueZonal(isRegionalHA, largeCapacity, secondaryZone)
-	if isTrueZonal {
+	if !enableTrueZonalGA && isTrueZonal {
 		if msg := validateTrueZonalAutoTiering(req.AllowAutoTiering.IsSet(), req.AllowAutoTiering.Value, req.EnableHotTierAutoResize.IsSet(), req.EnableHotTierAutoResize.Value); msg != "" {
 			return &gcpgenserver.V1betaCreatePoolBadRequest{
 				Code:    http.StatusBadRequest,
 				Message: msg,
 			}, nil
 		}
-		if uint64(req.SizeInBytes) < trueZonalLVPoolMinSize {
-			return &gcpgenserver.V1betaCreatePoolBadRequest{
-				Code:    http.StatusBadRequest,
-				Message: fmt.Sprintf("Pool size must be at least %d bytes for true-zonal large-capacity pools", trueZonalLVPoolMinSize),
-			}, nil
-		}
 		isPreview = true
-		secondaryZone = primaryZone
 	}
 
 	hotTierSizeInBytes := uint64(req.SizeInBytes)
@@ -194,6 +189,19 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 	qosType := req.QosType.Value
 	if isPOCreate {
 		qosType = ""
+	}
+	lvHAPairs := 0
+	if isTrueZonal {
+		if largeCapacity {
+			lvHAPairs = int(resolveLvHAPairs(req.LargeCapacityConfig.Value))
+			if msg := validateTrueZonalLVPoolSize(uint64(req.SizeInBytes), int64(lvHAPairs)); msg != "" {
+				return &gcpgenserver.V1betaCreatePoolBadRequest{
+					Code:    http.StatusBadRequest,
+					Message: msg,
+				}, nil
+			}
+		}
+		secondaryZone = primaryZone
 	}
 
 	createPoolParams := &commonparams.CreatePoolParams{
@@ -217,6 +225,7 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 		XCorrelationID:          params.XCorrelationID.Value,
 		IsTrueZonal:             isTrueZonal,
 		IsPreview:               isPreview,
+		LvHAPairs:               int64(lvHAPairs),
 	}
 
 	if string(req.Mode.Value) == string(gcpgenserver.PoolV1betaModeMODEUNSPECIFIED) || string(req.Mode.Value) == string(gcpgenserver.PoolV1betaModeDEFAULT) {
@@ -985,8 +994,8 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		StoragePoolState:         gcpgenserver.NewOptPoolV1betaStoragePoolState(gcpgenserver.PoolV1betaStoragePoolState(pool.State)),
 		StoragePoolStateDetails:  gcpgenserver.NewOptString(pool.StateDetails),
 		ServiceLevel:             gcpgenserver.PoolV1betaServiceLevel(pool.ServiceLevel),
-		QosType:      gcpgenserver.NewOptNilString(pool.QosType),
-		StorageClass: gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
+		QosType:                  gcpgenserver.NewOptNilString(pool.QosType),
+		StorageClass:             gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
 		AllowAutoTiering:         gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
 		AllocatedBytes:           gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
 		NumberOfVolumes:          gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
@@ -1072,6 +1081,12 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		poolV1beta.EnableHotTierAutoResize = gcpgenserver.NewOptNilBool(getEnableHotTierAutoResize(pool.AutoTieringConfig))
 		poolV1beta.HotTierConsumption = getHotTierConsumptionOpt(pool.AutoTieringConfig)
 		poolV1beta.ColdTierConsumption = getColdTierConsumptionOpt(pool.AutoTieringConfig)
+	}
+
+	if pool.PoolAttributes != nil {
+		if config, ok := largeCapacityConfigFromLvHAPairs(pool.PoolAttributes.LvHAPairs); ok {
+			poolV1beta.LargeCapacityConfig = gcpgenserver.NewOptNilPoolV1betaLargeCapacityConfig(config)
+		}
 	}
 
 	return poolV1beta
@@ -1203,6 +1218,40 @@ func validateTrueZonalAutoTiering(allowAutoTieringSet, allowAutoTiering, hotTier
 	return ""
 }
 
+func largeCapacityConfigFromLvHAPairs(lvHAPairs int64) (gcpgenserver.PoolV1betaLargeCapacityConfig, bool) {
+	switch lvHAPairs {
+	case commonparams.LvHAPairsNodeCount12:
+		return gcpgenserver.PoolV1betaLargeCapacityConfigNODECOUNT12, true
+	case commonparams.LvHAPairsNodeCount24:
+		return gcpgenserver.PoolV1betaLargeCapacityConfigNODECOUNT24, true
+	default:
+		return "", false
+	}
+}
+
+func resolveLvHAPairs(largeCapacityConfig gcpgenserver.PoolV1betaLargeCapacityConfig) int64 {
+	if !enableTrueZonalGA {
+		return 0
+	}
+	if largeCapacityConfig == gcpgenserver.PoolV1betaLargeCapacityConfigNODECOUNT24 {
+		return commonparams.LvHAPairsNodeCount24
+	}
+	return commonparams.LvHAPairsNodeCount12
+}
+
+func validateTrueZonalLVPoolSize(sizeInBytes uint64, lvHAPairs int64) string {
+	minSize := trueZonalLVPoolMinSize
+	if lvHAPairs == commonparams.LvHAPairsNodeCount24 {
+		minSize = trueZonalLV24NodePoolMinSize
+	} else if enableTrueZonalGA {
+		minSize = trueZonalLVPoolMinSize / 2
+	}
+	if sizeInBytes < minSize {
+		return fmt.Sprintf("Pool size must be at least %d bytes for true-zonal large-capacity pools", minSize)
+	}
+	return ""
+}
+
 func convertToPoolV1BetaWithConsumption(pool *models.Pool) *gcpgenserver.PoolV1beta {
 	result := convertToPoolV1Beta(pool)
 	// Add consumption fields only if auto tiering is enabled
@@ -1266,6 +1315,28 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 		return &gcpgenserver.Error{
 			Code:    http.StatusBadRequest,
 			Message: "Large capacity pools feature is not enabled",
+		}
+	}
+
+	if _, ok := req.LargeCapacityConfig.Get(); ok && nillable.IsNilOrEmpty(&zone) {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Large capacity config is not supported for regional pools",
+		}
+	}
+
+	if config, ok := req.LargeCapacityConfig.Get(); ok &&
+		config != gcpgenserver.PoolV1betaLargeCapacityConfigNODECOUNT12 &&
+		config != gcpgenserver.PoolV1betaLargeCapacityConfigNODECOUNT24 && enableTrueZonalGA {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Large capacity config must be set to NODE_COUNT_12 or NODE_COUNT_24",
+		}
+	}
+	if _, ok := req.LargeCapacityConfig.Get(); ok && req.LargeCapacity.IsSet() && !req.LargeCapacity.Value && enableTrueZonalGA {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Large capacity should be set to true when large capacity config is set",
 		}
 	}
 
@@ -1411,10 +1482,11 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 	return nil
 }
 
-// isTrueZonal determines whether a new pool should use true-zonal deployment.
-// True zonal applies to large-capacity zonal pools when ENABLE_TRUE_ZONAL_LV is on.
+// isTrueZonal determines whether a new pool should use true-zonal deployment. GA enables
+// true-zonal for every zonal pool without a secondary zone.
 func isTrueZonal(isRegionalHA, largeCapacity bool, secondaryZone string) bool {
-	return enableTrueZonalLV && largeCapacity && !isRegionalHA && secondaryZone == ""
+	zonal := !isRegionalHA && secondaryZone == ""
+	return zonal && (enableTrueZonalGA || (largeCapacity && enableTrueZonalLV))
 }
 
 // validateUpdatePoolParams validates the parameters for updating a pool.
@@ -1545,8 +1617,7 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		}
 	}
 
-	// True-zonal pools do not support capacity changes after create.
-	if models.IsTrueZonalPool(existingPool) {
+	if models.IsTrueZonalPool(existingPool) && !enableTrueZonalGA {
 		if req.SizeInBytes.IsSet() && req.SizeInBytes.Value != float64(existingPool.SizeInBytes) {
 			return &gcpgenserver.V1betaUpdatePoolBadRequest{
 				Code:    http.StatusBadRequest,

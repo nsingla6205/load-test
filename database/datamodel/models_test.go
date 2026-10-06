@@ -9,6 +9,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestPoolTopologyClassification(t *testing.T) {
+	tests := []struct {
+		name             string
+		pool             *Pool
+		wantTrueZonal    bool
+		wantActiveActive bool
+	}{
+		{name: "nil pool", pool: nil, wantTrueZonal: false, wantActiveActive: false},
+		{name: "nil attributes", pool: &Pool{LargeCapacity: true}, wantTrueZonal: false, wantActiveActive: false},
+		{name: "regular non-true-zonal", pool: &Pool{PoolAttributes: &PoolAttributes{}}, wantTrueZonal: false, wantActiveActive: false},
+		{name: "large-capacity non-true-zonal", pool: &Pool{LargeCapacity: true, PoolAttributes: &PoolAttributes{}}, wantTrueZonal: false, wantActiveActive: false},
+		{name: "regular true-zonal is active-passive", pool: &Pool{PoolAttributes: &PoolAttributes{IsTrueZonal: true}}, wantTrueZonal: true, wantActiveActive: false},
+		{name: "large-capacity true-zonal is active-active", pool: &Pool{LargeCapacity: true, PoolAttributes: &PoolAttributes{IsTrueZonal: true}}, wantTrueZonal: true, wantActiveActive: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantTrueZonal, tt.pool.IsTrueZonal())
+			assert.Equal(t, tt.wantActiveActive, tt.pool.IsActiveActive())
+		})
+	}
+}
+
 func TestJSONB_Scan(t *testing.T) {
 	var j JSONB
 	err := j.Scan([]byte(`{"key": "value"}`))

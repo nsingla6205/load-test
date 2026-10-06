@@ -10912,6 +10912,24 @@ func (s *PoolInternalV1beta) Validate() error {
 		})
 	}
 	if err := func() error {
+		if value, ok := s.LargeCapacityConfig.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "largeCapacityConfig",
+			Error: err,
+		})
+	}
+	if err := func() error {
 		if value, ok := s.Mode.Get(); ok {
 			if err := func() error {
 				if err := value.Validate(); err != nil {
@@ -10970,6 +10988,19 @@ func (s PoolInternalV1betaEncryptionType) Validate() error {
 	case "SERVICE_MANAGED":
 		return nil
 	case "CLOUD_KMS":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s PoolInternalV1betaLargeCapacityConfig) Validate() error {
+	switch s {
+	case "CLUSTER_SIZE_UNSPECIFIED":
+		return nil
+	case "NODE_COUNT_12":
+		return nil
+	case "NODE_COUNT_24":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)
@@ -11586,6 +11617,24 @@ func (s *PoolV1beta) Validate() error {
 		})
 	}
 	if err := func() error {
+		if value, ok := s.LargeCapacityConfig.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "largeCapacityConfig",
+			Error: err,
+		})
+	}
+	if err := func() error {
 		if value, ok := s.Mode.Get(); ok {
 			if err := func() error {
 				if err := value.Validate(); err != nil {
@@ -11644,6 +11693,19 @@ func (s PoolV1betaEncryptionType) Validate() error {
 	case "SERVICE_MANAGED":
 		return nil
 	case "CLOUD_KMS":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s PoolV1betaLargeCapacityConfig) Validate() error {
+	switch s {
+	case "CLUSTER_SIZE_UNSPECIFIED":
+		return nil
+	case "NODE_COUNT_12":
+		return nil
+	case "NODE_COUNT_24":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)

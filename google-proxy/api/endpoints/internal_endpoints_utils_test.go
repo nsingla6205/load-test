@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -456,6 +457,47 @@ func TestConvertJSONBLabelsToOptLabels(t *testing.T) {
 						t.Errorf("Expected value %s for key %s, got %s", expectedValue, key, actualValue)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestConvertToPoolInternalV1Beta_LargeCapacityConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		lvHAPairs int64
+		wantSet   bool
+		want      gcpgenserver.PoolInternalV1betaLargeCapacityConfig
+	}{
+		{
+			name:      "12-node pool",
+			lvHAPairs: commonparams.LvHAPairsNodeCount12,
+			wantSet:   true,
+			want:      gcpgenserver.PoolInternalV1betaLargeCapacityConfigNODECOUNT12,
+		},
+		{
+			name:      "24-node pool",
+			lvHAPairs: commonparams.LvHAPairsNodeCount24,
+			wantSet:   true,
+			want:      gcpgenserver.PoolInternalV1betaLargeCapacityConfigNODECOUNT24,
+		},
+		{
+			name:    "unset HA pairs omits the config",
+			wantSet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := &models.Pool{
+				PoolAttributes: &models.PoolAttributes{LvHAPairs: tt.lvHAPairs},
+			}
+
+			result := convertToPoolInternalV1Beta(pool)
+
+			assert.Equal(t, tt.wantSet, result.LargeCapacityConfig.IsSet())
+			if tt.wantSet {
+				assert.Equal(t, tt.want, result.LargeCapacityConfig.Value)
 			}
 		})
 	}

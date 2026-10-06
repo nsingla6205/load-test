@@ -8871,6 +8871,70 @@ func Test_createLargeVolume_WithSnapshot(t *testing.T) {
 	assert.Equal(tt, int32(5), *volume.LargeVolumeConstituentCount)
 }
 
+func TestLvHaPairsForLargeVolumeAccount(t *testing.T) {
+	originalNumOfLvHAPairs := numOfLvHAPairs
+	numOfLvHAPairs = 6
+	t.Cleanup(func() {
+		numOfLvHAPairs = originalNumOfLvHAPairs
+	})
+
+	tests := []struct {
+		name           string
+		poolAttributes *datamodel.PoolAttributes
+		want           int64
+	}{
+		{
+			name: "nil attributes use legacy account fallback",
+			want: 6,
+		},
+		{
+			name:           "zero HA pairs use legacy account fallback",
+			poolAttributes: &datamodel.PoolAttributes{},
+			want:           6,
+		},
+		{
+			name: "stored HA pairs override account fallback",
+			poolAttributes: &datamodel.PoolAttributes{
+				LvHAPairs: 12,
+			},
+			want: 12,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, lvHaPairsForLargeVolumeAccount("__not_allowlisted__", tt.poolAttributes))
+		})
+	}
+}
+
+func TestDefaultLargeVolumeConstituentCount_UsesPoolHAPairs(t *testing.T) {
+	originalNumOfLvHAPairs := numOfLvHAPairs
+	originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
+	originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
+	numOfLvHAPairs = 6
+	defaultConstituentsPerAggregate = 8
+	t.Cleanup(func() {
+		numOfLvHAPairs = originalNumOfLvHAPairs
+		defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
+		enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
+	})
+
+	poolAttributes := &datamodel.PoolAttributes{LvHAPairs: 12}
+
+	enableTrueZonalLVDefaultConstituentCount = false
+	assert.Equal(t, int64(96),
+		defaultLargeVolumeConstituentCount("__not_allowlisted__", poolAttributes, false))
+	assert.Equal(t, int64(96),
+		defaultLargeVolumeConstituentCount("__not_allowlisted__", poolAttributes, true))
+
+	enableTrueZonalLVDefaultConstituentCount = true
+	assert.Equal(t, int64(192),
+		defaultLargeVolumeConstituentCount("__not_allowlisted__", poolAttributes, true))
+	assert.Equal(t, int64(48),
+		defaultLargeVolumeConstituentCount("__not_allowlisted__", &datamodel.PoolAttributes{}, false))
+}
+
 // Test_createLargeVolume_DefaultConstituentCount tests default constituent count calculation
 // when LargeVolumeConstituentCount is not provided
 func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
@@ -27178,18 +27242,20 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
 		originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
+		originalMinCVSizeInBytes := minCVSizeInBytes
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
 		enableTrueZonalLVDefaultConstituentCount = true
+		minCVSizeInBytes = 100 * 1024 * 1024 * 1024
 		defer func() {
 			numOfLvHAPairs = originalNumOfLvHAPairs
 			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
 			enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
+			minCVSizeInBytes = originalMinCVSizeInBytes
 		}()
 
 		// Volume size: 96 CVs * 100 GB = 9.6 TiB (valid)
 		defaultConstituentCount := int64(96) // 6 * 8 * 2
-		minCVSizeInBytes := uint64(100 * 1024 * 1024 * 1024)
 		validVolumeSize := uint64(defaultConstituentCount) * minCVSizeInBytes
 
 		params := &common.CreateVolumeParams{

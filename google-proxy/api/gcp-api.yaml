@@ -11852,6 +11852,15 @@ components:
           description: Indicates if the pool is a large capacity pool
           default: false
           example: false
+        largeCapacityConfig:
+          type: string
+          nullable: true
+          description: Configuration for large-capacity pools. Set only when largeCapacity is true.
+          example: NODE_COUNT_12
+          enum:
+            - CLUSTER_SIZE_UNSPECIFIED
+            - NODE_COUNT_12
+            - NODE_COUNT_24
         hotTierConsumption:
           title: hotTierConsumption
           type: integer

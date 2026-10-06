@@ -223,6 +223,7 @@ func TestConvertDatastorePoolToModel(t *testing.T) {
 						IsRegionalHA:    true,
 						LdapEnabled:     false,
 						IsTrueZonal:     false,
+						LvHAPairs:       12,
 					},
 					SatisfyZI:     true,
 					SatisfyZS:     false,
@@ -393,6 +394,7 @@ func TestConvertDatastorePoolToModel(t *testing.T) {
 				assert.Equal(t, tt.pool.PoolAttributes.IsRegionalHA, result.PoolAttributes.IsRegionalHA)
 				assert.Equal(t, tt.pool.PoolAttributes.LdapEnabled, result.PoolAttributes.LdapEnabled)
 				assert.Equal(t, tt.pool.PoolAttributes.IsTrueZonal, result.PoolAttributes.IsTrueZonal)
+				assert.Equal(t, tt.pool.PoolAttributes.LvHAPairs, result.PoolAttributes.LvHAPairs)
 
 				if tt.pool.PoolAttributes.Labels != nil {
 					expectedLabels := utils.ConvertJSONBToMap(tt.pool.PoolAttributes.Labels)
@@ -667,6 +669,7 @@ func TestCreatePoolInDB_NilIops(t *testing.T) {
 		VendorSubNetID: "projects/123456789/global/networks/test-vpc",
 		ClusterName:    "vsim",
 		Mode:           "ONTAP",
+		LvHAPairs:      commonparams.LvHAPairsNodeCount24,
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			Enabled:         true,
 			ThroughputMibps: 128,
@@ -680,6 +683,7 @@ func TestCreatePoolInDB_NilIops(t *testing.T) {
 	assert.NotNil(t, pool.PoolAttributes)
 	assert.Equal(t, int64(128), pool.PoolAttributes.ThroughputMibps)
 	assert.Equal(t, int64(0), pool.PoolAttributes.Iops)
+	assert.Equal(t, commonparams.LvHAPairsNodeCount24, pool.PoolAttributes.LvHAPairs)
 	assert.Equal(t, "vsim", pool.ClusterDetails.ExternalName)
 }
 
