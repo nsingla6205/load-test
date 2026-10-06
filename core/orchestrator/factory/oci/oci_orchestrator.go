@@ -793,6 +793,14 @@ func (o *OCIOrchestrator) GetBatchUpgradeStatus(ctx context.Context, batchUpgrad
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) ReconcilePoolAuthTypes(ctx context.Context, params *commonparams.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) GetPoolAuthTypeReconciliationStatus(ctx context.Context, jobID string) (*models.AuthTypeReconciliationStatus, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetExpertModeVolumeByExternalUUID(ctx context.Context, volumeUUID string) (*datamodel.ExpertModeVolumes, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

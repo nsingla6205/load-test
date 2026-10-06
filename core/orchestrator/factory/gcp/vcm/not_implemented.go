@@ -918,6 +918,14 @@ func (notImplementedOrchestrator) GetBatchUpgradeStatus(context.Context, string)
 	return nil, customerrors.NewNotImplementedYetErr()
 }
 
+func (notImplementedOrchestrator) ReconcilePoolAuthTypes(context.Context, *commonparams.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
+
+func (notImplementedOrchestrator) GetPoolAuthTypeReconciliationStatus(context.Context, string) (*models.AuthTypeReconciliationStatus, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
+
 // OCI administration
 func (notImplementedOrchestrator) ResetAdminPasswordForPool(context.Context, *commonparams.ResetOciAdminPasswordParams) (string, error) {
 	return "", customerrors.NewNotImplementedYetErr()

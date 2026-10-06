@@ -665,6 +665,9 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterWorkflow(backgroundworkflows.RotatePoolPasswordWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.ReconcilePoolCAWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.TrackedReconcilePoolCAWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.ReconcilePoolAuthTypeForDesiredCAWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.ReconcilePoolAuthTypeAPIWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.ReconcilePoolAuthTypesAPIWorkflow)
 	worker.RegisterWorkflow(expertmodeworkflows.ManageBackupConfigWorkflow)
 
 	temporalScheduler := scheduler.NewTemporalScheduler(temporal.ScheduleClient())
@@ -749,6 +752,9 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&replicationActivities.HybridDeleteVolumeReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&replicationActivities.ReverseHybridReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&backgroundactivities.RotateVcpToVsaCertificateActivity{SE: dbcon})
+	// The on-demand auth-type reconciliation parent and per-pool workflows run on
+	// the customer queue, so their control activities must be available here too.
+	worker.RegisterActivity(&backgroundactivities.ControlWorkflowActivity{})
 	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
 	worker.RegisterActivity(backgroundactivities.EmitPasswordRotationFailureMetric)
 	worker.RegisterActivity(backgroundactivities.EmitZoneSwitchWorkflowMetric)

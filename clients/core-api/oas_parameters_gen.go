@@ -252,6 +252,12 @@ type V1GetPoolParams struct {
 	XCorrelationID OptString
 }
 
+// V1GetPoolAuthTypeReconciliationStatusParams is parameters of v1_getPoolAuthTypeReconciliationStatus operation.
+type V1GetPoolAuthTypeReconciliationStatusParams struct {
+	// Reconciliation request job UUID returned by POST.
+	JobId uuid.UUID
+}
+
 // V1GetPoolCertificateAuthorityReconciliationStatusParams is parameters of v1_getPoolCertificateAuthorityReconciliationStatus operation.
 type V1GetPoolCertificateAuthorityReconciliationStatusParams struct {
 	// CA reconciliation parent job UUID returned by POST.

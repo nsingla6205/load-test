@@ -128,6 +128,28 @@ func TestReconcilePoolCAWorkflowReturnsEligibilityCheckFailure(t *testing.T) {
 	assert.ErrorContains(t, env.GetWorkflowError(), "eligibility check failed")
 }
 
+func TestReconcilePoolAuthTypeForDesiredCAWorkflow_CarriesExplicitCA(t *testing.T) {
+	const (
+		poolUUID     = "pool-uuid"
+		desiredCAURI = "project/pool/ca"
+	)
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	activity := &backgroundactivities.RotateVcpToVsaCertificateActivity{}
+	env.OnActivity(
+		activity.ReconcileAuthType1PoolForDesiredCA,
+		mock.Anything,
+		poolUUID,
+		desiredCAURI,
+	).Return(nil)
+
+	env.ExecuteWorkflow(ReconcilePoolAuthTypeForDesiredCAWorkflow, poolUUID, desiredCAURI)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
 func TestReconcilePoolCAWorkflowReturnsRotationFailures(t *testing.T) {
 	const (
 		poolUUID     = "pool-1"
@@ -230,6 +252,25 @@ func TestReconcileVsaCAOnChangeWorkflow_QueuesStableBatch(t *testing.T) {
 	).Return(nil)
 
 	env.ExecuteWorkflow(ReconcileVsaCAOnChangeWorkflow, allPoolCAReconciliationParams(desiredCAURI))
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+func TestReconcileVsaCAOnChangeWorkflow_DoesNotScanAuthType1Pools(t *testing.T) {
+	const desiredCAURI = "project/pool/new-ca"
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	rotationActivity := &backgroundactivities.RotateVcpToVsaCertificateActivity{}
+	env.OnActivity(
+		rotationActivity.ListPoolsWithCertificateAuth,
+		mock.Anything,
+		0,
+		vsaCAReconciliationBatchSize,
+	).Return(&backgroundactivities.ListPoolsBatchResult{}, nil)
+
+	env.ExecuteWorkflow(ReconcileVsaCAOnChangeWorkflow, allPoolCAReconciliationParams(desiredCAURI))
+
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)

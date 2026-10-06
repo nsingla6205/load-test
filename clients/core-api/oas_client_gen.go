@@ -239,6 +239,12 @@ type Invoker interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1GetPoolAuthTypeReconciliationStatus invokes v1_getPoolAuthTypeReconciliationStatus operation.
+	//
+	// Returns aggregate and per-pool status for the reconciliation request started by POST on this path.
+	//
+	// GET /v1/pools/reconcileAuthType
+	V1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error)
 	// V1GetPoolCertificateAuthorityReconciliationStatus invokes v1_getPoolCertificateAuthorityReconciliationStatus operation.
 	//
 	// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
@@ -322,6 +328,13 @@ type Invoker interface {
 	//
 	// POST /v1/externalClusters/onboard
 	V1OnboardExternalCluster(ctx context.Context, request *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)
+	// V1ReconcilePoolAuthType invokes v1_reconcilePoolAuthType operation.
+	//
+	// Queues certificate-authentication reconciliation for all demoted pools or an explicit list of pool
+	// UUIDs, always targeting the Helm-configured CA.
+	//
+	// POST /v1/pools/reconcileAuthType
+	V1ReconcilePoolAuthType(ctx context.Context, request *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error)
 	// V1ReconcilePoolCertificateAuthority invokes v1_reconcilePoolCertificateAuthority operation.
 	//
 	// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's
@@ -2813,6 +2826,59 @@ func (c *Client) sendV1GetPool(ctx context.Context, params V1GetPoolParams) (res
 	return result, nil
 }
 
+// V1GetPoolAuthTypeReconciliationStatus invokes v1_getPoolAuthTypeReconciliationStatus operation.
+//
+// Returns aggregate and per-pool status for the reconciliation request started by POST on this path.
+//
+// GET /v1/pools/reconcileAuthType
+func (c *Client) V1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error) {
+	res, err := c.sendV1GetPoolAuthTypeReconciliationStatus(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (res V1GetPoolAuthTypeReconciliationStatusRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/reconcileAuthType"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "jobId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.UUIDToString(params.JobId))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1GetPoolAuthTypeReconciliationStatusResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1GetPoolCertificateAuthorityReconciliationStatus invokes v1_getPoolCertificateAuthorityReconciliationStatus operation.
 //
 // Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
@@ -3666,6 +3732,55 @@ func (c *Client) sendV1OnboardExternalCluster(ctx context.Context, request *Exte
 	defer resp.Body.Close()
 
 	result, err := decodeV1OnboardExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ReconcilePoolAuthType invokes v1_reconcilePoolAuthType operation.
+//
+// Queues certificate-authentication reconciliation for all demoted pools or an explicit list of pool
+// UUIDs, always targeting the Helm-configured CA.
+//
+// POST /v1/pools/reconcileAuthType
+func (c *Client) V1ReconcilePoolAuthType(ctx context.Context, request *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error) {
+	res, err := c.sendV1ReconcilePoolAuthType(ctx, request)
+	return res, err
+}
+
+func (c *Client) sendV1ReconcilePoolAuthType(ctx context.Context, request *AuthTypeReconciliationRequestV1) (res V1ReconcilePoolAuthTypeRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/pools/reconcileAuthType"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1ReconcilePoolAuthTypeRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ReconcilePoolAuthTypeResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

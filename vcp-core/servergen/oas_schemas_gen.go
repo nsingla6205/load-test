@@ -618,6 +618,520 @@ func (s *AnyV1) SetAnyValue(val jx.Raw) {
 	s.AnyValue = val
 }
 
+// Ref: #/components/schemas/AuthTypeReconciliationPoolResult_v1
+type AuthTypeReconciliationPoolResultV1 struct {
+	PoolUuid uuid.UUID                                `json:"poolUuid"`
+	Status   AuthTypeReconciliationPoolResultV1Status `json:"status"`
+	// Per-pool Temporal workflow identifier.
+	JobId OptString `json:"jobId"`
+	// Skip or failure reason.
+	Reason OptString `json:"reason"`
+}
+
+// GetPoolUuid returns the value of PoolUuid.
+func (s *AuthTypeReconciliationPoolResultV1) GetPoolUuid() uuid.UUID {
+	return s.PoolUuid
+}
+
+// GetStatus returns the value of Status.
+func (s *AuthTypeReconciliationPoolResultV1) GetStatus() AuthTypeReconciliationPoolResultV1Status {
+	return s.Status
+}
+
+// GetJobId returns the value of JobId.
+func (s *AuthTypeReconciliationPoolResultV1) GetJobId() OptString {
+	return s.JobId
+}
+
+// GetReason returns the value of Reason.
+func (s *AuthTypeReconciliationPoolResultV1) GetReason() OptString {
+	return s.Reason
+}
+
+// SetPoolUuid sets the value of PoolUuid.
+func (s *AuthTypeReconciliationPoolResultV1) SetPoolUuid(val uuid.UUID) {
+	s.PoolUuid = val
+}
+
+// SetStatus sets the value of Status.
+func (s *AuthTypeReconciliationPoolResultV1) SetStatus(val AuthTypeReconciliationPoolResultV1Status) {
+	s.Status = val
+}
+
+// SetJobId sets the value of JobId.
+func (s *AuthTypeReconciliationPoolResultV1) SetJobId(val OptString) {
+	s.JobId = val
+}
+
+// SetReason sets the value of Reason.
+func (s *AuthTypeReconciliationPoolResultV1) SetReason(val OptString) {
+	s.Reason = val
+}
+
+type AuthTypeReconciliationPoolResultV1Status string
+
+const (
+	AuthTypeReconciliationPoolResultV1StatusQUEUED     AuthTypeReconciliationPoolResultV1Status = "QUEUED"
+	AuthTypeReconciliationPoolResultV1StatusPROCESSING AuthTypeReconciliationPoolResultV1Status = "PROCESSING"
+	AuthTypeReconciliationPoolResultV1StatusDONE       AuthTypeReconciliationPoolResultV1Status = "DONE"
+	AuthTypeReconciliationPoolResultV1StatusERROR      AuthTypeReconciliationPoolResultV1Status = "ERROR"
+	AuthTypeReconciliationPoolResultV1StatusSKIPPED    AuthTypeReconciliationPoolResultV1Status = "SKIPPED"
+)
+
+// AllValues returns all AuthTypeReconciliationPoolResultV1Status values.
+func (AuthTypeReconciliationPoolResultV1Status) AllValues() []AuthTypeReconciliationPoolResultV1Status {
+	return []AuthTypeReconciliationPoolResultV1Status{
+		AuthTypeReconciliationPoolResultV1StatusQUEUED,
+		AuthTypeReconciliationPoolResultV1StatusPROCESSING,
+		AuthTypeReconciliationPoolResultV1StatusDONE,
+		AuthTypeReconciliationPoolResultV1StatusERROR,
+		AuthTypeReconciliationPoolResultV1StatusSKIPPED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s AuthTypeReconciliationPoolResultV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case AuthTypeReconciliationPoolResultV1StatusQUEUED:
+		return []byte(s), nil
+	case AuthTypeReconciliationPoolResultV1StatusPROCESSING:
+		return []byte(s), nil
+	case AuthTypeReconciliationPoolResultV1StatusDONE:
+		return []byte(s), nil
+	case AuthTypeReconciliationPoolResultV1StatusERROR:
+		return []byte(s), nil
+	case AuthTypeReconciliationPoolResultV1StatusSKIPPED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *AuthTypeReconciliationPoolResultV1Status) UnmarshalText(data []byte) error {
+	switch AuthTypeReconciliationPoolResultV1Status(data) {
+	case AuthTypeReconciliationPoolResultV1StatusQUEUED:
+		*s = AuthTypeReconciliationPoolResultV1StatusQUEUED
+		return nil
+	case AuthTypeReconciliationPoolResultV1StatusPROCESSING:
+		*s = AuthTypeReconciliationPoolResultV1StatusPROCESSING
+		return nil
+	case AuthTypeReconciliationPoolResultV1StatusDONE:
+		*s = AuthTypeReconciliationPoolResultV1StatusDONE
+		return nil
+	case AuthTypeReconciliationPoolResultV1StatusERROR:
+		*s = AuthTypeReconciliationPoolResultV1StatusERROR
+		return nil
+	case AuthTypeReconciliationPoolResultV1StatusSKIPPED:
+		*s = AuthTypeReconciliationPoolResultV1StatusSKIPPED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Selects demoted password-auth pools for promotion back to certificate authentication.
+// Ref: #/components/schemas/AuthTypeReconciliationRequest_v1
+type AuthTypeReconciliationRequestV1 struct {
+	// Select all eligible demoted pools or an explicit UUID list.
+	SelectionType AuthTypeReconciliationRequestV1SelectionType `json:"selectionType"`
+	// Current authentication type; only demoted password authentication (1) is supported.
+	FromAuthType AuthTypeReconciliationRequestV1FromAuthType `json:"fromAuthType"`
+	// Target authentication type; only certificate authentication (2) is supported.
+	ToAuthType AuthTypeReconciliationRequestV1ToAuthType `json:"toAuthType"`
+	// Required for poolList and forbidden for all.
+	PoolUuids []uuid.UUID `json:"poolUuids"`
+	// Maximum number of pools queued concurrently in each core-api batch; all selected pools are
+	// processed across successive batches.
+	BatchSize OptInt `json:"batchSize"`
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *AuthTypeReconciliationRequestV1) GetSelectionType() AuthTypeReconciliationRequestV1SelectionType {
+	return s.SelectionType
+}
+
+// GetFromAuthType returns the value of FromAuthType.
+func (s *AuthTypeReconciliationRequestV1) GetFromAuthType() AuthTypeReconciliationRequestV1FromAuthType {
+	return s.FromAuthType
+}
+
+// GetToAuthType returns the value of ToAuthType.
+func (s *AuthTypeReconciliationRequestV1) GetToAuthType() AuthTypeReconciliationRequestV1ToAuthType {
+	return s.ToAuthType
+}
+
+// GetPoolUuids returns the value of PoolUuids.
+func (s *AuthTypeReconciliationRequestV1) GetPoolUuids() []uuid.UUID {
+	return s.PoolUuids
+}
+
+// GetBatchSize returns the value of BatchSize.
+func (s *AuthTypeReconciliationRequestV1) GetBatchSize() OptInt {
+	return s.BatchSize
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *AuthTypeReconciliationRequestV1) SetSelectionType(val AuthTypeReconciliationRequestV1SelectionType) {
+	s.SelectionType = val
+}
+
+// SetFromAuthType sets the value of FromAuthType.
+func (s *AuthTypeReconciliationRequestV1) SetFromAuthType(val AuthTypeReconciliationRequestV1FromAuthType) {
+	s.FromAuthType = val
+}
+
+// SetToAuthType sets the value of ToAuthType.
+func (s *AuthTypeReconciliationRequestV1) SetToAuthType(val AuthTypeReconciliationRequestV1ToAuthType) {
+	s.ToAuthType = val
+}
+
+// SetPoolUuids sets the value of PoolUuids.
+func (s *AuthTypeReconciliationRequestV1) SetPoolUuids(val []uuid.UUID) {
+	s.PoolUuids = val
+}
+
+// SetBatchSize sets the value of BatchSize.
+func (s *AuthTypeReconciliationRequestV1) SetBatchSize(val OptInt) {
+	s.BatchSize = val
+}
+
+// Current authentication type; only demoted password authentication (1) is supported.
+type AuthTypeReconciliationRequestV1FromAuthType int
+
+const (
+	AuthTypeReconciliationRequestV1FromAuthType1 AuthTypeReconciliationRequestV1FromAuthType = 1
+)
+
+// AllValues returns all AuthTypeReconciliationRequestV1FromAuthType values.
+func (AuthTypeReconciliationRequestV1FromAuthType) AllValues() []AuthTypeReconciliationRequestV1FromAuthType {
+	return []AuthTypeReconciliationRequestV1FromAuthType{
+		AuthTypeReconciliationRequestV1FromAuthType1,
+	}
+}
+
+// Select all eligible demoted pools or an explicit UUID list.
+type AuthTypeReconciliationRequestV1SelectionType string
+
+const (
+	AuthTypeReconciliationRequestV1SelectionTypeAll      AuthTypeReconciliationRequestV1SelectionType = "all"
+	AuthTypeReconciliationRequestV1SelectionTypePoolList AuthTypeReconciliationRequestV1SelectionType = "poolList"
+)
+
+// AllValues returns all AuthTypeReconciliationRequestV1SelectionType values.
+func (AuthTypeReconciliationRequestV1SelectionType) AllValues() []AuthTypeReconciliationRequestV1SelectionType {
+	return []AuthTypeReconciliationRequestV1SelectionType{
+		AuthTypeReconciliationRequestV1SelectionTypeAll,
+		AuthTypeReconciliationRequestV1SelectionTypePoolList,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s AuthTypeReconciliationRequestV1SelectionType) MarshalText() ([]byte, error) {
+	switch s {
+	case AuthTypeReconciliationRequestV1SelectionTypeAll:
+		return []byte(s), nil
+	case AuthTypeReconciliationRequestV1SelectionTypePoolList:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *AuthTypeReconciliationRequestV1SelectionType) UnmarshalText(data []byte) error {
+	switch AuthTypeReconciliationRequestV1SelectionType(data) {
+	case AuthTypeReconciliationRequestV1SelectionTypeAll:
+		*s = AuthTypeReconciliationRequestV1SelectionTypeAll
+		return nil
+	case AuthTypeReconciliationRequestV1SelectionTypePoolList:
+		*s = AuthTypeReconciliationRequestV1SelectionTypePoolList
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Target authentication type; only certificate authentication (2) is supported.
+type AuthTypeReconciliationRequestV1ToAuthType int
+
+const (
+	AuthTypeReconciliationRequestV1ToAuthType2 AuthTypeReconciliationRequestV1ToAuthType = 2
+)
+
+// AllValues returns all AuthTypeReconciliationRequestV1ToAuthType values.
+func (AuthTypeReconciliationRequestV1ToAuthType) AllValues() []AuthTypeReconciliationRequestV1ToAuthType {
+	return []AuthTypeReconciliationRequestV1ToAuthType{
+		AuthTypeReconciliationRequestV1ToAuthType2,
+	}
+}
+
+// Ref: #/components/schemas/AuthTypeReconciliationResponse_v1
+type AuthTypeReconciliationResponseV1 struct {
+	JobId        uuid.UUID                              `json:"jobId"`
+	Status       AuthTypeReconciliationResponseV1Status `json:"status"`
+	TotalPools   int                                    `json:"totalPools"`
+	QueuedPools  int                                    `json:"queuedPools"`
+	SkippedPools int                                    `json:"skippedPools"`
+	Results      []AuthTypeReconciliationPoolResultV1   `json:"results"`
+}
+
+// GetJobId returns the value of JobId.
+func (s *AuthTypeReconciliationResponseV1) GetJobId() uuid.UUID {
+	return s.JobId
+}
+
+// GetStatus returns the value of Status.
+func (s *AuthTypeReconciliationResponseV1) GetStatus() AuthTypeReconciliationResponseV1Status {
+	return s.Status
+}
+
+// GetTotalPools returns the value of TotalPools.
+func (s *AuthTypeReconciliationResponseV1) GetTotalPools() int {
+	return s.TotalPools
+}
+
+// GetQueuedPools returns the value of QueuedPools.
+func (s *AuthTypeReconciliationResponseV1) GetQueuedPools() int {
+	return s.QueuedPools
+}
+
+// GetSkippedPools returns the value of SkippedPools.
+func (s *AuthTypeReconciliationResponseV1) GetSkippedPools() int {
+	return s.SkippedPools
+}
+
+// GetResults returns the value of Results.
+func (s *AuthTypeReconciliationResponseV1) GetResults() []AuthTypeReconciliationPoolResultV1 {
+	return s.Results
+}
+
+// SetJobId sets the value of JobId.
+func (s *AuthTypeReconciliationResponseV1) SetJobId(val uuid.UUID) {
+	s.JobId = val
+}
+
+// SetStatus sets the value of Status.
+func (s *AuthTypeReconciliationResponseV1) SetStatus(val AuthTypeReconciliationResponseV1Status) {
+	s.Status = val
+}
+
+// SetTotalPools sets the value of TotalPools.
+func (s *AuthTypeReconciliationResponseV1) SetTotalPools(val int) {
+	s.TotalPools = val
+}
+
+// SetQueuedPools sets the value of QueuedPools.
+func (s *AuthTypeReconciliationResponseV1) SetQueuedPools(val int) {
+	s.QueuedPools = val
+}
+
+// SetSkippedPools sets the value of SkippedPools.
+func (s *AuthTypeReconciliationResponseV1) SetSkippedPools(val int) {
+	s.SkippedPools = val
+}
+
+// SetResults sets the value of Results.
+func (s *AuthTypeReconciliationResponseV1) SetResults(val []AuthTypeReconciliationPoolResultV1) {
+	s.Results = val
+}
+
+func (*AuthTypeReconciliationResponseV1) v1ReconcilePoolAuthTypeRes() {}
+
+type AuthTypeReconciliationResponseV1Status string
+
+const (
+	AuthTypeReconciliationResponseV1StatusPROCESSING AuthTypeReconciliationResponseV1Status = "PROCESSING"
+)
+
+// AllValues returns all AuthTypeReconciliationResponseV1Status values.
+func (AuthTypeReconciliationResponseV1Status) AllValues() []AuthTypeReconciliationResponseV1Status {
+	return []AuthTypeReconciliationResponseV1Status{
+		AuthTypeReconciliationResponseV1StatusPROCESSING,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s AuthTypeReconciliationResponseV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case AuthTypeReconciliationResponseV1StatusPROCESSING:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *AuthTypeReconciliationResponseV1Status) UnmarshalText(data []byte) error {
+	switch AuthTypeReconciliationResponseV1Status(data) {
+	case AuthTypeReconciliationResponseV1StatusPROCESSING:
+		*s = AuthTypeReconciliationResponseV1StatusPROCESSING
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/AuthTypeReconciliationStatus_v1
+type AuthTypeReconciliationStatusV1 struct {
+	JobId           uuid.UUID                            `json:"jobId"`
+	Status          AuthTypeReconciliationStatusV1Status `json:"status"`
+	TotalPools      int                                  `json:"totalPools"`
+	QueuedPools     int                                  `json:"queuedPools"`
+	ProcessingPools int                                  `json:"processingPools"`
+	SucceededPools  int                                  `json:"succeededPools"`
+	FailedPools     int                                  `json:"failedPools"`
+	SkippedPools    int                                  `json:"skippedPools"`
+	Results         []AuthTypeReconciliationPoolResultV1 `json:"results"`
+}
+
+// GetJobId returns the value of JobId.
+func (s *AuthTypeReconciliationStatusV1) GetJobId() uuid.UUID {
+	return s.JobId
+}
+
+// GetStatus returns the value of Status.
+func (s *AuthTypeReconciliationStatusV1) GetStatus() AuthTypeReconciliationStatusV1Status {
+	return s.Status
+}
+
+// GetTotalPools returns the value of TotalPools.
+func (s *AuthTypeReconciliationStatusV1) GetTotalPools() int {
+	return s.TotalPools
+}
+
+// GetQueuedPools returns the value of QueuedPools.
+func (s *AuthTypeReconciliationStatusV1) GetQueuedPools() int {
+	return s.QueuedPools
+}
+
+// GetProcessingPools returns the value of ProcessingPools.
+func (s *AuthTypeReconciliationStatusV1) GetProcessingPools() int {
+	return s.ProcessingPools
+}
+
+// GetSucceededPools returns the value of SucceededPools.
+func (s *AuthTypeReconciliationStatusV1) GetSucceededPools() int {
+	return s.SucceededPools
+}
+
+// GetFailedPools returns the value of FailedPools.
+func (s *AuthTypeReconciliationStatusV1) GetFailedPools() int {
+	return s.FailedPools
+}
+
+// GetSkippedPools returns the value of SkippedPools.
+func (s *AuthTypeReconciliationStatusV1) GetSkippedPools() int {
+	return s.SkippedPools
+}
+
+// GetResults returns the value of Results.
+func (s *AuthTypeReconciliationStatusV1) GetResults() []AuthTypeReconciliationPoolResultV1 {
+	return s.Results
+}
+
+// SetJobId sets the value of JobId.
+func (s *AuthTypeReconciliationStatusV1) SetJobId(val uuid.UUID) {
+	s.JobId = val
+}
+
+// SetStatus sets the value of Status.
+func (s *AuthTypeReconciliationStatusV1) SetStatus(val AuthTypeReconciliationStatusV1Status) {
+	s.Status = val
+}
+
+// SetTotalPools sets the value of TotalPools.
+func (s *AuthTypeReconciliationStatusV1) SetTotalPools(val int) {
+	s.TotalPools = val
+}
+
+// SetQueuedPools sets the value of QueuedPools.
+func (s *AuthTypeReconciliationStatusV1) SetQueuedPools(val int) {
+	s.QueuedPools = val
+}
+
+// SetProcessingPools sets the value of ProcessingPools.
+func (s *AuthTypeReconciliationStatusV1) SetProcessingPools(val int) {
+	s.ProcessingPools = val
+}
+
+// SetSucceededPools sets the value of SucceededPools.
+func (s *AuthTypeReconciliationStatusV1) SetSucceededPools(val int) {
+	s.SucceededPools = val
+}
+
+// SetFailedPools sets the value of FailedPools.
+func (s *AuthTypeReconciliationStatusV1) SetFailedPools(val int) {
+	s.FailedPools = val
+}
+
+// SetSkippedPools sets the value of SkippedPools.
+func (s *AuthTypeReconciliationStatusV1) SetSkippedPools(val int) {
+	s.SkippedPools = val
+}
+
+// SetResults sets the value of Results.
+func (s *AuthTypeReconciliationStatusV1) SetResults(val []AuthTypeReconciliationPoolResultV1) {
+	s.Results = val
+}
+
+func (*AuthTypeReconciliationStatusV1) v1GetPoolAuthTypeReconciliationStatusRes() {}
+
+type AuthTypeReconciliationStatusV1Status string
+
+const (
+	AuthTypeReconciliationStatusV1StatusPROCESSING AuthTypeReconciliationStatusV1Status = "PROCESSING"
+	AuthTypeReconciliationStatusV1StatusDONE       AuthTypeReconciliationStatusV1Status = "DONE"
+	AuthTypeReconciliationStatusV1StatusERROR      AuthTypeReconciliationStatusV1Status = "ERROR"
+	AuthTypeReconciliationStatusV1StatusPARTIAL    AuthTypeReconciliationStatusV1Status = "PARTIAL"
+)
+
+// AllValues returns all AuthTypeReconciliationStatusV1Status values.
+func (AuthTypeReconciliationStatusV1Status) AllValues() []AuthTypeReconciliationStatusV1Status {
+	return []AuthTypeReconciliationStatusV1Status{
+		AuthTypeReconciliationStatusV1StatusPROCESSING,
+		AuthTypeReconciliationStatusV1StatusDONE,
+		AuthTypeReconciliationStatusV1StatusERROR,
+		AuthTypeReconciliationStatusV1StatusPARTIAL,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s AuthTypeReconciliationStatusV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case AuthTypeReconciliationStatusV1StatusPROCESSING:
+		return []byte(s), nil
+	case AuthTypeReconciliationStatusV1StatusDONE:
+		return []byte(s), nil
+	case AuthTypeReconciliationStatusV1StatusERROR:
+		return []byte(s), nil
+	case AuthTypeReconciliationStatusV1StatusPARTIAL:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *AuthTypeReconciliationStatusV1Status) UnmarshalText(data []byte) error {
+	switch AuthTypeReconciliationStatusV1Status(data) {
+	case AuthTypeReconciliationStatusV1StatusPROCESSING:
+		*s = AuthTypeReconciliationStatusV1StatusPROCESSING
+		return nil
+	case AuthTypeReconciliationStatusV1StatusDONE:
+		*s = AuthTypeReconciliationStatusV1StatusDONE
+		return nil
+	case AuthTypeReconciliationStatusV1StatusERROR:
+		*s = AuthTypeReconciliationStatusV1StatusERROR
+		return nil
+	case AuthTypeReconciliationStatusV1StatusPARTIAL:
+		*s = AuthTypeReconciliationStatusV1StatusPARTIAL
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // An available ONTAP version for cluster upgrades.
 // Ref: #/components/schemas/AvailableVersion_v1
 type AvailableVersionV1 struct {
@@ -1517,6 +2031,7 @@ func (*ErrorStatusCode) v1GetClusterUpgradeStatusRes()               {}
 func (*ErrorStatusCode) v1GetExternalClusterRes()                    {}
 func (*ErrorStatusCode) v1GetMultipleReplicationsByExternalUUIDRes() {}
 func (*ErrorStatusCode) v1GetOntapCredentialsRes()                   {}
+func (*ErrorStatusCode) v1GetPoolAuthTypeReconciliationStatusRes()   {}
 func (*ErrorStatusCode) v1GetPoolRes()                               {}
 func (*ErrorStatusCode) v1ListAccountsRes()                          {}
 func (*ErrorStatusCode) v1ListAddressRangesRes()                     {}
@@ -1529,6 +2044,7 @@ func (*ErrorStatusCode) v1ListRegionsRes()                           {}
 func (*ErrorStatusCode) v1ListSVMsRes()                              {}
 func (*ErrorStatusCode) v1ListZonesRes()                             {}
 func (*ErrorStatusCode) v1OnboardExternalClusterRes()                {}
+func (*ErrorStatusCode) v1ReconcilePoolAuthTypeRes()                 {}
 func (*ErrorStatusCode) v1RefreshRbacForExpertModePoolByIdRes()      {}
 func (*ErrorStatusCode) v1RefreshRbacForExpertModePoolsRes()         {}
 func (*ErrorStatusCode) v1RotateGcpKmsConfigRes()                    {}
@@ -10225,6 +10741,33 @@ type V1GetOntapCredentialsUnprocessableEntity Error
 
 func (*V1GetOntapCredentialsUnprocessableEntity) v1GetOntapCredentialsRes() {}
 
+type V1GetPoolAuthTypeReconciliationStatusBadRequest Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusBadRequest) v1GetPoolAuthTypeReconciliationStatusRes() {}
+
+type V1GetPoolAuthTypeReconciliationStatusForbidden Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusForbidden) v1GetPoolAuthTypeReconciliationStatusRes() {}
+
+type V1GetPoolAuthTypeReconciliationStatusInternalServerError Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusInternalServerError) v1GetPoolAuthTypeReconciliationStatusRes() {
+}
+
+type V1GetPoolAuthTypeReconciliationStatusNotFound Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusNotFound) v1GetPoolAuthTypeReconciliationStatusRes() {}
+
+type V1GetPoolAuthTypeReconciliationStatusNotImplemented Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusNotImplemented) v1GetPoolAuthTypeReconciliationStatusRes() {
+}
+
+type V1GetPoolAuthTypeReconciliationStatusUnauthorized Error
+
+func (*V1GetPoolAuthTypeReconciliationStatusUnauthorized) v1GetPoolAuthTypeReconciliationStatusRes() {
+}
+
 type V1GetPoolBadRequest Error
 
 func (*V1GetPoolBadRequest) v1GetPoolRes() {}
@@ -10585,6 +11128,38 @@ func (*V1OnboardExternalClusterUnauthorized) v1OnboardExternalClusterRes() {}
 type V1OnboardExternalClusterUnprocessableEntity Error
 
 func (*V1OnboardExternalClusterUnprocessableEntity) v1OnboardExternalClusterRes() {}
+
+type V1ReconcilePoolAuthTypeBadRequest Error
+
+func (*V1ReconcilePoolAuthTypeBadRequest) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeConflict Error
+
+func (*V1ReconcilePoolAuthTypeConflict) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeForbidden Error
+
+func (*V1ReconcilePoolAuthTypeForbidden) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeInternalServerError Error
+
+func (*V1ReconcilePoolAuthTypeInternalServerError) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeNotFound Error
+
+func (*V1ReconcilePoolAuthTypeNotFound) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeNotImplemented Error
+
+func (*V1ReconcilePoolAuthTypeNotImplemented) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeTooManyRequests Error
+
+func (*V1ReconcilePoolAuthTypeTooManyRequests) v1ReconcilePoolAuthTypeRes() {}
+
+type V1ReconcilePoolAuthTypeUnauthorized Error
+
+func (*V1ReconcilePoolAuthTypeUnauthorized) v1ReconcilePoolAuthTypeRes() {}
 
 type V1ReconcilePoolCertificateAuthorityBadRequest Error
 

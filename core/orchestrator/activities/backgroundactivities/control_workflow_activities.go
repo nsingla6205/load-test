@@ -2,6 +2,7 @@ package backgroundactivities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
@@ -380,4 +382,108 @@ func (a *ControlWorkflowActivity) ExecutePoolPasswordRotationSequentially(ctx co
 
 	logger.Infof("Successfully queued password rotation for pool: %s", poolUUID)
 	return nil
+}
+
+// ExecutePoolAuthTypeReconciliationForDesiredCASequentially queues explicit-CA
+// auth reconciliation through the per-pool sequencer.
+func (a *ControlWorkflowActivity) ExecutePoolAuthTypeReconciliationForDesiredCASequentially(
+	ctx context.Context,
+	poolUUID, desiredCAURI, transitionWorkflowID string,
+	workflowTimeout time.Duration,
+) error {
+	activity.RecordHeartbeat(ctx, "Queueing explicit desired-CA auth reconciliation")
+	err := executePoolAuthTypeReconciliationForDesiredCASequentially(
+		ctx,
+		poolUUID,
+		desiredCAURI,
+		transitionWorkflowID,
+		workflowTimeout,
+		workflowengine.FetchTemporalClient,
+		ExecuteWorkflowSequentially,
+	)
+	if err == nil {
+		activity.RecordHeartbeat(ctx, "Explicit desired-CA auth reconciliation queued")
+	}
+	return err
+}
+
+func executePoolAuthTypeReconciliationForDesiredCASequentially(
+	ctx context.Context,
+	poolUUID, desiredCAURI, transitionWorkflowID string,
+	workflowTimeout time.Duration,
+	fetchTemporalClient func() (client.Client, error),
+	executeSequentially ExecuteWorkflowSequentiallyFunc,
+) error {
+	childWorkflowID := AuthTypeReconciliationOperationWorkflowID(poolUUID, transitionWorkflowID)
+	logger := poolOperationQueueLogger(ctx, childWorkflowID, poolUUID, "auth_type_1_to_2_reconciliation")
+	logger.Info("Queueing pool AuthType 1 to 2 reconciliation", "desiredCAURI", desiredCAURI)
+	temporalClient, err := fetchTemporalClient()
+	if err != nil {
+		return fmt.Errorf("get Temporal client: %w", err)
+	}
+	return executeSequentially(
+		temporalClient,
+		ctx,
+		client.StartWorkflowOptions{
+			TaskQueue: workflowengine.CustomerTaskQueue,
+			ID:        fmt.Sprintf(common.PoolOperationsSeq, poolUUID),
+		},
+		common.ReconcilePoolAuthTypeForDesiredCAWorkflowName,
+		workflow.ChildWorkflowOptions{
+			TaskQueue:          workflowengine.CustomerTaskQueue,
+			WorkflowID:         childWorkflowID,
+			WorkflowRunTimeout: workflowTimeout,
+		},
+		poolUUID,
+		desiredCAURI,
+	)
+}
+
+// AuthTypeReconciliationOperationWorkflowID returns the deterministic workflow
+// ID used for one API-selected pool reconciliation.
+func AuthTypeReconciliationOperationWorkflowID(poolUUID, requestWorkflowID string) string {
+	return fmt.Sprintf("PoolAuthTypeCAReconciliation_%s_%s", poolUUID, requestWorkflowID)
+}
+
+// WaitForAuthTypeReconciliationOperation waits for the sequenced per-pool
+// workflow to finish.
+func (a *ControlWorkflowActivity) WaitForAuthTypeReconciliationOperation(
+	ctx context.Context,
+	workflowID string,
+) error {
+	return waitForAuthTypeReconciliationOperation(
+		ctx,
+		workflowID,
+		workflowengine.FetchTemporalClient,
+		0,
+	)
+}
+
+func waitForAuthTypeReconciliationOperation(
+	ctx context.Context,
+	workflowID string,
+	fetchTemporalClient func() (client.Client, error),
+	retryDelay time.Duration,
+) error {
+	temporalClient, err := fetchTemporalClient()
+	if err != nil {
+		return fmt.Errorf("get Temporal client: %w", err)
+	}
+	if retryDelay <= 0 {
+		retryDelay = 2 * time.Second
+	}
+	for {
+		err = temporalClient.GetWorkflow(ctx, workflowID, "").Get(ctx, nil)
+		var notFound *serviceerror.NotFound
+		if !errors.As(err, &notFound) {
+			return err
+		}
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

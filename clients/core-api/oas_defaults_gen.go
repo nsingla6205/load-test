@@ -31,6 +31,14 @@ func (s *AddressRangeV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *AuthTypeReconciliationRequestV1) setDefaults() {
+	{
+		val := int(20)
+		s.BatchSize.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *BatchClusterUpgradeRequestV1) setDefaults() {
 	{
 		val := int(0)

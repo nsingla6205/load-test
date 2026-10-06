@@ -221,6 +221,20 @@ func encodeV1OnboardExternalClusterRequest(
 	return nil
 }
 
+func encodeV1ReconcilePoolAuthTypeRequest(
+	req *AuthTypeReconciliationRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1ReconcilePoolCertificateAuthorityRequest(
 	req *ReconcilePoolCertificateAuthorityRequestV1,
 	r *http.Request,

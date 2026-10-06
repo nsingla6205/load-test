@@ -293,6 +293,126 @@ func TestAnyV1_EncodeDecode(t *testing.T) {
 	var typ2 AnyV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestAuthTypeReconciliationPoolResultV1_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationPoolResultV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationPoolResultV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationPoolResultV1Status_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationPoolResultV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationPoolResultV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationRequestV1_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationRequestV1FromAuthType_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationRequestV1FromAuthType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationRequestV1FromAuthType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationRequestV1SelectionType_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationRequestV1SelectionType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationRequestV1SelectionType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationRequestV1ToAuthType_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationRequestV1ToAuthType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationRequestV1ToAuthType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationResponseV1_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationResponseV1Status_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationResponseV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationResponseV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationStatusV1_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationStatusV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationStatusV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestAuthTypeReconciliationStatusV1Status_EncodeDecode(t *testing.T) {
+	var typ AuthTypeReconciliationStatusV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AuthTypeReconciliationStatusV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestAvailableVersionV1_EncodeDecode(t *testing.T) {
 	var typ AvailableVersionV1
 	typ.SetFake()
@@ -5099,6 +5219,78 @@ func TestV1GetOntapCredentialsUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1GetOntapCredentialsUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1GetPoolAuthTypeReconciliationStatusBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolAuthTypeReconciliationStatusForbidden_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolAuthTypeReconciliationStatusInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolAuthTypeReconciliationStatusNotFound_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolAuthTypeReconciliationStatusNotImplemented_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusNotImplemented
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusNotImplemented
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetPoolAuthTypeReconciliationStatusUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1GetPoolAuthTypeReconciliationStatusUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetPoolAuthTypeReconciliationStatusUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1GetPoolBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1GetPoolBadRequest
 	typ.SetFake()
@@ -6129,6 +6321,102 @@ func TestV1OnboardExternalClusterUnprocessableEntity_EncodeDecode(t *testing.T) 
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1OnboardExternalClusterUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeConflict_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeNotImplemented_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeNotImplemented
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeNotImplemented
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ReconcilePoolAuthTypeUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ReconcilePoolAuthTypeUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ReconcilePoolAuthTypeUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ReconcilePoolCertificateAuthorityBadRequest_EncodeDecode(t *testing.T) {

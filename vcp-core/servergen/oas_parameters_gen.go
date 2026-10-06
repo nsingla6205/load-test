@@ -3799,6 +3799,64 @@ func decodeV1GetPoolParams(args [1]string, argsEscaped bool, r *http.Request) (p
 	return params, nil
 }
 
+// V1GetPoolAuthTypeReconciliationStatusParams is parameters of v1_getPoolAuthTypeReconciliationStatus operation.
+type V1GetPoolAuthTypeReconciliationStatusParams struct {
+	// Reconciliation request job UUID returned by POST.
+	JobId uuid.UUID
+}
+
+func unpackV1GetPoolAuthTypeReconciliationStatusParams(packed middleware.Parameters) (params V1GetPoolAuthTypeReconciliationStatusParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "jobId",
+			In:   "query",
+		}
+		params.JobId = packed[key].(uuid.UUID)
+	}
+	return params
+}
+
+func decodeV1GetPoolAuthTypeReconciliationStatusParams(args [0]string, argsEscaped bool, r *http.Request) (params V1GetPoolAuthTypeReconciliationStatusParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: jobId.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "jobId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToUUID(val)
+				if err != nil {
+					return err
+				}
+
+				params.JobId = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "jobId",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1GetPoolCertificateAuthorityReconciliationStatusParams is parameters of v1_getPoolCertificateAuthorityReconciliationStatus operation.
 type V1GetPoolCertificateAuthorityReconciliationStatusParams struct {
 	// CA reconciliation parent job UUID returned by POST.

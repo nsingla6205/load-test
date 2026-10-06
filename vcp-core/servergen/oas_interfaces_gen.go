@@ -129,6 +129,10 @@ type V1GetOntapCredentialsRes interface {
 	v1GetOntapCredentialsRes()
 }
 
+type V1GetPoolAuthTypeReconciliationStatusRes interface {
+	v1GetPoolAuthTypeReconciliationStatusRes()
+}
+
 type V1GetPoolCertificateAuthorityReconciliationStatusRes interface {
 	v1GetPoolCertificateAuthorityReconciliationStatusRes()
 }
@@ -183,6 +187,10 @@ type V1ListZonesRes interface {
 
 type V1OnboardExternalClusterRes interface {
 	v1OnboardExternalClusterRes()
+}
+
+type V1ReconcilePoolAuthTypeRes interface {
+	v1ReconcilePoolAuthTypeRes()
 }
 
 type V1ReconcilePoolCertificateAuthorityRes interface {

@@ -330,6 +330,15 @@ func (UnimplementedHandler) V1GetPool(ctx context.Context, params V1GetPoolParam
 	return r, ht.ErrNotImplemented
 }
 
+// V1GetPoolAuthTypeReconciliationStatus implements v1_getPoolAuthTypeReconciliationStatus operation.
+//
+// Returns aggregate and per-pool status for the reconciliation request started by POST on this path.
+//
+// GET /v1/pools/reconcileAuthType
+func (UnimplementedHandler) V1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (r V1GetPoolAuthTypeReconciliationStatusRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1GetPoolCertificateAuthorityReconciliationStatus implements v1_getPoolCertificateAuthorityReconciliationStatus operation.
 //
 // Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
@@ -449,6 +458,16 @@ func (UnimplementedHandler) V1ListZones(ctx context.Context, params V1ListZonesP
 //
 // POST /v1/externalClusters/onboard
 func (UnimplementedHandler) V1OnboardExternalCluster(ctx context.Context, req *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (r V1OnboardExternalClusterRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ReconcilePoolAuthType implements v1_reconcilePoolAuthType operation.
+//
+// Queues certificate-authentication reconciliation for all demoted pools or an explicit list of pool
+// UUIDs, always targeting the Helm-configured CA.
+//
+// POST /v1/pools/reconcileAuthType
+func (UnimplementedHandler) V1ReconcilePoolAuthType(ctx context.Context, req *AuthTypeReconciliationRequestV1) (r V1ReconcilePoolAuthTypeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

@@ -7023,6 +7023,65 @@ func (_c *MockOrchestratorFactory_GetMultipleVolumes_Call) RunAndReturn(run func
 	return _c
 }
 
+// GetPoolAuthTypeReconciliationStatus provides a mock function with given fields: ctx, jobID
+func (_m *MockOrchestratorFactory) GetPoolAuthTypeReconciliationStatus(ctx context.Context, jobID string) (*models.AuthTypeReconciliationStatus, error) {
+	ret := _m.Called(ctx, jobID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPoolAuthTypeReconciliationStatus")
+	}
+
+	var r0 *models.AuthTypeReconciliationStatus
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AuthTypeReconciliationStatus, error)); ok {
+		return rf(ctx, jobID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AuthTypeReconciliationStatus); ok {
+		r0 = rf(ctx, jobID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AuthTypeReconciliationStatus)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, jobID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolAuthTypeReconciliationStatus'
+type MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call struct {
+	*mock.Call
+}
+
+// GetPoolAuthTypeReconciliationStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - jobID string
+func (_e *MockOrchestratorFactory_Expecter) GetPoolAuthTypeReconciliationStatus(ctx interface{}, jobID interface{}) *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call {
+	return &MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call{Call: _e.mock.On("GetPoolAuthTypeReconciliationStatus", ctx, jobID)}
+}
+
+func (_c *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call) Run(run func(ctx context.Context, jobID string)) *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call) Return(_a0 *models.AuthTypeReconciliationStatus, _a1 error) *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call) RunAndReturn(run func(context.Context, string) (*models.AuthTypeReconciliationStatus, error)) *MockOrchestratorFactory_GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetPoolByName provides a mock function with given fields: ctx, poolName, accountName, queryDepth
 func (_m *MockOrchestratorFactory) GetPoolByName(ctx context.Context, poolName string, accountName string, queryDepth int) (*models.Pool, error) {
 	ret := _m.Called(ctx, poolName, accountName, queryDepth)
@@ -9754,6 +9813,65 @@ func (_c *MockOrchestratorFactory_PinAccountHosts_Call) Return(_a0 *models.SetAc
 }
 
 func (_c *MockOrchestratorFactory_PinAccountHosts_Call) RunAndReturn(run func(context.Context, *common.PinAccountHostsParams) (*models.SetAccountHostsResponse, error)) *MockOrchestratorFactory_PinAccountHosts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReconcilePoolAuthTypes provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) ReconcilePoolAuthTypes(ctx context.Context, params *common.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReconcilePoolAuthTypes")
+	}
+
+	var r0 *models.AuthTypeReconciliationResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.ReconcilePoolAuthTypeParams) *models.AuthTypeReconciliationResponse); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AuthTypeReconciliationResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.ReconcilePoolAuthTypeParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ReconcilePoolAuthTypes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReconcilePoolAuthTypes'
+type MockOrchestratorFactory_ReconcilePoolAuthTypes_Call struct {
+	*mock.Call
+}
+
+// ReconcilePoolAuthTypes is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.ReconcilePoolAuthTypeParams
+func (_e *MockOrchestratorFactory_Expecter) ReconcilePoolAuthTypes(ctx interface{}, params interface{}) *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call {
+	return &MockOrchestratorFactory_ReconcilePoolAuthTypes_Call{Call: _e.mock.On("ReconcilePoolAuthTypes", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call) Run(run func(ctx context.Context, params *common.ReconcilePoolAuthTypeParams)) *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.ReconcilePoolAuthTypeParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call) Return(_a0 *models.AuthTypeReconciliationResponse, _a1 error) *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call) RunAndReturn(run func(context.Context, *common.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error)) *MockOrchestratorFactory_ReconcilePoolAuthTypes_Call {
 	_c.Call.Return(run)
 	return _c
 }

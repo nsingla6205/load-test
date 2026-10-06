@@ -84,6 +84,21 @@ func TestUpdateJobStatus(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+func TestUpdateJobAttributes(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := CommonActivities{SE: mockStorage}
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	attributes := &datamodel.JobAttributes{
+		PayloadAttributes: map[string]interface{}{"status": "PROCESSING"},
+	}
+	mockStorage.On("UpdateJobAttributes", ctx, "job-1", attributes).Return(nil).Once()
+
+	err := activity.UpdateJobAttributes(ctx, "job-1", attributes)
+
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
 func TestGetNode(t *testing.T) {
 	t.Run("GetNode_Success", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)

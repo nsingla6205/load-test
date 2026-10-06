@@ -226,6 +226,12 @@ type Handler interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1GetPoolAuthTypeReconciliationStatus implements v1_getPoolAuthTypeReconciliationStatus operation.
+	//
+	// Returns aggregate and per-pool status for the reconciliation request started by POST on this path.
+	//
+	// GET /v1/pools/reconcileAuthType
+	V1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error)
 	// V1GetPoolCertificateAuthorityReconciliationStatus implements v1_getPoolCertificateAuthorityReconciliationStatus operation.
 	//
 	// Returns aggregate and per-pool progress for the CA reconciliation job started by POST on this path.
@@ -309,6 +315,13 @@ type Handler interface {
 	//
 	// POST /v1/externalClusters/onboard
 	V1OnboardExternalCluster(ctx context.Context, req *ExternalClusterOnboardRequestV1, params V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)
+	// V1ReconcilePoolAuthType implements v1_reconcilePoolAuthType operation.
+	//
+	// Queues certificate-authentication reconciliation for all demoted pools or an explicit list of pool
+	// UUIDs, always targeting the Helm-configured CA.
+	//
+	// POST /v1/pools/reconcileAuthType
+	V1ReconcilePoolAuthType(ctx context.Context, req *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error)
 	// V1ReconcilePoolCertificateAuthority implements v1_reconcilePoolCertificateAuthority operation.
 	//
 	// Internal SRE endpoint that starts asynchronous certificate reconciliation toward the worker's

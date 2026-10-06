@@ -31,8 +31,10 @@ This directory contains detailed documentation for all workflows in the VSA Cont
   pools in batches.
 - `ReconcilePoolCAWorkflow` serializes each pool through the control workflow
   before rotating toward that explicit desired CA.
-- `ReconcilePoolAuthTypeWorkflow` is scheduled separately and selects only
-  AuthType 1 pools that retain a parent certificate ID, CA URI, or the approved
+- AuthType 1 to 2 promotion is on-demand only through the Core API and always
+  uses the Helm-configured CA. The API starts one parent Temporal workflow, which
+  selects only AuthType 1 pools that
+  retain a parent certificate ID, CA URI, or the approved
   fallback username marker proving prior certificate authentication. Native
   AuthType 1 pools are filtered out and
   defensively skipped by the activity. Emergency-fallback rows use

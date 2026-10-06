@@ -1053,26 +1053,62 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								}
 
 								elem = origElem
-							case 'r': // Prefix: "reconcileCertificateAuthority"
+							case 'r': // Prefix: "reconcile"
 								origElem := elem
-								if l := len("reconcileCertificateAuthority"); len(elem) >= l && elem[0:l] == "reconcileCertificateAuthority" {
+								if l := len("reconcile"); len(elem) >= l && elem[0:l] == "reconcile" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									// Leaf node.
-									switch r.Method {
-									case "GET":
-										s.handleV1GetPoolCertificateAuthorityReconciliationStatusRequest([0]string{}, elemIsEscaped, w, r)
-									case "POST":
-										s.handleV1ReconcilePoolCertificateAuthorityRequest([0]string{}, elemIsEscaped, w, r)
-									default:
-										s.notAllowed(w, r, "GET,POST")
+									break
+								}
+								switch elem[0] {
+								case 'A': // Prefix: "AuthType"
+
+									if l := len("AuthType"); len(elem) >= l && elem[0:l] == "AuthType" {
+										elem = elem[l:]
+									} else {
+										break
 									}
 
-									return
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "GET":
+											s.handleV1GetPoolAuthTypeReconciliationStatusRequest([0]string{}, elemIsEscaped, w, r)
+										case "POST":
+											s.handleV1ReconcilePoolAuthTypeRequest([0]string{}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "GET,POST")
+										}
+
+										return
+									}
+
+								case 'C': // Prefix: "CertificateAuthority"
+
+									if l := len("CertificateAuthority"); len(elem) >= l && elem[0:l] == "CertificateAuthority" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "GET":
+											s.handleV1GetPoolCertificateAuthorityReconciliationStatusRequest([0]string{}, elemIsEscaped, w, r)
+										case "POST":
+											s.handleV1ReconcilePoolCertificateAuthorityRequest([0]string{}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "GET,POST")
+										}
+
+										return
+									}
+
 								}
 
 								elem = origElem
@@ -2731,36 +2767,82 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								}
 
 								elem = origElem
-							case 'r': // Prefix: "reconcileCertificateAuthority"
+							case 'r': // Prefix: "reconcile"
 								origElem := elem
-								if l := len("reconcileCertificateAuthority"); len(elem) >= l && elem[0:l] == "reconcileCertificateAuthority" {
+								if l := len("reconcile"); len(elem) >= l && elem[0:l] == "reconcile" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									// Leaf node.
-									switch method {
-									case "GET":
-										r.name = V1GetPoolCertificateAuthorityReconciliationStatusOperation
-										r.summary = "Get CA reconciliation job status"
-										r.operationID = "v1_getPoolCertificateAuthorityReconciliationStatus"
-										r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
-										r.args = args
-										r.count = 0
-										return r, true
-									case "POST":
-										r.name = V1ReconcilePoolCertificateAuthorityOperation
-										r.summary = "Reconcile VSA pool certificates to the Helm-configured CA"
-										r.operationID = "v1_reconcilePoolCertificateAuthority"
-										r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
-										r.args = args
-										r.count = 0
-										return r, true
-									default:
-										return
+									break
+								}
+								switch elem[0] {
+								case 'A': // Prefix: "AuthType"
+
+									if l := len("AuthType"); len(elem) >= l && elem[0:l] == "AuthType" {
+										elem = elem[l:]
+									} else {
+										break
 									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "GET":
+											r.name = V1GetPoolAuthTypeReconciliationStatusOperation
+											r.summary = "Get auth-type reconciliation status"
+											r.operationID = "v1_getPoolAuthTypeReconciliationStatus"
+											r.pathPattern = "/v1/pools/reconcileAuthType"
+											r.args = args
+											r.count = 0
+											return r, true
+										case "POST":
+											r.name = V1ReconcilePoolAuthTypeOperation
+											r.summary = "Reconcile demoted pool authentication"
+											r.operationID = "v1_reconcilePoolAuthType"
+											r.pathPattern = "/v1/pools/reconcileAuthType"
+											r.args = args
+											r.count = 0
+											return r, true
+										default:
+											return
+										}
+									}
+
+								case 'C': // Prefix: "CertificateAuthority"
+
+									if l := len("CertificateAuthority"); len(elem) >= l && elem[0:l] == "CertificateAuthority" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "GET":
+											r.name = V1GetPoolCertificateAuthorityReconciliationStatusOperation
+											r.summary = "Get CA reconciliation job status"
+											r.operationID = "v1_getPoolCertificateAuthorityReconciliationStatus"
+											r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
+											r.args = args
+											r.count = 0
+											return r, true
+										case "POST":
+											r.name = V1ReconcilePoolCertificateAuthorityOperation
+											r.summary = "Reconcile VSA pool certificates to the Helm-configured CA"
+											r.operationID = "v1_reconcilePoolCertificateAuthority"
+											r.pathPattern = "/v1/pools/reconcileCertificateAuthority"
+											r.args = args
+											r.count = 0
+											return r, true
+										default:
+											return
+										}
+									}
+
 								}
 
 								elem = origElem

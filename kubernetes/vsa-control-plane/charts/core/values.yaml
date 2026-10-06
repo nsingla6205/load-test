@@ -29,6 +29,10 @@ global:
   coreConfig:
     gcp: {}
     gcpServiceUrl: "https://cloudvolumesgcp-api.netapp.com"
+    # Env: AUTH_TYPE_RECONCILIATION_CHILD_WORKFLOW_TIMEOUT_MINUTES
+    authTypeReconciliationChildWorkflowTimeoutMinutes: "20"
+    # Env: AUTH_TYPE_RECONCILIATION_PARENT_WORKFLOW_TIMEOUT_MINUTES
+    authTypeReconciliationParentWorkflowTimeoutMinutes: "60"
     gcpAuthAcceptedServiceAccounts: ""
     apiCvpMaxRetries: "3"
     apiCvpRetryDelay: "100ms"

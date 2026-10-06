@@ -880,9 +880,9 @@ func TestUpdateNodeHostDNSNames(t *testing.T) {
 		dbSQL, mock, err := sqlmock.New()
 		require.NoError(tt, err)
 		defer func() {
-			if err := mock.ExpectationsWereMet(); err != nil {
-				tt.Fatalf("there were unfulfilled expectations: %v", err)
-			}
+			mock.ExpectClose()
+			require.NoError(tt, dbSQL.Close())
+			require.NoError(tt, mock.ExpectationsWereMet())
 		}()
 
 		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
@@ -902,6 +902,11 @@ func TestUpdateNodeHostDNSNames(t *testing.T) {
 	t.Run("MissingNodeReturnsNotFound", func(tt *testing.T) {
 		dbSQL, mock, err := sqlmock.New()
 		require.NoError(tt, err)
+		defer func() {
+			mock.ExpectClose()
+			require.NoError(tt, dbSQL.Close())
+			require.NoError(tt, mock.ExpectationsWereMet())
+		}()
 
 		gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
 		require.NoError(tt, err)

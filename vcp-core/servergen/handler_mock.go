@@ -1979,6 +1979,65 @@ func (_c *MockHandler_V1GetPool_Call) RunAndReturn(run func(context.Context, V1G
 	return _c
 }
 
+// V1GetPoolAuthTypeReconciliationStatus provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1GetPoolAuthTypeReconciliationStatus(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetPoolAuthTypeReconciliationStatus")
+	}
+
+	var r0 V1GetPoolAuthTypeReconciliationStatusRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetPoolAuthTypeReconciliationStatusParams) V1GetPoolAuthTypeReconciliationStatusRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetPoolAuthTypeReconciliationStatusRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1GetPoolAuthTypeReconciliationStatusParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetPoolAuthTypeReconciliationStatus'
+type MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call struct {
+	*mock.Call
+}
+
+// V1GetPoolAuthTypeReconciliationStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1GetPoolAuthTypeReconciliationStatusParams
+func (_e *MockHandler_Expecter) V1GetPoolAuthTypeReconciliationStatus(ctx interface{}, params interface{}) *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call {
+	return &MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call{Call: _e.mock.On("V1GetPoolAuthTypeReconciliationStatus", ctx, params)}
+}
+
+func (_c *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call) Run(run func(ctx context.Context, params V1GetPoolAuthTypeReconciliationStatusParams)) *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1GetPoolAuthTypeReconciliationStatusParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call) Return(_a0 V1GetPoolAuthTypeReconciliationStatusRes, _a1 error) *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call) RunAndReturn(run func(context.Context, V1GetPoolAuthTypeReconciliationStatusParams) (V1GetPoolAuthTypeReconciliationStatusRes, error)) *MockHandler_V1GetPoolAuthTypeReconciliationStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1GetPoolCertificateAuthorityReconciliationStatus provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1GetPoolCertificateAuthorityReconciliationStatus(ctx context.Context, params V1GetPoolCertificateAuthorityReconciliationStatusParams) (V1GetPoolCertificateAuthorityReconciliationStatusRes, error) {
 	ret := _m.Called(ctx, params)
@@ -2743,6 +2802,65 @@ func (_c *MockHandler_V1OnboardExternalCluster_Call) Return(_a0 V1OnboardExterna
 }
 
 func (_c *MockHandler_V1OnboardExternalCluster_Call) RunAndReturn(run func(context.Context, *ExternalClusterOnboardRequestV1, V1OnboardExternalClusterParams) (V1OnboardExternalClusterRes, error)) *MockHandler_V1OnboardExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ReconcilePoolAuthType provides a mock function with given fields: ctx, req
+func (_m *MockHandler) V1ReconcilePoolAuthType(ctx context.Context, req *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ReconcilePoolAuthType")
+	}
+
+	var r0 V1ReconcilePoolAuthTypeRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *AuthTypeReconciliationRequestV1) V1ReconcilePoolAuthTypeRes); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ReconcilePoolAuthTypeRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *AuthTypeReconciliationRequestV1) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ReconcilePoolAuthType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ReconcilePoolAuthType'
+type MockHandler_V1ReconcilePoolAuthType_Call struct {
+	*mock.Call
+}
+
+// V1ReconcilePoolAuthType is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *AuthTypeReconciliationRequestV1
+func (_e *MockHandler_Expecter) V1ReconcilePoolAuthType(ctx interface{}, req interface{}) *MockHandler_V1ReconcilePoolAuthType_Call {
+	return &MockHandler_V1ReconcilePoolAuthType_Call{Call: _e.mock.On("V1ReconcilePoolAuthType", ctx, req)}
+}
+
+func (_c *MockHandler_V1ReconcilePoolAuthType_Call) Run(run func(ctx context.Context, req *AuthTypeReconciliationRequestV1)) *MockHandler_V1ReconcilePoolAuthType_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*AuthTypeReconciliationRequestV1))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ReconcilePoolAuthType_Call) Return(_a0 V1ReconcilePoolAuthTypeRes, _a1 error) *MockHandler_V1ReconcilePoolAuthType_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ReconcilePoolAuthType_Call) RunAndReturn(run func(context.Context, *AuthTypeReconciliationRequestV1) (V1ReconcilePoolAuthTypeRes, error)) *MockHandler_V1ReconcilePoolAuthType_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -209,6 +209,193 @@ func (s *AnyV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *AuthTypeReconciliationPoolResultV1) SetFake() {
+	{
+		{
+			s.PoolUuid = uuid.New()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.JobId.SetFake()
+		}
+	}
+	{
+		{
+			s.Reason.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationPoolResultV1Status) SetFake() {
+	*s = AuthTypeReconciliationPoolResultV1StatusQUEUED
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationRequestV1) SetFake() {
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.FromAuthType.SetFake()
+		}
+	}
+	{
+		{
+			s.ToAuthType.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolUuids = nil
+			for i := 0; i < 0; i++ {
+				var elem uuid.UUID
+				{
+					elem = uuid.New()
+				}
+				s.PoolUuids = append(s.PoolUuids, elem)
+			}
+		}
+	}
+	{
+		{
+			s.BatchSize.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationRequestV1FromAuthType) SetFake() {
+	*s = AuthTypeReconciliationRequestV1FromAuthType1
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationRequestV1SelectionType) SetFake() {
+	*s = AuthTypeReconciliationRequestV1SelectionTypeAll
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationRequestV1ToAuthType) SetFake() {
+	*s = AuthTypeReconciliationRequestV1ToAuthType2
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationResponseV1) SetFake() {
+	{
+		{
+			s.JobId = uuid.New()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalPools = int(0)
+		}
+	}
+	{
+		{
+			s.QueuedPools = int(0)
+		}
+	}
+	{
+		{
+			s.SkippedPools = int(0)
+		}
+	}
+	{
+		{
+			s.Results = nil
+			for i := 0; i < 0; i++ {
+				var elem AuthTypeReconciliationPoolResultV1
+				{
+					elem.SetFake()
+				}
+				s.Results = append(s.Results, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationResponseV1Status) SetFake() {
+	*s = AuthTypeReconciliationResponseV1StatusPROCESSING
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationStatusV1) SetFake() {
+	{
+		{
+			s.JobId = uuid.New()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalPools = int(0)
+		}
+	}
+	{
+		{
+			s.QueuedPools = int(0)
+		}
+	}
+	{
+		{
+			s.ProcessingPools = int(0)
+		}
+	}
+	{
+		{
+			s.SucceededPools = int(0)
+		}
+	}
+	{
+		{
+			s.FailedPools = int(0)
+		}
+	}
+	{
+		{
+			s.SkippedPools = int(0)
+		}
+	}
+	{
+		{
+			s.Results = nil
+			for i := 0; i < 0; i++ {
+				var elem AuthTypeReconciliationPoolResultV1
+				{
+					elem.SetFake()
+				}
+				s.Results = append(s.Results, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *AuthTypeReconciliationStatusV1Status) SetFake() {
+	*s = AuthTypeReconciliationStatusV1StatusPROCESSING
+}
+
+// SetFake set fake values.
 func (s *AvailableVersionV1) SetFake() {
 	{
 		{
@@ -4839,6 +5026,60 @@ func (s *V1GetOntapCredentialsUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusNotImplemented) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusNotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetPoolAuthTypeReconciliationStatusUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetPoolAuthTypeReconciliationStatusUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1GetPoolBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -5680,6 +5921,78 @@ func (s *V1OnboardExternalClusterUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1OnboardExternalClusterUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeNotImplemented) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeNotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ReconcilePoolAuthTypeUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ReconcilePoolAuthTypeUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

@@ -238,6 +238,7 @@ const (
 	JobTypeManageBackupConfigExpertModeVolume       JobType = "MANAGE_BACKUP_CONFIG_EXPERT_MODE_VOLUME"
 	JobTypePinAccountHosts                          JobType = "PIN_ACCOUNT_HOSTS"
 	JobTypeCreateHost                               JobType = "CREATE_HOST"
+	JobTypeAuthTypeReconciliation                   JobType = "AUTH_TYPE_RECONCILIATION"
 )
 
 // Account states (lifecycle for the Account entity in the multi-tenant model).

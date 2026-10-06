@@ -199,6 +199,8 @@ type OrchestratorFactory interface {
 	// Batch cluster upgrade methods
 	BatchUpgradeClusters(ctx context.Context, params *commonparams.BatchUpgradeClusterParams) (*models.BatchClusterUpgradeResponse, string, error)
 	GetBatchUpgradeStatus(ctx context.Context, batchUpgradeID string) (*models.UpgradeProgress, error)
+	ReconcilePoolAuthTypes(ctx context.Context, params *commonparams.ReconcilePoolAuthTypeParams) (*models.AuthTypeReconciliationResponse, error)
+	GetPoolAuthTypeReconciliationStatus(ctx context.Context, jobID string) (*models.AuthTypeReconciliationStatus, error)
 
 	GetActiveDirectory(ctx context.Context, params *commonparams.GetADParams) (*models.ActiveDirectory, error)
 	ListActiveDirectories(ctx context.Context, accountName string) ([]*models.ActiveDirectory, error)

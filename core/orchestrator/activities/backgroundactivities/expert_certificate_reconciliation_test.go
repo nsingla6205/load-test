@@ -123,6 +123,7 @@ func TestReconcileOneExpertModeCredentialEarlyReturns(t *testing.T) {
 			"project/pool/ca",
 			hyperscaler.NewMockServices(t),
 			false,
+			false,
 		)
 
 		require.Error(t, err)
@@ -179,6 +180,7 @@ func TestReconcileOneExpertModeCredentialEarlyReturns(t *testing.T) {
 				test.index,
 				"project/pool/ca",
 				hyperscaler.NewMockServices(t),
+				false,
 				false,
 			)
 

@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	workflowEngine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -58,6 +60,52 @@ func TestExecutePoolCAReconciliationSequentially_UsesTransitionScopedIDAndExplic
 	assert.Equal(t, []interface{}{poolUUID, desiredCAURI}, capturedArgs)
 }
 
+func TestExecutePoolAuthTypeReconciliationForDesiredCASequentially_UsesExplicitArgs(t *testing.T) {
+	const (
+		poolUUID             = "pool-uuid"
+		desiredCAURI         = "project/pool/ca"
+		transitionWorkflowID = "reconcile-vsa-ca-on-change-4-abcdef123456"
+	)
+	timeout := 10 * time.Minute
+	var capturedSequenceOptions client.StartWorkflowOptions
+	var capturedChildOptions workflow.ChildWorkflowOptions
+	var capturedArgs []interface{}
+
+	err := executePoolAuthTypeReconciliationForDesiredCASequentially(
+		context.Background(),
+		poolUUID,
+		desiredCAURI,
+		transitionWorkflowID,
+		timeout,
+		func() (client.Client, error) { return nil, nil },
+		func(
+			_ client.Client,
+			_ context.Context,
+			sequenceOptions client.StartWorkflowOptions,
+			workflowFunction interface{},
+			childOptions workflow.ChildWorkflowOptions,
+			workflowArgs ...interface{},
+		) error {
+			capturedSequenceOptions = sequenceOptions
+			capturedChildOptions = childOptions
+			capturedArgs = workflowArgs
+			assert.Equal(t, common.ReconcilePoolAuthTypeForDesiredCAWorkflowName, workflowFunction)
+			return nil
+		},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf(common.PoolOperationsSeq, poolUUID), capturedSequenceOptions.ID)
+	assert.Equal(t, workflowengine.CustomerTaskQueue, capturedSequenceOptions.TaskQueue)
+	assert.Equal(
+		t,
+		"PoolAuthTypeCAReconciliation_"+poolUUID+"_"+transitionWorkflowID,
+		capturedChildOptions.WorkflowID,
+	)
+	assert.Equal(t, timeout, capturedChildOptions.WorkflowRunTimeout)
+	assert.Equal(t, []interface{}{poolUUID, desiredCAURI}, capturedArgs)
+}
+
 func TestControlWorkflowQueueHelpersReturnDependencyErrors(t *testing.T) {
 	fetchError := func() (client.Client, error) {
 		return nil, assert.AnError
@@ -96,6 +144,20 @@ func TestControlWorkflowQueueHelpersReturnDependencyErrors(t *testing.T) {
 			name: "CA reconciliation",
 			run: func(fetch func() (client.Client, error), queue ExecuteWorkflowSequentiallyFunc) error {
 				return executePoolCAReconciliationSequentially(
+					context.Background(),
+					"pool-1",
+					"project/pool/ca",
+					"transition-1",
+					time.Minute,
+					fetch,
+					queue,
+				)
+			},
+		},
+		{
+			name: "explicit CA auth reconciliation",
+			run: func(fetch func() (client.Client, error), queue ExecuteWorkflowSequentiallyFunc) error {
+				return executePoolAuthTypeReconciliationForDesiredCASequentially(
 					context.Background(),
 					"pool-1",
 					"project/pool/ca",
@@ -327,4 +389,111 @@ func TestControlWorkflowActivity_ExecutePoolPasswordRotationSequentially(t *test
 
 		assert.Error(t, err)
 	})
+}
+
+type waitWorkflowRun struct {
+	err error
+}
+
+func (r *waitWorkflowRun) Get(context.Context, interface{}) error { return r.err }
+func (r *waitWorkflowRun) GetWithOptions(context.Context, interface{}, client.WorkflowRunGetOptions) error {
+	return r.err
+}
+func (r *waitWorkflowRun) GetID() string    { return "workflow-id" }
+func (r *waitWorkflowRun) GetRunID() string { return "run-id" }
+
+func TestWaitForAuthTypeReconciliationOperation(t *testing.T) {
+	t.Run("returns fetch error", func(t *testing.T) {
+		err := waitForAuthTypeReconciliationOperation(
+			context.Background(),
+			"wf-1",
+			func() (client.Client, error) { return nil, assert.AnError },
+			time.Millisecond,
+		)
+		require.ErrorContains(t, err, "get Temporal client")
+	})
+
+	t.Run("returns completed workflow", func(t *testing.T) {
+		temporalClient := workflowEngine.NewMockTemporalTestClient(t)
+		temporalClient.On("GetWorkflow", mock.Anything, "wf-1", "").
+			Return(&waitWorkflowRun{}).Once()
+
+		err := waitForAuthTypeReconciliationOperation(
+			context.Background(),
+			"wf-1",
+			func() (client.Client, error) { return temporalClient, nil },
+			time.Millisecond,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("retries not found then succeeds", func(t *testing.T) {
+		temporalClient := workflowEngine.NewMockTemporalTestClient(t)
+		temporalClient.On("GetWorkflow", mock.Anything, "wf-1", "").
+			Return(&waitWorkflowRun{err: &serviceerror.NotFound{}}).Once()
+		temporalClient.On("GetWorkflow", mock.Anything, "wf-1", "").
+			Return(&waitWorkflowRun{}).Once()
+
+		err := waitForAuthTypeReconciliationOperation(
+			context.Background(),
+			"wf-1",
+			func() (client.Client, error) { return temporalClient, nil },
+			time.Millisecond,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("returns context cancellation while waiting", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		temporalClient := workflowEngine.NewMockTemporalTestClient(t)
+		temporalClient.On("GetWorkflow", mock.Anything, "wf-1", "").
+			Return(&waitWorkflowRun{err: &serviceerror.NotFound{}})
+		go func() {
+			time.Sleep(5 * time.Millisecond)
+			cancel()
+		}()
+
+		err := waitForAuthTypeReconciliationOperation(
+			ctx,
+			"wf-1",
+			func() (client.Client, error) { return temporalClient, nil },
+			200*time.Millisecond,
+		)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("returns completed workflow error", func(t *testing.T) {
+		temporalClient := workflowEngine.NewMockTemporalTestClient(t)
+		temporalClient.On("GetWorkflow", mock.Anything, "wf-1", "").
+			Return(&waitWorkflowRun{err: assert.AnError}).Once()
+
+		err := waitForAuthTypeReconciliationOperation(
+			context.Background(),
+			"wf-1",
+			func() (client.Client, error) { return temporalClient, nil },
+			time.Millisecond,
+		)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+}
+
+func TestControlWorkflowAuthTypeActivityWrappers(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestActivityEnvironment()
+	activity := &ControlWorkflowActivity{}
+	env.RegisterActivity(activity.ExecutePoolAuthTypeReconciliationForDesiredCASequentially)
+	env.RegisterActivity(activity.WaitForAuthTypeReconciliationOperation)
+
+	_, err := env.ExecuteActivity(
+		activity.ExecutePoolAuthTypeReconciliationForDesiredCASequentially,
+		"pool-1",
+		"project/pool/ca",
+		"transition-1",
+		time.Minute,
+	)
+	require.Error(t, err)
+
+	_, err = env.ExecuteActivity(activity.WaitForAuthTypeReconciliationOperation, "wf-1")
+	require.Error(t, err)
 }

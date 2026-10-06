@@ -11,19 +11,40 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
+const expertDemotionFallbackUsername = "gcnv_gadmin"
+
 func hasExpertModeCredentials(pool *datamodel.Pool) bool {
 	return pool != nil &&
 		pool.ExpertModeCredentials != nil &&
 		len(pool.ExpertModeCredentials.ExpertModeCredential) > 0
 }
 
-// reconcileExpertModeCredentialsBeforePromotion brings every expert mode credential
-// onto targetCAURI. When force is true, credentials whose certificate is still current
-// are rotated anyway.
+// reconcileExpertModeCredentialsBeforePromotion brings certificate-auth expert
+// mode credentials onto targetCAURI. When force is true, credentials whose
+// certificate is still current are rotated anyway. Password-auth expert credentials
+// are left unchanged; AuthType 1-to-2 restoration uses
+// reconcileExpertModeCredentialsForAuthType.
 func (a *RotateVcpToVsaCertificateActivity) reconcileExpertModeCredentialsBeforePromotion(
 	ctx context.Context,
 	poolUUID, targetCAURI string,
 	force bool,
+) error {
+	return a.reconcileExpertModeCredentials(ctx, poolUUID, targetCAURI, force, false)
+}
+
+// reconcileExpertModeCredentialsForAuthType restores demoted password-auth expert
+// credentials onto targetCAURI as part of AuthType 1-to-2 pool promotion.
+func (a *RotateVcpToVsaCertificateActivity) reconcileExpertModeCredentialsForAuthType(
+	ctx context.Context,
+	poolUUID, targetCAURI string,
+) error {
+	return a.reconcileExpertModeCredentials(ctx, poolUUID, targetCAURI, false, true)
+}
+
+func (a *RotateVcpToVsaCertificateActivity) reconcileExpertModeCredentials(
+	ctx context.Context,
+	poolUUID, targetCAURI string,
+	force, migrateDemoted bool,
 ) error {
 	poolContext, err := a.GetPoolContext(ctx, poolUUID)
 	if err != nil {
@@ -33,22 +54,24 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileExpertModeCredentialsBefore
 	if pool == nil || pool.ExpertModeCredentials == nil {
 		return nil
 	}
-	hasCertificateCredential := false
-	for _, credential := range pool.ExpertModeCredentials.ExpertModeCredential {
-		if credential != nil && credential.AuthType == env.USER_CERTIFICATE {
-			hasCertificateCredential = true
-			break
+	if !migrateDemoted {
+		hasCertificateCredential := false
+		for _, credential := range pool.ExpertModeCredentials.ExpertModeCredential {
+			if credential != nil && credential.AuthType == env.USER_CERTIFICATE {
+				hasCertificateCredential = true
+				break
+			}
 		}
-	}
-	if !hasCertificateCredential {
-		return nil
+		if !hasCertificateCredential {
+			return nil
+		}
 	}
 	cloudService, err := a.dependencies().resolveCloudService(ctx)
 	if err != nil {
 		return fmt.Errorf("get cloud service: %w", err)
 	}
 	for index := range pool.ExpertModeCredentials.ExpertModeCredential {
-		if err := a.reconcileOneExpertModeCredential(ctx, pool, index, targetCAURI, cloudService, force); err != nil {
+		if err := a.reconcileOneExpertModeCredential(ctx, pool, index, targetCAURI, cloudService, force, migrateDemoted); err != nil {
 			return err
 		}
 	}
@@ -61,7 +84,7 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 	index int,
 	targetCAURI string,
 	cloudService hyperscaler.Services,
-	force bool,
+	force, migrateDemoted bool,
 ) error {
 	logger := util.GetLogger(ctx)
 	var err error
@@ -74,7 +97,19 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 	if credential == nil {
 		return nil
 	}
-	if credential.AuthType != env.USER_CERTIFICATE {
+	if migrateDemoted &&
+		credential.AuthType == env.USERNAME_PWD_SEC_MGR &&
+		credential.Username == expertDemotionFallbackUsername &&
+		credential.UsernamePreCertFix == "" {
+		if _, inferred := inferDemotedExpertCertificateUsername(credential); !inferred {
+			return fmt.Errorf(
+				"expert fallback credential %d is missing username_pre_cert_fix and has no inferable certificate username",
+				index,
+			)
+		}
+	}
+	demotedFallback := migrateDemoted && isDemotedExpertCredential(credential)
+	if credential.AuthType != env.USER_CERTIFICATE && !demotedFallback {
 		logger.Info("Skipping non-certificate expert-mode credential",
 			"poolUUID", poolUUID,
 			"credentialIndex", index,
@@ -83,6 +118,9 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 		return nil
 	}
 	certificateUsername := credential.Username
+	if demotedFallback {
+		certificateUsername = expertCertificateUsername(credential)
+	}
 	if certificateUsername == "" {
 		return fmt.Errorf("expert credential %d has an empty username", index)
 	}
@@ -91,6 +129,7 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 		"credentialIndex", index,
 		"certificateUsername", certificateUsername,
 		"force", force,
+		"demotedFallback", demotedFallback,
 	)
 	oldCAURI := credential.CaURI
 	if oldCAURI == "" && pool.PoolCredentials != nil {
@@ -100,7 +139,7 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 		oldCAURI = pool.PoolCredentials.CaURI
 	}
 	activeCertificateCurrent := false
-	if credential.CertificateID != "" && credential.CaURI == "" && oldCAURI != "" {
+	if !demotedFallback && credential.CertificateID != "" && credential.CaURI == "" && oldCAURI != "" {
 		projectID, poolName, _ := env.ParseCaURI(oldCAURI)
 		activeResponse, fetchErr := a.dependencies().getCertificateAndPrivateKeyByID(
 			cloudService,
@@ -136,7 +175,8 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 			activeCertificateCurrent = oldCAURI == targetCAURI
 		}
 	}
-	if !activeCertificateCurrent &&
+	if !demotedFallback &&
+		!activeCertificateCurrent &&
 		credential.CertificateID != "" &&
 		credential.CaURI == targetCAURI {
 		expertPool := *pool
@@ -272,6 +312,17 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 			"certificateID", stagedID,
 		)
 	}
+	if demotedFallback {
+		if err := a.dependencies().installExpertClientTrust(
+			ctx,
+			pool,
+			candidateResponse.Certificate,
+			candidateResponse.Secret,
+		); err != nil {
+			return fmt.Errorf("trust expert candidate %q issuer with password authentication: %w", certificateUsername, err)
+		}
+	}
+
 	verificationPool := *pool
 	verificationCredentials := *pool.PoolCredentials
 	verificationCredentials.AuthType = env.USER_CERTIFICATE
@@ -304,6 +355,8 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 		targetCAURI,
 		credential.CertificateID,
 		oldCAURI,
+		certificateUsername,
+		demotedFallback,
 	); err != nil {
 		return err
 	}
@@ -424,7 +477,8 @@ func (a *RotateVcpToVsaCertificateActivity) promoteExpertModeCandidate(
 	ctx context.Context,
 	poolUUID string,
 	index int,
-	expectedID, expectedCAURI, oldID, oldCAURI string,
+	expectedID, expectedCAURI, oldID, oldCAURI, certificateUsername string,
+	restoreCertificateAuth bool,
 ) error {
 	if oldID == "" || oldCAURI == "" {
 		// Never leave a certificate ID in the deferred-cleanup slot without
@@ -452,6 +506,12 @@ func (a *RotateVcpToVsaCertificateActivity) promoteExpertModeCandidate(
 	promoted.CaURI = expectedCAURI
 	promoted.CertificateIDNew = oldID
 	promoted.StagedCaURI = oldCAURI
+	if restoreCertificateAuth {
+		promoted.Username = certificateUsername
+		promoted.UsernamePreCertFix = ""
+		promoted.Password = ""
+		promoted.AuthType = env.USER_CERTIFICATE
+	}
 	return a.SE.CompareAndSwapExpertModeCredentials(
 		ctx,
 		poolUUID,

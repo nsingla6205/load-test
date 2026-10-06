@@ -1278,6 +1278,87 @@ paths:
           $ref: '#/components/responses/StandardError-404'
         "500":
           $ref: '#/components/responses/StandardError-500'
+  /v1/pools/reconcileAuthType:
+    post:
+      tags:
+        - pools
+      summary: Reconcile demoted pool authentication
+      description: Queues certificate-authentication reconciliation for all demoted pools or an explicit list of pool UUIDs, always targeting the Helm-configured CA
+      operationId: v1_reconcilePoolAuthType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthTypeReconciliationRequest_v1'
+      responses:
+        "202":
+          description: Auth-type reconciliation jobs queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTypeReconciliationResponse_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        '501':
+          $ref: '#/components/responses/StandardError-501'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - pools
+      summary: Get auth-type reconciliation status
+      description: Returns aggregate and per-pool status for the reconciliation request started by POST on this path
+      operationId: v1_getPoolAuthTypeReconciliationStatus
+      parameters:
+        - name: jobId
+          in: query
+          description: Reconciliation request job UUID returned by POST
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Auth-type reconciliation status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTypeReconciliationStatus_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        '501':
+          $ref: '#/components/responses/StandardError-501'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/clusters/batchUpgrade:
     post:
       tags:
@@ -4592,6 +4673,144 @@ components:
             - CANCELLED
         error:
           type: string
+    AuthTypeReconciliationRequest_v1:
+      type: object
+      title: AuthTypeReconciliationRequest
+      description: Selects demoted password-auth pools for promotion back to certificate authentication
+      required:
+        - selectionType
+        - fromAuthType
+        - toAuthType
+      properties:
+        selectionType:
+          type: string
+          description: Select all eligible demoted pools or an explicit UUID list
+          enum:
+            - all
+            - poolList
+        fromAuthType:
+          type: integer
+          enum:
+            - 1
+          description: Current authentication type; only demoted password authentication (1) is supported
+        toAuthType:
+          type: integer
+          enum:
+            - 2
+          description: Target authentication type; only certificate authentication (2) is supported
+        poolUuids:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          description: Required for poolList and forbidden for all
+          items:
+            type: string
+            format: uuid
+        batchSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum number of pools queued concurrently in each core-api batch; all selected pools are processed across successive batches
+    AuthTypeReconciliationPoolResult_v1:
+      type: object
+      title: AuthTypeReconciliationPoolResult
+      required:
+        - poolUuid
+        - status
+      properties:
+        poolUuid:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - QUEUED
+            - PROCESSING
+            - DONE
+            - ERROR
+            - SKIPPED
+        jobId:
+          type: string
+          description: Per-pool Temporal workflow identifier
+        reason:
+          type: string
+          description: Skip or failure reason
+    AuthTypeReconciliationResponse_v1:
+      type: object
+      title: AuthTypeReconciliationResponse
+      required:
+        - jobId
+        - status
+        - totalPools
+        - queuedPools
+        - skippedPools
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - PROCESSING
+        totalPools:
+          type: integer
+          minimum: 0
+        queuedPools:
+          type: integer
+          minimum: 0
+        skippedPools:
+          type: integer
+          minimum: 0
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthTypeReconciliationPoolResult_v1'
+    AuthTypeReconciliationStatus_v1:
+      type: object
+      title: AuthTypeReconciliationStatus
+      required:
+        - jobId
+        - status
+        - totalPools
+        - queuedPools
+        - processingPools
+        - succeededPools
+        - failedPools
+        - skippedPools
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - PROCESSING
+            - DONE
+            - ERROR
+            - PARTIAL
+        totalPools:
+          type: integer
+          minimum: 0
+        queuedPools:
+          type: integer
+          minimum: 0
+        processingPools:
+          type: integer
+          minimum: 0
+        succeededPools:
+          type: integer
+          minimum: 0
+        failedPools:
+          type: integer
+          minimum: 0
+        skippedPools:
+          type: integer
+          minimum: 0
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthTypeReconciliationPoolResult_v1'
     BatchClusterUpgradeRequest_v1:
       type: object
       title: BatchClusterUpgradeRequest

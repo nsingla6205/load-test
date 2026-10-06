@@ -738,6 +738,15 @@ type BatchUpgradeClusterParams struct {
 	Filters            *ClusterFilters   `json:"filters,omitempty"`
 }
 
+// ReconcilePoolAuthTypeParams selects demoted pools for promotion to certificate authentication.
+type ReconcilePoolAuthTypeParams struct {
+	SelectionType string   `json:"selectionType"`
+	FromAuthType  int      `json:"fromAuthType"`
+	ToAuthType    int      `json:"toAuthType"`
+	PoolUUIDs     []string `json:"poolUuids,omitempty"`
+	BatchSize     int      `json:"batchSize,omitempty"`
+}
+
 // ClusterFilters describes filters for selecting clusters in batch upgrade
 type ClusterFilters struct {
 	Zones         []string `json:"zones,omitempty"`

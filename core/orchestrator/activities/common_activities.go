@@ -132,6 +132,16 @@ func (ca CommonActivities) UpdateJobStatus(ctx context.Context, job *datamodel.J
 	return se.UpdateJob(ctx, job.UUID, job.State, job.TrackingID, job.ErrorDetails)
 }
 
+// UpdateJobAttributes updates a job's persisted workflow payload.
+func (ca CommonActivities) UpdateJobAttributes(
+	ctx context.Context,
+	jobUUID string,
+	jobAttributes *datamodel.JobAttributes,
+) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating attributes for job %s in database", jobUUID))
+	return ca.SE.UpdateJobAttributes(ctx, jobUUID, jobAttributes)
+}
+
 func (ca CommonActivities) GetJob(ctx context.Context, jobUUID string) (*datamodel.Job, error) {
 	se := ca.SE
 	recordHeartbeat(ctx, fmt.Sprintf("Fetching job %s from database", jobUUID))

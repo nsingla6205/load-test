@@ -10,7 +10,7 @@ Proposed
 
 ## Implementation Status
 
-The core implementation described here is present on branch `VSCP-7854`: CA drift and unknown legacy CA state force the existing certificate-rotation path, staged certificate/CA pairs use guarded database promotion, and only AuthType 1 pools retaining parent certificate-demotion evidence use the separate disabled-by-default reconciliation workflow. CA changes and forced certificate rotation are initiated explicitly through the Core API; worker startup never starts either operation.
+The core implementation described here is present on branch `VSCP-7854`: CA drift and unknown legacy CA state force the existing certificate-rotation path, staged certificate/CA pairs use guarded database promotion, and only AuthType 1 pools retaining parent certificate-demotion evidence use the separate on-demand Core API reconciliation workflow. CA changes and forced certificate rotation are initiated explicitly through the Core API; worker startup never starts either operation.
 
 The Core API validates the pool selection and always resolves the desired CA URI from the Helm CA configuration. Fleet-wide CA requests persist the last accepted desired URI in `app_config` only after Temporal accepts the workflow. A deterministic Temporal workflow ID derived from the canonical request deduplicates concurrent API requests. The workflow carries the resolved URI in Temporal history, so execution never depends on a worker's process environment.
 
@@ -472,15 +472,20 @@ func (a *ControlWorkflowActivity) ExecutePoolCAReconciliationSequentially(
     workflowTimeout time.Duration,
 ) error
 
-func (a *ControlWorkflowActivity) ExecutePoolAuthTypeReconciliationSequentially(
+func (a *ControlWorkflowActivity) ExecutePoolAuthTypeReconciliationForDesiredCASequentially(
     ctx context.Context,
     poolUUID string,
+    desiredCAURI string,
+    requestWorkflowID string,
     workflowTimeout time.Duration,
 ) error
 
 func ReconcilePoolCAWorkflow(ctx workflow.Context, poolUUID, desiredCAURI string) error
 
-func ReconcilePoolAuthTypeWorkflow(ctx workflow.Context, poolUUID string) error
+func ReconcilePoolAuthTypesAPIWorkflow(
+    ctx workflow.Context,
+    params ReconcilePoolAuthTypesAPIWorkflowParams,
+) error
 ```
 
 Both control activities use:
@@ -493,8 +498,8 @@ Add workflow names to [`core/orchestrator/common/workflow_constants.go`](../../.
 
 ```go
 const (
-    ReconcilePoolCAWorkflowName       = "ReconcilePoolCAWorkflow"
-    ReconcilePoolAuthTypeWorkflowName = "ReconcilePoolAuthTypeWorkflow"
+    ReconcilePoolCAWorkflowName           = "ReconcilePoolCAWorkflow"
+    ReconcilePoolAuthTypesAPIWorkflowName = "ReconcilePoolAuthTypesAPIWorkflow"
 )
 ```
 
@@ -639,7 +644,7 @@ A pool is `DEMOTED_AUTH_TYPE_2` only when parent credentials retain at least one
 
 Expert credentials do not change classification. Certificate-auth expert rows are reconciled after parent leaf verification and before parent promotion.
 
-It is `NATIVE_AUTH_TYPE_1` when none exists. Certificate-like usernames, DNS names, and expert-mode credentials are not sufficient demotion evidence because explicitly created AuthType 1 pools may also contain them. Native pools are filtered from scheduled batches and defensively skipped again inside the per-pool activity.
+It is `NATIVE_AUTH_TYPE_1` when none exists. Certificate-like usernames, DNS names, and expert-mode credentials are not sufficient demotion evidence because explicitly created AuthType 1 pools may also contain them. Native pools are filtered from on-demand API batches and defensively skipped again inside the per-pool activity.
 
 Demoted pools may retain stale `certificate_id`, `ca_uri`, certificate username, and DNS data. None is trusted individually:
 
@@ -744,18 +749,20 @@ AuthType 2 path:
 
 AuthType 1 migration path:
 
-1. List eligible AuthType 1 pools under a separate feature flag.
-2. Queue `ReconcilePoolAuthTypeWorkflow` through `ExecutePoolAuthTypeReconciliationSequentially`.
-3. Do not couple migration enablement to password rotation.
+1. Accept requests only through the operator Core API. The promotion target CA is always the Helm-configured CA.
+2. Reject a new request while another parent reconciliation job is active.
+3. Start one parent Temporal workflow and run per-pool child workflows with bounded concurrency.
+4. Queue each pool through the shared pool-operation sequencer and persist per-pool results on the parent job.
+5. Do not run AuthType reconciliation from the scheduled certificate/password rotation workflow.
 
 Configuration:
 
 | Helm value / env var | Type | Default | Scope | Validation |
 | --- | --- | --- | --- | --- |
 | `workerConfig.enableVsaCaReconciliation` / `ENABLE_VSA_CA_RECONCILIATION` | bool | `false` | worker deployment | None |
-| `workerConfig.enableVsaAuthTypeReconciliation` / `ENABLE_VSA_AUTH_TYPE_RECONCILIATION` | bool | `false` | worker deployment | Requires CA reconciliation configuration |
 | `workerConfig.caReconciliationBatchSize` / `CA_RECONCILIATION_BATCH_SIZE` | int | `10` | worker process | Greater than zero |
-| `workerConfig.authTypeReconciliationBatchSize` / `AUTH_TYPE_RECONCILIATION_BATCH_SIZE` | int | `10` | worker process | Greater than zero |
+| `coreConfig.authTypeReconciliationChildWorkflowTimeoutMinutes` / `AUTH_TYPE_RECONCILIATION_CHILD_WORKFLOW_TIMEOUT_MINUTES` | int | `20` | Core API | Greater than zero; covers sequencer queue time plus reconciliation runtime |
+| `coreConfig.authTypeReconciliationParentWorkflowTimeoutMinutes` / `AUTH_TYPE_RECONCILIATION_PARENT_WORKFLOW_TIMEOUT_MINUTES` | int | `60` | Core API | Greater than zero |
 | `workerConfig.enableCaChangeDuringCertificateRotation` / `ENABLE_CA_CHANGE_DURING_CERTIFICATE_ROTATION` | bool | `false` | worker deployment | Does not affect explicit CA reconciliation |
 | Existing CA values | string | existing chart value | worker deployment | All non-empty; no `/` |
 
@@ -926,7 +933,8 @@ Alerts:
 
 ### Operational rollback
 
-- Disable `ENABLE_VSA_AUTH_TYPE_RECONCILIATION` first, then `ENABLE_VSA_CA_RECONCILIATION`.
+- AuthType 1→2 has no feature flag or scheduler; stop issuing `POST /v1/pools/reconcileAuthType` to pause new promotions.
+- Disable `ENABLE_VSA_CA_RECONCILIATION` to pause scheduled CA drift repair.
 - Do not roll Helm CA values backward merely because reconciliation is paused; active rows record their actual issuer.
 - New binaries can resume from staged pairs idempotently.
 - Old binaries ignore `staged_ca_uri` during JSON unmarshalling, so the additive JSONB field is backward compatible.

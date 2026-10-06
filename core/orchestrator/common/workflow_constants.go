@@ -23,6 +23,8 @@ const (
 	TrackedReconcilePoolCAWorkflowName            = "TrackedReconcilePoolCAWorkflow"
 	RotatePoolPasswordWorkflowName                = "RotatePoolPasswordWorkflow"
 	ReconcilePoolCAWorkflowName                   = "ReconcilePoolCAWorkflow"
+	ReconcilePoolAuthTypeForDesiredCAWorkflowName = "ReconcilePoolAuthTypeForDesiredCAWorkflow"
+	ReconcilePoolAuthTypesAPIWorkflowName         = "ReconcilePoolAuthTypesAPIWorkflow"
 
 	// RotateOciPoolCertificateWorkflowName is used to start the OCI per-pool certificate
 	// rotation as an independent top-level workflow from the dispatch activity (the OCI
