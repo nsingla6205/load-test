@@ -134,8 +134,8 @@ func TestResolveDeploymentName(t *testing.T) {
 
 func TestVersionIDHelpers(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "dep.B", VersionID("dep", "B"))
-	assert.Equal(t, "B", BuildIDFromVersion("dep.B"))
+	assert.Equal(t, "dep:B", VersionID("dep", "B"))
+	assert.Equal(t, "B", BuildIDFromVersion("dep:B"))
 	assert.Equal(t, "", BuildIDFromVersion("__unversioned__"))
 	assert.Equal(t, "", BuildIDFromVersion(""))
 	assert.Equal(t, "B", BuildIDFromVersion("B"))

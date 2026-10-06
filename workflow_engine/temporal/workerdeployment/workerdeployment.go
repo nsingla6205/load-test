@@ -86,18 +86,19 @@ func sanitizeDeploymentName(name string) string {
 	return strings.ReplaceAll(strings.TrimSpace(name), ".", "-")
 }
 
-// VersionID builds the composite key "<deployment_name>.<build_id>" used in logs and older APIs.
+// VersionID builds the Temporal Worker Deployment version string
+// "<deployment_name>:<build_id>" used by DescribeTaskQueueEnhanced.
 func VersionID(deploymentName, buildID string) string {
-	return fmt.Sprintf("%s.%s", deploymentName, buildID)
+	return fmt.Sprintf("%s:%s", deploymentName, buildID)
 }
 
-// BuildIDFromVersion extracts the build ID from "<deployment_name>.<build_id>".
+// BuildIDFromVersion extracts the build ID from "<deployment_name>:<build_id>".
 func BuildIDFromVersion(version string) string {
 	version = strings.TrimSpace(version)
 	if version == "" || version == "__unversioned__" {
 		return ""
 	}
-	if i := strings.Index(version, "."); i >= 0 && i+1 < len(version) {
+	if i := strings.Index(version, ":"); i >= 0 && i+1 < len(version) {
 		return version[i+1:]
 	}
 	return version
