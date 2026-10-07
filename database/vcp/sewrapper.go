@@ -1957,10 +1957,10 @@ func (re *retryEngine) DeleteJob(ctx context.Context, id, errorDetails string) e
 	return err
 }
 
-func (re *retryEngine) UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string) error {
+func (re *retryEngine) UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string, opts ...UpdateJobOpts) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		err = re.dataStore.UpdateJob(ctx, jobID, status, trackingID, errorDetails)
+		err = re.dataStore.UpdateJob(ctx, jobID, status, trackingID, errorDetails, opts...)
 		if err != nil {
 			re.logError("UpdateJob", err)
 			if !dbutils.IsTransientErr(err) {

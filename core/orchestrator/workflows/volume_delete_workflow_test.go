@@ -342,7 +342,7 @@ func (s *VolumeDeleteTestSuite) Test_DeleteVolumeWorkflow_UpdateJobFailsAfterWor
 	var jobStatusUpdates []string
 
 	mockStorage.EXPECT().UpdateJob(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, _ string, status string, _ int, _ string) error {
+		RunAndReturn(func(_ context.Context, _ string, status string, _ int, _ string, _ ...database.UpdateJobOpts) error {
 			jobStatusUpdates = append(jobStatusUpdates, status)
 			if status == string(datamodel.JobsStateERROR) {
 				return errors.New("failed updating job")
@@ -688,7 +688,7 @@ func (s *VolumeDeleteTestSuite) Test_DeleteVolumeWorkflow_DeleteSnapshotPolicyIn
 	var jobStatusUpdates []string
 
 	mockStorage.EXPECT().UpdateJob(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, _ string, status string, _ int, _ string) error {
+		RunAndReturn(func(_ context.Context, _ string, status string, _ int, _ string, _ ...database.UpdateJobOpts) error {
 			jobStatusUpdates = append(jobStatusUpdates, status)
 			if status == string(datamodel.JobsStateERROR) {
 				return errors.New("failed updating job")

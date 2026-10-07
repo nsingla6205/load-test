@@ -849,8 +849,8 @@ func (s *PersistenceStore) CreateCMEKJob(ctx context.Context, accountId int64, j
 	return s.dataStore.CreateCMEKJob(ctx, accountId, job)
 }
 
-func (s *PersistenceStore) UpdateJob(ctx context.Context, id string, status string, trackingID int, errorDetails string) error {
-	return s.dataStore.UpdateJob(ctx, id, status, trackingID, errorDetails)
+func (s *PersistenceStore) UpdateJob(ctx context.Context, id string, status string, trackingID int, errorDetails string, opts ...UpdateJobOpts) error {
+	return s.dataStore.UpdateJob(ctx, id, status, trackingID, errorDetails, opts...)
 }
 
 func (s *PersistenceStore) UpdateJobAttributes(ctx context.Context, jobUUID string, jobAttributes *datamodel.JobAttributes) error {

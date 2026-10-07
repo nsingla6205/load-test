@@ -25711,17 +25711,24 @@ func (_c *MockDataStore_UpdateInterclusterLifExternalUUID_Call) RunAndReturn(run
 	return _c
 }
 
-// UpdateJob provides a mock function with given fields: ctx, jobID, status, trackingID, errorDetails
-func (_m *MockDataStore) UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string) error {
-	ret := _m.Called(ctx, jobID, status, trackingID, errorDetails)
+// UpdateJob provides a mock function with given fields: ctx, jobID, status, trackingID, errorDetails, opts
+func (_m *MockDataStore) UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string, opts ...UpdateJobOpts) error {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, jobID, status, trackingID, errorDetails)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateJob")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, string) error); ok {
-		r0 = rf(ctx, jobID, status, trackingID, errorDetails)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, string, ...UpdateJobOpts) error); ok {
+		r0 = rf(ctx, jobID, status, trackingID, errorDetails, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -25740,13 +25747,21 @@ type MockDataStore_UpdateJob_Call struct {
 //   - status string
 //   - trackingID int
 //   - errorDetails string
-func (_e *MockDataStore_Expecter) UpdateJob(ctx interface{}, jobID interface{}, status interface{}, trackingID interface{}, errorDetails interface{}) *MockDataStore_UpdateJob_Call {
-	return &MockDataStore_UpdateJob_Call{Call: _e.mock.On("UpdateJob", ctx, jobID, status, trackingID, errorDetails)}
+//   - opts ...UpdateJobOpts
+func (_e *MockDataStore_Expecter) UpdateJob(ctx interface{}, jobID interface{}, status interface{}, trackingID interface{}, errorDetails interface{}, opts ...interface{}) *MockDataStore_UpdateJob_Call {
+	return &MockDataStore_UpdateJob_Call{Call: _e.mock.On("UpdateJob",
+		append([]interface{}{ctx, jobID, status, trackingID, errorDetails}, opts...)...)}
 }
 
-func (_c *MockDataStore_UpdateJob_Call) Run(run func(ctx context.Context, jobID string, status string, trackingID int, errorDetails string)) *MockDataStore_UpdateJob_Call {
+func (_c *MockDataStore_UpdateJob_Call) Run(run func(ctx context.Context, jobID string, status string, trackingID int, errorDetails string, opts ...UpdateJobOpts)) *MockDataStore_UpdateJob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(string))
+		variadicArgs := make([]UpdateJobOpts, len(args)-5)
+		for i, a := range args[5:] {
+			if a != nil {
+				variadicArgs[i] = a.(UpdateJobOpts)
+			}
+		}
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(string), variadicArgs...)
 	})
 	return _c
 }
@@ -25756,7 +25771,7 @@ func (_c *MockDataStore_UpdateJob_Call) Return(_a0 error) *MockDataStore_UpdateJ
 	return _c
 }
 
-func (_c *MockDataStore_UpdateJob_Call) RunAndReturn(run func(context.Context, string, string, int, string) error) *MockDataStore_UpdateJob_Call {
+func (_c *MockDataStore_UpdateJob_Call) RunAndReturn(run func(context.Context, string, string, int, string, ...UpdateJobOpts) error) *MockDataStore_UpdateJob_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -133,15 +133,20 @@ func _createClientOptionsFromEnv(cfg workflow_engine.ClientConfig, logger log.Lo
 		logger.Error("Unable to create interceptor", "error", err)
 		tracingInterceptor = nil
 	}
+	// Interceptor order: tracing first (so spans wrap the submission emission
+	// too), then the workflow-submission interceptor. Both are safe to combine
+	// because each only overrides the SDK methods it cares about and forwards
+	// everything else through its embedded ClientOutboundInterceptorBase.
+	interceptors := make([]interceptor.ClientInterceptor, 0, 2)
+	if tracingInterceptor != nil {
+		interceptors = append(interceptors, tracingInterceptor)
+	}
+	interceptors = append(interceptors, NewWorkflowSubmissionInterceptor())
+
 	clientOpts := client.Options{
-		HostPort:  cfg.GetHostPort(),
-		Namespace: cfg.GetNamespace(),
-		Interceptors: func() []interceptor.ClientInterceptor {
-			if tracingInterceptor != nil {
-				return []interceptor.ClientInterceptor{tracingInterceptor}
-			}
-			return nil
-		}(),
+		HostPort:     cfg.GetHostPort(),
+		Namespace:    cfg.GetNamespace(),
+		Interceptors: interceptors,
 		MetricsHandler: opentelemetry.NewMetricsHandler(opentelemetry.MetricsHandlerOptions{
 			Meter: otel.GetMeterProvider().Meter("Temporal-Worker"),
 		}),

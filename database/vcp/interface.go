@@ -196,7 +196,7 @@ type (
 		CreateJobWithWorkflowID(ctx context.Context, job *datamodel.Job, workflowID string) (*datamodel.Job, error)
 		CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error)
 		DeleteJob(ctx context.Context, id, errorDetails string) error
-		UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string) error
+		UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string, opts ...UpdateJobOpts) error
 		GetJob(ctx context.Context, jobID string) (*datamodel.Job, error)
 		GetJobsWithCondition(ctx context.Context, filter dbutils.Filter) ([]*datamodel.Job, error)
 		GetOngoingMigrateKmsConfigJob(ctx context.Context, accountId int64) (*datamodel.Job, error)

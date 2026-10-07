@@ -515,6 +515,12 @@ func (r *workflowSupervisorTaskRunner) sequenceWorkflowIDForJob(ctx context.Cont
 }
 
 // markJobAsError updates the job state and detail to record a timeout failure.
+//
+// Passes UpdateJobOpts.Reason = JobTerminalReasonSupervisorTimeout so the
+// vcp.job.status / vcp.job.duration metrics tag the resulting error series
+// as supervisor_timeout. This lets dashboards and alerts split
+// supervisor-driven cleanup from workflow/activity-driven failures without
+// having to filter on the Prometheus scrape {service, pod} labels.
 func (r *workflowSupervisorTaskRunner) markJobAsError(ctx context.Context, job *datamodel.Job) error {
 	trackingID := job.TrackingID
 	// If the job never started processing (TrackingID is 0), use the supervisor timeout error code
@@ -522,7 +528,14 @@ func (r *workflowSupervisorTaskRunner) markJobAsError(ctx context.Context, job *
 	if trackingID == 0 {
 		trackingID = vsaerrors.ErrWorkflowSupervisorTimeout
 	}
-	return r.storage.UpdateJob(ctx, job.UUID, string(datamodel.JobsStateERROR), trackingID, supervisorhandler.WorkflowTimeoutDetail)
+	return r.storage.UpdateJob(
+		ctx,
+		job.UUID,
+		string(datamodel.JobsStateERROR),
+		trackingID,
+		supervisorhandler.WorkflowTimeoutDetail,
+		database.UpdateJobOpts{Reason: database.JobTerminalReasonSupervisorTimeout},
+	)
 }
 
 // cleanupJob terminates the workflow if needed, delegates compensating actions,
