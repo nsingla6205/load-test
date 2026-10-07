@@ -374,7 +374,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 			sdeBackupVault.BackupRegionName != nil && *sdeBackupVault.BackupRegionName != "" &&
 			*sdeBackupVault.BackupRegionName == bvCommonParams.Region {
 			err = vsaerrors.NewVCPError(vsaerrors.ErrCrossRegionBackupVaultDeleteFromDestinationRegion,
-				fmt.Errorf("backup vault %s cannot be deleted from the destination region %s", backupVault.UUID, bvCommonParams.Region))
+				fmt.Errorf("Remote backup vaults cannot be deleted"))
 			return nil, ConvertToVSAError(err)
 		}
 

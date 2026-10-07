@@ -13,6 +13,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
@@ -699,7 +700,14 @@ func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegi
 	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP, mock.Anything, mock.Anything).Return(bv, nil)
 	s.env.OnActivity(backupvaultDeleteActivity.GetBackupVaultFromSDE, mock.Anything, mock.Anything).Return(sdeBv, nil)
 	s.env.OnActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+	var errorJob *datamodel.Job
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			job := args.Get(1).(*datamodel.Job)
+			if job.State == string(datamodel.JobsStateERROR) {
+				errorJob = job
+			}
+		}).Return(nil)
 
 	// Region matches the vault's BackupRegionName (destination region) — deletion must be blocked.
 	params := &common.BackupVaultParams{Region: backupRegion}
@@ -708,7 +716,15 @@ func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegi
 	_, err := s.env.QueryWorkflowByID("default-test-workflow-id", "status")
 	assert.Nil(s.T(), err)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
-	assert.NotNil(s.T(), s.env.GetWorkflowError())
+	wfErr := s.env.GetWorkflowError()
+	assert.Error(s.T(), wfErr)
+	assert.Contains(s.T(), wfErr.Error(), "Remote backup vaults cannot be deleted")
+	if assert.NotNil(s.T(), errorJob) {
+		catalogMsg := vsaerrors.GetErrorMessageByTrackingID(vsaerrors.ErrCrossRegionBackupVaultDeleteFromDestinationRegion).Message
+		assert.Equal(s.T(), "Remote backup vaults cannot be deleted", catalogMsg)
+		assert.Equal(s.T(), vsaerrors.ErrCrossRegionBackupVaultDeleteFromDestinationRegion, errorJob.TrackingID)
+		assert.Equal(s.T(), catalogMsg, errorJob.ErrorDetails)
+	}
 }
 
 func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegion_DeleteRemoteError() {

@@ -808,7 +808,7 @@ func TestUpdateBackupVault(t *testing.T) {
 		bv, _, err := updateBackupVault(ctx, mockStorage, temporal, params)
 		assert.Error(t, err)
 		assert.Nil(t, bv)
-		assert.Equal(t, "cross-region backup vault cannot be updated from the destination region", err.Error())
+		assert.Equal(t, "Remote backup vaults cannot be updated", err.Error())
 	})
 }
 
@@ -1033,7 +1033,7 @@ func TestDeleteBackupVaultWhenCrossRegionBackupVaultIsDeletedFromDestinationRegi
 	bv, _, err := o.DeleteBackupVault(ctx, params)
 	assert.Error(t, err)
 	assert.Nil(t, bv)
-	assert.Equal(t, "backup vault cannot be deleted from the destination region", err.Error())
+	assert.Equal(t, "Remote backup vaults cannot be deleted", err.Error())
 }
 
 func TestDeleteBackupVaultRollbackScenarios(t *testing.T) {
@@ -5711,7 +5711,7 @@ func TestDeleteBackupVault_ValidationGuards(t *testing.T) {
 
 		require.Error(tt, err)
 		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "destination region")
+		assert.Contains(tt, err.Error(), "Remote backup vaults cannot be deleted")
 	})
 
 	t.Run("WhenVaultHasBackups_ReturnsUserInputValidationErr", func(tt *testing.T) {

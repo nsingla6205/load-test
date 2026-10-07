@@ -246,7 +246,7 @@ func _deleteBackupVault(ctx context.Context, se database.Storage, temporal clien
 		}
 
 		if dbBv.BackupVaultType == activities.CrossRegionBackupType && params.Region == *dbBv.BackupRegionName {
-			return nil, "", customerrors.NewUserInputValidationErr("backup vault cannot be deleted from the destination region")
+			return nil, "", customerrors.NewUserInputValidationErr("Remote backup vaults cannot be deleted")
 		}
 
 		backups, err := se.GetBackupCountByBackupVaultID(ctx, dbBv.ID)
@@ -366,7 +366,7 @@ func _updateBackupVault(ctx context.Context, se database.Storage, temporal clien
 	}
 
 	if dbBv.BackupVaultType == activities.CrossRegionBackupType && params.Region == *dbBv.BackupRegionName {
-		return nil, "", customerrors.NewUserInputValidationErr("cross-region backup vault cannot be updated from the destination region")
+		return nil, "", customerrors.NewUserInputValidationErr("Remote backup vaults cannot be updated")
 	}
 
 	job := &datamodel.Job{

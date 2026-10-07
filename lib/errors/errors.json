@@ -2659,7 +2659,7 @@
   },
   "12022": {
     "description": "Cross-region backup vault deletion from the destination region",
-    "message": "backup vault cannot be deleted from the destination region",
+    "message": "Remote backup vaults cannot be deleted",
     "retriable": false,
     "http_code": 400
   },
