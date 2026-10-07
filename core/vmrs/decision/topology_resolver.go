@@ -1,17 +1,19 @@
 package decision
 
 import (
+	"encoding/json"
+
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
-// activeActiveFloorByFamily returns the base machine type an active-active pool may use in each
-// machine family it is qualified on.
-var activeActiveFloorByFamily = map[vmrs.MachineFamilyType]string{
-	vmrs.MachineFamilyC3LSSD:    "c3-standard-22-lssd",
-	vmrs.MachineFamilyC3NonLSSD: "c3-standard-22",
-	vmrs.MachineFamilyC4LSSD:    "c4-standard-24-lssd",
-	vmrs.MachineFamilyC4NonLSSD: "c4-standard-24",
-}
+const (
+	defaultActiveActiveFloorByFamily = "{\"c3-lssd\":\"c3-standard-22-lssd\",\"c3-non-lssd\":\"c3-standard-22\",\"c4-lssd\":\"c4-standard-24-lssd\",\"c4-non-lssd\":\"c4-standard-24\"}"
+)
+
+// activeActiveFloorByFamily is the effective floor map, read once at process start.
+var activeActiveFloorByFamily = loadActiveActiveFloorByFamily(env.GetString("ACTIVE_ACTIVE_POOL_FLOOR_BY_FAMILY", defaultActiveActiveFloorByFamily))
 
 type scalingTopologyKey struct {
 	isTrueZonal     bool
@@ -26,9 +28,23 @@ var topologyByPool = map[scalingTopologyKey]vmrs.DeploymentTopology{
 }
 
 // ActiveActiveVMSelectionPolicy returns the VM candidate restriction an active-active pool
-// deploying into family must satisfy.
+// deploying into family must satisfy. The floor is the machine type recorded for family in
+// activeActiveFloorByFamily.
 func ActiveActiveVMSelectionPolicy(family vmrs.MachineFamilyType) vmrs.VMSelectionPolicy {
 	return vmrs.VMSelectionPolicy{MinimumMachineType: activeActiveFloorByFamily[family]}
+}
+
+func loadActiveActiveFloorByFamily(raw string) map[vmrs.MachineFamilyType]string {
+	floors := map[vmrs.MachineFamilyType]string{}
+	if err := json.Unmarshal([]byte(raw), &floors); err != nil {
+		log.NewLogger().Warn(
+			"invalid ACTIVE_ACTIVE_FLOOR_BY_FAMILY; keeping default floors",
+			"configured", raw,
+			"error", err,
+		)
+		_ = json.Unmarshal([]byte(defaultActiveActiveFloorByFamily), &floors)
+	}
+	return floors
 }
 
 // ResolveScalingTopology derives the ScalingTopology for a pool from its true-zonal

@@ -54,6 +54,10 @@ func TestResolveScalingTopology_NonTrueZonalIsActivePassiveWithMediator(t *testi
 }
 
 func TestActiveActiveVMSelectionPolicy(t *testing.T) {
+	original := activeActiveFloorByFamily
+	activeActiveFloorByFamily = loadActiveActiveFloorByFamily(defaultActiveActiveFloorByFamily)
+	t.Cleanup(func() { activeActiveFloorByFamily = original })
+
 	cases := []struct {
 		name      string
 		family    vmrs.MachineFamilyType
@@ -78,11 +82,25 @@ func TestActiveActiveVMSelectionPolicy(t *testing.T) {
 	}
 }
 
+func TestLoadActiveActiveFloorByFamily(t *testing.T) {
+	defaults := loadActiveActiveFloorByFamily(defaultActiveActiveFloorByFamily)
+	replaced := map[vmrs.MachineFamilyType]string{
+		vmrs.MachineFamilyC3LSSD:    "c3-standard-44-lssd",
+		vmrs.MachineFamilyC3NonLSSD: "c3-standard-44",
+		vmrs.MachineFamilyC4LSSD:    "c4-standard-48-lssd",
+		vmrs.MachineFamilyC4NonLSSD: "c4-standard-48",
+	}
+
+	assert.Equal(t, defaults, loadActiveActiveFloorByFamily(defaultActiveActiveFloorByFamily))
+	assert.Equal(t, defaults, loadActiveActiveFloorByFamily("{"))
+	assert.Equal(t, replaced, loadActiveActiveFloorByFamily(`{"c3-lssd":"c3-standard-44-lssd","c3-non-lssd":"c3-standard-44","c4-lssd":"c4-standard-48-lssd","c4-non-lssd":"c4-standard-48"}`))
+}
+
 // Every floor must belong to the family it is filed under. A mismatch leaves the floor outside
 // the family-scoped catalog, and FilterCandidatesByPolicy then fails every active-active pool in
 // that family with "minimum machine type not found".
 func TestActiveActiveFloorBelongsToItsFamily(t *testing.T) {
-	for family, floor := range activeActiveFloorByFamily {
+	for family, floor := range loadActiveActiveFloorByFamily(defaultActiveActiveFloorByFamily) {
 		assert.Equal(t, family, vmrs.MachineFamilyForVMType(floor),
 			"floor %q is filed under family %q", floor, family)
 	}

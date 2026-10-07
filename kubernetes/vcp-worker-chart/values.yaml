@@ -190,6 +190,7 @@ workerConfig:
   nfsTlsConnMaxLimit: "100"
   enableTrueZonalLV: "false"
   trueZonalBaseMachineType: "c3-standard-22-lssd"
+  activeActivePoolFloorByFamily: '{"c3-lssd":"c3-standard-22-lssd","c3-non-lssd":"c3-standard-22","c4-lssd":"c4-standard-24-lssd","c4-non-lssd":"c4-standard-24"}'
   enableMqos: "true"
   largeFileSizeEnabled: "true"
   addressSpaceMgmtEnabled: "false"

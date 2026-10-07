@@ -4443,10 +4443,6 @@ func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *test
 }
 
 func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
-	// A new active-active pool takes its family and floor from TRUE_ZONAL_BASE_MACHINE_TYPE.
-	// An update keeps the current instance type and its family, so a c3 pool cannot
-	// move to c4 when the env type changes. Large-capacity pools that are not
-	// active-active still follow MACHINE_FAMILY_TYPE.
 	cases := []struct {
 		name                string
 		family              vmrs.MachineFamilyType
@@ -4462,8 +4458,9 @@ func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
 		{name: "create c3-standard-22 selects c3-non-lssd", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c3-standard-22", isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-22"},
 		{name: "create c4-standard-24-lssd selects c4-lssd", family: vmrs.MachineFamilyC3NonLSSD, baseMachineType: "c4-standard-24-lssd", isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-24-lssd"},
 		{name: "create c4-standard-24 selects c4-non-lssd", family: vmrs.MachineFamilyC3LSSD, baseMachineType: "c4-standard-24", isTrueZonal: true, wantPrefix: "c4-", wantLssd: false, wantInstanceType: "c4-standard-24"},
-		{name: "update keeps c4-lssd when base type is c3", family: vmrs.MachineFamilyC3NonLSSD, baseMachineType: "c3-standard-22-lssd", currentInstanceType: "c4-standard-8-lssd", isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-8-lssd"},
-		{name: "update keeps c3-non-lssd when base type is c4", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c4-standard-24-lssd", currentInstanceType: "c3-standard-4", isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-4"},
+		{name: "downgrade c4-lssd stops at family floor when base type is c3", family: vmrs.MachineFamilyC3NonLSSD, baseMachineType: "c3-standard-22-lssd", currentInstanceType: "c4-standard-48-lssd", isTrueZonal: true, wantPrefix: "c4-", wantLssd: true, wantInstanceType: "c4-standard-24-lssd"},
+		{name: "downgrade c3-lssd stops at family floor", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c4-standard-24-lssd", currentInstanceType: "c3-standard-88-lssd", isTrueZonal: true, wantPrefix: "c3-", wantLssd: true, wantInstanceType: "c3-standard-22-lssd"},
+		{name: "downgrade c3-non-lssd stops at family floor when base type is c4", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c4-standard-24-lssd", currentInstanceType: "c3-standard-44", isTrueZonal: true, wantPrefix: "c3-", wantLssd: false, wantInstanceType: "c3-standard-22"},
 		{name: "unrecognized base machine type on create", family: vmrs.MachineFamilyC3LSSD, baseMachineType: "n2-standard-8", isTrueZonal: true, wantErr: "does not map to a supported machine family"},
 		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, baseMachineType: "c3-standard-22-lssd", isTrueZonal: false, wantPrefix: "c4-", wantLssd: true},
 	}

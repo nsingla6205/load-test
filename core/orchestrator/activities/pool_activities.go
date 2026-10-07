@@ -2386,7 +2386,6 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	}
 
 	if req.CustomerRequest.ScalingTopology.Topology == vmrs.TopologyActiveActive {
-		minimumMachineType := req.CustomerRequest.CurrentInstanceType
 		if !existingFamily.IsValid() {
 			baseFamily := vmrs.MachineFamilyForVMType(TrueZonalBaseMachineType)
 			if !baseFamily.IsValid() {
@@ -2396,11 +2395,10 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 					vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
 			}
 			machineFamily = baseFamily
-			minimumMachineType = TrueZonalBaseMachineType
 		}
-		req.CustomerRequest.ScalingTopology.VMSelectionPolicy = vmrs.VMSelectionPolicy{MinimumMachineType: minimumMachineType}
+		req.CustomerRequest.ScalingTopology.VMSelectionPolicy = vmrs_decision.ActiveActiveVMSelectionPolicy(machineFamily)
 		logger.Info("Applied active-active VM selection policy", "machineFamily", machineFamily,
-			"minimumMachineType", minimumMachineType)
+			"minimumMachineType", req.CustomerRequest.ScalingTopology.VMSelectionPolicy.MinimumMachineType)
 	}
 
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
