@@ -269,6 +269,100 @@ func TestDeriveOntapCredentials(t *testing.T) {
 	})
 }
 
+func TestDeriveOntapModeCredentials(t *testing.T) {
+	tests := []struct {
+		name  string
+		creds []VCMOntapCredential
+		want  *datamodel.PoolCredentials
+	}{
+		{
+			name: "selects password credential and preserves username",
+			creds: []VCMOntapCredential{
+				{Type: "admin", SecretID: "admin-secret"},
+				{Type: "default", SecretID: "default-secret", Username: "vcm-admin"},
+				{Type: "ontap-mode", SecretID: "mode-secret", Username: "mode-user"},
+			},
+			want: &datamodel.PoolCredentials{
+				SecretID: "mode-secret",
+				Username: "mode-user",
+				CaURI:    "ca-uri",
+				AuthType: env.USERNAME_PWD_SEC_MGR,
+			},
+		},
+		{
+			name: "certificate material selects certificate auth",
+			creds: []VCMOntapCredential{
+				{
+					Type:                   "ontap-mode",
+					CertificateID:          "mode-cert",
+					CertPrivateKeySecretID: "mode-key",
+					Username:               "mode-user",
+					IsCertAuth:             true,
+				},
+			},
+			want: &datamodel.PoolCredentials{
+				CertificateID:          "mode-cert",
+				CertPrivateKeySecretID: "mode-key",
+				Username:               "mode-user",
+				CaURI:                  "ca-uri",
+				AuthType:               env.USER_CERTIFICATE,
+			},
+		},
+		{
+			name: "type match is case insensitive",
+			creds: []VCMOntapCredential{
+				{Type: " ONTAP-MODE ", SecretID: "mode-secret", Username: "mode-user"},
+			},
+			want: &datamodel.PoolCredentials{
+				SecretID: "mode-secret",
+				Username: "mode-user",
+				CaURI:    "ca-uri",
+				AuthType: env.USERNAME_PWD_SEC_MGR,
+			},
+		},
+		{
+			name: "no secret material falls back to plain password auth",
+			creds: []VCMOntapCredential{
+				{Type: "ontap-mode", Username: "mode-user"},
+			},
+			want: &datamodel.PoolCredentials{
+				Username: "mode-user",
+				CaURI:    "ca-uri",
+				AuthType: env.USERNAME_PWD,
+			},
+		},
+		{
+			name: "does not fall back to admin or default",
+			creds: []VCMOntapCredential{
+				{Type: "admin", SecretID: "admin-secret"},
+				{Type: "default", SecretID: "default-secret"},
+			},
+		},
+		{name: "no credentials"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, DeriveOntapModeCredentials(tt.creds, "ca-uri"))
+		})
+	}
+}
+
+// The ONTAP-mode user is a named account, so it must never inherit the built-in
+// admin substitution DeriveOntapCredentials applies to the default-mode user.
+func TestDeriveOntapModeCredentials_KeepsNamedUserOnPasswordPath(t *testing.T) {
+	creds := []VCMOntapCredential{
+		{Type: "admin", SecretID: "admin-secret"},
+		{Type: "ontap-mode", SecretID: "mode-secret", Username: "gcnvadmin"},
+	}
+
+	got := DeriveOntapModeCredentials(creds, "")
+
+	assert.Equal(t, "gcnvadmin", got.Username)
+	assert.NotEqual(t, env.Admin, got.Username)
+	assert.Equal(t, "mode-secret", got.SecretID)
+}
+
 func TestAdminPasswordSecret(t *testing.T) {
 	creds := []VCMOntapCredential{
 		{Type: "default", SecretID: "vcm-secret"},

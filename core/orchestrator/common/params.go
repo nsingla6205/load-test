@@ -160,9 +160,15 @@ type VCMCreatePoolParams struct {
 	// license handed to VLM at cluster create. Empty makes VLM install its
 	// built-in default license.
 	OntapLicenseSecretURI string
-	NodeMgmt              VCMNetConfig
-	Data                  *VCMNetConfig
-	OntapCredentials      []VCMOntapCredential
+
+	// OntapModeRbacFileURL and OntapModeRbacChecksum are consulted only for
+	// ONTAP-mode pools. CLH supplies them with the cluster's required shape.
+	OntapModeRbacFileURL  string
+	OntapModeRbacChecksum string
+
+	NodeMgmt         VCMNetConfig
+	Data             *VCMNetConfig
+	OntapCredentials []VCMOntapCredential
 
 	// Derived carries the values computed from the request fields above,
 	// populated in the orchestrator before dispatch (nil until then).
@@ -226,6 +232,9 @@ type VCMDerivedPoolInputs struct {
 	// OntapCredentials carries request-derived ONTAP credential identifiers only
 	// (no secret material), so it is safe to serialize into the workflow input.
 	OntapCredentials *datamodel.PoolCredentials
+	// OntapModeCredentials carries the dedicated ONTAP-mode user's credential
+	// identifiers only. It is nil when no ontap-mode credential was supplied.
+	OntapModeCredentials *datamodel.PoolCredentials
 }
 
 // DeriveInputs computes the workflow inputs from the request. It is pure, so it
@@ -261,13 +270,15 @@ func (p *VCMCreatePoolParams) DeriveInputs() *VCMDerivedPoolInputs {
 		IsLargeCapacityPool:  false,
 		DesiredCapacityInGiB: p.SizeInBytes / vcmBytesPerGiB,
 		OntapCredentials:     DeriveOntapCredentials(p.OntapCredentials, p.CaURI),
+		OntapModeCredentials: DeriveOntapModeCredentials(p.OntapCredentials, p.CaURI),
 	}
 }
 
 // ONTAP credential type labels used to select which credential entry to use.
 const (
-	vcmOntapCredentialTypeAdmin   = "admin"
-	vcmOntapCredentialTypeDefault = "default"
+	vcmOntapCredentialTypeAdmin     = "admin"
+	vcmOntapCredentialTypeDefault   = "default"
+	vcmOntapCredentialTypeOntapMode = "ontap-mode"
 )
 
 // AdminPasswordSecret returns the built-in ONTAP admin user's password secret
@@ -356,6 +367,43 @@ func DeriveOntapCredentials(creds []VCMOntapCredential, caURI string) *datamodel
 		poolCreds.AuthType = env.USERNAME_PWD
 	}
 	return poolCreds
+}
+
+// DeriveOntapModeCredentials maps the dedicated ontap-mode user
+// (PURPOSE_ONTAP_MODE) into identifier-only pool credentials, and returns nil
+// when no such credential was supplied.
+//
+// It deliberately does not share DeriveOntapCredentials' body. That function
+// serves the identity VCM itself authenticates as, so it folds in the built-in
+// admin password for cluster bootstrap and substitutes the built-in "admin"
+// username on the password path. Neither applies here: the ONTAP-mode user is a
+// named account that VLM creates, and reusing that logic would provision it
+// against the wrong username.
+func DeriveOntapModeCredentials(creds []VCMOntapCredential, caURI string) *datamodel.PoolCredentials {
+	for i := range creds {
+		if !strings.EqualFold(strings.TrimSpace(creds[i].Type), vcmOntapCredentialTypeOntapMode) {
+			continue
+		}
+		cred := creds[i]
+		poolCreds := &datamodel.PoolCredentials{
+			CaURI:    caURI,
+			Username: cred.Username,
+		}
+		if cred.IsCertAuth && cred.CertificateID != "" {
+			poolCreds.CertificateID = cred.CertificateID
+			poolCreds.CertPrivateKeySecretID = cred.CertPrivateKeySecretID
+			poolCreds.AuthType = env.USER_CERTIFICATE
+			return poolCreds
+		}
+		poolCreds.SecretID = cred.SecretID
+		if poolCreds.SecretID != "" {
+			poolCreds.AuthType = env.USERNAME_PWD_SEC_MGR
+		} else {
+			poolCreds.AuthType = env.USERNAME_PWD
+		}
+		return poolCreds
+	}
+	return nil
 }
 
 // VCMOntapCredential is a flattened VCM ONTAP credential entry. Type is one of

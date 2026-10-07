@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -238,6 +239,61 @@ func (fakeSvmActivity) CreateQoSPolicyAndApplyToSVM(_ context.Context, _ *datamo
 	return nil
 }
 
+func (fakeSvmActivity) UpdateNFSRWSizeOnSVM(_ context.Context, _ *datamodel.Svm, _ *coremodels.Node) error {
+	return nil
+}
+
+type failingSvmActivity struct{}
+
+func (failingSvmActivity) CreateQoSPolicyAndApplyToSVM(_ context.Context, _ *datamodel.Pool, _ *datamodel.Svm, _ *coremodels.Node) error {
+	return errors.New("qos activity called")
+}
+
+type failingNfsSvmActivity struct{}
+
+func (failingNfsSvmActivity) UpdateNFSRWSizeOnSVM(_ context.Context, _ *datamodel.Svm, _ *coremodels.Node) error {
+	return errors.New("nfs activity called")
+}
+
+type fakeOntapModeCredentialActivity struct{}
+
+func (fakeOntapModeCredentialActivity) ResolveOntapAdminPassword(
+	_ context.Context,
+	_ activities.ResolveOntapAdminPasswordRequest,
+) (*vlm.OntapCredentials, error) {
+	return &vlm.OntapCredentials{AdminPassword: "ModePassword123!"}, nil
+}
+
+func (fakeOntapModeCredentialActivity) ResolveOntapCertificate(
+	_ context.Context,
+	_ activities.ResolveOntapCertificateRequest,
+) (*vlm.OntapCredentials, error) {
+	return &vlm.OntapCredentials{
+		Certificate: vlm.OntapCertificate{
+			CommonName:  "mode-cert-user",
+			Certificate: "signed-certificate",
+			PrivateKey:  "private-key",
+		},
+	}, nil
+}
+
+// partialOntapModeCredentialActivity resolves the admin secret to a usable
+// password but the ONTAP-mode secret to an empty one, the shape a
+// present-but-unusable ONTAP-mode secret produces. Branching on the resource
+// name lets admin resolution succeed so the failure is pinned to the ONTAP-mode
+// credential rather than the admin one.
+type partialOntapModeCredentialActivity struct{}
+
+func (partialOntapModeCredentialActivity) ResolveOntapAdminPassword(
+	_ context.Context,
+	req activities.ResolveOntapAdminPasswordRequest,
+) (*vlm.OntapCredentials, error) {
+	if strings.Contains(req.SecretResourceName, "mode") {
+		return &vlm.OntapCredentials{}, nil
+	}
+	return &vlm.OntapCredentials{AdminPassword: "AdminPassword123!"}, nil
+}
+
 func childCreateCluster(_ *orchestrator.Context, req *vlm.CreateVSAClusterDeploymentRequest) (*vlm.CreateVSAClusterDeploymentResponse, error) {
 	cfg := req.VLMConfig
 	if len(cfg.Cloud.HAPairs) == 0 {
@@ -463,6 +519,29 @@ func TestPoolUpdateWorkflowE2E_ExpiredDeadline_MarksJobErrorBeforeWork(t *testin
 		assert.NotEqual(t, vcmdb.JobStateProcessing, update.State)
 		assert.NotEqual(t, jobStepGetCluster, update.Step)
 	}
+}
+
+func childCreateExpertModeUser(
+	_ *orchestrator.Context,
+	req *vlm.OntapExpertModeUserConfig,
+) (*vlm.OntapExpertModeUserResponse, error) {
+	if req.RbacFileURL != "gs://bucket/rbac" || req.RbacFileChecksum != "checksum" {
+		return nil, orchestrator.NewNonRetryableApplicationError("unexpected RBAC file", "TEST", nil)
+	}
+	switch req.AuthenticationType {
+	case vlmAuthenticationTypePassword:
+		if req.Username != "mode-user" || req.ExpertModeUserCredentials.AdminPassword != "ModePassword123!" {
+			return nil, orchestrator.NewNonRetryableApplicationError("unexpected password credentials", "TEST", nil)
+		}
+	case vlmAuthenticationTypeCertificate:
+		if req.Username != "mode-cert-user" ||
+			req.ExpertModeUserCredentials.Certificate.Certificate != "signed-certificate" {
+			return nil, orchestrator.NewNonRetryableApplicationError("unexpected certificate credentials", "TEST", nil)
+		}
+	default:
+		return nil, orchestrator.NewNonRetryableApplicationError("unexpected authentication type", "TEST", nil)
+	}
+	return &vlm.OntapExpertModeUserResponse{RbacFileChecksum: req.RbacFileChecksum}, nil
 }
 
 func TestPoolWorkflowE2E_HappyPath_MarksJobDone(t *testing.T) {
@@ -693,6 +772,230 @@ func newPoolParams(requestID string) *commonparams.CreatePoolParams {
 			// then fails fast (no admin secret id) before any cloud activity.
 		},
 	}
+}
+
+func newOntapModePoolParams(requestID string) *commonparams.CreatePoolParams {
+	params := newPoolParams(requestID)
+	params.VCM.Mode = "ONTAP"
+	params.VCM.QosType = "manual"
+	params.VCM.OntapModeRbacFileURL = "gs://bucket/rbac"
+	params.VCM.OntapModeRbacChecksum = "checksum"
+	params.VCM.OntapCredentials = []commonparams.VCMOntapCredential{
+		{Type: "admin", SecretID: "projects/project/secrets/admin", Username: "root"},
+		{Type: "ontap-mode", SecretID: "projects/project/secrets/mode", Username: "mode-user"},
+	}
+	return params
+}
+
+func withLocalOntapEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+	origEnv, origPw := runningEnv, vcmLocalOntapPassword
+	runningEnv, vcmLocalOntapPassword = localEnv, "local-admin-pw"
+	t.Cleanup(func() { runningEnv, vcmLocalOntapPassword = origEnv, origPw })
+}
+
+// withNonLocalOntapEnv drives the production credential path: both
+// resolveOntapCredentials and resolveOntapModeCredentials dispatch the Secret
+// Manager activities instead of using the local flags, so callers must register
+// those activities. This is the path that validates activity-based resolution
+// (password, certificate common name, empty-secret handling).
+func withNonLocalOntapEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("PROVIDER", vlm.GCPCloud)
+	origEnv := runningEnv
+	runningEnv = "staging"
+	t.Cleanup(func() { runningEnv = origEnv })
+}
+
+func TestPoolWorkflowE2E_OntapModeCreatesUser(t *testing.T) {
+	withNonLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, newOntapModePoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterActivity(fakeSvmActivity{}.UpdateNFSRWSizeOnSVM)
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childCreateExpertModeUser)
+	})
+
+	require.NoError(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State)
+	assert.Contains(t, store.states(), vcmdb.JobStateProcessing)
+}
+
+type recordingQoSSvmActivity struct {
+	pools chan *datamodel.Pool
+}
+
+func (a *recordingQoSSvmActivity) CreateQoSPolicyAndApplyToSVM(_ context.Context, pool *datamodel.Pool, _ *datamodel.Svm, _ *coremodels.Node) error {
+	a.pools <- pool
+	return nil
+}
+
+// The QoS activity skips the SVM-wide ceiling for manual QoS unless the pool is
+// ONTAP mode, so the synthetic pool must carry the access mode.
+func TestPoolWorkflowE2E_OntapModeQoSPoolCarriesAccessMode(t *testing.T) {
+	withNonLocalOntapEnv(t)
+
+	qos := &recordingQoSSvmActivity{pools: make(chan *datamodel.Pool, 1)}
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, newOntapModePoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(qos.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterActivity(fakeSvmActivity{}.UpdateNFSRWSizeOnSVM)
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childCreateExpertModeUser)
+	})
+	require.NoError(t, err)
+
+	select {
+	case pool := <-qos.pools:
+		assert.Equal(t, commonparams.ONTAPMode, pool.APIAccessMode)
+	default:
+		t.Fatal("QoS activity was not called")
+	}
+}
+
+// ONTAP maps an incoming client certificate to an account by common name, so
+// the user must be created under the resolved CN rather than the configured
+// username.
+func TestPoolWorkflowE2E_OntapModeCertificateUsesResolvedCommonName(t *testing.T) {
+	withNonLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	params := newOntapModePoolParams(reqID)
+	params.VCM.OntapCredentials[1] = commonparams.VCMOntapCredential{
+		Type:                   "ontap-mode",
+		Username:               "ignored-username",
+		CertificateID:          "mode-certificate",
+		CertPrivateKeySecretID: "mode-private-key",
+		IsCertAuth:             true,
+	}
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterActivity(fakeSvmActivity{}.UpdateNFSRWSizeOnSVM)
+		// Admin resolves by password; the ONTAP-mode user resolves by
+		// certificate, so both activities are registered.
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapCertificate)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childCreateExpertModeUser)
+	})
+
+	require.NoError(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State)
+}
+
+// A present-but-empty ONTAP-mode secret must fail the job before the
+// expert-mode child workflow runs, not create a user with no password.
+func TestPoolWorkflowE2E_OntapModeUnusableCredentialFailsJob(t *testing.T) {
+	withNonLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, newOntapModePoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		// Admin resolves to a usable password; the ONTAP-mode secret resolves
+		// empty, so the job must fail on the ONTAP-mode credential.
+		reg.RegisterActivity(partialOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+
+	require.Error(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateError, last.State)
+	assert.Contains(t, last.ErrorMessage, "resolved value is empty")
+}
+
+// ONTAP-mode pools need the SVM QoS ceiling even under manual QoS, because the
+// tenant can create volumes directly and would otherwise be unbounded.
+func TestPoolWorkflowE2E_OntapModeManualQosStillCreatesCeiling(t *testing.T) {
+	withLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, newOntapModePoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(failingSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterActivity(fakeSvmActivity{}.UpdateNFSRWSizeOnSVM)
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+
+	require.Error(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateError, last.State)
+	assert.Equal(t, jobStepCreateQoSPolicy, last.Step)
+	assert.Contains(t, last.ErrorMessage, "qos activity called")
+}
+
+// ONTAP-mode tenants create NFS volumes directly on the cluster, so the SVM's
+// NFS TCP max transfer size must be raised at pool create. Failing the NFS
+// activity while the QoS activity would succeed also pins the ordering: the NFS
+// step runs first, so its error is the one that fails the job.
+func TestPoolWorkflowE2E_OntapModeAppliesNfsTransferSizeBeforeQos(t *testing.T) {
+	withLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, newOntapModePoolParams(reqID), func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterActivity(failingNfsSvmActivity{}.UpdateNFSRWSizeOnSVM)
+		reg.RegisterActivity(fakeOntapModeCredentialActivity{}.ResolveOntapAdminPassword)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+
+	require.Error(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateError, last.State)
+	assert.Equal(t, jobStepNfsTransferSize, last.Step)
+	assert.Contains(t, last.ErrorMessage, "nfs activity called")
+}
+
+// A DEFAULT-mode pool must not touch the NFS transfer size: the managed volume
+// path owns that setting. Registering no NFS activity proves it is never called.
+func TestPoolWorkflowE2E_DefaultModeSkipsNfsTransferSize(t *testing.T) {
+	withLocalOntapEnv(t)
+
+	reqID := uuid.NewString()
+	params := newOntapModePoolParams(reqID)
+	params.VCM.Mode = "DEFAULT"
+	params.VCM.QosType = "auto"
+	store := newE2EJobStore(&vcmdb.Job{ID: reqID, State: vcmdb.JobStateNew})
+	err := runPoolWorkflowE2EWithReg(t, store, params, func(reg orchestrator.WorkflowRegistrar) {
+		reg.RegisterActivity(stubPoolActivity{}.IdentifyVMs)
+		reg.RegisterActivity(fakeSvmActivity{}.CreateQoSPolicyAndApplyToSVM)
+		reg.RegisterWorkflowWithName(vlm.CreateVSAClusterDeploymentWorkflowName, childCreateCluster)
+		reg.RegisterWorkflowWithName(vlm.CreateVSASVMWorkflowName, childCreateSVM)
+	})
+
+	require.NoError(t, err)
+	last, ok := store.lastUpdate()
+	require.True(t, ok)
+	assert.Equal(t, vcmdb.JobStateDone, last.State)
 }
 
 func TestPoolWorkflowE2E_ProcessingJob_ResumesToDone(t *testing.T) {

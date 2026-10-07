@@ -269,6 +269,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg.RegisterActivity(credentialActivity.ResolveOntapAdminPassword)
 	reg.RegisterActivity(credentialActivity.ResolveOntapCertificate)
 	reg.RegisterActivity(svmActivity.CreateQoSPolicyAndApplyToSVM)
+	reg.RegisterActivity(svmActivity.UpdateNFSRWSizeOnSVM)
 	reg.RegisterActivity(svmActivity.GetSvmByName)
 	reg.RegisterActivity(vcmHostGroupActivity.ValidateHostGroupsExistInONTAP)
 	reg.RegisterActivity(vcmHostGroupActivity.CreateIgroup)

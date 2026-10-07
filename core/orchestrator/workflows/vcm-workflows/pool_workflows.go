@@ -9,6 +9,7 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	vcmclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm/vcm-client"
+	coremodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs"
@@ -39,14 +40,22 @@ func wfLogger(ctx *orchestrator.Context) orchestrator.UnifiedLogger {
 
 // Durable job step labels surfaced as the operation's current_step.
 const (
-	jobStepStarting        = "starting"
-	jobStepCreateCluster   = "create-cluster-deployment"
-	jobStepCreateSVM       = "create-svm"
-	jobStepCreateQoSPolicy = "create-qos-policy"
-	jobStepGetCluster      = "get-cluster-deployment"
-	jobStepIdentifyVMs     = "identify-vms"
-	jobStepUpdateCluster   = "update-cluster-deployment"
-	jobStepCompleted       = "completed"
+	jobStepStarting            = "starting"
+	jobStepCreateCluster       = "create-cluster-deployment"
+	jobStepCreateSVM           = "create-svm"
+	jobStepNfsTransferSize     = "update-nfs-transfer-size"
+	jobStepCreateQoSPolicy     = "create-qos-policy"
+	jobStepCreateOntapModeUser = "create-ontap-mode-user"
+	jobStepGetCluster          = "get-cluster-deployment"
+	jobStepIdentifyVMs         = "identify-vms"
+	jobStepUpdateCluster       = "update-cluster-deployment"
+	jobStepCompleted           = "completed"
+)
+
+// Authentication types understood by the VLM expert-mode user workflow.
+const (
+	vlmAuthenticationTypePassword    = "password"
+	vlmAuthenticationTypeCertificate = "certificate"
 )
 
 // VLM's AccessSecretVersion call rejects secret resource names without a
@@ -72,6 +81,9 @@ var (
 	vcmLocalOntapPassword = env.GetString("VCM_LOCAL_ONTAP_PASSWORD", "")
 	// extIPForNodeMgmt assigns an external IP to the node-management LIF.
 	extIPForNodeMgmt = env.GetBool("VCM_EXT_IP_FOR_NODE_MGMT", false)
+
+	vcmLocalOntapModeUsername = env.GetString("VCM_LOCAL_ONTAP_MODE_USERNAME", "")
+	vcmLocalOntapModePassword = env.GetString("VCM_LOCAL_ONTAP_MODE_PASSWORD", "")
 
 	vmrsConfigPath = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
 
@@ -589,6 +601,10 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	var pa *activities.PoolActivity
 	var sa *activities.SvmActivity
 
+	if err := wf.validateOntapModeInputs(); err != nil {
+		return err
+	}
+
 	logger := wfLogger(ctx)
 	p := wf.req
 	deploymentID := p.DeploymentID
@@ -602,6 +618,18 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		logger.Error("workflow: resolve ONTAP admin password failed",
 			"deploymentName", deploymentID, "error", err)
 		return err
+	}
+
+	var ontapModeUsername, ontapModeAuthenticationType string
+	var ontapModeCreds vlm.OntapCredentials
+	if wf.inputs.IsOntapMode {
+		ontapModeUsername, ontapModeAuthenticationType, ontapModeCreds, err =
+			resolveOntapModeCredentials(ctx, wf.inputs.OntapModeCredentials)
+		if err != nil {
+			logger.Error("workflow: resolve ONTAP mode credentials failed",
+				"deploymentName", deploymentID, "error", err)
+			return err
+		}
 	}
 
 	if err := checkDeadline(ctx, wf.req.Deadline, "identify-vms"); err != nil {
@@ -710,15 +738,10 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 	logger.Info("workflow: VLM SVM created", "svmName", svmName)
 
 	qosType := mapQosType(wf.req.QosType)
-	if qosType != utils.QosTypeManual {
-		dbPool := &datamodel.Pool{
-			Name:    deploymentID,
-			QosType: qosType,
-			PoolAttributes: &datamodel.PoolAttributes{
-				ThroughputMibps: wf.req.ThroughputMibps,
-				Iops:            wf.req.Iops,
-			},
-		}
+	// Both SVM-level steps below are needed whenever QoS is not manual, and
+	// always for ONTAP-mode pools: the SVM-wide QoS policy is the ceiling that
+	// bounds what a customer can drive through direct ONTAP access.
+	if qosType != utils.QosTypeManual || wf.inputs.IsOntapMode {
 		svm := &datamodel.Svm{
 			Name: svmName,
 			SvmDetails: &datamodel.SvmDetails{
@@ -741,6 +764,27 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 			ServerName:       vsa.OntapSNIServerName(deploymentID),
 		})
 
+		if wf.inputs.IsOntapMode {
+			if err := wf.applyNfsTransferSize(ctx, sa, svm, node); err != nil {
+				return err
+			}
+		}
+
+		dbPool := &datamodel.Pool{
+			Name:    deploymentID,
+			QosType: qosType,
+			PoolAttributes: &datamodel.PoolAttributes{
+				ThroughputMibps: wf.req.ThroughputMibps,
+				Iops:            wf.req.Iops,
+			},
+		}
+		// CreateQoSPolicyAndApplyToSVM skips the SVM-wide ceiling for manual QoS
+		// unless the pool is ONTAP mode, because ONTAP-mode tenants reach the
+		// cluster directly and are bounded only by that ceiling.
+		if wf.inputs.IsOntapMode {
+			dbPool.APIAccessMode = commonparams.ONTAPMode
+		}
+
 		if err := checkDeadline(ctx, wf.req.Deadline, "create-qos-policy"); err != nil {
 			return err
 		}
@@ -754,6 +798,127 @@ func (wf *createPoolWorkflow) provision(ctx *orchestrator.Context) error {
 		logger.Info("workflow: QoS policy created and applied to SVM", "svmName", svmName, "qosType", qosType)
 	}
 
+	if wf.inputs.IsOntapMode {
+		if err := checkDeadline(ctx, wf.req.Deadline, "create-ontap-mode-user"); err != nil {
+			return err
+		}
+		if err := wf.provisionOntapModeUser(ctx, ontapCreds, ontapModeCreds,
+			ontapModeUsername, ontapModeAuthenticationType); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateOntapModeInputs rejects an ONTAP-mode pool whose dedicated user or
+// RBAC role file is not fully specified, before any provisioning starts.
+//
+// CreatePoolParams already rejects these at the API boundary. The check is
+// repeated here because crash recovery re-dispatches a persisted request
+// straight into the workflow, which does not pass through that boundary again.
+func (wf *createPoolWorkflow) validateOntapModeInputs() error {
+	if !wf.inputs.IsOntapMode {
+		return nil
+	}
+	if wf.inputs.OntapModeCredentials == nil {
+		return fmt.Errorf("provision ONTAP mode user: ONTAP_MODE credential is missing")
+	}
+	if strings.TrimSpace(wf.req.OntapModeRbacFileURL) == "" {
+		return fmt.Errorf("provision ONTAP mode user: RBAC file URL is missing")
+	}
+	if strings.TrimSpace(wf.req.OntapModeRbacChecksum) == "" {
+		return fmt.Errorf("provision ONTAP mode user: RBAC file checksum is missing")
+	}
+	return nil
+}
+
+// applyNfsTransferSize raises the SVM's NFS TCP max transfer size.
+//
+// On the managed path the control plane does this when the first NFS volume is
+// created. ONTAP-mode tenants create volumes directly on the cluster, so VCM
+// never observes that first create and pool create is the only opportunity —
+// the same reason VCP applies it here for ONTAP-mode pools. The setting is
+// SVM-scoped and independent of whether a NAS LIF exists yet.
+func (wf *createPoolWorkflow) applyNfsTransferSize(
+	ctx *orchestrator.Context,
+	sa *activities.SvmActivity,
+	svm *datamodel.Svm,
+	node *coremodels.Node,
+) error {
+	if err := checkDeadline(ctx, wf.req.Deadline, jobStepNfsTransferSize); err != nil {
+		return err
+	}
+
+	wf.setStep(ctx, jobStepNfsTransferSize)
+	logger := wfLogger(ctx)
+	if err := orchestrator.ExecuteActivity(ctx, sa.UpdateNFSRWSizeOnSVM, svm, node).Get(ctx, nil); err != nil {
+		logger.Error("workflow: update NFS TCP max transfer size on SVM failed",
+			"deploymentName", wf.req.DeploymentID, "svmName", svm.Name, "error", err)
+		return fmt.Errorf("update NFS TCP max transfer size on SVM: %w", err)
+	}
+	logger.Info("workflow: NFS TCP max transfer size applied to SVM", "svmName", svm.Name)
+	return nil
+}
+
+// provisionOntapModeUser creates the dedicated ONTAP-mode user and applies its
+// restricted RBAC role through the VLM expert-mode child workflow. The admin
+// credentials authenticate the call; the mode credentials are the material the
+// new user is created with.
+//
+// The guards below cover this function's arguments, which are resolved material
+// rather than the request fields validateOntapModeInputs already checked.
+func (wf *createPoolWorkflow) provisionOntapModeUser(
+	ctx *orchestrator.Context,
+	adminCredentials vlm.OntapCredentials,
+	modeCredentials vlm.OntapCredentials,
+	username string,
+	authenticationType string,
+) error {
+	if strings.TrimSpace(username) == "" {
+		return fmt.Errorf("provision ONTAP mode user: username is missing")
+	}
+	switch authenticationType {
+	case vlmAuthenticationTypeCertificate:
+		if modeCredentials.Certificate.Certificate == "" {
+			return fmt.Errorf("provision ONTAP mode user: resolved certificate is empty")
+		}
+	case vlmAuthenticationTypePassword:
+		if modeCredentials.AdminPassword == "" {
+			return fmt.Errorf("provision ONTAP mode user: resolved password is empty")
+		}
+	default:
+		return fmt.Errorf("provision ONTAP mode user: unsupported authentication type %q", authenticationType)
+	}
+
+	wf.setStep(ctx, jobStepCreateOntapModeUser)
+	logger := wfLogger(ctx)
+	logger.Info("workflow: invoking VLM ONTAP mode user child workflow",
+		"deploymentName", wf.req.DeploymentID,
+		"username", username,
+		"authenticationType", authenticationType)
+
+	_, err := vcmclient.InvokeCreateExpertModeUser(ctx, &vlm.OntapExpertModeUserConfig{
+		VLMConfig:                 wf.vlmCfg,
+		OntapCredentials:          adminCredentials,
+		ExpertModeUserCredentials: modeCredentials,
+		Username:                  username,
+		AuthenticationType:        authenticationType,
+		RbacFileURL:               wf.req.OntapModeRbacFileURL,
+		RbacFileChecksum:          wf.req.OntapModeRbacChecksum,
+	})
+	if err != nil {
+		logger.Error("workflow: VLM ONTAP mode user creation failed",
+			"deploymentName", wf.req.DeploymentID,
+			"username", username,
+			"authenticationType", authenticationType,
+			"error", err)
+		return fmt.Errorf("VLM ONTAP mode user creation: %w", err)
+	}
+	logger.Info("workflow: VLM ONTAP mode user created",
+		"deploymentName", wf.req.DeploymentID,
+		"username", username,
+		"authenticationType", authenticationType)
 	return nil
 }
 
@@ -820,6 +985,68 @@ func resolveOntapCredentials(ctx *orchestrator.Context, poolCreds *datamodel.Poo
 		return vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP admin password: resolved value is empty")
 	}
 	return creds, nil
+}
+
+// resolveOntapModeCredentials dereferences the dedicated ONTAP-mode credential,
+// returning the user's name, its authentication type and the resolved material.
+//
+// Locally it uses VCM_LOCAL_ONTAP_MODE_USERNAME / VCM_LOCAL_ONTAP_MODE_PASSWORD
+// instead of Secret Manager, mirroring the admin path (resolveOntapCredentials)
+// and the local passthrough. The invariant is preserved either way: the ONTAP
+// Mode passthrough authenticates from the same source on every request, so pool
+// creation must provision the user from identical material or the two paths
+// disagree and requests fail with 401. Local therefore forces password auth for
+// the user, exactly as the admin path does.
+func resolveOntapModeCredentials(
+	ctx *orchestrator.Context,
+	poolCreds *datamodel.PoolCredentials,
+) (string, string, vlm.OntapCredentials, error) {
+	if isLocalEnv() {
+		return vcmLocalOntapModeUsername, vlmAuthenticationTypePassword,
+			vlm.OntapCredentials{AdminPassword: vcmLocalOntapModePassword}, nil
+	}
+	if poolCreds == nil {
+		return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode credentials: credential is missing")
+	}
+
+	var ca *activities.VCMCredentialActivity
+	if poolCreds.AuthType == env.USER_CERTIFICATE && poolCreds.CertificateID != "" {
+		var creds vlm.OntapCredentials
+		if err := orchestrator.ExecuteActivity(ctx, ca.ResolveOntapCertificate, activities.ResolveOntapCertificateRequest{
+			PoolCredentials: poolCreds,
+		}).Get(ctx, &creds); err != nil {
+			return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode certificate: %w", err)
+		}
+		// The cert-mapped ONTAP user must be named for the subject the client
+		// certificate presents: ONTAP maps an incoming client certificate to an
+		// account by common name, so a user created under the separately
+		// configured username would never authenticate.
+		if strings.TrimSpace(creds.Certificate.CommonName) == "" {
+			return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode certificate: resolved common name is empty")
+		}
+		if creds.Certificate.Certificate == "" {
+			return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode certificate: resolved certificate is empty")
+		}
+		return creds.Certificate.CommonName, vlmAuthenticationTypeCertificate, creds, nil
+	}
+
+	if poolCreds.SecretID == "" {
+		return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode password: credential secret id is missing")
+	}
+	if strings.TrimSpace(poolCreds.Username) == "" {
+		return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode password: username is missing")
+	}
+
+	var creds vlm.OntapCredentials
+	if err := orchestrator.ExecuteActivity(ctx, ca.ResolveOntapAdminPassword, activities.ResolveOntapAdminPasswordRequest{
+		SecretResourceName: poolCreds.SecretID,
+	}).Get(ctx, &creds); err != nil {
+		return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode password: %w", err)
+	}
+	if creds.AdminPassword == "" {
+		return "", "", vlm.OntapCredentials{}, fmt.Errorf("resolve ONTAP mode password: resolved value is empty")
+	}
+	return poolCreds.Username, vlmAuthenticationTypePassword, creds, nil
 }
 
 // ontapLicenseForCreate returns the license VLM installs at cluster create.

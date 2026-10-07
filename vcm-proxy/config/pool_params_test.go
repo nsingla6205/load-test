@@ -33,7 +33,8 @@ func poolSeedStore(t *testing.T, mutate func(*vcmserver.SeedConfigV1)) *Store {
 			Nodemgmt: vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "mgmt-vpc", Subnet: "mgmt-subnet"}),
 			Data:     vcmserver.NewOptNetInterfaceConfigV1(vcmserver.NetInterfaceConfigV1{Vpc: "data-vpc", Subnet: "data-subnet"}),
 		})
-		seed.OntapCredentials = defaultOntapCredentials("admin-secret")
+		seed.OntapCredentials = ontapModeOntapCredentials(
+			passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEONTAPMODE, "mode-user", "mode-secret"))
 		if mutate != nil {
 			mutate(seed)
 		}
@@ -42,18 +43,45 @@ func poolSeedStore(t *testing.T, mutate func(*vcmserver.SeedConfigV1)) *Store {
 	return store
 }
 
-func testClusterShape() vcmserver.ClusterShapeV1 {
-	return vcmserver.ClusterShapeV1{
-		ProvisionedThroughputMibps: vcmserver.NewOptInt64(1024),
-		ProvisionedIops:            vcmserver.NewOptInt64(5000),
-		ProvisionedSizeInBytes:     vcmserver.NewOptInt64(1099511627776),
-		QosType:                    vcmserver.NewOptString("auto"),
-		Mode:                       vcmserver.NewOptClusterShapeV1Mode(vcmserver.ClusterShapeV1ModeONTAP),
-		RegionIdentifier:           vcmserver.NewOptString("34"),
-		AutoTieringConfig: vcmserver.NewOptAutoTieringConfigV1(vcmserver.AutoTieringConfigV1{
-			AutoTierBucketName: vcmserver.NewOptString("bucket-1"),
-		}),
+// ontapModeOntapCredentials returns the baseline credentials plus an ONTAP-mode
+// user, which an ONTAP-mode create requires.
+func ontapModeOntapCredentials(mode vcmserver.UserCredentialsV1) vcmserver.OptOntapCredentialsV1 {
+	creds := defaultOntapCredentials("admin-secret").Value
+	creds.OntapModeUserCredentials.SetTo(mode)
+	return vcmserver.NewOptOntapCredentialsV1(creds)
+}
+
+// ontapModeShape builds a shape selecting ONTAP mode. An empty fileURL and
+// checksum leave the RBAC pair unset.
+func ontapModeShape(fileURL, checksum string) vcmserver.ClusterShapeV1 {
+	shape := vcmserver.ClusterShapeV1{
+		Mode: vcmserver.NewOptClusterShapeV1Mode(vcmserver.ClusterShapeV1ModeONTAP),
 	}
+	if fileURL == "" && checksum == "" {
+		return shape
+	}
+	rbac := vcmserver.OntapModeRbacV1{}
+	if fileURL != "" {
+		rbac.RbacFileUrl.SetTo(fileURL)
+	}
+	if checksum != "" {
+		rbac.RbacFileCheckSum.SetTo(checksum)
+	}
+	shape.OntapModeRbac.SetTo(rbac)
+	return shape
+}
+
+func testClusterShape() vcmserver.ClusterShapeV1 {
+	shape := ontapModeShape("gs://request-bucket/ontap-mode.yaml", "request-checksum")
+	shape.ProvisionedThroughputMibps = vcmserver.NewOptInt64(1024)
+	shape.ProvisionedIops = vcmserver.NewOptInt64(5000)
+	shape.ProvisionedSizeInBytes = vcmserver.NewOptInt64(1099511627776)
+	shape.QosType = vcmserver.NewOptString("auto")
+	shape.RegionIdentifier = vcmserver.NewOptString("34")
+	shape.AutoTieringConfig = vcmserver.NewOptAutoTieringConfigV1(vcmserver.AutoTieringConfigV1{
+		AutoTierBucketName: vcmserver.NewOptString("bucket-1"),
+	})
+	return shape
 }
 
 func TestStore_SeedPoolParams_MapsConfiguredInputs(t *testing.T) {
@@ -73,21 +101,27 @@ func TestStore_SeedPoolParams_MapsConfiguredInputs(t *testing.T) {
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "mgmt-vpc", Subnet: "mgmt-subnet"}, params.NodeMgmt)
 	require.NotNil(t, params.Data)
 	assert.Equal(t, commonparams.VCMNetConfig{VPC: "data-vpc", Subnet: "data-subnet"}, *params.Data)
-	// admin (adminPassSecretId) + default (VCM_ADMIN) entries.
-	require.Len(t, params.OntapCredentials, 2)
+	// admin (adminPassSecretId) + default (VCM_ADMIN) + ontap-mode entries.
+	require.Len(t, params.OntapCredentials, 3)
 	assert.Equal(t, "admin-pass", commonparams.AdminPasswordSecret(params.OntapCredentials))
-	var def commonparams.VCMOntapCredential
+	var def, mode commonparams.VCMOntapCredential
 	for _, c := range params.OntapCredentials {
-		if c.Type == "default" {
+		switch c.Type {
+		case "default":
 			def = c
+		case "ontap-mode":
+			mode = c
 		}
 	}
 	assert.Equal(t, "admin-secret", def.SecretID, "default user resolves its password secret")
 	assert.Empty(t, def.CertificateID, "password auth must not resolve certificate material")
+	assert.Equal(t, "mode-user", mode.Username)
+	assert.Equal(t, "mode-secret", mode.SecretID)
 
 	// Request-owned fields stay zero until the shape is overlaid.
 	assert.Empty(t, params.Mode)
 	assert.Zero(t, params.SizeInBytes)
+	assert.Empty(t, params.OntapModeRbacFileURL, "the RBAC pair is request-owned")
 }
 
 func TestStore_SeedPoolParams_AbsentDataNetStaysNil(t *testing.T) {
@@ -237,10 +271,16 @@ func TestApplyClusterShape(t *testing.T) {
 	assert.Equal(t, int64(1099511627776), params.SizeInBytes)
 	assert.Equal(t, "34", params.RegionIdentifier)
 	assert.Equal(t, "bucket-1", params.AutoTierBucketName)
+	assert.Equal(t, "gs://request-bucket/ontap-mode.yaml", params.OntapModeRbacFileURL)
+	assert.Equal(t, "request-checksum", params.OntapModeRbacChecksum)
 }
 
 func TestApplyClusterShape_EmptyShapeDefaultsMode(t *testing.T) {
-	params := &commonparams.VCMCreatePoolParams{RegionIdentifier: "keep-me"}
+	params := &commonparams.VCMCreatePoolParams{
+		RegionIdentifier:      "keep-me",
+		OntapModeRbacFileURL:  "gs://keep/rbac",
+		OntapModeRbacChecksum: "keep-checksum",
+	}
 
 	ApplyClusterShape(params, vcmserver.ClusterShapeV1{})
 
@@ -248,6 +288,8 @@ func TestApplyClusterShape_EmptyShapeDefaultsMode(t *testing.T) {
 	assert.Zero(t, params.ThroughputMibps)
 	assert.Empty(t, params.AutoTierBucketName)
 	assert.Equal(t, "keep-me", params.RegionIdentifier, "unset regionIdentifier must not clear the existing value")
+	assert.Equal(t, "gs://keep/rbac", params.OntapModeRbacFileURL, "unset RBAC must not clear the existing pair")
+	assert.Equal(t, "keep-checksum", params.OntapModeRbacChecksum)
 }
 
 func TestStore_CreatePoolParams_MergesRequestControlsWithConfig(t *testing.T) {
@@ -261,6 +303,8 @@ func TestStore_CreatePoolParams_MergesRequestControlsWithConfig(t *testing.T) {
 	assert.Equal(t, deadline, params.VCM.Deadline)
 	assert.Equal(t, "gcnv-test", params.VCM.DeploymentID)
 	assert.Equal(t, "ONTAP", params.VCM.Mode)
+	assert.Equal(t, "gs://request-bucket/ontap-mode.yaml", params.VCM.OntapModeRbacFileURL)
+	assert.Equal(t, "request-checksum", params.VCM.OntapModeRbacChecksum)
 }
 
 func TestStore_CreatePoolParams_PropagatesConfigError(t *testing.T) {
@@ -270,4 +314,87 @@ func TestStore_CreatePoolParams_PropagatesConfigError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
+}
+
+func TestStore_CreatePoolParams_ValidatesOntapModeInputs(t *testing.T) {
+	tests := []struct {
+		name      string
+		mutate    func(*vcmserver.SeedConfigV1)
+		shape     vcmserver.ClusterShapeV1
+		wantError string
+	}{
+		{
+			name: "missing ONTAP-mode credential",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				seed.OntapCredentials = defaultOntapCredentials("admin-secret")
+			},
+			shape:     testClusterShape(),
+			wantError: "ontapModeUserCredentials",
+		},
+		{
+			name: "password credential without username",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				seed.OntapCredentials = ontapModeOntapCredentials(
+					passwordUser(vcmserver.UserCredentialsV1UserPurposePURPOSEONTAPMODE, "", "mode-secret"))
+			},
+			shape:     testClusterShape(),
+			wantError: "username",
+		},
+		{
+			name: "DEFAULT mode does not require the ONTAP-mode credential",
+			mutate: func(seed *vcmserver.SeedConfigV1) {
+				seed.OntapCredentials = defaultOntapCredentials("admin-secret")
+			},
+			shape: vcmserver.ClusterShapeV1{
+				Mode: vcmserver.NewOptClusterShapeV1Mode(vcmserver.ClusterShapeV1ModeDEFAULT),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := poolSeedStore(t, tt.mutate).
+				CreatePoolParams("req-1", time.Now().UTC().Add(time.Hour), tt.shape)
+
+			if tt.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}
+
+func TestValidateOntapModeRbac(t *testing.T) {
+	tests := []struct {
+		name      string
+		shape     vcmserver.ClusterShapeV1
+		wantError string
+	}{
+		{name: "complete pair", shape: ontapModeShape("gs://bucket/rbac", "checksum")},
+		{name: "missing pair", shape: ontapModeShape("", ""), wantError: "rbacFileUrl"},
+		{name: "checksum without file URL", shape: ontapModeShape("", "checksum"), wantError: "rbacFileUrl"},
+		{name: "file URL without checksum", shape: ontapModeShape("gs://bucket/rbac", ""), wantError: "rbacFileCheckSum"},
+		{name: "blank file URL", shape: ontapModeShape("  ", "checksum"), wantError: "rbacFileUrl"},
+		{
+			name:  "DEFAULT mode does not require the pair",
+			shape: vcmserver.ClusterShapeV1{Mode: vcmserver.NewOptClusterShapeV1Mode(vcmserver.ClusterShapeV1ModeDEFAULT)},
+		},
+		{name: "unset mode defaults to DEFAULT", shape: vcmserver.ClusterShapeV1{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateOntapModeRbac(tt.shape)
+
+			if tt.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
 }

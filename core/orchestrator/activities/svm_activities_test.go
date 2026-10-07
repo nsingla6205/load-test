@@ -1015,6 +1015,43 @@ func TestUpdateNFSRWSizeOnSVM(t *testing.T) {
 	})
 }
 
+// The VCM pool-create path executes this activity on the go-workflows backend,
+// where ctx is an ordinary context rather than a Temporal activity context.
+// Reaching into the Temporal SDK there panics with "Not an activity context",
+// which fails pool create at the update-nfs-transfer-size step.
+//
+// The activity is called directly rather than through NewTestActivityEnvironment
+// because that harness installs a Temporal activity context and would hide the
+// regression. Inputs are valid so execution runs past the validation guards and
+// reaches the heartbeat.
+func TestUpdateNFSRWSizeOnSVM_RunsOutsideTemporalActivityContext(t *testing.T) {
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() {
+		vsa.GetProviderByNode = originalGetProviderByNode
+	}()
+
+	providerResolved := false
+	vsa.GetProviderByNode = func(_ context.Context, _ *coremodel.Node) (vsa.Provider, error) {
+		providerResolved = true
+		return nil, errors.New("provider error")
+	}
+
+	svm := &datamodel.Svm{
+		Name:       "test-svm",
+		SvmDetails: &datamodel.SvmDetails{ExternalUUID: "test-svm-uuid"},
+	}
+	node := &coremodel.Node{Name: "test-node"}
+
+	var err error
+	require.NotPanics(t, func() {
+		err = (&activities.SvmActivity{}).UpdateNFSRWSizeOnSVM(context.Background(), svm, node)
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider error")
+	assert.True(t, providerResolved, "the activity must run past the heartbeat, not abort at it")
+}
+
 // ---------------------------------------------------------------------------
 // ModifyQoSPolicyAndApplyToSVM
 // ---------------------------------------------------------------------------

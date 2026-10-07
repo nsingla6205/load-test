@@ -11,6 +11,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 )
 
+// expertModeWorkflowIDSuffix distinguishes the expert-mode user child workflow
+// from the other VLM children dispatched for the same deployment. The leading
+// "-" matches the other children's convention ("-create-cluster",
+// "-update-cluster", "-get-cluster") and keeps the deployment id a readable
+// prefix rather than running straight into the suffix.
+const expertModeWorkflowIDSuffix = "-exp-mode"
+
 // wfLogger resolves the engine-neutral workflow logger from the orchestrator
 // context, so log lines carry the workflow's correlation/deployment fields
 // instead of coming from a package-global logger. Both workflow backends
@@ -138,6 +145,49 @@ func InvokeCreateSVM(ctx *orchestrator.Context, req *vlm.CreateSVMRequest) (*vlm
 		if vsaerrors.As(handledErr, &customErr) && customErr.IsError(vsaerrors.ErrGCPResourceAlreadyExistsError) {
 			return nil, nil
 		}
+		return nil, apperror.WrapAsAppError(handledErr, false)
+	}
+	return resp, nil
+}
+
+// InvokeCreateExpertModeUser runs the VLM expert-mode user workflow as a child
+// workflow of VCM pool creation. The child workflow ID is keyed on the
+// deployment, so only one such child can be active per cluster.
+func InvokeCreateExpertModeUser(ctx *orchestrator.Context, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	if req == nil || req.VLMConfig.Deployment.DeploymentID == "" {
+		return nil, apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+				errors.New("deployment ID is required to create ONTAP mode user")), true)
+	}
+	return invokeExpertModeUser(ctx, req.VLMConfig.Deployment.DeploymentID+expertModeWorkflowIDSuffix, req)
+}
+
+func invokeExpertModeUser(ctx *orchestrator.Context, workflowID string, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	retryPolicy, err := vlm.PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentID := req.VLMConfig.Deployment.DeploymentID
+	workflowExecutionTimeout := vlm.WorkflowExecutionTimeoutMap[vlm.CreateVSAExpertModeUserWorkflowName]
+	childCtx := ctx.WithChildWorkflowOptions(orchestrator.ChildWorkflowOptions{
+		WorkflowID:               workflowID,
+		WorkflowExecutionTimeout: workflowExecutionTimeout,
+		RetryPolicy:              toRetryPolicy(retryPolicy),
+	})
+	childCtx = orchestrator.WithValue(childCtx, vlm.DeploymentIDKey, deploymentID)
+
+	logger := wfLogger(childCtx)
+	logger.Info("dispatching VLM child workflow",
+		"workflowName", vlm.CreateVSAExpertModeUserWorkflowName,
+		"workflowID", workflowID,
+		"executionTimeout", workflowExecutionTimeout.String())
+
+	resp := &vlm.OntapExpertModeUserResponse{}
+	if err := orchestrator.ExecuteChildWorkflow(childCtx, vlm.CreateVSAExpertModeUserWorkflowName, req).Get(childCtx, resp); err != nil {
+		logger.Error("VLM ONTAP mode user child workflow failed",
+			"workflowID", workflowID, "error", err.Error())
+		handledErr := vlm.NewVLMErrorHandler().HandleVLMError(err)
 		return nil, apperror.WrapAsAppError(handledErr, false)
 	}
 	return resp, nil

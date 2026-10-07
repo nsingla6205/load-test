@@ -213,6 +213,83 @@ func TestInvokeCreateSVM_ChildError_IsWrapped(t *testing.T) {
 	require.Error(t, err)
 }
 
+func parentInvokeExpertModeUser(ctx *orchestrator.Context, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	return InvokeCreateExpertModeUser(ctx, req)
+}
+
+func childExpertModeUserEcho(_ *orchestrator.Context, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	return &vlm.OntapExpertModeUserResponse{RbacFileChecksum: req.RbacFileChecksum}, nil
+}
+
+func childExpertModeUserPermError(_ *orchestrator.Context, _ *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	return nil, orchestrator.NewNonRetryableApplicationError("boom ONTAP mode user failure", "TEST", nil)
+}
+
+func TestInvokeCreateExpertModeUser_Validation(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *vlm.OntapExpertModeUserConfig
+	}{
+		{name: "nil request"},
+		{name: "missing deployment id", req: &vlm.OntapExpertModeUserConfig{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := InvokeCreateExpertModeUser(nil, tt.req)
+			require.Error(t, err)
+			appErr, ok := orchestrator.AsApplicationError(err)
+			require.True(t, ok)
+			assert.True(t, appErr.NonRetryable())
+		})
+	}
+}
+
+func TestInvokeCreateExpertModeUser_Success(t *testing.T) {
+	req := &vlm.OntapExpertModeUserConfig{RbacFileChecksum: "checksum"}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	var resp vlm.OntapExpertModeUserResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeExpertModeUser)
+		r.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childExpertModeUserEcho)
+	}, parentInvokeExpertModeUser, &resp, req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "checksum", resp.RbacFileChecksum)
+}
+
+func TestInvokeCreateExpertModeUser_ChildError_IsWrapped(t *testing.T) {
+	req := &vlm.OntapExpertModeUserConfig{}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	err := runInvokeE2E[vlm.OntapExpertModeUserResponse](t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeExpertModeUser)
+		r.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childExpertModeUserPermError)
+	}, parentInvokeExpertModeUser, nil, req)
+
+	require.Error(t, err)
+}
+
+// childExpertModeUserReportsID returns its own workflow ID in RbacFileChecksum
+// so tests can assert the ID the parent dispatched the child under.
+func childExpertModeUserReportsID(ctx *orchestrator.Context, _ *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	return &vlm.OntapExpertModeUserResponse{RbacFileChecksum: orchestrator.GetInfo(ctx).WorkflowExecution.ID}, nil
+}
+
+func TestInvokeCreateExpertModeUser_ChildIDKeyedOnDeployment(t *testing.T) {
+	req := &vlm.OntapExpertModeUserConfig{}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	var resp vlm.OntapExpertModeUserResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeExpertModeUser)
+		r.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childExpertModeUserReportsID)
+	}, parentInvokeExpertModeUser, &resp, req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "dep-1-exp-mode", resp.RbacFileChecksum)
+}
+
 func parentInvokeGetCluster(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
 	return InvokeGetClusterDeployment(ctx, req)
 }

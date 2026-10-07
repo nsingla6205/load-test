@@ -320,7 +320,12 @@ func (j *SvmActivity) UpdateNFSRWSizeOnSVM(ctx context.Context, svm *datamodel.S
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("node must not be nil")))
 	}
 
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting UpdateNFSRWSizeOnSVM activity - SVM: %s, node: %s", svm.Name, node.Name))
+	// orchestrator.RecordHeartbeat, not activity.RecordHeartbeat: this activity
+	// also runs on the VCM pool-create path, whose backend is go-workflows. The
+	// Temporal SDK panics with "Not an activity context" when handed a
+	// non-Temporal context, so heartbeats here must go through the backend-
+	// agnostic wrapper.
+	orchestrator.RecordHeartbeat(ctx, fmt.Sprintf("Starting UpdateNFSRWSizeOnSVM activity - SVM: %s, node: %s", svm.Name, node.Name))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)

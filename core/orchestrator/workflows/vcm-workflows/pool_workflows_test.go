@@ -184,6 +184,178 @@ func TestOntapNodeCredentials(t *testing.T) {
 	})
 }
 
+func TestValidateOntapModeInputs(t *testing.T) {
+	valid := func() *createPoolWorkflow {
+		return &createPoolWorkflow{
+			req: &commonparams.VCMCreatePoolParams{
+				OntapModeRbacFileURL:  "gs://bucket/rbac",
+				OntapModeRbacChecksum: "checksum",
+			},
+			inputs: &commonparams.VCMDerivedPoolInputs{
+				IsOntapMode:          true,
+				OntapModeCredentials: &datamodel.PoolCredentials{SecretID: "mode-secret"},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(*createPoolWorkflow)
+		wantError string
+	}{
+		{
+			name:      "missing credential",
+			mutate:    func(wf *createPoolWorkflow) { wf.inputs.OntapModeCredentials = nil },
+			wantError: "ONTAP_MODE credential is missing",
+		},
+		{
+			name:      "missing RBAC URL",
+			mutate:    func(wf *createPoolWorkflow) { wf.req.OntapModeRbacFileURL = "" },
+			wantError: "RBAC file URL is missing",
+		},
+		{
+			name:      "missing RBAC checksum",
+			mutate:    func(wf *createPoolWorkflow) { wf.req.OntapModeRbacChecksum = "" },
+			wantError: "RBAC file checksum is missing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wf := valid()
+			tt.mutate(wf)
+
+			err := wf.validateOntapModeInputs()
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+
+	t.Run("non-ONTAP mode needs nothing", func(t *testing.T) {
+		wf := valid()
+		wf.inputs.IsOntapMode = false
+		wf.inputs.OntapModeCredentials = nil
+		wf.req.OntapModeRbacFileURL = ""
+		wf.req.OntapModeRbacChecksum = ""
+
+		assert.NoError(t, wf.validateOntapModeInputs())
+	})
+}
+
+// The preconditions below are checked before any activity is dispatched, so a
+// nil context is sufficient to exercise them.
+func TestResolveOntapModeCredentials_Preconditions(t *testing.T) {
+	tests := []struct {
+		name      string
+		creds     *datamodel.PoolCredentials
+		wantError string
+	}{
+		{name: "missing credentials", wantError: "credential is missing"},
+		{
+			name:      "password missing secret id",
+			creds:     &datamodel.PoolCredentials{Username: "mode-user"},
+			wantError: "secret id is missing",
+		},
+		{
+			name:      "password missing username",
+			creds:     &datamodel.PoolCredentials{SecretID: "projects/p/secrets/mode"},
+			wantError: "username is missing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, _, err := resolveOntapModeCredentials(nil, tt.creds)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}
+
+// Locally the ONTAP Mode user is provisioned from the flags as a password user,
+// so the passthrough can authenticate as it without Secret Manager. No activity
+// is dispatched, so a nil context is sufficient and the stored credentials are
+// ignored entirely.
+func TestResolveOntapModeCredentials_LocalUsesFlags(t *testing.T) {
+	origEnv := runningEnv
+	origUser, origPw := vcmLocalOntapModeUsername, vcmLocalOntapModePassword
+	runningEnv = localEnv
+	vcmLocalOntapModeUsername, vcmLocalOntapModePassword = "mode-user", "mode-pw"
+	t.Cleanup(func() {
+		runningEnv = origEnv
+		vcmLocalOntapModeUsername, vcmLocalOntapModePassword = origUser, origPw
+	})
+
+	// A cert-configured credential still resolves to password locally: create
+	// installs no client certificate on a locally deployed cluster.
+	username, authType, creds, err := resolveOntapModeCredentials(nil, &datamodel.PoolCredentials{
+		AuthType:      env.USER_CERTIFICATE,
+		CertificateID: "projects/p/locations/l/caPools/cp/certificates/c",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "mode-user", username)
+	assert.Equal(t, vlmAuthenticationTypePassword, authType)
+	assert.Equal(t, "mode-pw", creds.AdminPassword)
+}
+
+func TestProvisionOntapModeUser_Preconditions(t *testing.T) {
+	wf := func() *createPoolWorkflow {
+		return &createPoolWorkflow{
+			req: &commonparams.VCMCreatePoolParams{
+				DeploymentID:          "dep-1",
+				OntapModeRbacFileURL:  "gs://bucket/rbac",
+				OntapModeRbacChecksum: "checksum",
+			},
+			inputs: &commonparams.VCMDerivedPoolInputs{
+				IsOntapMode:          true,
+				OntapModeCredentials: &datamodel.PoolCredentials{SecretID: "mode-secret"},
+			},
+		}
+	}
+
+	tests := []struct {
+		name               string
+		username           string
+		authenticationType string
+		modeCredentials    vlm.OntapCredentials
+		wantError          string
+	}{
+		{
+			name:               "missing username",
+			authenticationType: vlmAuthenticationTypePassword,
+			modeCredentials:    vlm.OntapCredentials{AdminPassword: "secret"},
+			wantError:          "username is missing",
+		},
+		{
+			name:               "unsupported authentication type",
+			username:           "mode-user",
+			authenticationType: "unknown",
+			wantError:          "unsupported authentication type",
+		},
+		{
+			name:               "empty resolved password",
+			username:           "mode-user",
+			authenticationType: vlmAuthenticationTypePassword,
+			wantError:          "resolved password is empty",
+		},
+		{
+			name:               "empty resolved certificate",
+			username:           "mode-user",
+			authenticationType: vlmAuthenticationTypeCertificate,
+			wantError:          "resolved certificate is empty",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := wf().provisionOntapModeUser(
+				nil, vlm.OntapCredentials{}, tt.modeCredentials, tt.username, tt.authenticationType)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}
+
 func TestCheckDeadline_UsesRequestDeadline(t *testing.T) {
 	withDeadlineTestLogger(t)
 	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)

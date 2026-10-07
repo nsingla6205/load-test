@@ -8,6 +8,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
+	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
 	weutil "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -25,6 +26,10 @@ func (h Handler) ClusterCreateV1(ctx context.Context, req *vcmserver.ClusterV1, 
 
 	requestID, deadline, err := parseRequestIDAndTimeout(queryParams.RequestId, queryParams.Timeout)
 	if err != nil {
+		return clusterCreateBadRequest(err.Error(), false), nil
+	}
+
+	if err := vcmconfig.ValidateOntapModeRbac(req.ClusterShape); err != nil {
 		return clusterCreateBadRequest(err.Error(), false), nil
 	}
 

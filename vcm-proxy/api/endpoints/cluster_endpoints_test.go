@@ -62,9 +62,15 @@ func seededSetConfig() *vcmserver.SetConfigRequestV1 {
 			def.Username.SetTo("root")
 			def.ActiveAuthMode.SetTo(vcmserver.UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD)
 			def.PasswordSecret.SetTo("vcm-secret")
+			mode := vcmserver.UserCredentialsV1{}
+			mode.UserPurpose.SetTo(vcmserver.UserCredentialsV1UserPurposePURPOSEONTAPMODE)
+			mode.Username.SetTo("mode-user")
+			mode.ActiveAuthMode.SetTo(vcmserver.UserCredentialsV1ActiveAuthModeAUTHMODEPASSWORD)
+			mode.PasswordSecret.SetTo("mode-secret")
 			oc := vcmserver.OntapCredentialsV1{}
 			oc.AdminPassSecretId.SetTo("admin-secret")
 			oc.DefaultModeUserCredentials.SetTo(def)
+			oc.OntapModeUserCredentials.SetTo(mode)
 			return vcmserver.NewOptOntapCredentialsV1(oc)
 		}(),
 	}
@@ -104,6 +110,10 @@ func clusterRequest() *vcmserver.ClusterV1 {
 			RegionIdentifier:           vcmserver.NewOptString("34"),
 			AutoTieringConfig: vcmserver.NewOptAutoTieringConfigV1(vcmserver.AutoTieringConfigV1{
 				AutoTierBucketName: vcmserver.NewOptString("bucket-1"),
+			}),
+			OntapModeRbac: vcmserver.NewOptOntapModeRbacV1(vcmserver.OntapModeRbacV1{
+				RbacFileUrl:      vcmserver.NewOptString("gs://rbac-bucket/ontap-mode.yaml"),
+				RbacFileCheckSum: vcmserver.NewOptString("rbac-checksum"),
 			}),
 		},
 	}
@@ -159,6 +169,8 @@ func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 	assert.Equal(t, int64(1099511627776), vcm.SizeInBytes)
 	assert.Equal(t, "34", vcm.RegionIdentifier)
 	assert.Equal(t, "bucket-1", vcm.AutoTierBucketName)
+	assert.Equal(t, "gs://rbac-bucket/ontap-mode.yaml", vcm.OntapModeRbacFileURL)
+	assert.Equal(t, "rbac-checksum", vcm.OntapModeRbacChecksum)
 
 	// Sourced from the in-memory setConfig seed, not from the request.
 	assert.Equal(t, testDeploymentID, vcm.DeploymentID)
@@ -174,17 +186,17 @@ func TestClusterCreateV1_MergesRequestShapeWithStoredConfig(t *testing.T) {
 	assert.Equal(t, "mgmt-subnet", vcm.NodeMgmt.Subnet)
 	require.NotNil(t, vcm.Data)
 	assert.Equal(t, "data-vpc", vcm.Data.VPC)
-	// admin (adminPassSecretId) + default (VCM_ADMIN) entries.
-	require.Len(t, vcm.OntapCredentials, 2)
+	// admin (adminPassSecretId) + default (VCM_ADMIN) + ontap-mode entries.
+	require.Len(t, vcm.OntapCredentials, 3)
 	assert.Equal(t, "admin-secret", common.AdminPasswordSecret(vcm.OntapCredentials))
-	var def common.VCMOntapCredential
-	for _, c := range vcm.OntapCredentials {
-		if c.Type == "default" {
-			def = c
-		}
+	credentialsByType := make(map[string]common.VCMOntapCredential, len(vcm.OntapCredentials))
+	for _, credential := range vcm.OntapCredentials {
+		credentialsByType[credential.Type] = credential
 	}
-	assert.Equal(t, "vcm-secret", def.SecretID)
-	assert.Empty(t, def.CertificateID, "password auth resolves via password, not certificate")
+	assert.Equal(t, "vcm-secret", credentialsByType["default"].SecretID)
+	assert.Empty(t, credentialsByType["default"].CertificateID, "password auth resolves via password, not certificate")
+	assert.Equal(t, "mode-secret", credentialsByType["ontap-mode"].SecretID)
+	assert.Equal(t, "mode-user", credentialsByType["ontap-mode"].Username)
 
 	mockOrch.AssertExpectations(t)
 }
@@ -278,6 +290,41 @@ func TestClusterCreateV1_UnseededConfig_ReturnsRetriableBadRequest(t *testing.T)
 	assert.True(t, badRequest.Retriable.Or(false), "CLH can re-seed config and retry")
 	assert.Contains(t, badRequest.Message, "deploymentId is not configured")
 	mockOrch.AssertNotCalled(t, "CreatePool", mock.Anything, mock.Anything)
+}
+
+func TestClusterCreateV1_OntapModeWithoutRbac_ReturnsNonRetriableBadRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		rbac    vcmserver.OptOntapModeRbacV1
+		wantMsg string
+	}{
+		{name: "pair omitted", wantMsg: "rbacFileUrl"},
+		{
+			name: "checksum omitted",
+			rbac: vcmserver.NewOptOntapModeRbacV1(vcmserver.OntapModeRbacV1{
+				RbacFileUrl: vcmserver.NewOptString("gs://rbac-bucket/ontap-mode.yaml"),
+			}),
+			wantMsg: "rbacFileCheckSum",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler, _, mockOrch := configuredClusterHandler(t)
+			req := clusterRequest()
+			req.ClusterShape.OntapModeRbac = tt.rbac
+
+			res, err := handler.ClusterCreateV1(context.Background(), req, fullClusterCreateParams())
+
+			require.NoError(t, err)
+			badRequest, ok := res.(*vcmserver.ClusterCreateV1BadRequest)
+			require.True(t, ok, "expected a BadRequest response, got %T", res)
+			assert.EqualValues(t, 400, badRequest.Code)
+			assert.False(t, badRequest.Retriable.Or(true), "the same request body cannot succeed on retry")
+			assert.Contains(t, badRequest.Message, tt.wantMsg)
+			mockOrch.AssertNotCalled(t, "CreatePool", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestClusterCreateV1_Success_ReturnsOperation(t *testing.T) {
