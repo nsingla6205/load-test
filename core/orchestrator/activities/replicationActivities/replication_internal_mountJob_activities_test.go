@@ -1343,6 +1343,44 @@ func TestMountVolume(t *testing.T) {
 		mockProvider.AssertExpectations(tt)
 	})
 
+	t.Run("Success_DuplicateJunction_Continues", func(tt *testing.T) {
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+		}()
+
+		mockProvider := new(vsa.MockProvider)
+		expectedMountParams := vsa.MountVolumeParams{
+			UUID:         "external-volume-uuid",
+			JunctionPath: "/test-creation-token",
+		}
+		providerError := errors.New("Failed to create junction record for volume test-volume. Reason: duplicate entry.")
+		mockProvider.On("MountVolume", expectedMountParams).Return(nil, providerError)
+
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		replication := &datamodel.VolumeReplication{
+			Volume: &datamodel.Volume{
+				Name: "test-volume",
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					ExternalUUID:  "external-volume-uuid",
+					CreationToken: "test-creation-token",
+					Protocols:     []string{"NFSV3"},
+				},
+			},
+		}
+		node := &models.Node{
+			EndpointAddress: "127.0.0.1",
+		}
+
+		activity := &MountJobActivity{}
+		err := activity.MountVolume(ctx, replication, node)
+
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+	})
+
 	t.Run("Success_WithEmptyCreationToken", func(tt *testing.T) {
 		defer func() {
 			activitiesGetProviderByNode = vsa.GetProviderByNode
@@ -1516,6 +1554,90 @@ func TestMountVolume(t *testing.T) {
 		_, err := env.ExecuteActivity(mountVolumeWrapper, replication, node)
 
 		// Verify results
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+		mockNAS.AssertExpectations(tt)
+	})
+
+	t.Run("Success_SMBVolume_DuplicateJunction_CreatesCifsShare", func(tt *testing.T) {
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			activitiesGetProviderByNode = vsa.GetProviderByNode
+			vsa.GetProviderByNode = originalGetProviderByNode
+			vsa.SetTestHooks(vsa.TestHooks{})
+		}()
+
+		mockClient := new(ontapRest.MockRESTClient)
+		mockNAS := new(ontapRest.MockNASClient)
+		mockClient.On("NAS").Return(mockNAS)
+		mockNAS.On("CifsShareCreate", mock.MatchedBy(func(params *ontapRest.CifsShareCreateParams) bool {
+			return params != nil && params.SvmName != nil && *params.SvmName == "destination-svm-name" &&
+				params.Path == "/test-creation-token" && params.Name == "test-creation-token"
+		})).Return(nil)
+
+		cleanupHooks := vsa.SetTestHooks(vsa.TestHooks{
+			GetOntapClient: func(ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+				return mockClient, nil
+			},
+		})
+		defer cleanupHooks()
+
+		mockProvider := new(vsa.MockProvider)
+		expectedMountParams := vsa.MountVolumeParams{
+			UUID:         "external-volume-uuid",
+			JunctionPath: "/test-creation-token",
+		}
+		providerError := errors.New("Failed to create junction record for volume test-volume. Reason: duplicate entry.")
+		mockProvider.On("MountVolume", expectedMountParams).Return(nil, providerError)
+
+		ontapProvider := &vsa.OntapRestProvider{
+			ClientParams: ontapRest.RESTClientParams{},
+		}
+
+		activitiesGetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return ontapProvider, nil
+		}
+
+		replication := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{
+				UUID: "replication-uuid",
+			},
+			Volume: &datamodel.Volume{
+				Name: "test-volume",
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					ExternalUUID:  "external-volume-uuid",
+					CreationToken: "test-creation-token",
+					Protocols:     []string{"SMB"},
+					FileProperties: &datamodel.FileProperties{
+						SMBShareSettings: []string{"browsable", "oplocks"},
+					},
+				},
+			},
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				DestinationSvmName: "destination-svm-name",
+			},
+		}
+		node := &models.Node{
+			EndpointAddress: "127.0.0.1",
+		}
+
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		adActivity := active_directory_activities.ActiveDirectoryActivity{}
+		env.RegisterActivity(adActivity.CreateJunctionPathForCifsShare)
+
+		mountVolumeWrapper := func(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node) error {
+			mountActivity := &MountJobActivity{}
+			return mountActivity.MountVolume(ctx, replication, node)
+		}
+		env.RegisterActivity(mountVolumeWrapper)
+
+		_, err := env.ExecuteActivity(mountVolumeWrapper, replication, node)
+
 		assert.NoError(tt, err)
 		mockProvider.AssertExpectations(tt)
 		mockClient.AssertExpectations(tt)

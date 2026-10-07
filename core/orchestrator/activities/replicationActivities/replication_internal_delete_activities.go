@@ -29,23 +29,30 @@ type InternalVolumeReplicationDeleteActivity struct {
 }
 
 // GetVolumeReplicationFromOntap returns the live SnapMirror relationship from ONTAP.
-// It returns nil when the replication has no relationship UUID or ONTAP no longer has it.
+// When the relationship UUID is set it looks up by that UUID. When the UUID is empty it
+// looks up by source and destination path, matching the internal stop activity.
+// It returns nil when the replication record is missing or ONTAP no longer has the relationship.
 func (a *InternalVolumeReplicationDeleteActivity) GetVolumeReplicationFromOntap(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node) (*vsa.VolumeReplication, error) {
 	logger := util.GetLogger(ctx)
-	if replication == nil || replication.ReplicationAttributes == nil || replication.ReplicationAttributes.ExternalUUID == "" {
-		logger.Info("No SnapMirror relationship UUID on replication; skipping ONTAP lookup")
+	if replication == nil || replication.ReplicationAttributes == nil {
+		logger.Info("No replication attributes; skipping ONTAP lookup")
 		return nil, nil
 	}
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	ontapReplication, err := provider.GetVolumeReplication(&vsa.VolumeReplication{
-		ExternalUUID: replication.ReplicationAttributes.ExternalUUID,
-	})
+	lookup := buildSnapmirrorLookupParams(replication)
+	var ontapReplication *vsa.VolumeReplication
+	if lookup.ExternalUUID == "" {
+		logger.Info("No SnapMirror relationship UUID on replication; looking up by source and destination path")
+		ontapReplication, err = provider.GetVolumeReplicationFromSrcAndDstPath(lookup)
+	} else {
+		ontapReplication, err = provider.GetVolumeReplication(lookup)
+	}
 	if err != nil {
 		if errors.IsNotFoundErr(err) || strings.Contains(err.Error(), "entry doesn't exist") || strings.Contains(err.Error(), "entry not found") {
-			logger.Info("SnapMirror relationship not found on ONTAP", "relationshipUUID", replication.ReplicationAttributes.ExternalUUID)
+			logger.Info("SnapMirror relationship not found on ONTAP", "relationshipUUID", lookup.ExternalUUID)
 			return nil, nil
 		}
 		logger.Error("Failed to get volume replication from ONTAP", "error", err)

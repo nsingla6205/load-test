@@ -178,12 +178,15 @@ func (j *MountJobActivity) MountVolume(ctx context.Context, replication *datamod
 	}
 	_, err = provider.MountVolume(mountParams)
 	if err != nil {
-		logger.Errorf("Failed to mount volume %s to junction path %s: %v", replication.Volume.Name, junctionPath, err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		if isDuplicateJunctionMountError(err) {
+			logger.Warnf("Ignoring duplicate junction mount for volume %s at %s: %v", replication.Volume.Name, junctionPath, err)
+		} else {
+			logger.Errorf("Failed to mount volume %s to junction path %s: %v", replication.Volume.Name, junctionPath, err)
+			return vsaerrors.WrapAsTemporalApplicationError(err)
+		}
 	}
 
 	logger.Debugf("Junction path updated successfully for volume %s in ONTAP", replication.Volume.Name)
-
 	// If volume is SMB, create CIFS share for the junction path
 	if replication.Volume.VolumeAttributes != nil &&
 		replication.Volume.VolumeAttributes.Protocols != nil &&
@@ -207,6 +210,16 @@ func (j *MountJobActivity) MountVolume(ctx context.Context, replication *datamod
 	}
 
 	return nil
+}
+
+// isDuplicateJunctionMountError reports an ONTAP mount that failed because the junction
+// path already exists. Concurrent mounts can race on the same volume.
+func isDuplicateJunctionMountError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate entry") && strings.Contains(msg, "junction")
 }
 
 func (j *MountJobActivity) UpdateVolumeDetailsInDB(ctx context.Context, replication *datamodel.VolumeReplication, lunDetails []*vsa.LunResponse) error {

@@ -490,6 +490,14 @@ func TestGetVolumeReplicationFromOntap(t *testing.T) {
 	replicationWithUUID := &datamodel.VolumeReplication{
 		ReplicationAttributes: &datamodel.ReplicationDetails{ExternalUUID: relationshipUUID},
 	}
+	replicationByPath := &datamodel.VolumeReplication{
+		ReplicationAttributes: &datamodel.ReplicationDetails{
+			SourceSvmName:         "source-svm",
+			SourceVolumeName:      "source-volume",
+			DestinationSvmName:    "destination-svm",
+			DestinationVolumeName: "destination-volume",
+		},
+	}
 	ontapReplication := &vsa.VolumeReplication{ExternalUUID: relationshipUUID, MirrorState: vsa.SnapmirrorStateMirrored}
 
 	tests := []struct {
@@ -497,6 +505,7 @@ func TestGetVolumeReplicationFromOntap(t *testing.T) {
 		replication      *datamodel.VolumeReplication
 		providerErr      error
 		mockGet          bool
+		mockGetByPath    bool
 		getResponse      *vsa.VolumeReplication
 		getErr           error
 		expectedResponse *vsa.VolumeReplication
@@ -512,8 +521,25 @@ func TestGetVolumeReplicationFromOntap(t *testing.T) {
 			replication: &datamodel.VolumeReplication{},
 		},
 		{
-			name:        "EmptyExternalUUID",
-			replication: &datamodel.VolumeReplication{ReplicationAttributes: &datamodel.ReplicationDetails{}},
+			name:             "EmptyExternalUUIDLooksUpByPath",
+			replication:      replicationByPath,
+			mockGetByPath:    true,
+			getResponse:      ontapReplication,
+			expectedResponse: ontapReplication,
+		},
+		{
+			name:          "EmptyExternalUUIDPathNotFound",
+			replication:   replicationByPath,
+			mockGetByPath: true,
+			getErr:        customerrors.NewNotFoundErr("snapmirror", nil),
+		},
+		{
+			name:          "EmptyExternalUUIDPathLookupFails",
+			replication:   replicationByPath,
+			mockGetByPath: true,
+			getErr:        errors.New("ontap unreachable"),
+			expectErr:     true,
+			expectedCode:  vsaerrors.ErrProviderGetVolumeReplication,
 		},
 		{
 			name:        "GetProviderFails",
@@ -570,6 +596,13 @@ func TestGetVolumeReplicationFromOntap(t *testing.T) {
 			if tc.mockGet {
 				mockProvider.On("GetVolumeReplication", &vsa.VolumeReplication{ExternalUUID: relationshipUUID}).
 					Return(tc.getResponse, tc.getErr).Once()
+			}
+			if tc.mockGetByPath {
+				mockProvider.On("GetVolumeReplicationFromSrcAndDstPath", mock.MatchedBy(func(v *vsa.VolumeReplication) bool {
+					return v.ExternalUUID == "" &&
+						v.SourcePath() == "source-svm:source-volume" &&
+						v.DestinationPath() == "destination-svm:destination-volume"
+				})).Return(tc.getResponse, tc.getErr).Once()
 			}
 
 			activity := InternalVolumeReplicationDeleteActivity{SE: database.NewMockStorage(tt)}
