@@ -17,7 +17,7 @@ func (s *Store) NodeProviderInput() (vsa.NodeProviderInput, error) {
 	if err != nil {
 		return vsa.NodeProviderInput{}, fmt.Errorf("%w: %v", datamodel.ErrInvalidConfig, err)
 	}
-	creds, err := poolCredentialsFromSetConfig(seed.OntapCredentials)
+	creds, err := nodeProviderCredentials(seed.OntapCredentials)
 	if err != nil {
 		return vsa.NodeProviderInput{}, fmt.Errorf("%w: %v", datamodel.ErrInvalidConfig, err)
 	}
@@ -35,6 +35,21 @@ func (s *Store) NodeProviderInput() (vsa.NodeProviderInput, error) {
 	}
 	applyVCMCertAuthNodeSNI(&input)
 	return input, nil
+}
+
+// nodeProviderCredentials returns ONTAP credentials from local env when ENV=local, otherwise from SetConfig.
+func nodeProviderCredentials(opt vcmserver.OptOntapCredentialsV1) (*datamodel.PoolCredentials, error) {
+	if env.IsLocalEnv() {
+		if env.VCMLocalUsername == "" || env.VCMLocalPassword == "" {
+			return nil, fmt.Errorf("VCM local ONTAP username and password are required")
+		}
+		return &datamodel.PoolCredentials{
+			Username: env.VCMLocalUsername,
+			Password: env.VCMLocalPassword,
+			AuthType: env.USERNAME_PWD,
+		}, nil
+	}
+	return poolCredentialsFromSetConfig(opt)
 }
 
 // applyVCMCertAuthNodeSNI mirrors the VCM create-pool ONTAP dial path. VCM has

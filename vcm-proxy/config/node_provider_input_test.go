@@ -112,6 +112,32 @@ func TestNodeProviderInput_PasswordAuth(t *testing.T) {
 	assert.Equal(t, "198.18.0.5", input.Nodes[0].EndpointAddress)
 }
 
+func TestNodeProviderInput_LocalUsesEnvironmentCredentials(t *testing.T) {
+	setLocalOntapCredentials(t, "local-admin", "local-password")
+	store := configuredStore(t, func(req *vcmserver.SetConfigRequestV1) {
+		mutateSeed(req, func(seed *vcmserver.SeedConfigV1) {
+			seed.OntapCredentials.Reset()
+		})
+	})
+
+	input, err := store.NodeProviderInput()
+	require.NoError(t, err)
+	require.NotNil(t, input.OntapCredentials)
+	assert.Equal(t, env.USERNAME_PWD, input.OntapCredentials.AuthType)
+	assert.Equal(t, "local-admin", input.OntapCredentials.Username)
+	assert.Equal(t, "local-password", input.OntapCredentials.Password)
+	assert.Empty(t, input.OntapCredentials.SecretID)
+}
+
+func TestNodeProviderInput_LocalRequiresEnvironmentCredentials(t *testing.T) {
+	setLocalOntapCredentials(t, "", "")
+
+	_, err := configuredStore(t, nil).NodeProviderInput()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, datamodel.ErrInvalidConfig)
+	assert.Contains(t, err.Error(), "local ONTAP username and password are required")
+}
+
 func TestNodeProviderInput_CertificateAuth(t *testing.T) {
 	// The default-mode user with AUTHMODE_CERT resolves the provided cert + key;
 	// the bootstrap admin password (adminPassSecretId) becomes SecretID.
@@ -423,6 +449,21 @@ func setVsaDeployedDnsName(t *testing.T, value string) func() {
 	previous := env.VsaDeployedDnsName
 	env.VsaDeployedDnsName = value
 	return func() { env.VsaDeployedDnsName = previous }
+}
+
+func setLocalOntapCredentials(t *testing.T, username, password string) {
+	t.Helper()
+	previousEnv := env.Env
+	previousUsername := env.VCMLocalUsername
+	previousPassword := env.VCMLocalPassword
+	env.Env = env.LocalEnv
+	env.VCMLocalUsername = username
+	env.VCMLocalPassword = password
+	t.Cleanup(func() {
+		env.Env = previousEnv
+		env.VCMLocalUsername = previousUsername
+		env.VCMLocalPassword = previousPassword
+	})
 }
 
 func TestPoolCredentialsFromSetConfig(t *testing.T) {

@@ -70,6 +70,8 @@ var (
 	runningEnv            = env.GetString("ENV", "")
 	vcmLocalOntapUsername = env.GetString("VCM_LOCAL_ONTAP_USERNAME", "")
 	vcmLocalOntapPassword = env.GetString("VCM_LOCAL_ONTAP_PASSWORD", "")
+	// extIPForNodeMgmt assigns an external IP to the node-management LIF.
+	extIPForNodeMgmt = env.GetBool("VCM_EXT_IP_FOR_NODE_MGMT", false)
 
 	vmrsConfigPath = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
 

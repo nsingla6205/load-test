@@ -249,6 +249,7 @@ func configureVCMVLMConfigForPoolCreate(cfg *vlm.VLMConfig) {
 	cfg.Deployment.DevFlags.EnableIlbSupport = true
 	cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport = true
 	cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier = "true"
+	cfg.Deployment.DevFlags.ExtIPForNodeMgmt = extIPForNodeMgmt
 }
 
 // configureVCMVLMConfigForPoolUpdate applies the same VCM flags to a config

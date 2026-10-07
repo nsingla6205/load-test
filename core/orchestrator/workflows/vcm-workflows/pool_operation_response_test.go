@@ -502,10 +502,12 @@ func decodeClusterLayout(t *testing.T, payload string) map[string]any {
 
 func TestConfigureVCMVLMConfigForPoolCreate_EnablesIlbSupport(t *testing.T) {
 	cfg := &vlm.VLMConfig{}
+	cfg.Deployment.DevFlags.ExtIPForNodeMgmt = !extIPForNodeMgmt
 	configureVCMVLMConfigForPoolCreate(cfg)
 	assert.True(t, cfg.Deployment.DevFlags.EnableIlbSupport)
 	assert.True(t, cfg.Deployment.DeploymentConfigFlags.EnableIlbSupport)
 	assert.Equal(t, "true", cfg.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier)
+	assert.Equal(t, extIPForNodeMgmt, cfg.Deployment.DevFlags.ExtIPForNodeMgmt)
 }
 
 func TestConfigureVCMVLMConfigForPoolUpdate_EnablesIlbSupport(t *testing.T) {
