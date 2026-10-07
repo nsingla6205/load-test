@@ -95,6 +95,47 @@ func (s *BackupVaultWorkflowsTestSuite) Test_UpdateBackupVaultWorkflow_Success()
 	assert.Nil(s.T(), s.env.GetWorkflowError())
 }
 
+// Test_UpdateBackupVaultWorkflow_ClearsDescriptionWhenCVSOmitsIt covers the CVS response
+// omitting a cleared description. The requested empty string must still reach the VCP save.
+func (s *BackupVaultWorkflowsTestSuite) Test_UpdateBackupVaultWorkflow_ClearsDescriptionWhenCVSOmitsIt() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultUpdateActivity := activities.BackupVaultActivity{SE: mockStorage}
+	des := "Updated description"
+	bv := &datamodel.BackupVault{
+		BaseModel:   datamodel.BaseModel{ID: int64(1), UUID: "vault-uuid"},
+		Name:        "backup_vault_test",
+		Description: &des,
+	}
+	sdeBackupVault := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{ID: int64(1), UUID: "vault-uuid"},
+		Name:      "backup_vault_test",
+	}
+	empty := ""
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE)
+	s.env.RegisterActivity(backupvaultUpdateActivity.UpdateBackupVaultInVCP)
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultInSDE, mock.Anything, mock.Anything).Return(sdeBackupVault, nil)
+	s.env.OnActivity(backupvaultUpdateActivity.UpdateBackupVaultInVCP, mock.Anything, mock.MatchedBy(func(updated *datamodel.BackupVault) bool {
+		return updated != nil && updated.Description != nil && *updated.Description == ""
+	}), mock.Anything).Return(sdeBackupVault, nil)
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(UpdateBackupVaultWorkflow, &common.BackupVaultParams{Description: &empty}, bv)
+
+	_, err := s.env.QueryWorkflowByID("default-test-workflow-id", "status")
+	assert.Nil(s.T(), err)
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
 // Test_CreateBackupVaultWorkflow_Success covers the cross-region hydration workflow:
 // it hydrates the destination region via CreateRemoteBackupVaultInVCP and completes successfully.
 func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_Success() {

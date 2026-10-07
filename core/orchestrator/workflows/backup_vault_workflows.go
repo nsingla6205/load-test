@@ -240,6 +240,12 @@ func (wf *backupVaultUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 		}
 	}
 
+	// CVS omits a cleared description from its response, which becomes a nil pointer.
+	// Keep the requested value, including "", so the VCP row is cleared instead of keeping the previous text.
+	if sdeBackupVault != nil && bvCommonParams.Description != nil {
+		sdeBackupVault.Description = bvCommonParams.Description
+	}
+
 	dbBackupVault := &datamodel.BackupVault{}
 	err = workflow.ExecuteActivity(ctx, backupVaultActivity.UpdateBackupVaultInVCP, sdeBackupVault, backupVault).Get(ctx, &dbBackupVault)
 	if err != nil {

@@ -1382,9 +1382,10 @@ func (h Handler) V1betaInternalUpdateBackupVault(ctx context.Context, req *gcpge
 		}, errors.New("projectNumber is required")
 	}
 
-	var description string
+	var description *string
 	if req.Description.IsSet() {
-		description = req.Description.Value
+		value := req.Description.Value
+		description = &value
 	}
 
 	var backupMinimumEnforcedRetentionDuration *int64
@@ -1415,7 +1416,7 @@ func (h Handler) V1betaInternalUpdateBackupVault(ctx context.Context, req *gcpge
 		AccountName:   params.ProjectNumber,
 		OwnerID:       params.ProjectNumber,
 		Region:        params.LocationId,
-		Description:   &description,
+		Description:   description,
 		BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{
 			BackupMinimumEnforcedRetentionDuration: backupMinimumEnforcedRetentionDuration,
 			IsDailyBackupImmutable:                 dailyBackupImmutable,

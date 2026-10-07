@@ -1037,8 +1037,9 @@ func _updateBackupVaultInSDE(ctx context.Context, req *gcpgenserver.BackupVaultU
 	GetSignedJwtToken := utils.GetJWTTokenFromContext(ctx)
 	cvpClient := createClient(logger, GetSignedJwtToken)
 	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
-	body := &models.BackupVaultUpdateV1beta{
-		Description: &description,
+	body := &models.BackupVaultUpdateV1beta{}
+	if req.Description.IsSet() {
+		body.Description = &description
 	}
 	brPolicy := convertBackupRetentionPolicyToCvpModelForUpdate(req.BackupRetentionPolicy)
 	if brPolicy != nil {
@@ -1268,9 +1269,10 @@ func (h Handler) V1betaUpdateBackupVault(ctx context.Context, req *gcpgenserver.
 			Message: parsingErr.Message,
 		}, nil
 	}
-	var description string
+	var description *string
 	if req.Description.IsSet() {
-		description = req.Description.Value
+		value := req.Description.Value
+		description = &value
 	}
 	backupVault, err := h.Orchestrator.GetBackupVaultByUUID(ctx, params.BackupVaultId, params.ProjectNumber)
 	if err != nil {
@@ -1288,7 +1290,11 @@ func (h Handler) V1betaUpdateBackupVault(ctx context.Context, req *gcpgenserver.
 		}
 		if !env.EnableBackupVaultVCPOrchestration {
 			// Flag off: proxy directly to SDE
-			sdeBvResponse, sdeErr := updateBackupVaultInSDE(ctx, req, params, description)
+			sdeDescription := ""
+			if description != nil {
+				sdeDescription = *description
+			}
+			sdeBvResponse, sdeErr := updateBackupVaultInSDE(ctx, req, params, sdeDescription)
 			if sdeErr != nil {
 				return nil, sdeErr
 			}
@@ -1378,7 +1384,7 @@ func (h Handler) V1betaUpdateBackupVault(ctx context.Context, req *gcpgenserver.
 
 	param := &commonparams.BackupVaultParams{
 		BackupVaultID:         params.BackupVaultId,
-		Description:           &description,
+		Description:           description,
 		OwnerID:               params.ProjectNumber,
 		Region:                params.LocationId,
 		BackupRetentionPolicy: *retentionParams,
@@ -1553,12 +1559,9 @@ func convertCoreToCvpBackupVault(coreBV *coremodels.BackupVaultV1beta) *models.B
 
 func convertCoreModelsToBackupVaultV1beta(beta *coremodels.BackupVaultV1beta) *gcpgenserver.BackupVaultV1beta {
 	var (
-		description, sourceBackupVault, destinationBackupVault, sourceRegion, backupRegion, backupVaultType string
+		sourceBackupVault, destinationBackupVault, sourceRegion, backupRegion, backupVaultType string
 	)
 	var backupMinimumEnforcedRetentionDuration int
-	if beta.Description != nil {
-		description = *beta.Description
-	}
 	if beta.BackupVaultType != nil {
 		backupVaultType = *beta.BackupVaultType
 	}
@@ -1582,7 +1585,6 @@ func convertCoreModelsToBackupVaultV1beta(beta *coremodels.BackupVaultV1beta) *g
 		State:           gcpgenserver.NewOptBackupVaultV1betaState(gcpgenserver.BackupVaultV1betaState(beta.LifeCycleState)),
 		StateDetails:    gcpgenserver.NewOptString(beta.LifeCycleStateDetails),
 		CreatedAt:       gcpgenserver.NewOptDateTime(time.Time(beta.CreatedAt)),
-		Description:     gcpgenserver.NewOptString(description),
 		ResourceId:      beta.Name,
 		BackupVaultType: gcpgenserver.NewOptBackupVaultV1betaBackupVaultType(gcpgenserver.BackupVaultV1betaBackupVaultType(backupVaultType)),
 		BackupRetentionPolicy: gcpgenserver.NewOptBackupRetentionPolicyV1beta(gcpgenserver.BackupRetentionPolicyV1beta{
@@ -1592,6 +1594,9 @@ func convertCoreModelsToBackupVaultV1beta(beta *coremodels.BackupVaultV1beta) *g
 			MonthlyBackupImmutable:             gcpgenserver.NewOptBool(beta.BackupRetentionPolicy.IsMonthlyBackupImmutable),
 			WeeklyBackupImmutable:              gcpgenserver.NewOptBool(beta.BackupRetentionPolicy.IsWeeklyBackupImmutable),
 		}),
+	}
+	if beta.Description != nil && *beta.Description != "" {
+		result.Description = gcpgenserver.NewOptString(*beta.Description)
 	}
 
 	if beta.BackupVaultType != nil && *beta.BackupVaultType == activities.CrossRegionBackupType {

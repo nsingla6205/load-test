@@ -5074,6 +5074,59 @@ func TestV1betaUpdateBackupVaultReturnsFoundWithbackupVaultSuccessful(t *testing
 	assert.Equal(t, "/v1beta/projects/1234567890/locations/valid-location/operations/operation-id", result.(*gcpgenserver.OperationV1beta).Name.Value)
 }
 
+func TestV1betaUpdateBackupVaultDescriptionPresence(t *testing.T) {
+	origBackupEnabled := backupEnabled
+	origParse := parseAndValidateRegionAndZone
+	defer func() {
+		backupEnabled = origBackupEnabled
+		parseAndValidateRegionAndZone = origParse
+	}()
+	backupEnabled = true
+	parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "valid-region", "valid-zone", nil
+	}
+
+	params := gcpgenserver.V1betaUpdateBackupVaultParams{
+		LocationId:    "valid-location",
+		ProjectNumber: "1234567890",
+		BackupVaultId: "vault-id",
+	}
+	ctx := context.Background()
+
+	t.Run("OmitsDescriptionWhenRequestLeavesItUnset", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByUUID", ctx, "vault-id", "1234567890").
+			Return(&coremodels.BackupVaultV1beta{Name: "vault-id", AccountName: "1234567890"}, nil)
+		mockOrchestrator.On("UpdateBackupVault", ctx, mock.MatchedBy(func(p *commonparams.BackupVaultParams) bool {
+			return p != nil && p.Description == nil
+		})).Return(&coremodels.BackupVaultV1beta{Name: "vault-id"}, "operation-id", nil)
+
+		result, err := Handler{Orchestrator: mockOrchestrator}.V1betaUpdateBackupVault(ctx, &gcpgenserver.BackupVaultUpdateV1beta{}, params)
+
+		assert.NoError(t, err)
+		assert.IsType(t, &gcpgenserver.OperationV1beta{}, result)
+	})
+
+	t.Run("PassesEmptyStringWhenRequestClearsDescription", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByUUID", ctx, "vault-id", "1234567890").
+			Return(&coremodels.BackupVaultV1beta{Name: "vault-id", AccountName: "1234567890"}, nil)
+		mockOrchestrator.On("UpdateBackupVault", ctx, mock.MatchedBy(func(p *commonparams.BackupVaultParams) bool {
+			return p != nil && p.Description != nil && *p.Description == ""
+		})).Return(&coremodels.BackupVaultV1beta{Name: "vault-id"}, "operation-id", nil)
+
+		req := &gcpgenserver.BackupVaultUpdateV1beta{
+			Description: gcpgenserver.NewOptString(""),
+		}
+		result, err := Handler{Orchestrator: mockOrchestrator}.V1betaUpdateBackupVault(ctx, req, params)
+
+		assert.NoError(t, err)
+		assert.IsType(t, &gcpgenserver.OperationV1beta{}, result)
+	})
+}
+
 func TestV1betaUpdateBackupVaultReturnsFoundWithbackupVaultSuccessfulWithNoOperation(t *testing.T) {
 	origBackupEnabled := backupEnabled
 	defer func() { backupEnabled = origBackupEnabled }()
@@ -5347,7 +5400,9 @@ func Test_updateBackupVaultInSDE(tt *testing.T) {
 		mockClient := backup_vault.NewMockClientService(t)
 		mockResp := &models.OperationV1beta{Name: "operation-id", Done: nillable.GetBoolPtr(true)}
 
-		mockClient.On("V1betaUpdateBackupVault", mock.Anything).Return(
+		mockClient.On("V1betaUpdateBackupVault", mock.MatchedBy(func(p *backup_vault.V1betaUpdateBackupVaultParams) bool {
+			return p != nil && p.Body != nil && p.Body.Description == nil
+		})).Return(
 			&backup_vault.V1betaUpdateBackupVaultAccepted{
 				Payload: mockResp,
 			}, nil).Once()
@@ -5362,6 +5417,39 @@ func Test_updateBackupVaultInSDE(tt *testing.T) {
 		}
 
 		result, err := _updateBackupVaultInSDE(context.Background(), req, params, "description")
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+	tt.Run("WhenDescriptionIsCleared", func(t *testing.T) {
+		params := gcpgenserver.V1betaUpdateBackupVaultParams{
+			LocationId:    "valid-location",
+			ProjectNumber: "1234567890",
+			BackupVaultId: "vault-id",
+		}
+		req := &gcpgenserver.BackupVaultUpdateV1beta{
+			Description: gcpgenserver.NewOptString(""),
+		}
+
+		mockClient := backup_vault.NewMockClientService(t)
+		mockResp := &models.OperationV1beta{Name: "operation-id", Done: nillable.GetBoolPtr(true)}
+
+		mockClient.On("V1betaUpdateBackupVault", mock.MatchedBy(func(p *backup_vault.V1betaUpdateBackupVaultParams) bool {
+			return p != nil && p.Body != nil && p.Body.Description != nil && *p.Body.Description == ""
+		})).Return(
+			&backup_vault.V1betaUpdateBackupVaultAccepted{
+				Payload: mockResp,
+			}, nil).Once()
+
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		originalCreateClient := createClient
+		defer func() {
+			createClient = originalCreateClient
+		}()
+		createClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return *cvpClient
+		}
+
+		result, err := _updateBackupVaultInSDE(context.Background(), req, params, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
@@ -6503,7 +6591,7 @@ func TestReturnsBackupVaultV1betaWithDefaultsWhenOptionalFieldsAreNil(t *testing
 	assert.Equal(t, "ACTIVE", string(result.State.Value))
 	assert.Equal(t, "All good", result.StateDetails.Value)
 	assert.Equal(t, "resource-id", result.ResourceId)
-	assert.NotNil(t, result.Description)
+	assert.False(t, result.Description.IsSet())
 	assert.NotNil(t, result.SourceBackupVault)
 	assert.NotNil(t, result.DestinationBackupVault)
 	assert.NotNil(t, result.SourceRegion)

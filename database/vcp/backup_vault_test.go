@@ -1125,6 +1125,77 @@ func TestUpdateBackupVaultInVCP(tt *testing.T) {
 		require.NotNil(t, result.ExternalUUID)
 		assert.Equal(t, extUUID, *result.ExternalUUID)
 	})
+
+	tt.Run("ClearsDescriptionWhenSetToEmptyString", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(t, store.db.Create(account).Error())
+
+		desc := "Updated description"
+		backupVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "test-bv-clear-uuid"},
+			Name:        "test_backup_vault",
+			AccountID:   account.ID,
+			Description: &desc,
+		}
+		require.NoError(t, store.db.Create(backupVault).Error())
+
+		empty := ""
+		updateParams := &datamodel.BackupVault{Description: &empty}
+		existingParams := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVault.UUID}}
+
+		result, err := store.UpdateBackupVaultInVCP(context.Background(), updateParams, existingParams)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Description)
+
+		var stored datamodel.BackupVault
+		require.NoError(t, store.db.GORM().Where("uuid = ?", backupVault.UUID).First(&stored).Error)
+		assert.Nil(t, stored.Description)
+	})
+
+	tt.Run("KeepsDescriptionWhenUpdateOmitsIt", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(t, store.db.Create(account).Error())
+
+		desc := "Updated description"
+		backupVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "test-bv-keep-uuid"},
+			Name:        "test_backup_vault",
+			AccountID:   account.ID,
+			Description: &desc,
+		}
+		require.NoError(t, store.db.Create(backupVault).Error())
+
+		extUUID := "external-uuid"
+		updateParams := &datamodel.BackupVault{ExternalUUID: &extUUID}
+		existingParams := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVault.UUID}}
+
+		_, err = store.UpdateBackupVaultInVCP(context.Background(), updateParams, existingParams)
+		require.NoError(t, err)
+
+		var stored datamodel.BackupVault
+		require.NoError(t, store.db.GORM().Where("uuid = ?", backupVault.UUID).First(&stored).Error)
+		require.NotNil(t, stored.Description)
+		assert.Equal(t, desc, *stored.Description)
+	})
 }
 
 func TestUpdateBackupVaultFields(tt *testing.T) {

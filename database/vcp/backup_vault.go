@@ -88,7 +88,17 @@ func (d *DataStoreRepository) UpdateBackupVaultInVCP(ctx context.Context, update
 		return nil, err
 	}
 
-	existingBackupVault.Description = updatedBackupVault.Description
+	// A nil description means this update did not include the field, so keep the stored value.
+	// An empty string is an explicit clear. GORM Updates skips nil, so the column is set to NULL below.
+	clearDescription := false
+	if updatedBackupVault.Description != nil {
+		if *updatedBackupVault.Description == "" {
+			clearDescription = true
+			existingBackupVault.Description = nil
+		} else {
+			existingBackupVault.Description = updatedBackupVault.Description
+		}
+	}
 	existingBackupVault.ImmutableAttributes = updatedBackupVault.ImmutableAttributes
 	existingBackupVault.CmekAttributes = updatedBackupVault.CmekAttributes
 	existingBackupVault.LifeCycleState = updatedBackupVault.LifeCycleState
@@ -101,6 +111,14 @@ func (d *DataStoreRepository) UpdateBackupVaultInVCP(ctx context.Context, update
 	err = tx.Updates(existingBackupVault).Error
 	if err != nil {
 		return nil, err
+	}
+	if clearDescription {
+		err = tx.Model(&datamodel.BackupVault{}).
+			Where("uuid = ?", existingBackupVault.UUID).
+			Update("description", nil).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return existingBackupVault, nil
