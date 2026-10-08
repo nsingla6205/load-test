@@ -422,11 +422,181 @@ func TestDetachAndRevokeStagedExpertCertificate_OrdersDetachBeforeRevoke(t *test
 			0,
 			"staged-expert-cert",
 			"project/pool/ca",
+			"project/pool/ca",
 			&certificateAuthorityCloud{},
 		)
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"detach", "revoke"}, order)
+}
+
+func TestDetachAndRevokeStagedExpertCertificateLegacyEmptyStagedCAURI(t *testing.T) {
+	ctx := context.Background()
+	const (
+		poolUUID       = "da414dc1-4e88-ebe5-967e-872a4d635519"
+		parentCAURI    = "491421327334/vsa-us-c1-pool-g1/vsa-us-c1-intermediate-g4"
+		parkedExpertID = "gcnv-17e1a8dee7ce7ec-cert-be93dda4_gadmin-20260816-000144"
+	)
+
+	newPool := func() *datamodel.Pool {
+		return &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: poolUUID},
+			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
+				ExpertModeCredential: []*datamodel.ExpertModeCredential{{
+					Username:         "gcnv_gadmin",
+					AuthType:         1,
+					CertificateID:    "gcnv-17e1a8dee7ce7ec-cert-be93dda4_gadmin-20260819-000317",
+					CertificateIDNew: parkedExpertID,
+				}},
+			},
+		}
+	}
+
+	t.Run("clears empty staged CA and revokes using the parent CA", func(t *testing.T) {
+		pool := newPool()
+		storage := database.NewMockStorage(t)
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: *pool}}, nil).
+			Once()
+		storage.On(
+			"CompareAndSwapExpertModeCredentials",
+			ctx,
+			poolUUID,
+			mock.MatchedBy(func(expected *datamodel.ExpertModeCredentials) bool {
+				current := expected.ExpertModeCredential[0]
+				return current.CertificateIDNew == parkedExpertID && current.StagedCaURI == ""
+			}),
+			mock.MatchedBy(func(updated *datamodel.ExpertModeCredentials) bool {
+				current := updated.ExpertModeCredential[0]
+				return current.CertificateIDNew == "" && current.StagedCaURI == ""
+			}),
+			mock.Anything,
+		).Return(nil).Once()
+
+		var revokedCAURI string
+		originalRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
+		t.Cleanup(func() { revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevoke })
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(
+			_ hyperscaler.Services,
+			credentials *datamodel.PoolCredentials,
+		) error {
+			revokedCAURI = credentials.CaURI
+			require.Equal(t, parkedExpertID, credentials.CertificateID)
+			return nil
+		}
+
+		err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			detachAndRevokeStagedExpertCertificate(
+				ctx,
+				poolUUID,
+				0,
+				parkedExpertID,
+				"",
+				parentCAURI,
+				&certificateAuthorityCloud{},
+			)
+
+		require.NoError(t, err)
+		require.Equal(t, parentCAURI, revokedCAURI)
+	})
+
+	t.Run("legacy revoke failure does not block promotion", func(t *testing.T) {
+		pool := newPool()
+		storage := database.NewMockStorage(t)
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: *pool}}, nil).
+			Once()
+		storage.On("CompareAndSwapExpertModeCredentials", ctx, poolUUID, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).
+			Once()
+		originalRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
+		t.Cleanup(func() { revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevoke })
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(
+			hyperscaler.Services,
+			*datamodel.PoolCredentials,
+		) error {
+			return errors.New("certificate not found")
+		}
+
+		err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			detachAndRevokeStagedExpertCertificate(
+				ctx,
+				poolUUID,
+				0,
+				parkedExpertID,
+				"",
+				parentCAURI,
+				&certificateAuthorityCloud{},
+			)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("known staged CA revoke failure still fails", func(t *testing.T) {
+		pool := newPool()
+		pool.ExpertModeCredentials.ExpertModeCredential[0].StagedCaURI = parentCAURI
+		storage := database.NewMockStorage(t)
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: *pool}}, nil).
+			Once()
+		storage.On("CompareAndSwapExpertModeCredentials", ctx, poolUUID, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil).
+			Once()
+		originalRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
+		t.Cleanup(func() { revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevoke })
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(
+			hyperscaler.Services,
+			*datamodel.PoolCredentials,
+		) error {
+			return errors.New("certificate not found")
+		}
+
+		err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			detachAndRevokeStagedExpertCertificate(
+				ctx,
+				poolUUID,
+				0,
+				parkedExpertID,
+				parentCAURI,
+				parentCAURI,
+				&certificateAuthorityCloud{},
+			)
+
+		require.Error(t, err)
+	})
+
+	t.Run("staged pair mismatch does not revoke", func(t *testing.T) {
+		pool := newPool()
+		pool.ExpertModeCredentials.ExpertModeCredential[0].StagedCaURI = parentCAURI
+		storage := database.NewMockStorage(t)
+		storage.On("ListPools", ctx, mock.Anything).
+			Return([]*datamodel.PoolView{{Pool: *pool}}, nil).
+			Once()
+		revoked := false
+		originalRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
+		t.Cleanup(func() { revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevoke })
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(
+			hyperscaler.Services,
+			*datamodel.PoolCredentials,
+		) error {
+			revoked = true
+			return nil
+		}
+
+		err := (&RotateVcpToVsaCertificateActivity{SE: storage}).
+			detachAndRevokeStagedExpertCertificate(
+				ctx,
+				poolUUID,
+				0,
+				parkedExpertID,
+				"",
+				parentCAURI,
+				&certificateAuthorityCloud{},
+			)
+
+		require.ErrorContains(t, err, "staged pair changed")
+		require.False(t, revoked)
+	})
 }
 
 func TestPreflightCertificateIssuanceRejectsDisabledCABeforeONTAP(t *testing.T) {

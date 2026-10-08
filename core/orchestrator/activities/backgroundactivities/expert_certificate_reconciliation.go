@@ -266,13 +266,17 @@ func (a *RotateVcpToVsaCertificateActivity) reconcileOneExpertModeCredential(
 		stage: func(certificateID, caURI string) error {
 			return a.updateExpertModeStaging(ctx, poolUUID, index, "", "", certificateID, caURI)
 		},
-		detach: func(certificateID, caURI string) error {
+		detach: func(certificateID, cleanupCAURI string) error {
+			// cleanupCAURI is the issuer used to revoke the parked certificate.
+			// When staged_ca_uri is empty, prepareStagedCertificateCandidate
+			// passes the parent CA. The compare still expects the stored empty value.
 			return a.detachAndRevokeStagedExpertCertificate(
 				ctx,
 				poolUUID,
 				index,
 				certificateID,
-				caURI,
+				credential.StagedCaURI,
+				cleanupCAURI,
 				cloudService,
 			)
 		},
@@ -417,11 +421,16 @@ func (a *RotateVcpToVsaCertificateActivity) backfillExpertModeCredentialCAURI(
 	)
 }
 
+// detachAndRevokeStagedExpertCertificate clears certificate_id_new when the stored
+// staged CA still matches expectedStagedCAURI. cleanupCAURI is the revoke issuer
+// for a parked certificate that has no staged_ca_uri, which is how demoted expert
+// credentials recorded certificate_id_new. That revoke is best-effort so a missing
+// legacy certificate does not block AuthType promotion.
 func (a *RotateVcpToVsaCertificateActivity) detachAndRevokeStagedExpertCertificate(
 	ctx context.Context,
 	poolUUID string,
 	index int,
-	certificateID, caURI string,
+	certificateID, expectedStagedCAURI, cleanupCAURI string,
 	cloudService hyperscaler.Services,
 ) error {
 	if err := a.updateExpertModeStaging(
@@ -429,16 +438,27 @@ func (a *RotateVcpToVsaCertificateActivity) detachAndRevokeStagedExpertCertifica
 		poolUUID,
 		index,
 		certificateID,
-		caURI,
+		expectedStagedCAURI,
 		"",
 		"",
 	); err != nil {
 		return err
 	}
-	if caURI == "" {
+	revokeCAURI := expectedStagedCAURI
+	if revokeCAURI == "" {
+		revokeCAURI = cleanupCAURI
+	}
+	if revokeCAURI == "" {
 		return nil
 	}
-	return a.revokeOldCertificate(ctx, certificateID, caURI, cloudService)
+	if err := a.revokeOldCertificate(ctx, certificateID, revokeCAURI, cloudService); err != nil {
+		if expectedStagedCAURI != "" {
+			return err
+		}
+		util.GetLogger(ctx).Warnf("Failed to revoke legacy staged expert certificate %s: %v", certificateID, err)
+		return nil
+	}
+	return nil
 }
 
 func (a *RotateVcpToVsaCertificateActivity) updateExpertModeStaging(
