@@ -8935,6 +8935,67 @@ func TestDefaultLargeVolumeConstituentCount_UsesPoolHAPairs(t *testing.T) {
 		defaultLargeVolumeConstituentCount("__not_allowlisted__", &datamodel.PoolAttributes{}, false))
 }
 
+func TestMinimumConstituentVolumeSize_OnlySixHAPairActiveActiveUsesFiftyGiB(t *testing.T) {
+	sixHAPool := &datamodel.PoolView{Pool: datamodel.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal: true,
+			LvHAPairs:   common.LvHAPairsNodeCount12,
+		},
+	}}
+	defaultCount := common.SixHAPairActiveActiveDefaultConstituentCount()
+	tests := []struct {
+		name  string
+		pool  *datamodel.PoolView
+		count int64
+		want  uint64
+	}{
+		{
+			name:  "six HA pair active-active default constituent count",
+			pool:  sixHAPool,
+			count: defaultCount,
+			want:  minSixHAPairTZCVSizeBytes,
+		},
+		{
+			name:  "six HA pair active-active custom constituent count",
+			pool:  sixHAPool,
+			count: 8,
+			want:  minCVSizeInBytes,
+		},
+		{
+			name: "twelve HA pair active-active",
+			pool: &datamodel.PoolView{Pool: datamodel.Pool{
+				LargeCapacity: true,
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount24,
+				},
+			}},
+			want: minCVSizeInBytes,
+		},
+		{
+			name: "six HA pair non true-zonal",
+			pool: &datamodel.PoolView{Pool: datamodel.Pool{
+				LargeCapacity: true,
+				PoolAttributes: &datamodel.PoolAttributes{
+					LvHAPairs: common.LvHAPairsNodeCount12,
+				},
+			}},
+			want: minCVSizeInBytes,
+		},
+		{
+			name: "nil pool",
+			want: minCVSizeInBytes,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, minimumConstituentVolumeSize(tt.pool, tt.count))
+		})
+	}
+}
+
 // Test_createLargeVolume_DefaultConstituentCount tests default constituent count calculation
 // when LargeVolumeConstituentCount is not provided
 func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
@@ -19728,6 +19789,111 @@ func Test_validateUpdateVolumeRequest_LargeCapacity(t *testing.T) {
 		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "Constituent volume size cannot be less than")
+	})
+
+	t.Run("TwelveHAPairUpdate_CVSizeBelowHundredGiB_ShouldFail", func(tt *testing.T) {
+		largeCapacityPool := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				LargeCapacity: true,
+				SizeInBytes:   int64(25 * 1125899906842624),
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount24,
+				},
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+				},
+			},
+		}
+
+		cvCount := int32(96)
+		volume := &datamodel.Volume{
+			State:       "READY",
+			Name:        "test-volume",
+			SizeInBytes: int64(5 * 1099511627776),
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &cvCount,
+			},
+		}
+
+		params := &common.UpdateVolumeParams{
+			QuotaInBytes: int64(8 * 1099511627776),
+		}
+
+		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "Constituent volume size cannot be less than 100GiB")
+	})
+
+	t.Run("SixHAPairUpdate_CVSizeAboveFiftyGiB_ShouldPass", func(tt *testing.T) {
+		largeCapacityPool := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				LargeCapacity: true,
+				SizeInBytes:   int64(25 * 1125899906842624),
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount12,
+				},
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+				},
+			},
+		}
+
+		// 8 TiB across the default six-HA-pair constituent count is above 50 GiB each.
+		cvCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+		volume := &datamodel.Volume{
+			State:       "READY",
+			Name:        "test-volume",
+			SizeInBytes: int64(5 * 1099511627776),
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &cvCount,
+			},
+		}
+
+		params := &common.UpdateVolumeParams{
+			QuotaInBytes: int64(8 * 1099511627776),
+		}
+
+		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
+		assert.NoError(tt, err)
+	})
+
+	t.Run("SixHAPairUpdate_CVSizeBelowFiftyGiB_ShouldFail", func(tt *testing.T) {
+		largeCapacityPool := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				LargeCapacity: true,
+				SizeInBytes:   int64(25 * 1125899906842624),
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount12,
+				},
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+				},
+			},
+		}
+
+		cvCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+		volume := &datamodel.Volume{
+			State:       "READY",
+			Name:        "test-volume",
+			SizeInBytes: int64(4 * 1099511627776),
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &cvCount,
+			},
+		}
+
+		params := &common.UpdateVolumeParams{
+			QuotaInBytes: int64(cvCount) * int64(minSixHAPairTZCVSizeBytes-1),
+		}
+
+		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "Constituent volume size cannot be less than 50GiB")
 	})
 
 	t.Run("LargeCapacityUpdate_CVSizeExactlyAtMinimum_ShouldPass", func(tt *testing.T) {

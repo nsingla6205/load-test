@@ -3,6 +3,7 @@ package validators
 import (
 	"fmt"
 
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
@@ -11,6 +12,9 @@ import (
 type LargeCapacityPoolValidator struct{}
 
 func getLargeCapacityPerformanceLimits(perf *CustomPerformance) (uint64, uint64, uint64, uint64) {
+	if perf.IsTrueZonal && perf.LvHAPairs == commonparams.LvHAPairsNodeCount24 {
+		return minTrueZonal24NodeThroughput, maxTrueZonal24NodeThroughput, minTrueZonal24NodeCustomIops, maxTrueZonal24NodeCustomIops
+	}
 	if perf.IsTrueZonal {
 		return minTrueZonalThroughput, maxTrueZonalThroughput, minTrueZonalCustomIops, maxTrueZonalCustomIops
 	}
@@ -19,6 +23,9 @@ func getLargeCapacityPerformanceLimits(perf *CustomPerformance) (uint64, uint64,
 }
 
 func largeCapacityErrorSuffix(perf *CustomPerformance) string {
+	if perf.IsTrueZonal && perf.LvHAPairs == commonparams.LvHAPairsNodeCount24 {
+		return " for 24-node True Zonal Large Capacity pools"
+	}
 	if perf.IsTrueZonal {
 		return " for True Zonal Large Capacity pools"
 	}

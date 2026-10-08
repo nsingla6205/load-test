@@ -143,6 +143,19 @@ func (a VolumeCreateActivity) GetAggregatesFromOntap(ctx context.Context, volume
 	return result, nil
 }
 
+func usePrivateCLIVolumeCreate(volume *datamodel.Volume) bool {
+	if volume == nil || volume.Pool == nil || volume.Pool.PoolAttributes == nil {
+		return false
+	}
+	if !volume.Pool.IsActiveActive() || volume.Pool.PoolAttributes.LvHAPairs != common.LvHAPairsNodeCount12 {
+		return false
+	}
+	if volume.LargeVolumeAttributes == nil || volume.LargeVolumeAttributes.LargeVolumeConstituentCount == nil {
+		return false
+	}
+	return int64(*volume.LargeVolumeAttributes.LargeVolumeConstituentCount) == common.SixHAPairActiveActiveDefaultConstituentCount()
+}
+
 func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *datamodel.Volume, node *models.Node, snapshot *datamodel.Snapshot, backup *datamodel.Backup, aggrs *models.AggregateDistributionResult) (*vsa.VolumeResponse, error) {
 	logger := util.GetLogger(ctx)
 	se := a.SE
@@ -208,8 +221,13 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	if volume.LargeVolumeAttributes != nil && volume.LargeVolumeAttributes.LargeCapacity {
 		params.Style = nillable.GetStringPtr(volStyleFlexGroup)
 		if volume.LargeVolumeAttributes.LargeVolumeConstituentCount != nil {
-			params.Aggregates = aggrs.Aggregates
-			params.ConstituentsPerAggregate = nillable.GetInt64Ptr(aggrs.AggrMultiplier)
+			if aggrs != nil {
+				params.Aggregates = aggrs.Aggregates
+				params.ConstituentsPerAggregate = nillable.GetInt64Ptr(aggrs.AggrMultiplier)
+				// A snapshot restore clones the parent layout through REST. Do not
+				// send a newly calculated aggregate list through private CLI.
+				params.UsePrivateCLI = snapshot == nil && usePrivateCLIVolumeCreate(volume)
+			}
 		} else {
 			// this is being set for auto-provisioning of constituents
 			params.TieringSupported = nillable.GetBoolPtr(true)
@@ -284,6 +302,10 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Starting volume creation in ONTAP")
+	logger.Info("Creating volume in ONTAP",
+		"volume_id", volume.UUID,
+		"use_private_cli", params.UsePrivateCLI,
+	)
 	res, err := provider.CreateVolume(params)
 
 	if err != nil {
@@ -1958,6 +1980,13 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 		preSplitUpdateParams.ExportPolicy = &volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName
 		preSplitUpdateParams.JunctionPath = &volume.VolumeAttributes.FileProperties.JunctionPath
 		preSplitUpdateParams.SnapshotDirectoryAccess = &volume.VolumeAttributes.SnapshotDirectory
+	}
+	if usePrivateCLIVolumeCreate(volume) {
+		preSplitUpdateParams.UsePrivateCLI = true
+		preSplitUpdateParams.VolumeName = volume.Name
+		if volume.Svm != nil {
+			preSplitUpdateParams.SvmName = volume.Svm.Name
+		}
 	}
 	recordHeartbeat(ctx, "Updating cloned volume in ONTAP")
 	err = updateVolume(ctx, provider, preSplitUpdateParams)

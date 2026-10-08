@@ -26,19 +26,23 @@ var (
 	iopsPerMiBps        = utils.IopsPerMiBps
 
 	// Large capacity specific limits
-	minLvCoolTierCapacity  = utils.MinLvCoolTierCapacity
-	maxLvPoolCapacity      = utils.MaxLvPoolCapacity
-	maxLvHotTierCapacity   = utils.MaxLvHotTierCapacity
-	minLvThroughput        = utils.MinLvThroughput
-	maxLvThroughput        = utils.MaxLvThroughput
-	minLvCustomIops        = utils.MinLvCustomIops
-	maxLvCustomIops        = utils.MaxLvCustomIops
-	minTrueZonalThroughput = utils.MinTrueZonalThroughput
-	maxTrueZonalThroughput = utils.MaxTrueZonalThroughput
-	minTrueZonalCustomIops = utils.MinTrueZonalCustomIops
-	maxTrueZonalCustomIops = utils.MaxTrueZonalCustomIops
-	AutoTieringEnabled     = utils.AutoTieringEnabled
-	enableMqos             = env.GetBool("ENABLE_MQOS", true)
+	minLvCoolTierCapacity        = utils.MinLvCoolTierCapacity
+	maxLvPoolCapacity            = utils.MaxLvPoolCapacity
+	maxLvHotTierCapacity         = utils.MaxLvHotTierCapacity
+	minLvThroughput              = utils.MinLvThroughput
+	maxLvThroughput              = utils.MaxLvThroughput
+	minLvCustomIops              = utils.MinLvCustomIops
+	maxLvCustomIops              = utils.MaxLvCustomIops
+	minTrueZonalThroughput       = utils.MinTrueZonalThroughput
+	maxTrueZonalThroughput       = utils.MaxTrueZonalThroughput
+	minTrueZonalCustomIops       = utils.MinTrueZonalCustomIops
+	maxTrueZonalCustomIops       = utils.MaxTrueZonalCustomIops
+	minTrueZonal24NodeThroughput = utils.MinTrueZonal24NodeThroughput
+	maxTrueZonal24NodeThroughput = utils.MaxTrueZonal24NodeThroughput
+	minTrueZonal24NodeCustomIops = utils.MinTrueZonal24NodeCustomIops
+	maxTrueZonal24NodeCustomIops = utils.MaxTrueZonal24NodeCustomIops
+	AutoTieringEnabled           = utils.AutoTieringEnabled
+	enableMqos                   = env.GetBool("ENABLE_MQOS", true)
 )
 
 // CustomPerformance represents performance parameters that can be used for both create and update operations
@@ -51,6 +55,7 @@ type CustomPerformance struct {
 	QosType            string
 	LargeCapacity      bool
 	IsTrueZonal        bool
+	LvHAPairs          int64
 }
 
 // NewCustomPerformanceFromCreate creates CustomPerformance from CreatePoolParams
@@ -72,6 +77,7 @@ func NewCustomPerformanceFromCreate(params *commonparams.CreatePoolParams) *Cust
 		QosType:            params.QosType,
 		LargeCapacity:      params.LargeCapacity,
 		IsTrueZonal:        params.IsTrueZonal,
+		LvHAPairs:          params.LvHAPairs,
 	}
 }
 

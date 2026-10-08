@@ -1,7 +1,9 @@
 package vsa
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
+	networkpriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
+	privmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/models"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -24,6 +28,585 @@ func withCustomerSVM(volume models.Volume, svmName string) models.Volume {
 	}
 	volume.IsSvmRoot = nillable.ToPointer(false)
 	return volume
+}
+
+func TestCreateVolume_PrivateCLI_ReconcilesAndReturnsRESTResponse(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	volumeName := "test_fg"
+	volumeUUID := "volume-uuid"
+	volumeSize := int64(5 * 1024 * 1024 * 1024)
+	constituentCount := int64(16)
+	volume := &ontaprest.Volume{Volume: models.Volume{
+		Name:             &volumeName,
+		UUID:             &volumeUUID,
+		State:            nillable.ToPointer(models.VolumeStateOnline),
+		ConstituentCount: &constituentCount,
+		Space: &models.VolumeInlineSpace{
+			Available: &volumeSize,
+			Size:      &volumeSize,
+		},
+	}}
+	exportPolicy := "export-policy"
+	junctionPath := "/test_fg"
+	securityStyle := "unix"
+	unixPermissions := "0770"
+	qosPolicy := "qos-policy"
+	largeSizeEnabled := true
+	cloudWriteEnabled := false
+	volumeStyle := "flexgroup"
+
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		return params != nil &&
+			params.Body != nil &&
+			params.Body.Input != nil &&
+			strings.Contains(*params.Body.Input, "volume create") &&
+			strings.Contains(*params.Body.Input, "-aggr-list aggr1,aggr2") &&
+			strings.Contains(*params.Body.Input, fmt.Sprintf("-size %dB", volumeSize)) &&
+			strings.Contains(*params.Body.Input, "-type rw") &&
+			strings.Contains(*params.Body.Input, "-aggr-list-multiplier 8") &&
+			strings.Contains(*params.Body.Input, "-granular-data advanced") &&
+			strings.Contains(*params.Body.Input, "-space-guarantee none") &&
+			strings.Contains(*params.Body.Input, "-autosize-mode off") &&
+			strings.Contains(*params.Body.Input, "-is-space-enforcement-logical true") &&
+			strings.Contains(*params.Body.Input, "-is-space-reporting-logical true") &&
+			strings.Contains(*params.Body.Input, "-percent-snapshot-space 0") &&
+			strings.Contains(*params.Body.Input, "-snapdir-access false") &&
+			strings.Contains(*params.Body.Input, "-snapshot-policy default") &&
+			strings.Contains(*params.Body.Input, "-policy export-policy") &&
+			strings.Contains(*params.Body.Input, "-junction-path /test_fg") &&
+			strings.Contains(*params.Body.Input, "-security-style unix") &&
+			strings.Contains(*params.Body.Input, "-unix-permissions 0770") &&
+			strings.Contains(*params.Body.Input, "-qos-policy-group qos-policy") &&
+			strings.Contains(*params.Body.Input, "-is-large-size-enabled true") &&
+			strings.Contains(*params.Body.Input, "-tiering-policy auto") &&
+			strings.Contains(*params.Body.Input, "-tiering-minimum-cooling-days 31") &&
+			strings.Contains(*params.Body.Input, "-cloud-retrieval-policy default") &&
+			strings.Contains(*params.Body.Input, "-is-cloud-write-enabled false")
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume create successful"},
+	}, nil)
+	mockStorage.On("VolumeGet", mock.MatchedBy(func(params *ontaprest.VolumeGetParams) bool {
+		return params.Name == volumeName && params.SvmName != nil && *params.SvmName == "test-svm"
+	})).Return(volume, nil).Once()
+
+	multiplier := int64(8)
+	response, err := (&OntapRestProvider{}).CreateVolume(CreateVolumeParams{
+		VolumeName:               volumeName,
+		SvmName:                  "test-svm",
+		Aggregates:               []string{"aggr1", "aggr2"},
+		ConstituentsPerAggregate: &multiplier,
+		UsePrivateCLI:            true,
+		Size:                     volumeSize,
+		VolumeType:               "rw",
+		Style:                    &volumeStyle,
+		SnapshotPolicyName:       "default",
+		ExportPolicy:             &exportPolicy,
+		JunctionPath:             &junctionPath,
+		SecurityStyle:            &securityStyle,
+		UnixPermissions:          &unixPermissions,
+		QosPolicy:                &qosPolicy,
+		LargeSizeEnabled:         &largeSizeEnabled,
+		TieringPolicy: &TieringPolicy{
+			CoolAccessTieringPolicy:   "auto",
+			CoolnessPeriod:            31,
+			CoolAccessRetrievalPolicy: "default",
+			CloudWriteModeEnabled:     &cloudWriteEnabled,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.Equal(t, volumeUUID, response.ExternalUUID)
+	assert.Equal(t, volumeName, response.Name)
+	require.NotNil(t, response.ConstituentCount)
+	assert.Equal(t, int32(constituentCount), *response.ConstituentCount)
+	mockNetworking.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
+func TestBuildPrivateCLIVolumeCreateCommand_RequiresDistribution(t *testing.T) {
+	volumeStyle := "flexgroup"
+	_, err := buildPrivateCLIVolumeCreateCommand(&ontaprest.VolumeCreateParams{
+		Name:  "test_fg",
+		Svm:   "test-svm",
+		Size:  1024,
+		Type:  "rw",
+		Style: &volumeStyle,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "aggregate list and positive aggregate multiplier")
+}
+
+func TestCreateVolumeViaPrivateCLI_RetriesRESTReconciliation(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+
+	mockNetworking.On("CliExecute", mock.Anything).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume create successful"},
+	}, nil).Once()
+
+	volumeStyle := ontaprest.VolumeStyleFlexGroup
+	multiplier := int64(8)
+	params := &ontaprest.VolumeCreateParams{
+		Name:                     "test_fg",
+		Svm:                      "test-svm",
+		Aggregates:               []string{"aggr1", "aggr2"},
+		ConstituentsPerAggregate: &multiplier,
+		Size:                     5 * 1024 * 1024 * 1024,
+		Type:                     "rw",
+		Style:                    &volumeStyle,
+	}
+	volumeName := params.Name
+	volumeUUID := "volume-uuid"
+	volume := &ontaprest.Volume{Volume: models.Volume{
+		Name:  &volumeName,
+		UUID:  &volumeUUID,
+		State: nillable.ToPointer(models.VolumeStateOnline),
+		Space: &models.VolumeInlineSpace{},
+	}}
+	mockStorage.On("VolumeGet", mock.MatchedBy(func(p *ontaprest.VolumeGetParams) bool {
+		return assert.Equal(t, ontaprest.DefaultVolumeDetailFields, p.Fields)
+	})).Return(nil, fmt.Errorf("volume not visible yet")).Once()
+	mockStorage.On("VolumeGet", mock.Anything).Return(volume, nil).Once()
+
+	result, err := createVolumeViaPrivateCLIWithConfig(context.Background(), mockClient, params, privateCLIVolumeCreateConfig{
+		reconciliationAttempts: 2,
+		reconciliationDelay:    0,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, volumeUUID, *result.UUID)
+	mockNetworking.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestCreateVolumeViaPrivateCLI_DuplicateReturnsConflictLikeREST(t *testing.T) {
+	for _, output := range []string{
+		"Error: Volume \"test_fg\" already exists.",
+		"Error: Duplicate volume name \"test_fg\".",
+	} {
+		t.Run(output, func(t *testing.T) {
+			mockNetworking := new(ontaprest.MockNetworkingClient)
+			mockClient := new(ontaprest.MockRESTClient)
+			mockClient.On("Networking").Return(mockNetworking)
+			mockNetworking.On("CliExecute", mock.Anything).Return(&networkpriv.CliExecuteOK{
+				Payload: &privmodels.CliExecuteResponse{Output: output},
+			}, nil).Once()
+
+			volumeStyle := ontaprest.VolumeStyleFlexGroup
+			multiplier := int64(8)
+			_, err := createVolumeViaPrivateCLIWithConfig(context.Background(), mockClient, &ontaprest.VolumeCreateParams{
+				Name:                     "test_fg",
+				Svm:                      "test-svm",
+				Aggregates:               []string{"aggr1", "aggr2"},
+				ConstituentsPerAggregate: &multiplier,
+				Size:                     5 * 1024 * 1024 * 1024,
+				Type:                     "rw",
+				Style:                    &volumeStyle,
+			}, privateCLIVolumeCreateConfig{reconciliationAttempts: 1})
+
+			require.Error(t, err)
+			assert.True(t, errors.IsConflictErr(err))
+			assert.Equal(t, "test_fg already exists", err.Error())
+			mockNetworking.AssertExpectations(t)
+		})
+	}
+}
+
+func TestCreateVolumeViaPrivateCLI_HTTPConflictDuplicateReturnsConflict(t *testing.T) {
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+
+	message := "Duplicate volume name lv_vol_08_oct_002."
+	code := "917526"
+	cliErr := networkpriv.NewCliExecuteDefault(409)
+	cliErr.Payload = &privmodels.ErrorResponse{Error: &privmodels.ReturnedError{Message: &message, Code: &code}}
+	mockNetworking.On("CliExecute", mock.Anything).Return(nil, cliErr).Once()
+
+	volumeStyle := ontaprest.VolumeStyleFlexGroup
+	multiplier := int64(8)
+	_, err := createVolumeViaPrivateCLIWithConfig(context.Background(), mockClient, &ontaprest.VolumeCreateParams{
+		Name:                     "lv_vol_08_oct_002",
+		Svm:                      "test-svm",
+		Aggregates:               []string{"aggr1", "aggr2"},
+		ConstituentsPerAggregate: &multiplier,
+		Size:                     5 * 1024 * 1024 * 1024,
+		Type:                     "rw",
+		Style:                    &volumeStyle,
+	}, privateCLIVolumeCreateConfig{reconciliationAttempts: 1})
+
+	require.Error(t, err)
+	assert.True(t, errors.IsConflictErr(err))
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestExecuteONTAPCommand_UnwrapsCLIErrorMessage(t *testing.T) {
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+
+	message := "Size \"5TB\" is too small. Minimum size is \"9.38TB\"."
+	cliErr := networkpriv.NewCliExecuteDefault(400)
+	cliErr.Payload = &privmodels.ErrorResponse{Error: &privmodels.ReturnedError{Message: &message}}
+	mockNetworking.On("CliExecute", mock.Anything).Return(nil, cliErr).Once()
+
+	_, err := executeONTAPCommand(context.Background(), mockClient, "volume modify -vserver svm -volume vol -size 5TB")
+
+	require.EqualError(t, err, message)
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestIsDuplicateVolumeCreateError(t *testing.T) {
+	assert.True(t, isDuplicateVolumeCreateError(errors.New("Error: Duplicate volume name \"vol1\".")))
+	assert.True(t, isDuplicateVolumeCreateError(errors.New("Error: Volume \"vol1\" already exists.")))
+	assert.False(t, isDuplicateVolumeCreateError(errors.New("Error: QoS policy group \"qos1\" already exists.")))
+	assert.False(t, isDuplicateVolumeCreateError(nil))
+}
+
+func TestMapPrivateCLIVolumeModifyError_SizeErrors(t *testing.T) {
+	testCases := []struct {
+		name         string
+		message      string
+		expectedCode int
+	}{
+		{"too small", "Error: command failed: Size \"5TB\" is too small. Minimum size is \"9.38TB\".", vsaerrors.ErrVolumeSizeTooSmall},
+		{"too large", "Error: command failed: Size \"2PB\" is too large. Maximum size is \"1PB\".", vsaerrors.ErrVolumeExceedsMaximumSize},
+		{"other", "Error: command failed: something else", vsaerrors.ErrOntapRestAPIError},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := mapPrivateCLIVolumeModifyError(errors.New(tc.message))
+
+			customErr, ok := err.(*vsaerrors.CustomError)
+			require.True(t, ok, "Error should be of type *vsaerrors.CustomError")
+			assert.Equal(t, tc.expectedCode, customErr.TrackingID)
+		})
+	}
+	assert.NoError(t, mapPrivateCLIVolumeModifyError(nil))
+}
+
+func TestBuildPrivateCLIVolumeCreateCommand_SendsZeroCoolingDaysAndForeground(t *testing.T) {
+	multiplier := int64(8)
+	volumeStyle := ontaprest.VolumeStyleFlexGroup
+	command, err := buildPrivateCLIVolumeCreateCommand(&ontaprest.VolumeCreateParams{
+		Name:                     "test_fg",
+		Svm:                      "test-svm",
+		Aggregates:               []string{"aggr1"},
+		ConstituentsPerAggregate: &multiplier,
+		Size:                     5 * 1024 * 1024 * 1024,
+		Type:                     "rw",
+		Style:                    &volumeStyle,
+		TieringPolicy: &ontaprest.TieringPolicy{
+			CoolAccessTieringPolicy: models.VolumeInlineTieringPolicyAuto,
+			MinCoolingDays:          0,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, command, "-tiering-minimum-cooling-days 0")
+	assert.Contains(t, command, "-foreground true")
+}
+
+func TestCreateVolumeViaPrivateCLI_ReturnsONTAPCommandError(t *testing.T) {
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+
+	ontapError := "Error: Size \"5TB\" is too small. Minimum size is \"9.38TB\"."
+	mockNetworking.On("CliExecute", mock.Anything).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: ontapError},
+	}, nil).Once()
+
+	volumeStyle := ontaprest.VolumeStyleFlexGroup
+	multiplier := int64(8)
+	_, err := createVolumeViaPrivateCLIWithConfig(context.Background(), mockClient, &ontaprest.VolumeCreateParams{
+		Name:                     "test_fg",
+		Svm:                      "test-svm",
+		Aggregates:               []string{"aggr1"},
+		ConstituentsPerAggregate: &multiplier,
+		Size:                     5 * 1024 * 1024 * 1024,
+		Type:                     "rw",
+		Style:                    &volumeStyle,
+	}, privateCLIVolumeCreateConfig{reconciliationAttempts: 1})
+
+	require.EqualError(t, err, ontapError)
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestUpdateVolume_SixHAPairSizeUsesCommandAndSkipsRESTSize(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() { getOntapClientFunc = originalGetOntapClientFunc })
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	size := int64(8 * 1024 * 1024 * 1024 * 1024)
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		return params != nil && params.Body != nil && params.Body.Input != nil &&
+			strings.Contains(*params.Body.Input, "volume modify") &&
+			strings.Contains(*params.Body.Input, "-vserver test-svm") &&
+			strings.Contains(*params.Body.Input, "-volume test_fg") &&
+			strings.Contains(*params.Body.Input, fmt.Sprintf("-size %dB", size))
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume modify successful"},
+	}, nil).Once()
+
+	err := (&OntapRestProvider{}).UpdateVolume(UpdateVolumeParams{
+		UUID:          "volume-uuid",
+		VolumeName:    "test_fg",
+		SvmName:       "test-svm",
+		Size:          size,
+		UsePrivateCLI: true,
+	})
+
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "VolumeModify", mock.Anything)
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestUpdateVolume_SixHAPairCombinesFieldsInOneCommand(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() { getOntapClientFunc = originalGetOntapClientFunc })
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	size := int64(8 * 1024 * 1024 * 1024 * 1024)
+	snapReserve := int64(5)
+	snapdir := true
+	unixPermissions := "0755"
+	cloudWrite := true
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		if params == nil || params.Body == nil || params.Body.Input == nil {
+			return false
+		}
+		command := *params.Body.Input
+		return strings.Contains(command, "volume modify") &&
+			strings.Contains(command, fmt.Sprintf("-size %dB", size)) &&
+			strings.Contains(command, "-percent-snapshot-space 5") &&
+			strings.Contains(command, "-snapshot-policy default") &&
+			strings.Contains(command, "-snapdir-access true") &&
+			strings.Contains(command, "-unix-permissions 0755") &&
+			strings.Contains(command, "-tiering-policy auto") &&
+			strings.Contains(command, "-tiering-minimum-cooling-days 2") &&
+			strings.Contains(command, "-cloud-retrieval-policy default") &&
+			strings.Contains(command, "-is-cloud-write-enabled true")
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume modify successful"},
+	}, nil).Once()
+
+	err := (&OntapRestProvider{}).UpdateVolume(UpdateVolumeParams{
+		VolumeName:              "test_fg",
+		SvmName:                 "test-svm",
+		Size:                    size,
+		SnapReserve:             &snapReserve,
+		SnapshotPolicyName:      "default",
+		SnapshotDirectoryAccess: &snapdir,
+		UnixPermissions:         &unixPermissions,
+		TieringPolicy: &TieringPolicy{
+			CoolAccessTieringPolicy:   models.VolumeInlineTieringPolicyAuto,
+			CoolnessPeriod:            2,
+			CoolAccessRetrievalPolicy: "default",
+			CloudWriteModeEnabled:     &cloudWrite,
+		},
+		UsePrivateCLI: true,
+	})
+
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "VolumeModify", mock.Anything)
+	mockStorage.AssertNotCalled(t, "VolumeModifyCloudWriteMode", mock.Anything)
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestUpdateVolume_SixHAPairMountsJunctionPathAfterModify(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() { getOntapClientFunc = originalGetOntapClientFunc })
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	size := int64(5277655813325)
+	junctionPath := "/restored-vol-3"
+	exportPolicy := "restored-vol-3"
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		if params == nil || params.Body == nil || params.Body.Input == nil {
+			return false
+		}
+		command := *params.Body.Input
+		return strings.Contains(command, "volume modify") &&
+			strings.Contains(command, fmt.Sprintf("-size %dB", size)) &&
+			strings.Contains(command, "-policy "+exportPolicy) &&
+			!strings.Contains(command, "-junction-path")
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume modify successful"},
+	}, nil).Once()
+	mockStorage.On("VolumeMount", &ontaprest.VolumeMountParams{
+		UUID:         "volume-uuid",
+		JunctionPath: junctionPath,
+	}).Return(&ontaprest.JobAccepted{JobUUID: "mount-job"}, nil).Once()
+	mockClient.On("Poll", "mount-job").Return(nil).Once()
+
+	err := (&OntapRestProvider{}).UpdateVolume(UpdateVolumeParams{
+		UUID:          "volume-uuid",
+		VolumeName:    "restored_vol_3",
+		SvmName:       "test-svm",
+		Size:          size,
+		ExportPolicy:  &exportPolicy,
+		JunctionPath:  &junctionPath,
+		UsePrivateCLI: true,
+	})
+
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "VolumeModify", mock.Anything)
+	mockNetworking.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
+func TestMountVolumeJunctionPath_RejectsEmptyMountResponse(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+	mockStorage.On("VolumeMount", mock.Anything).Return(nil, nil).Once()
+
+	junctionPath := "/restored-vol-3"
+	err := mountVolumeJunctionPath(mockClient, UpdateVolumeParams{
+		UUID:         "volume-uuid",
+		JunctionPath: &junctionPath,
+	})
+
+	require.EqualError(t, err, "invalid volume mount response")
+	mockClient.AssertNotCalled(t, "Poll", mock.Anything)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateVolume_SixHAPairDisablesCloudWriteBeforeOtherChanges(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockNetworking := new(ontaprest.MockNetworkingClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Networking").Return(mockNetworking)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() { getOntapClientFunc = originalGetOntapClientFunc })
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	size := int64(8 * 1024 * 1024 * 1024 * 1024)
+	cloudWrite := false
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		return params != nil && params.Body != nil && params.Body.Input != nil &&
+			*params.Body.Input == "volume modify -vserver test-svm -volume test_fg -is-cloud-write-enabled false -foreground true"
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume modify successful"},
+	}, nil).Once()
+	mockNetworking.On("CliExecute", mock.MatchedBy(func(params *networkpriv.CliExecuteParams) bool {
+		if params == nil || params.Body == nil || params.Body.Input == nil {
+			return false
+		}
+		command := *params.Body.Input
+		return strings.Contains(command, fmt.Sprintf("-size %dB", size)) &&
+			strings.Contains(command, "-tiering-policy auto") &&
+			!strings.Contains(command, "-is-cloud-write-enabled")
+	})).Return(&networkpriv.CliExecuteOK{
+		Payload: &privmodels.CliExecuteResponse{Output: "Volume modify successful"},
+	}, nil).Once()
+
+	err := (&OntapRestProvider{}).UpdateVolume(UpdateVolumeParams{
+		VolumeName: "test_fg",
+		SvmName:    "test-svm",
+		Size:       size,
+		TieringPolicy: &TieringPolicy{
+			CoolAccessTieringPolicy: models.VolumeInlineTieringPolicyAuto,
+			CloudWriteModeEnabled:   &cloudWrite,
+		},
+		UsePrivateCLI: true,
+	})
+
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "VolumeModify", mock.Anything)
+	mockStorage.AssertNotCalled(t, "VolumeModifyCloudWriteMode", mock.Anything)
+	mockNetworking.AssertExpectations(t)
+}
+
+func TestCreateVolume_PrivateCLIMarker_RestoreKeepsRESTPath(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	volumeName := "restored_fg"
+	volumeUUID := "restored-volume-uuid"
+	volumeSize := int64(5 * 1024 * 1024 * 1024)
+	mockStorage.On("VolumeCreate", mock.MatchedBy(func(params *ontaprest.VolumeCreateParams) bool {
+		return params.RestoreFromSnapshot != nil
+	})).Return(&ontaprest.Volume{Volume: models.Volume{
+		Name:  &volumeName,
+		UUID:  &volumeUUID,
+		State: nillable.ToPointer(models.VolumeStateOnline),
+		Space: &models.VolumeInlineSpace{
+			Available: &volumeSize,
+			Size:      &volumeSize,
+		},
+	}}, nil, nil).Once()
+
+	response, err := (&OntapRestProvider{}).CreateVolume(CreateVolumeParams{
+		VolumeName:    volumeName,
+		SvmName:       "test-svm",
+		UsePrivateCLI: true,
+		Size:          volumeSize,
+		VolumeType:    "rw",
+		RestoreFromSnapshot: &RestoreFromSnapshotParams{
+			SnapshotUUID: "snapshot-uuid",
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, volumeUUID, response.ExternalUUID)
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
 }
 
 func TestCreateVolume_Success(t *testing.T) {

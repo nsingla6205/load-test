@@ -40,6 +40,12 @@ const (
 	LvHAPairsNodeCount24 int64 = 12
 )
 
+var constituentsPerAggregate = env.GetInt64("DEFAULT_CONSTITUENTS_PER_AGGREGATE", 8)
+
+func SixHAPairActiveActiveDefaultConstituentCount() int64 {
+	return LvHAPairsNodeCount12 * constituentsPerAggregate * 2
+}
+
 var (
 	SnapmirrorSnapshotPrefix             = regexp.MustCompile("^snapmirror.*$")
 	ImmutablePeriodInDaysMax             = env.GetInt("IMMUTABLE_PERIOD_IN_DAYS_MAX", 5475)

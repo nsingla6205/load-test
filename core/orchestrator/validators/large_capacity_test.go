@@ -1160,3 +1160,133 @@ func TestLargeCapacityPoolValidator_UsesTrueZonalPerformanceLimitsWhenEnabled(t 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "must be between 1600 and 3200 IOPS")
 }
+
+func TestLargeCapacityPoolValidator_TrueZonalLimitsFollowLvHAPairs(t *testing.T) {
+	validator := &LargeCapacityPoolValidator{}
+
+	origMaxLvThroughput := maxLvThroughput
+	origMinTrueZonalThroughput := minTrueZonalThroughput
+	origMaxTrueZonalThroughput := maxTrueZonalThroughput
+	origMinTrueZonalCustomIops := minTrueZonalCustomIops
+	origMaxTrueZonalCustomIops := maxTrueZonalCustomIops
+	origMinTrueZonal24NodeThroughput := minTrueZonal24NodeThroughput
+	origMaxTrueZonal24NodeThroughput := maxTrueZonal24NodeThroughput
+	origMinTrueZonal24NodeCustomIops := minTrueZonal24NodeCustomIops
+	origMaxTrueZonal24NodeCustomIops := maxTrueZonal24NodeCustomIops
+	t.Cleanup(func() {
+		maxLvThroughput = origMaxLvThroughput
+		minTrueZonalThroughput = origMinTrueZonalThroughput
+		maxTrueZonalThroughput = origMaxTrueZonalThroughput
+		minTrueZonalCustomIops = origMinTrueZonalCustomIops
+		maxTrueZonalCustomIops = origMaxTrueZonalCustomIops
+		minTrueZonal24NodeThroughput = origMinTrueZonal24NodeThroughput
+		maxTrueZonal24NodeThroughput = origMaxTrueZonal24NodeThroughput
+		minTrueZonal24NodeCustomIops = origMinTrueZonal24NodeCustomIops
+		maxTrueZonal24NodeCustomIops = origMaxTrueZonal24NodeCustomIops
+	})
+
+	maxLvThroughput = 60000
+	minTrueZonalThroughput = 64
+	maxTrueZonalThroughput = 200
+	minTrueZonalCustomIops = 1024
+	maxTrueZonalCustomIops = 3200
+	minTrueZonal24NodeThroughput = 64
+	maxTrueZonal24NodeThroughput = 400
+	minTrueZonal24NodeCustomIops = 1024
+	maxTrueZonal24NodeCustomIops = 6400
+
+	aboveTwelveNode := int64(250)
+	aboveTwentyFourNode := int64(401)
+
+	tests := []struct {
+		name            string
+		isTrueZonal     bool
+		lvHAPairs       int64
+		throughput      int64
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:            "PreviewLvHAPairsZeroUsesTwelveNodeCap",
+			isTrueZonal:     true,
+			lvHAPairs:       0,
+			throughput:      aboveTwelveNode,
+			wantErr:         true,
+			wantErrContains: "must be between 64 and 200 MiBps for True Zonal Large Capacity pools",
+		},
+		{
+			name:            "GATwelveNodeUsesTwelveNodeCap",
+			isTrueZonal:     true,
+			lvHAPairs:       commonparams.LvHAPairsNodeCount12,
+			throughput:      aboveTwelveNode,
+			wantErr:         true,
+			wantErrContains: "must be between 64 and 200 MiBps for True Zonal Large Capacity pools",
+		},
+		{
+			name:        "GATwentyFourNodeAllowsAboveTwelveNodeCap",
+			isTrueZonal: true,
+			lvHAPairs:   commonparams.LvHAPairsNodeCount24,
+			throughput:  aboveTwelveNode,
+		},
+		{
+			name:            "GATwentyFourNodeRejectsAboveTwentyFourNodeCap",
+			isTrueZonal:     true,
+			lvHAPairs:       commonparams.LvHAPairsNodeCount24,
+			throughput:      aboveTwentyFourNode,
+			wantErr:         true,
+			wantErrContains: "must be between 64 and 400 MiBps for 24-node True Zonal Large Capacity pools",
+		},
+		{
+			name:        "NonTrueZonalIgnoresTwentyFourNodeCap",
+			isTrueZonal: false,
+			lvHAPairs:   commonparams.LvHAPairsNodeCount24,
+			throughput:  aboveTwentyFourNode,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.ValidateThroughput(&CustomPerformance{
+				LargeCapacity:   true,
+				IsTrueZonal:     tt.isTrueZonal,
+				LvHAPairs:       tt.lvHAPairs,
+				ThroughputMibps: tt.throughput,
+			})
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrContains)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+
+	err := validator.ValidateIops(&CustomPerformance{
+		LargeCapacity:   true,
+		IsTrueZonal:     true,
+		LvHAPairs:       commonparams.LvHAPairsNodeCount24,
+		ThroughputMibps: 64,
+		Iops:            nillable.ToPointer(int64(6400)),
+	})
+	assert.NoError(t, err)
+
+	err = validator.ValidateIops(&CustomPerformance{
+		LargeCapacity:   true,
+		IsTrueZonal:     true,
+		LvHAPairs:       commonparams.LvHAPairsNodeCount24,
+		ThroughputMibps: 64,
+		Iops:            nillable.ToPointer(int64(6401)),
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be between 1024 and 6400 IOPS for 24-node True Zonal Large Capacity pools")
+
+	err = validator.ValidateIops(&CustomPerformance{
+		LargeCapacity:   true,
+		IsTrueZonal:     true,
+		LvHAPairs:       commonparams.LvHAPairsNodeCount12,
+		ThroughputMibps: 64,
+		Iops:            nillable.ToPointer(int64(6400)),
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be between 1024 and 3200 IOPS for True Zonal Large Capacity pools")
+}

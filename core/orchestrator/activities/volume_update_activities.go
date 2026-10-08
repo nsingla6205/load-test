@@ -55,6 +55,13 @@ func (a *VolumeUpdateActivity) UpdateVolumeInONTAP(ctx context.Context, volume *
 		Size:        params.QuotaInBytes,
 		SnapReserve: params.SnapReserve,
 	}
+	if usePrivateCLIVolumeCreate(volume) {
+		updateVolumeParams.UsePrivateCLI = true
+		updateVolumeParams.VolumeName = volume.Name
+		if volume.Svm != nil {
+			updateVolumeParams.SvmName = volume.Svm.Name
+		}
+	}
 
 	// Set snapshot policy only if the volume is not a data protection volume.
 	if !volume.VolumeAttributes.IsDataProtection {

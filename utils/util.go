@@ -68,6 +68,10 @@ var (
 	MaxTrueZonalThroughput           = env.GetUint64("MAX_TRUE_ZONAL_THROUGHPUT", MaxLvThroughput)
 	MinTrueZonalCustomIops           = env.GetUint64("MIN_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonalThroughput)
 	MaxTrueZonalCustomIops           = env.GetUint64("MAX_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MaxTrueZonalThroughput)
+	MinTrueZonal24NodeThroughput     = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_THROUGHPUT", MinTrueZonalThroughput)
+	MaxTrueZonal24NodeThroughput     = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_THROUGHPUT", 75600)
+	MinTrueZonal24NodeCustomIops     = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonal24NodeThroughput)
+	MaxTrueZonal24NodeCustomIops     = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", 2318400)
 	MinHotTierSize                   = env.GetUint64("MIN_HOT_TIER_SIZE", 1099511627776) // 1 TiB
 	MinHotTierSizeLargeVolumes       = env.GetUint64("MIN_HOT_TIER_SIZE_LARGE_VOLUMES", 6*TiBInBytes)
 	ValidateSAKeyInGCP               = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)

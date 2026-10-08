@@ -668,6 +668,7 @@ func _validateAndSetUpdatePoolParams(params *commonparams.UpdatePoolParams, pool
 	perf.LargeCapacity = pool.LargeCapacity // Use existing pool type for validation
 	if pool.PoolAttributes != nil {
 		perf.IsTrueZonal = pool.PoolAttributes.IsTrueZonal
+		perf.LvHAPairs = pool.PoolAttributes.LvHAPairs
 	}
 	// Use existing pool QosType for validation when update parameter is empty
 	if perf.QosType == "" {

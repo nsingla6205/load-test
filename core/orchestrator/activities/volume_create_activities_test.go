@@ -935,6 +935,13 @@ func TestCreateVolumeInONTAP_Success(t *testing.T) {
 			VolumeAttributes: &datamodel.VolumeAttributes{
 				IsDataProtection: false,
 			},
+			Pool: &datamodel.Pool{
+				LargeCapacity: true,
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount12,
+				},
+			},
 		}
 		volume.LargeVolumeAttributes = &datamodel.LargeVolumeAttributes{
 			LargeCapacity:               true,
@@ -956,13 +963,76 @@ func TestCreateVolumeInONTAP_Success(t *testing.T) {
 				len(params.Aggregates) == len(aggrs.Aggregates) &&
 				params.ConstituentsPerAggregate != nil &&
 				*params.ConstituentsPerAggregate == aggrs.AggrMultiplier &&
-				params.TieringSupported == nil // Should not set TieringSupported for constituent count mode
+				params.TieringSupported == nil && // Should not set TieringSupported for constituent count mode
+				!params.UsePrivateCLI
 		})).Return(expectedResponse, nil)
 
 		// Act
 		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, nil, nil, aggrs)
 
 		// Assert
+		assert.NoError(t, err)
+		var result *vsa.VolumeResponse
+		_ = val.Get(&result)
+		assert.Equal(t, expectedResponse, result)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("TestCreateVolumeInONTAP_WhenSixHAPairActiveActiveDefaultLayout_UsesPrivateCLI", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		activity := activities.VolumeCreateActivity{SE: database.NewMockStorage(t)}
+		env.RegisterActivity(activity.CreateVolumeInONTAP)
+
+		constituentCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+		volume := &datamodel.Volume{
+			Name:    "test-six-ha-volume",
+			Svm:     &datamodel.Svm{Name: "test-svm"},
+			Account: &datamodel.Account{Name: "test-account"},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				IsDataProtection: false,
+			},
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &constituentCount,
+			},
+			Pool: &datamodel.Pool{
+				LargeCapacity: true,
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+					LvHAPairs:   common.LvHAPairsNodeCount12,
+				},
+			},
+		}
+		node := &models.Node{}
+		aggrs := &models.AggregateDistributionResult{
+			Aggregates:     []string{"aggr1", "aggr2"},
+			AggrMultiplier: 8,
+		}
+		expectedResponse := &vsa.VolumeResponse{
+			ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"},
+			AvailableSpace:   1024,
+		}
+
+		mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
+			return params.UsePrivateCLI &&
+				params.Style != nil &&
+				*params.Style == "flexgroup" &&
+				assert.ElementsMatch(t, aggrs.Aggregates, params.Aggregates) &&
+				params.ConstituentsPerAggregate != nil &&
+				*params.ConstituentsPerAggregate == aggrs.AggrMultiplier
+		})).Return(expectedResponse, nil)
+
+		val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, nil, nil, aggrs)
+
 		assert.NoError(t, err)
 		var result *vsa.VolumeResponse
 		_ = val.Get(&result)
@@ -1008,7 +1078,8 @@ func TestCreateVolumeInONTAP_Success(t *testing.T) {
 				*params.Style == "flexgroup" &&
 				params.TieringSupported != nil &&
 				*params.TieringSupported == true && // Should set TieringSupported for auto-provisioning
-				params.ConstituentsPerAggregate == nil // Should not set ConstituentsPerAggregate for auto-provisioning
+				params.ConstituentsPerAggregate == nil && // Should not set ConstituentsPerAggregate for auto-provisioning
+				!params.UsePrivateCLI
 		})).Return(expectedResponse, nil)
 
 		// Act
@@ -3044,12 +3115,24 @@ func TestCreateVolumeInONTAP_ClonedVolume(t *testing.T) {
 	}
 	env.RegisterActivity(activity.CreateVolumeInONTAP)
 
+	constituentCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
 	volume := &datamodel.Volume{
 		Name:    "dp-volume",
 		Svm:     &datamodel.Svm{Name: "test-svm"},
 		Account: &datamodel.Account{Name: "account"},
 		VolumeAttributes: &datamodel.VolumeAttributes{
 			IsDataProtection: true,
+		},
+		Pool: &datamodel.Pool{
+			LargeCapacity: true,
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+				LvHAPairs:   common.LvHAPairsNodeCount12,
+			},
+		},
+		LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: &constituentCount,
 		},
 	}
 	node := &models.Node{}
@@ -3062,15 +3145,21 @@ func TestCreateVolumeInONTAP_ClonedVolume(t *testing.T) {
 			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "uuid-123"},
 		},
 		ExternalUUID:       "uuid-123",
-		SnapshotAttributes: &datamodel.SnapshotAttributes{},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snapshot-uuid"},
+	}
+	aggrs := &models.AggregateDistributionResult{
+		Aggregates:     []string{"aggr1", "aggr2"},
+		AggrMultiplier: 1,
 	}
 	expectedResponse := &vsa.VolumeResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "uuid-123"}, AvailableSpace: 2048}
 
 	mockProvider.On("CreateVolume", mock.MatchedBy(func(params vsa.CreateVolumeParams) bool {
-		return params.RestoreFromSnapshot != nil
+		return params.RestoreFromSnapshot != nil &&
+			params.RestoreFromSnapshot.SnapshotUUID == "snapshot-uuid" &&
+			!params.UsePrivateCLI
 	})).Return(expectedResponse, nil)
 
-	val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, snapshot, nil, nil)
+	val, err := env.ExecuteActivity(activity.CreateVolumeInONTAP, volume, node, snapshot, nil, aggrs)
 
 	assert.NoError(t, err)
 	var result *vsa.VolumeResponse
@@ -4102,7 +4191,8 @@ func TestUpdateClonedVolumeBeforeSplit_WithFileVolumeAndExportPolicy_Success(t *
 		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
 			params.SnapReserve != nil && *params.SnapReserve == 0 &&
 			params.Size == 0 &&
-			params.SnapshotPolicyName == ""
+			params.SnapshotPolicyName == "" &&
+			!params.UsePrivateCLI
 	})).Return(nil)
 
 	// Mock second UpdateVolume call (with size, snapshot policy, export policy, junction path)
@@ -4112,7 +4202,8 @@ func TestUpdateClonedVolumeBeforeSplit_WithFileVolumeAndExportPolicy_Success(t *
 			params.SnapshotPolicyName == volume.SnapshotPolicy.Name &&
 			params.SnapReserve != nil && *params.SnapReserve == volume.VolumeAttributes.SnapReserve &&
 			params.ExportPolicy != nil && *params.ExportPolicy == exportPolicyName &&
-			params.JunctionPath != nil && *params.JunctionPath == junctionPath
+			params.JunctionPath != nil && *params.JunctionPath == junctionPath &&
+			!params.UsePrivateCLI
 	})).Return(nil)
 
 	// Mock GetVolume call that happens after UpdateVolume
@@ -4151,6 +4242,93 @@ func TestUpdateClonedVolumeBeforeSplit_WithFileVolumeAndExportPolicy_Success(t *
 	// Verify that UpdateVolume was called twice - once for SnapReserve and once for other parameters
 	// The mock setup above already handles the expectations
 
+	mockProvider.AssertExpectations(t)
+}
+
+func TestUpdateClonedVolumeBeforeSplit_SixHAPairSizeUsesPrivateCLI(t *testing.T) {
+	utils.SetFileProtocolSupportedForTesting(true)
+	utils.SetExperimentalVersionAllowlistedAccountsForTesting("test-account")
+	t.Cleanup(func() {
+		utils.SetFileProtocolSupportedForTesting(false)
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+	})
+
+	activity := activities.VolumeCreateActivity{SE: database.NewMockStorage(t), Scheduler: &scheduler.TemporalScheduler{}}
+	exportPolicyName := "restored-vol-1"
+	junctionPath := "/restored-vol-1"
+	constituentCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+	volume := &datamodel.Volume{
+		Name:        "restored_vol_1",
+		SizeInBytes: 5277655813325,
+		Svm:         &datamodel.Svm{Name: "test-svm"},
+		Account: &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test-account",
+		},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID:      "a64fcfed-c08c-11f1-9452-d9dc5f719f33",
+			SnapReserve:       0,
+			Protocols:         []string{"NFS"},
+			SnapshotDirectory: true,
+			FileProperties: &datamodel.FileProperties{
+				ExportPolicy: &datamodel.ExportPolicy{ExportPolicyName: exportPolicyName},
+				JunctionPath: junctionPath,
+			},
+		},
+		SnapshotPolicy: &datamodel.SnapshotPolicy{Name: "test-snapshot-policy"},
+		LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: &constituentCount,
+		},
+		Pool: &datamodel.Pool{
+			LargeCapacity: true,
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+				LvHAPairs:   common.LvHAPairsNodeCount12,
+			},
+		},
+	}
+
+	mockProvider := new(vsa.MockProvider)
+	mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
+		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
+			params.SnapReserve != nil && *params.SnapReserve == 0 &&
+			params.Size == 0 &&
+			!params.UsePrivateCLI
+	})).Return(nil).Once()
+	mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
+		return params.UsePrivateCLI &&
+			params.UUID == volume.VolumeAttributes.ExternalUUID &&
+			params.VolumeName == volume.Name &&
+			params.SvmName == volume.Svm.Name &&
+			params.Size == volume.SizeInBytes &&
+			params.SnapshotPolicyName == volume.SnapshotPolicy.Name &&
+			params.SnapReserve != nil && *params.SnapReserve == volume.VolumeAttributes.SnapReserve &&
+			params.ExportPolicy != nil && *params.ExportPolicy == exportPolicyName &&
+			params.JunctionPath != nil && *params.JunctionPath == junctionPath &&
+			params.SnapshotDirectoryAccess != nil && *params.SnapshotDirectoryAccess
+	})).Return(nil).Once()
+	mockProvider.On("GetVolume", mock.MatchedBy(func(params vsa.GetVolumeParams) bool {
+		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
+			params.VolumeName == volume.Name &&
+			params.SvmName == volume.Svm.Name
+	})).Return(&vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{ExternalUUID: volume.VolumeAttributes.ExternalUUID},
+		State:            "online",
+	}, nil)
+
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.UpdateClonedVolumeBeforeSplit)
+
+	_, err := env.ExecuteActivity(activity.UpdateClonedVolumeBeforeSplit, volume, &models.Node{})
+	assert.NoError(t, err)
 	mockProvider.AssertExpectations(t)
 }
 

@@ -80,6 +80,102 @@ func TestUpdateVolumeInONTAP_Success(t *testing.T) {
 	mockProvider.AssertExpectations(t)
 }
 
+func TestUpdateVolumeInONTAP_SixHAPairSizeUsesPrivateCLI(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := VolumeUpdateActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.UpdateVolumeInONTAP)
+
+	constituentCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+	volume := &datamodel.Volume{
+		Name: "test_fg",
+		Svm:  &datamodel.Svm{Name: "test-svm"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID: "uuid-123",
+		},
+		LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: &constituentCount,
+		},
+		Pool: &datamodel.Pool{
+			LargeCapacity: true,
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+				LvHAPairs:   common.LvHAPairsNodeCount12,
+			},
+		},
+	}
+	params := &common.UpdateVolumeParams{QuotaInBytes: 8 * 1024 * 1024 * 1024 * 1024}
+	mockProvider.On("UpdateVolume", vsa.UpdateVolumeParams{
+		UUID:          volume.VolumeAttributes.ExternalUUID,
+		VolumeName:    volume.Name,
+		SvmName:       volume.Svm.Name,
+		Size:          params.QuotaInBytes,
+		UsePrivateCLI: true,
+	}).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.UpdateVolumeInONTAP, volume, params, &models.Node{})
+	assert.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestUpdateVolumeInONTAP_SixHAPairNonSizeUpdateUsesPrivateCLI(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := VolumeUpdateActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.UpdateVolumeInONTAP)
+
+	snapReserve := int64(5)
+	constituentCount := int32(common.SixHAPairActiveActiveDefaultConstituentCount())
+	volume := &datamodel.Volume{
+		Name: "test_fg",
+		Svm:  &datamodel.Svm{Name: "test-svm"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID: "uuid-123",
+		},
+		LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: &constituentCount,
+		},
+		Pool: &datamodel.Pool{
+			LargeCapacity: true,
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+				LvHAPairs:   common.LvHAPairsNodeCount12,
+			},
+		},
+	}
+	params := &common.UpdateVolumeParams{SnapReserve: &snapReserve}
+	mockProvider.On("UpdateVolume", vsa.UpdateVolumeParams{
+		UUID:          volume.VolumeAttributes.ExternalUUID,
+		VolumeName:    volume.Name,
+		SvmName:       volume.Svm.Name,
+		SnapReserve:   &snapReserve,
+		UsePrivateCLI: true,
+	}).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.UpdateVolumeInONTAP, volume, params, &models.Node{})
+	assert.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+}
+
 func TestUpdateVolumeInONTAP_WithUnixPermissions(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()

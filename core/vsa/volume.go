@@ -1,20 +1,28 @@
 package vsa
 
 import (
+	"context"
+	stderrors "errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
+	networkpriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
+	privmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	"go.temporal.io/sdk/activity"
 )
 
 // Error message constants
 const (
+	privateCLIVolumeCommandTimeout = 10 * time.Minute
+	privateCLIHeartbeatInterval    = 1 * time.Minute
 	// ErrMsgVolumeMaxSizeExceeded is the error message pattern returned by ONTAP when volume size exceeds maximum
 	ErrMsgVolumeMaxSizeExceeded = "failed because the resulting volume size is greater than the maximum size"
 	// ErrMsgVolumeSizeTooSmall is the error message pattern returned by ONTAP when volume size is too small to hold current data
@@ -78,7 +86,17 @@ func (rc *OntapRestProvider) CreateVolume(params CreateVolumeParams) (*VolumeRes
 		}
 	}
 
-	vol, job, err := client.Storage().VolumeCreate(volumeCreateParams)
+	var vol *ontapRest.Volume
+	var job *ontapRest.JobAccepted
+	// Snapshot restore is an ONTAP FlexClone. It must use the REST clone payload.
+	// An empty RestoreFromSnapshot pointer is not a restore: normal creates always
+	// carry that struct, and only a snapshot UUID selects the clone path.
+	snapshotRestore := params.RestoreFromSnapshot != nil && params.RestoreFromSnapshot.SnapshotUUID != ""
+	if params.UsePrivateCLI && !snapshotRestore {
+		vol, err = createVolumeViaPrivateCLI(rc.ClientParams.Ctx, client, volumeCreateParams)
+	} else {
+		vol, job, err = client.Storage().VolumeCreate(volumeCreateParams)
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "Duplicate volume name") {
 			return nil, errors.NewConflictErr(params.VolumeName + " already exists")
@@ -205,6 +223,402 @@ func (rc *OntapRestProvider) CreateVolume(params CreateVolumeParams) (*VolumeRes
 	}
 
 	return volRes, nil
+}
+
+type privateCLIVolumeCreateConfig struct {
+	reconciliationAttempts int
+	reconciliationDelay    time.Duration
+}
+
+func createVolumeViaPrivateCLI(ctx context.Context, client ontapRest.RESTClient, params *ontapRest.VolumeCreateParams) (*ontapRest.Volume, error) {
+	return createVolumeViaPrivateCLIWithConfig(ctx, client, params, privateCLIVolumeCreateConfig{
+		reconciliationAttempts: 5,
+		reconciliationDelay:    time.Second,
+	})
+}
+
+func createVolumeViaPrivateCLIWithConfig(
+	ctx context.Context,
+	client ontapRest.RESTClient,
+	params *ontapRest.VolumeCreateParams,
+	config privateCLIVolumeCreateConfig,
+) (*ontapRest.Volume, error) {
+	if config.reconciliationAttempts <= 0 {
+		return nil, errors.New("private CLI volume create requires at least one reconciliation attempt")
+	}
+	command, err := buildPrivateCLIVolumeCreateCommand(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = executeONTAPCommand(ctx, client, command); err != nil {
+		if isDuplicateVolumeCreateError(err) {
+			return nil, errors.NewConflictErr(params.Name + " already exists")
+		}
+		return nil, err
+	}
+
+	svmName := params.Svm
+	var lastErr error
+	for attempt := 0; attempt < config.reconciliationAttempts; attempt++ {
+		vol, getErr := client.Storage().VolumeGet(&ontapRest.VolumeGetParams{
+			Name:    params.Name,
+			SvmName: &svmName,
+			BaseParams: ontapRest.BaseParams{
+				Fields: ontapRest.DefaultVolumeDetailFields,
+			},
+		})
+		if getErr == nil && vol != nil {
+			return vol, nil
+		}
+		if getErr != nil {
+			lastErr = getErr
+		} else {
+			lastErr = errors.New("private CLI volume create reconciliation returned an empty volume")
+		}
+		if attempt < config.reconciliationAttempts-1 {
+			time.Sleep(config.reconciliationDelay)
+		}
+	}
+	return nil, fmt.Errorf("private CLI volume create succeeded but reconciliation failed: %w", lastErr)
+}
+
+func isDuplicateVolumeCreateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "duplicate volume name") ||
+		(strings.Contains(message, "volume") && strings.Contains(message, "already exists"))
+}
+
+// executeONTAPCommand blocks until ONTAP finishes the command. REST waits through
+// client.Poll, which heartbeats.
+func executeONTAPCommand(ctx context.Context, client ontapRest.RESTClient, command string) (string, error) {
+	if ctx != nil && activity.IsActivity(ctx) {
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			safeRecordHeartbeat(ctx, "Running ONTAP volume command")
+			ticker := time.NewTicker(privateCLIHeartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					safeRecordHeartbeat(ctx, "Running ONTAP volume command")
+				}
+			}
+		}()
+	}
+
+	privilege := "admin"
+	response, err := client.Networking().CliExecute(
+		networkpriv.NewCliExecuteParams().
+			WithBody(&privmodels.CliExecute{Input: &command, Privilege: &privilege}).
+			WithTimeout(privateCLIVolumeCommandTimeout),
+	)
+	if err != nil {
+		var cliErr *networkpriv.CliExecuteDefault
+		if stderrors.As(err, &cliErr) && cliErr.Payload != nil && cliErr.Payload.Error != nil &&
+			cliErr.Payload.Error.Message != nil && *cliErr.Payload.Error.Message != "" {
+			return "", errors.New(*cliErr.Payload.Error.Message)
+		}
+		return "", err
+	}
+	if response == nil || response.Payload == nil {
+		return "", errors.New("invalid volume operation response")
+	}
+	if cmdErr := ontapCommandFailure(response.Payload.Output); cmdErr != nil {
+		return "", cmdErr
+	}
+	return response.Payload.Output, nil
+}
+
+func ontapCommandFailure(output string) error {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "error:") ||
+		strings.Contains(lower, "command failed") ||
+		strings.Contains(lower, "job failed") {
+		return errors.New(trimmed)
+	}
+	return nil
+}
+
+func updateVolumeViaPrivateCLI(ctx context.Context, client ontapRest.RESTClient, params UpdateVolumeParams) error {
+	if params.InitiateSplit || params.NasUid != nil {
+		return errors.New("clone split and NAS UID updates are separate volume operations")
+	}
+	if params.SvmName == "" || params.VolumeName == "" {
+		return errors.New("volume name and SVM name are required")
+	}
+
+	includeCloudWrite := true
+	if cloudWriteDisableComesFirst(params.TieringPolicy) {
+		command := strings.Join([]string{
+			"volume", "modify",
+			"-vserver", quoteONTAPCLIValue(params.SvmName),
+			"-volume", quoteONTAPCLIValue(params.VolumeName),
+			"-is-cloud-write-enabled", "false",
+			"-foreground", "true",
+		}, " ")
+		if _, err := executeONTAPCommand(ctx, client, command); err != nil {
+			return err
+		}
+		includeCloudWrite = false
+	}
+
+	command, hasChanges := buildPrivateCLIVolumeModifyCommand(params, includeCloudWrite)
+	if hasChanges {
+		if _, err := executeONTAPCommand(ctx, client, command); err != nil {
+			return err
+		}
+	}
+	// volume modify does not accept -junction-path. Mount sets nas.path on its own.
+	return mountVolumeJunctionPath(client, params)
+}
+
+func mountVolumeJunctionPath(client ontapRest.RESTClient, params UpdateVolumeParams) error {
+	if params.JunctionPath == nil || *params.JunctionPath == "" {
+		return nil
+	}
+	if params.UUID == "" {
+		return errors.New("volume UUID is required")
+	}
+	job, err := client.Storage().VolumeMount(&ontapRest.VolumeMountParams{
+		UUID:         params.UUID,
+		JunctionPath: *params.JunctionPath,
+	})
+	if err != nil {
+		return err
+	}
+	if job == nil || job.JobUUID == "" {
+		return errors.New("invalid volume mount response")
+	}
+	return client.Poll(job.JobUUID)
+}
+
+func cloudWriteDisableComesFirst(policy *TieringPolicy) bool {
+	return policy != nil &&
+		policy.CloudWriteModeEnabled != nil &&
+		!*policy.CloudWriteModeEnabled &&
+		policy.CoolAccessTieringPolicy != models.VolumeInlineTieringPolicyAll
+}
+
+func buildPrivateCLIVolumeModifyCommand(params UpdateVolumeParams, includeCloudWrite bool) (string, bool) {
+	commandArguments := []string{
+		"volume", "modify",
+		"-vserver", quoteONTAPCLIValue(params.SvmName),
+		"-volume", quoteONTAPCLIValue(params.VolumeName),
+	}
+	var changeArguments []string
+	if params.Size != 0 {
+		changeArguments = append(changeArguments, "-size", fmt.Sprintf("%dB", params.Size))
+	}
+	if params.SnapReserve != nil {
+		changeArguments = append(changeArguments, "-percent-snapshot-space", strconv.FormatInt(*params.SnapReserve, 10))
+	}
+	if params.SnapshotPolicyName != "" {
+		changeArguments = append(changeArguments, "-snapshot-policy", quoteONTAPCLIValue(params.SnapshotPolicyName))
+	}
+	if params.SnapshotDirectoryAccess != nil {
+		changeArguments = append(changeArguments, "-snapdir-access", strconv.FormatBool(*params.SnapshotDirectoryAccess))
+	}
+	if params.ExportPolicy != nil && *params.ExportPolicy != "" {
+		changeArguments = append(changeArguments, "-policy", quoteONTAPCLIValue(*params.ExportPolicy))
+	}
+	if params.QosPolicyName != nil {
+		changeArguments = append(changeArguments, "-qos-policy-group", quoteONTAPCLIValue(*params.QosPolicyName))
+	}
+	if params.UnixPermissions != nil {
+		if unixPermissions, err := strconv.Atoi(*params.UnixPermissions); err == nil {
+			changeArguments = append(changeArguments, "-unix-permissions", fmt.Sprintf("%04d", unixPermissions))
+		}
+	}
+	changeArguments = append(changeArguments, privateCLITieringArguments(params.TieringPolicy, includeCloudWrite)...)
+	if len(changeArguments) == 0 {
+		return "", false
+	}
+	commandArguments = append(commandArguments, changeArguments...)
+	// FlexGroup modifies otherwise return before ONTAP finishes the background job.
+	commandArguments = append(commandArguments, "-foreground", "true")
+	return strings.Join(commandArguments, " "), true
+}
+
+func privateCLITieringArguments(policy *TieringPolicy, includeCloudWrite bool) []string {
+	if policy == nil {
+		return nil
+	}
+	var arguments []string
+	if policy.CoolAccessTieringPolicy != "" {
+		arguments = append(arguments, "-tiering-policy", quoteONTAPCLIValue(policy.CoolAccessTieringPolicy))
+		if policy.CoolnessPeriod != 0 &&
+			policy.CoolAccessTieringPolicy != models.VolumeInlineTieringPolicyNone &&
+			policy.CoolAccessTieringPolicy != models.VolumeInlineTieringPolicyAll {
+			arguments = append(arguments, "-tiering-minimum-cooling-days", strconv.FormatInt(policy.CoolnessPeriod, 10))
+		}
+	}
+	if policy.CoolAccessRetrievalPolicy != "" {
+		arguments = append(arguments, "-cloud-retrieval-policy", quoteONTAPCLIValue(policy.CoolAccessRetrievalPolicy))
+	}
+	if includeCloudWrite && policy.CloudWriteModeEnabled != nil {
+		arguments = append(arguments, "-is-cloud-write-enabled", strconv.FormatBool(*policy.CloudWriteModeEnabled))
+	}
+	return arguments
+}
+
+func mapVolumeModifyError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), ErrMsgVolumeMaxSizeExceeded) {
+		maxSizeStart := strings.Index(err.Error(), "The maximum possible size is ")
+		if maxSizeStart > 0 {
+			maxSizeStr := err.Error()[maxSizeStart:]
+			sanitizedError := fmt.Sprintf("Volume size exceeds the maximum allowed size. %s", maxSizeStr)
+			return vsaerrors.NewVCPError(vsaerrors.ErrVolumeExceedsMaximumSize,
+				errors.NewUserInputValidationErr(sanitizedError))
+		}
+	}
+	if strings.Contains(err.Error(), ErrMsgVolumeSizeTooSmall) {
+		minSizeStart := strings.Index(err.Error(), "New volume size must be at least ")
+		var sanitizedError string
+		if minSizeStart >= 0 {
+			minSizeEnd := strings.Index(err.Error()[minSizeStart:], " to hold")
+			if minSizeEnd > 0 {
+				minSizeStr := err.Error()[minSizeStart : minSizeStart+minSizeEnd]
+				sanitizedError = fmt.Sprintf("Selected volume size is too small to hold the current volume data. %s", minSizeStr)
+			} else {
+				sanitizedError = "Selected volume size is too small to hold the current volume data. Please increase the volume size."
+			}
+		} else {
+			sanitizedError = "Selected volume size is too small to hold the current volume data. Please increase the volume size."
+		}
+		return vsaerrors.NewVCPError(vsaerrors.ErrVolumeSizeTooSmall,
+			errors.NewUserInputValidationErr(sanitizedError))
+	}
+	return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+}
+
+func mapPrivateCLIVolumeModifyError(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "is too small") || strings.Contains(message, "new volume size must be at least") {
+		return vsaerrors.NewVCPError(vsaerrors.ErrVolumeSizeTooSmall,
+			errors.NewUserInputValidationErr("Selected volume size is too small. Please increase the volume size."))
+	}
+	if strings.Contains(message, "is too large") || strings.Contains(message, "greater than the maximum size") {
+		return vsaerrors.NewVCPError(vsaerrors.ErrVolumeExceedsMaximumSize,
+			errors.NewUserInputValidationErr("Volume size exceeds the maximum allowed size."))
+	}
+	return mapVolumeModifyError(err)
+}
+
+func buildPrivateCLIVolumeCreateCommand(params *ontapRest.VolumeCreateParams) (string, error) {
+	if params == nil {
+		return "", errors.New("volume create parameters are required for private CLI volume create")
+	}
+	if params.Name == "" || params.Svm == "" {
+		return "", errors.New("volume name and SVM name are required for private CLI volume create")
+	}
+	if params.Style == nil || *params.Style != ontapRest.VolumeStyleFlexGroup {
+		return "", errors.New("private CLI volume create is only supported for FlexGroup volumes")
+	}
+	if params.Size <= 0 || params.Type == "" {
+		return "", errors.New("positive volume size and volume type are required for private CLI volume create")
+	}
+	if len(params.Aggregates) == 0 || params.ConstituentsPerAggregate == nil || *params.ConstituentsPerAggregate <= 0 {
+		return "", errors.New("aggregate list and positive aggregate multiplier are required for private CLI volume create")
+	}
+
+	aggregateList := strings.Join(params.Aggregates, ",")
+	arguments := []string{
+		"volume", "create",
+		"-vserver", quoteONTAPCLIValue(params.Svm),
+		"-volume", quoteONTAPCLIValue(params.Name),
+		"-aggr-list", quoteONTAPCLIValue(aggregateList),
+		"-size", fmt.Sprintf("%dB", params.Size),
+		"-state", ontapRest.VolumeStateOnline,
+		"-type", quoteONTAPCLIValue(params.Type),
+		"-aggr-list-multiplier", strconv.FormatInt(*params.ConstituentsPerAggregate, 10),
+		"-granular-data", ontapRest.GranularDataModeAdvanced,
+		"-space-guarantee", ontapRest.GuaranteeTypeNone,
+		"-autosize-mode", "off",
+		"-is-space-enforcement-logical", "true",
+		"-is-space-reporting-logical", "true",
+		"-percent-snapshot-space", strconv.FormatInt(params.SnapshotReservePercent, 10),
+		"-snapdir-access", strconv.FormatBool(params.SnapshotDirectoryAccessEnabled),
+		"-foreground", "true",
+	}
+	if params.SnapshotPolicy != "" {
+		arguments = append(arguments, "-snapshot-policy", quoteONTAPCLIValue(params.SnapshotPolicy))
+	}
+	appendCLIArgument := func(flag string, value *string) {
+		if value != nil && *value != "" {
+			arguments = append(arguments, flag, quoteONTAPCLIValue(*value))
+		}
+	}
+	appendCLIArgument("-policy", params.ExportPolicy)
+	appendCLIArgument("-junction-path", params.JunctionPath)
+	if params.SecurityStyle != "" {
+		securityStyle := strings.ToLower(params.SecurityStyle)
+		appendCLIArgument("-security-style", &securityStyle)
+	}
+	if params.UnixPermissions != nil {
+		if unixPermissions, err := strconv.Atoi(*params.UnixPermissions); err == nil {
+			// The CLI expects the four-digit octal form (0770) REST takes the integer 770.
+			normalizedPermissions := fmt.Sprintf("%04d", unixPermissions)
+			appendCLIArgument("-unix-permissions", &normalizedPermissions)
+		}
+	}
+	if params.QosPolicy != "" {
+		appendCLIArgument("-qos-policy-group", &params.QosPolicy)
+	}
+	if params.LargeSizeEnabled != nil && *params.LargeSizeEnabled {
+		arguments = append(arguments, "-is-large-size-enabled", "true")
+	}
+	if params.TieringPolicy != nil {
+		tieringPolicy := params.TieringPolicy.CoolAccessTieringPolicy
+		if tieringPolicy != "" {
+			arguments = append(arguments, "-tiering-policy", quoteONTAPCLIValue(tieringPolicy))
+		}
+		if tieringPolicy == models.VolumeInlineTieringPolicyAuto ||
+			tieringPolicy == models.VolumeInlineTieringPolicySnapshotOnly {
+			arguments = append(arguments, "-tiering-minimum-cooling-days", strconv.FormatInt(params.TieringPolicy.MinCoolingDays, 10))
+			if params.TieringPolicy.CloudRetrievalPolicy != "" {
+				arguments = append(arguments, "-cloud-retrieval-policy", quoteONTAPCLIValue(params.TieringPolicy.CloudRetrievalPolicy))
+			}
+		}
+		if params.TieringPolicy.CloudWriteModeEnabled != nil {
+			arguments = append(arguments, "-is-cloud-write-enabled", strconv.FormatBool(*params.TieringPolicy.CloudWriteModeEnabled))
+		}
+	}
+
+	return strings.Join(arguments, " "), nil
+}
+
+func quoteONTAPCLIValue(value string) string {
+	if strings.ContainsAny(value, ";\r\n") {
+		return strconv.Quote(value)
+	}
+	if strings.IndexFunc(value, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') &&
+			!(r >= 'A' && r <= 'Z') &&
+			!(r >= '0' && r <= '9') &&
+			!strings.ContainsRune("-_.,:/*+@", r)
+	}) == -1 {
+		return value
+	}
+	return strconv.Quote(value)
 }
 
 // DeleteVolume deletes a volume by calling the ONTAP REST Client
@@ -643,6 +1057,9 @@ func (rc *OntapRestProvider) UpdateVolume(params UpdateVolumeParams) error {
 	if err != nil {
 		return err
 	}
+	if params.UsePrivateCLI {
+		return mapPrivateCLIVolumeModifyError(updateVolumeViaPrivateCLI(rc.ClientParams.Ctx, client, params))
+	}
 	volumeModifyParams := &ontapRest.VolumeModifyParams{
 		UUID:        params.UUID,
 		SnapReserve: params.SnapReserve,
@@ -702,39 +1119,7 @@ func (rc *OntapRestProvider) UpdateVolume(params UpdateVolumeParams) error {
 
 	success, job, err := client.Storage().VolumeModify(volumeModifyParams)
 	if err != nil {
-		// Check for maximum volume size error
-		if strings.Contains(err.Error(), ErrMsgVolumeMaxSizeExceeded) {
-			// Extract the maximum size from the error message
-			maxSizeStart := strings.Index(err.Error(), "The maximum possible size is ")
-			if maxSizeStart > 0 {
-				maxSizeStr := err.Error()[maxSizeStart:]
-				// Create a sanitized error message without exposing SVM name
-				sanitizedError := fmt.Sprintf("Volume size exceeds the maximum allowed size. %s", maxSizeStr)
-				return vsaerrors.NewVCPError(vsaerrors.ErrVolumeExceedsMaximumSize,
-					errors.NewUserInputValidationErr(sanitizedError))
-			}
-		}
-		// Check for volume size too small error
-		if strings.Contains(err.Error(), ErrMsgVolumeSizeTooSmall) {
-			// Extract the minimum required size from the error message if available
-			minSizeStart := strings.Index(err.Error(), "New volume size must be at least ")
-			var sanitizedError string
-			if minSizeStart >= 0 {
-				// Extract the minimum size requirement
-				minSizeEnd := strings.Index(err.Error()[minSizeStart:], " to hold")
-				if minSizeEnd > 0 {
-					minSizeStr := err.Error()[minSizeStart : minSizeStart+minSizeEnd]
-					sanitizedError = fmt.Sprintf("Selected volume size is too small to hold the current volume data. %s", minSizeStr)
-				} else {
-					sanitizedError = "Selected volume size is too small to hold the current volume data. Please increase the volume size."
-				}
-			} else {
-				sanitizedError = "Selected volume size is too small to hold the current volume data. Please increase the volume size."
-			}
-			return vsaerrors.NewVCPError(vsaerrors.ErrVolumeSizeTooSmall,
-				errors.NewUserInputValidationErr(sanitizedError))
-		}
-		return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+		return mapVolumeModifyError(err)
 	}
 	if success || params.InitiateSplit { // Split operation can run in background without polling
 		return nil

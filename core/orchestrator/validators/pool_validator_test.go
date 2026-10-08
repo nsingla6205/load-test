@@ -20,6 +20,7 @@ func TestNewCustomPerformanceFromCreate(t *testing.T) {
 			QosType:            utils.QosTypeAuto,
 			LargeCapacity:      false,
 			IsTrueZonal:        true,
+			LvHAPairs:          commonparams.LvHAPairsNodeCount24,
 			CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 				ThroughputMibps: 128,
 				Iops:            nillable.ToPointer(int64(2048)),
@@ -36,6 +37,7 @@ func TestNewCustomPerformanceFromCreate(t *testing.T) {
 		assert.Equal(t, params.QosType, perf.QosType)
 		assert.Equal(t, params.LargeCapacity, perf.LargeCapacity)
 		assert.Equal(t, params.IsTrueZonal, perf.IsTrueZonal)
+		assert.Equal(t, params.LvHAPairs, perf.LvHAPairs)
 	})
 
 	t.Run("WithoutCustomPerformanceParams", func(t *testing.T) {
@@ -593,6 +595,10 @@ func TestPoolValidatorConstants(t *testing.T) {
 		assert.Greater(t, minTrueZonalCustomIops, uint64(0))
 		assert.Greater(t, maxTrueZonalCustomIops, uint64(0))
 		assert.GreaterOrEqual(t, maxTrueZonalCustomIops, minTrueZonalCustomIops)
+		assert.Greater(t, minTrueZonal24NodeThroughput, uint64(0))
+		assert.GreaterOrEqual(t, maxTrueZonal24NodeThroughput, minTrueZonal24NodeThroughput)
+		assert.Greater(t, minTrueZonal24NodeCustomIops, uint64(0))
+		assert.GreaterOrEqual(t, maxTrueZonal24NodeCustomIops, minTrueZonal24NodeCustomIops)
 	})
 }
 

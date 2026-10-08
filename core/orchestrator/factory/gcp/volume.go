@@ -108,6 +108,7 @@ const (
 	BackupVaultNameIndex      = 5          // The index of the backup vault name in the components
 	LocationIdIndex           = 3          // The index of the locationId in the backup path
 	bytesPerGB                = 1073741824 // 1024^3 bytes = 1 GB
+	minSixHAPairTZCVSizeBytes = 50 * bytesPerGB
 	ErrMsgSnapReserveIncrease = "Cannot increase SnapReserve to %.0f%% as we cannot decrease the available space (%.2f GB). " +
 		"Please increase the volume size to at least %.0f GB with this SnapReserve or reduce the SnapReserve percentage to continue."
 	NtfsSecurityStyle = "ntfs" // lower-case for persistence and ONTAP REST (enum: ntfs/unix)
@@ -1395,6 +1396,18 @@ func largeVolumeAggregateCount(lvHaPairs int64, isActiveActive bool) int64 {
 	return lvHaPairs
 }
 
+func minimumConstituentVolumeSize(pool *datamodel.PoolView, constituentCount int64) uint64 {
+	if pool == nil || pool.PoolAttributes == nil {
+		return minCVSizeInBytes
+	}
+	if pool.IsActiveActive() &&
+		pool.PoolAttributes.LvHAPairs == common.LvHAPairsNodeCount12 &&
+		constituentCount == common.SixHAPairActiveActiveDefaultConstituentCount() {
+		return minSixHAPairTZCVSizeBytes
+	}
+	return minCVSizeInBytes
+}
+
 func getMaxConstituentVolumesPerAggregate(logger log.Logger, config string) (int64, error) {
 	// Get the VSA instance type detail from Pool table
 	vlmConfig := &vlm.VLMConfig{}
@@ -1545,9 +1558,10 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 			cvSizeInBytes = params.QuotaInBytes / uint64(cvCount)
 		}
 
-		if cvSizeInBytes < minCVSizeInBytes {
+		minimumCVSizeInBytes := minimumConstituentVolumeSize(pool, cvCount)
+		if cvSizeInBytes < minimumCVSizeInBytes {
 			return customerrors.NewUserInputValidationErr(fmt.Sprintf("Constituent volume size cannot be less than %s. Current CV size is %s with %d constituent volumes",
-				utils.FmtUint64Bytes(minCVSizeInBytes), utils.FmtUint64Bytes(cvSizeInBytes), cvCount))
+				utils.FmtUint64Bytes(minimumCVSizeInBytes), utils.FmtUint64Bytes(cvSizeInBytes), cvCount))
 		}
 		if cvSizeInBytes > maxCVSizeInBytes {
 			return customerrors.NewUserInputValidationErr(fmt.Sprintf("Constituent volume size cannot be more than %s. Current CV size is %s with %d constituent volumes",
@@ -3125,12 +3139,10 @@ func validateUpdateVolumeRequest(ctx context.Context, se database.Storage, volum
 				cvCount = int64(*volume.LargeVolumeAttributes.LargeVolumeConstituentCount)
 				cvSizeInBytes = uint64(params.QuotaInBytes) / uint64(cvCount)
 
-				// Enforce the minimum CV size, mirroring create-time validation.
-				// Without this check an update can pass VCP validation but fail later
-				// in ONTAP with a "size is too small" internal error.
-				if cvSizeInBytes < minCVSizeInBytes {
+				minimumCVSizeInBytes := minimumConstituentVolumeSize(pool, cvCount)
+				if cvSizeInBytes < minimumCVSizeInBytes {
 					return customerrors.NewUserInputValidationErr(fmt.Sprintf("Constituent volume size cannot be less than %s. Current CV size is %s with %d constituent volumes",
-						utils.FmtUint64Bytes(minCVSizeInBytes), utils.FmtUint64Bytes(cvSizeInBytes), cvCount))
+						utils.FmtUint64Bytes(minimumCVSizeInBytes), utils.FmtUint64Bytes(cvSizeInBytes), cvCount))
 				}
 			}
 

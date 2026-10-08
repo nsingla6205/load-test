@@ -134,6 +134,10 @@ minTrueZonalThroughput: "64"
 maxTrueZonalThroughput: "40320"
 minTrueZonalCustomIops: "1024"
 maxTrueZonalCustomIops: "1236480"
+minTrueZonal24NodeThroughput: "64"
+maxTrueZonal24NodeThroughput: "75600"
+minTrueZonal24NodeCustomIops: "1024"
+maxTrueZonal24NodeCustomIops: "2318400"
 iopsPerMibps: "16"
 deleteResourcesCronExpression: "0 0 * * *" # DELETE_RESOURCES job configuration
 certificateRotationCronExpression: "0 0 * * *" # ROTATE_VSA_CERTIFICATE_AND_PASSWORD job configuration (default: daily at midnight)

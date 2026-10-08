@@ -383,6 +383,7 @@ type CreateVolumeParams struct {
 	Size                     int64
 	VolumeType               string
 	SnapshotPolicyName       string
+	UsePrivateCLI            bool
 	// Reference to a snapshot for restore/clone
 	RestoreFromSnapshot *RestoreFromSnapshotParams // Optional: parameters for restoring from a snapshot
 	SnapReserve         int64
@@ -528,7 +529,8 @@ type UpdateVolumeParams struct {
 	UnixPermissions         *string
 	// NasUid sets the volume NAS owner UID via nas.uid in ONTAP. Used when AllSquash is enabled
 	// to align the volume root directory inode UID with the squash target.
-	NasUid *int64
+	NasUid        *int64
+	UsePrivateCLI bool
 }
 
 type UpdateFlexCacheVolumeParams struct {
