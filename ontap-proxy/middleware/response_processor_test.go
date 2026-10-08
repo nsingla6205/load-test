@@ -158,6 +158,31 @@ func TestProcessResponseAndRecordBackendMetrics(t *testing.T) {
 		assert.Contains(t, string(respBody), "917621")
 	})
 
+	t.Run("WhenOntapReturns500WithTransferInProgress13303812_ShouldRewriteTo400", func(t *testing.T) {
+		orig := ontapClientErrorCodes
+		ontapClientErrorCodes = parseOntapClientErrorCodes("13303812")
+		defer func() { ontapClientErrorCodes = orig }()
+
+		body := `{"error":{"code":"13303812","message":"Initialize operation failed. Another transfer is in progress."}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/snapmirror/relationships/transfers", nil)
+		resp := &http.Response{
+			StatusCode: 500,
+			Status:     "500 Internal Server Error",
+			Request:    req,
+			Body:       io.NopCloser(bytes.NewBufferString(body)),
+			Header:     make(http.Header),
+		}
+
+		_ = ProcessResponseAndRecordBackendMetrics(resp)
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, "400 Bad Request", resp.Status)
+
+		respBody, _ := io.ReadAll(resp.Body)
+		assert.Contains(t, string(respBody), "13303812")
+		assert.Contains(t, string(respBody), "Another transfer is in progress.")
+	})
+
 	t.Run("WhenOntapReturns500WithUnknownErrorCode_ShouldKeep500", func(t *testing.T) {
 		body := `{"error":{"code":"999999","message":"Some other ONTAP error."}}`
 		req := httptest.NewRequest(http.MethodPost, "/api/storage/volumes", nil)
