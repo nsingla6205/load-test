@@ -94,10 +94,11 @@ func TestNodeAndSvmFromStore_ProvidedCertPreservesFullCASName(t *testing.T) {
 
 	require.NoError(t, err)
 	// Full CAS resource name must be preserved so vsa.GetProvidedCertificate can
-	// parse the 8-segment name; only the bare admin secret id is reduced.
+	// parse the 8-segment name; the admin password resource name is preserved so
+	// the resource-name-aware lookup resolves it in the tenant project.
 	assert.Equal(t, casName, node.CertificateID)
 	assert.Equal(t, "projects/tenant-proj/secrets/cert-key", node.CertPrivateKeySecretID)
-	assert.Equal(t, "admin-pass", node.SecretID)
+	assert.Equal(t, "projects/tenant-proj/secrets/admin-pass", node.SecretID)
 	assert.Equal(t, "vcm-admin", node.Username)
 	assert.Equal(t, "mgmt.gcnv-test.vsa.example.com", node.ServerName)
 }
@@ -119,9 +120,11 @@ func TestNodeAndSvmFromStore_SelfManagedCertIsBareNamed(t *testing.T) {
 	node, _, err := nodeAndSvmFromStore(store)
 
 	require.NoError(t, err)
-	// No provided private key -> legacy self-managed path -> bare-name the id.
+	// No provided private key -> legacy self-managed path -> bare-name the cert
+	// id. The password resource name is preserved for the resource-name-aware
+	// lookup.
 	assert.Equal(t, "cert-1", node.CertificateID)
-	assert.Equal(t, "admin-pass", node.SecretID)
+	assert.Equal(t, "projects/p/secrets/admin-pass", node.SecretID)
 }
 
 type jobTestStore struct {

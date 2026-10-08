@@ -1158,11 +1158,23 @@ func _deletePasswordForVSAClusterOCI(ociService *oci.OciServices, poolCredential
 	return nil
 }
 
-// _getPasswordForVSACluster retrieves the password for a VSA cluster from the cloud provider's secret manager.
+// _getPasswordForVSACluster retrieves the password for a VSA cluster from the
+// cloud provider's secret manager.
+//
+// The lookup is resource-name-aware: VCM carries a fully qualified Secret
+// Manager resource name (projects/{tenant}/secrets/{secret}) and the secret
+// lives in the tenant project, so the project is taken from the name. VCP passes
+// a bare secret id, which does not parse as a resource name and therefore falls
+// back to env.SecretManagerProjectID (the service project) unchanged.
 func _getPasswordForVSACluster(cloudService hyperscaler.Services, secretID string) (*hyperscalermodels.CustomSecret, error) {
-	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+	projectID := env.SecretManagerProjectID
+	lookupID := secretID
+	if parsedProject, parsedSecret, err := utils.ParseSecretResourceName(secretID); err == nil {
+		projectID, lookupID = parsedProject, parsedSecret
+	}
+	secret, err := cloudService.GetSecretWithLatestVersion(projectID, lookupID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
-		return nil, fmt.Errorf("failed to get secret for project: %s, userName: %s, err: %s", env.SecretManagerProjectID, secretID, err)
+		return nil, fmt.Errorf("failed to get secret for project: %s, userName: %s, err: %s", projectID, lookupID, err)
 	}
 	return secret, nil
 }

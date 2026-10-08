@@ -142,7 +142,7 @@ func TestOntapNodeCredentials(t *testing.T) {
 		assert.Equal(t, env.USERNAME_PWD, creds.AuthType)
 	})
 
-	t.Run("qualified secret id is reduced to a bare name", func(t *testing.T) {
+	t.Run("qualified secret id is preserved for the resource-name-aware lookup", func(t *testing.T) {
 		withEnv(t, "prod")
 		inputs := &datamodel.PoolCredentials{
 			SecretID: "projects/123/secrets/admin-pw/versions/latest",
@@ -153,7 +153,8 @@ func TestOntapNodeCredentials(t *testing.T) {
 
 		creds := wf.ontapNodeCredentials()
 		require.NotNil(t, creds)
-		assert.Equal(t, "admin-pw", creds.SecretID)
+		assert.Equal(t, "projects/123/secrets/admin-pw/versions/latest", creds.SecretID,
+			"the full password resource name is kept so the lookup resolves it in the tenant project")
 		assert.Equal(t, "vsaadmin", creds.Username)
 		assert.Equal(t, env.USERNAME_PWD_SEC_MGR, creds.AuthType)
 
@@ -161,7 +162,7 @@ func TestOntapNodeCredentials(t *testing.T) {
 			"workflow inputs must keep the qualified name for the cluster-create path")
 	})
 
-	t.Run("certificate id is reduced alongside the secret id", func(t *testing.T) {
+	t.Run("certificate id is reduced but the secret id is preserved", func(t *testing.T) {
 		withEnv(t, "prod")
 		inputs := &datamodel.PoolCredentials{
 			CertificateID: "projects/123/secrets/admin-cert",
@@ -173,7 +174,7 @@ func TestOntapNodeCredentials(t *testing.T) {
 		creds := wf.ontapNodeCredentials()
 		require.NotNil(t, creds)
 		assert.Equal(t, "admin-cert", creds.CertificateID)
-		assert.Equal(t, "admin-key", creds.SecretID)
+		assert.Equal(t, "projects/123/secrets/admin-key", creds.SecretID)
 		assert.Equal(t, env.USER_CERTIFICATE, creds.AuthType)
 	})
 

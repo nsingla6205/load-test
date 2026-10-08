@@ -1105,19 +1105,14 @@ func svmUUIDFromVLMConfig(cfg vlm.VLMConfig, svmName string) string {
 
 // ontapNodeCredentials returns the ONTAP node credentials for the
 // create-qos-policy step: env username/password locally, else a copy of the
-// orchestrator-derived credentials (identifiers only) whose secret identifiers
-// have been reduced to bare secret names.
+// orchestrator-derived credentials (identifiers only).
 //
-// The QoS step reaches Secret Manager through vsa.GetProviderByNode, which
-// formats projects/{SECRET_MANAGER_PROJECT_ID}/secrets/{id} from the node's
-// identifiers. VCM receives its credentials as fully qualified resource names,
-// so handing one through unchanged yields
-// projects/{p}/secrets/projects/{q}/secrets/... and a 404. Reducing to the bare
-// name keeps that formatting valid.
-//
-// This assumes the secret lives in SECRET_MANAGER_PROJECT_ID: the project
-// segment of the resource name is dropped here, not honoured. Cluster and SVM
-// create are unaffected — resolveOntapCredentials reads the fully qualified name
+// The QoS step reaches Secret Manager through vsa.GetProviderByNode. VCM
+// receives its password credential as a fully qualified resource name
+// (projects/{tenant}/secrets/{secret}) in the tenant project; the password
+// lookup is resource-name-aware and reads the project from the name, so the
+// full resource name is passed through unchanged. Cluster and SVM create are
+// also unaffected — resolveOntapCredentials reads the fully qualified name
 // straight from wf.inputs.OntapCredentials.
 func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials {
 	if isLocalEnv() {
@@ -1134,7 +1129,6 @@ func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials 
 	// Copy: the same pointer feeds resolveOntapCredentials, which needs the
 	// fully qualified names.
 	nodeCreds := *wf.inputs.OntapCredentials
-	nodeCreds.SecretID = utils.BareSecretName(nodeCreds.SecretID)
 	// VCM-provided certs carry the full CAS certificate resource name in
 	// CertificateID (and the private key's full Secret Manager resource name in
 	// CertPrivateKeySecretID), so vsa.GetProvidedCertificate can parse both.

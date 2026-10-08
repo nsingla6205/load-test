@@ -38,11 +38,13 @@ func nodeAndSvmFromStore(store Store) (*models.Node, string, error) {
 		return nil, "", fmt.Errorf("build ONTAP node: %w", err)
 	}
 	node := vsa.CreateNodeForProvider(input)
-	// VCM stores credentials as fully qualified Secret Manager resource names,
-	// but vsa.GetProviderByNode re-prefixes projects/{p}/secrets/ around the
-	// node identifiers. Reduce to the bare secret id so the resulting lookup is
-	// projects/{p}/secrets/{id} rather than a doubled path that 404s.
-	node.SecretID = utils.BareSecretName(node.SecretID)
+	// VCM stores the password credential as a fully qualified Secret Manager
+	// resource name (projects/{tenant}/secrets/{secret}) in the tenant project.
+	// vsa.GetProviderByNode's password lookup is resource-name-aware and reads
+	// the project from the name, so the full resource name is passed through
+	// unchanged (bare-naming it would drop the tenant project and fall back to
+	// the service project, 404ing).
+	//
 	// VCM-provided certs carry the full CAS certificate resource name in
 	// CertificateID (and the private key's full Secret Manager resource name in
 	// CertPrivateKeySecretID), which vsa.GetProvidedCertificate parses directly.

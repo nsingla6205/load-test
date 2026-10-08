@@ -435,6 +435,44 @@ func Test_GetPasswordForVSACluster_Success(t *testing.T) {
 		assert.Nil(t, secret)
 		gcpService.AssertExpectations(t)
 	})
+
+	// VCP path: a bare secret id does not parse as a resource name, so the
+	// lookup falls back to the service project (env.SecretManagerProjectID).
+	t.Run("bare id resolves in SecretManagerProjectID (VCP unchanged)", func(t *testing.T) {
+		origProject := env.SecretManagerProjectID
+		env.SecretManagerProjectID = "service-project"
+		t.Cleanup(func() { env.SecretManagerProjectID = origProject })
+
+		gcpService := hyperscaler.NewMockServices(t)
+		expectedSecret := &hyperscaler3.CustomSecret{
+			SecretVersion: &hyperscaler3.CustomSecretVersion{Value: "super-secret"},
+		}
+		gcpService.On("GetSecretWithLatestVersion", "service-project", "bare-secret").Return(expectedSecret, nil)
+
+		secret, err := GetPasswordForVSACluster(gcpService, "bare-secret")
+		assert.NoError(t, err)
+		assert.Equal(t, expectedSecret, secret)
+		gcpService.AssertExpectations(t)
+	})
+
+	// VCM path: a fully qualified resource name resolves in the tenant project
+	// parsed from the name, not env.SecretManagerProjectID.
+	t.Run("qualified resource name resolves in the tenant project (VCM)", func(t *testing.T) {
+		origProject := env.SecretManagerProjectID
+		env.SecretManagerProjectID = "service-project"
+		t.Cleanup(func() { env.SecretManagerProjectID = origProject })
+
+		gcpService := hyperscaler.NewMockServices(t)
+		expectedSecret := &hyperscaler3.CustomSecret{
+			SecretVersion: &hyperscaler3.CustomSecretVersion{Value: "super-secret"},
+		}
+		gcpService.On("GetSecretWithLatestVersion", "tenant-project", "admin-pass").Return(expectedSecret, nil)
+
+		secret, err := GetPasswordForVSACluster(gcpService, "projects/tenant-project/secrets/admin-pass")
+		assert.NoError(t, err)
+		assert.Equal(t, expectedSecret, secret)
+		gcpService.AssertExpectations(t)
+	})
 }
 
 func Test_GetCertificateFromCacheOrSecretManager(t *testing.T) {
