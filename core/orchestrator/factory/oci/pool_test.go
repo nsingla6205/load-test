@@ -1823,7 +1823,7 @@ func TestValidateUpdatePoolNodeCapacities_PerNodeNoShrink(t *testing.T) {
 			})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "cannot shrink node")
+		assert.Contains(tt, err.Error(), "input capacity cannot be less than node capacity")
 		assert.Contains(tt, err.Error(), "uuid-1")
 		assert.Contains(tt, err.Error(), "current size=400 GiB")
 		assert.Contains(tt, err.Error(), "requested size=300 GiB")
@@ -1848,7 +1848,7 @@ func TestValidateUpdatePoolNodeCapacities_PerNodeNoShrink(t *testing.T) {
 			})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(tt, err.Error(), "cannot shrink node")
+		assert.Contains(tt, err.Error(), "input capacity cannot be less than node capacity")
 	})
 
 	t.Run("accepts keeping a node at its cached size while growing another", func(tt *testing.T) {

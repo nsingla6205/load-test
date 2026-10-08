@@ -137,7 +137,7 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantIOPS:       260000,
 		},
 		{
-			// Below vpu_30 floor (1.26 TiB) at bucket=800 → infeasible regardless
+			// Below vpu_30 floor (1.5 TiB) at bucket=800 → infeasible regardless
 			// of the IOPS value passed.
 			name: "1TiB_800MBps_IOPS130K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
@@ -149,7 +149,7 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// vpu_30 floor at bucket=800 is 1.26 TiB — 1 TiB still infeasible.
+			// vpu_30 floor at bucket=800 is 1.5 TiB — 1 TiB still infeasible.
 			name: "1TiB_800MBps_IOPS140K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
 				DesiredCapacityTiB:     1.00,
@@ -170,7 +170,32 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// Below vpu_30's floor at bucket=800 (1.26 TiB) → infeasible.
+			// Between the previous 1.26 TiB floor and the current 1.5 TiB
+			// floor at bucket=800 → infeasible.
+			name: "1_4TiB_800MBps_BelowVPU30Floor",
+			req: oci.CustomerRequest{
+				DesiredCapacityTiB:     1.4,
+				DesiredThroughputMBps: 800,
+			},
+			wantErr:     true,
+			wantErrType: &oci.NoFeasibleSelectionError{},
+		},
+		{
+			// vpu_30 floor exactly 1.5 TiB at bucket=800.
+			name: "1_5TiB_800MBps_PicksOCPU8VPU30",
+			req: oci.CustomerRequest{
+				DesiredCapacityTiB:     1.5,
+				DesiredThroughputMBps: 800,
+			},
+			wantOCPUs:      8,
+			wantMemoryGBs:  96,
+			wantThroughput: 800,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       128000,
+		},
+		{
+			// Below vpu_30's floor at bucket=800 (1.5 TiB) → infeasible.
 			name: "0_5TiB_800MBps_BelowAllFloors",
 			req: oci.CustomerRequest{
 				DesiredCapacityTiB:     0.5,

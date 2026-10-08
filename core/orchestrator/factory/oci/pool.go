@@ -718,7 +718,7 @@ func validateNodeCapacityPerNodeRules(
 		if node != nil && node.NodeAttributes != nil && node.NodeAttributes.SizeInGiB > 0 &&
 			nodeCapacity.SizeInGiB < node.NodeAttributes.SizeInGiB {
 			return 0, customerrors.NewUserInputValidationErr(
-				fmt.Sprintf("nodeCapacities cannot shrink node %q in pool %q: current size=%d GiB, requested size=%d GiB",
+				fmt.Sprintf("input capacity cannot be less than node capacity for node %q in pool %q: current size=%d GiB, requested size=%d GiB",
 					nodeCapacity.NodeUUID, pool.PoolExternalIdentifier, node.NodeAttributes.SizeInGiB, nodeCapacity.SizeInGiB))
 		}
 		requestedSizeByUUID[uuid] = nodeCapacity.SizeInGiB

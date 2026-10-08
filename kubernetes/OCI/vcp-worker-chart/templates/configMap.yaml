@@ -71,7 +71,8 @@ data:
   VLM_MEDIATOR_MAINTENANCE_RECREATE_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmMediatorMaintenanceRecreateTimeoutMinutes | quote }}
   SKIP_ONTAP_IMAGE_VERSION_MATCH: {{ $.Values.workerConfig.skipOntapImageVersionMatch | quote }}
   VSA_MEDIATOR_IMAGE_NAME: {{ $.Values.workerConfig.vsaMediatorImageName | quote }}
-  VSA_IMAGE_NAME: {{ $.Values.workerConfig.vsaImageName | quote }}
+  # Per-version: read from the versionsSupported entry; fall back to shared workerConfig.
+  VSA_IMAGE_NAME: {{ ($ver.vsaImageName | default $.Values.workerConfig.vsaImageName) | quote }}  
   METRICS_PORT: {{ $.Values.workerConfig.metricsPort | quote }}
   ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION: {{ $.Values.workerConfig.enableUniqueSerialNumberGeneration | quote }}
   CLUSTER_SERIAL_NUMBER_PREFIX: {{ $.Values.workerConfig.clusterSerialNumberPrefix | quote }}
@@ -117,7 +118,8 @@ data:
   SETUP_NW_HEARTBEAT_TIMEOUT_SEC: {{ $.Values.workerConfig.setupNwHeartbeatTimeoutSec | quote }}
   NLF_LICENSE_SECRET_PATH: {{ $.Values.workerConfig.nlfLicenseSecretPath | quote }}
   TASK_QUEUE_VERSION: "{{ $version }}"
-  ONTAP_VERSION_DETAILS: {{ $.Values.workerConfig.ontapVersionDetails | quote }}
+  # Per-version: read from the versionsSupported entry; fall back to shared workerConfig.
+  ONTAP_VERSION_DETAILS: {{ ($ver.ontapVersionDetails | default $.Values.workerConfig.ontapVersionDetails) | quote }}
   OCI_VSA_INSTANCE_TYPE: {{ $.Values.workerConfig.vsaMediatorInstanceType | quote }}
   OCI_CREATOR: {{ $.Values.workerConfig.ociCreator | quote }}
   OCI_VSA_FLEX_OCPUS: {{ $.Values.workerConfig.ociVsaFlexOcpus | quote }}

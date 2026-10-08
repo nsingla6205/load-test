@@ -105,7 +105,7 @@ throughput:
           vpu_30:
             default_iops: 12500
             max_iops: 128000
-            min_capacity_tib: 1.26
+            min_capacity_tib: 1.5
 
   # ---------------------------------------------------------------------------
   # 1600 MB/s headroom → 16 OCPU  (max-egress 2000 MB/s)

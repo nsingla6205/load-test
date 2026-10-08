@@ -128,9 +128,9 @@ type Instance struct {
 // IMPORTANT: capacity numbers in this struct are PER VSA VM (per node),
 // not per HA pair and not per individual block volume / disk. The
 // catalogue mirrors the OCI perf-team "per Node" table — for the
-// 800 MB/s headroom tier under vpu_30 the floor is 1.26 TiB per VM,
-// which becomes ~2.52 TiB per HA pair in Active-Active (both VMs serve)
-// and ~1.26 TiB per HA pair in Active-Passive (only primary serves).
+// 800 MB/s headroom tier under vpu_30 the floor is 1.5 TiB per VM,
+// which becomes ~3.0 TiB per HA pair in Active-Active (both VMs serve)
+// and ~1.5 TiB per HA pair in Active-Passive (only primary serves).
 // The DecideOCIVMRS activity is responsible for dividing the customer's
 // total pool (capacity, throughput) by totalActiveVMs before populating
 // CustomerRequest, so that selector inputs land in the same unit space
