@@ -24,6 +24,11 @@ spec:
     metadata:
       labels:
         app: {{ $name }}-{{ $version }}
+      annotations:
+        # Release revision changes on every upgrade. The service account is a
+        # pre-upgrade hook, so Helm recreates it with a new UID. This rolls the
+        # pods afterward so they mount a token for that new account.
+        vsa.vcp/release-revision: {{ $.Release.Revision | quote }}
     spec:
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       {{- if $.Values.global.cloudSqlIamAuthEnabled }}
