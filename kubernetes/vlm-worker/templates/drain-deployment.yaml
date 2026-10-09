@@ -1,9 +1,14 @@
 {{- /*
   Drain Deployments for D-patch Build A pollers.
-  Rendered as normal release resources alongside the primary Build B Deployment.
-  The pre-upgrade ensure-drain Job creates or patches the same objects through the Kubernetes
-  API and blocks the upgrade until Build A is ready and polling, so the primary Deployment is
-  never rolled to Build B while Build A has no poller (see design 0032).
+  These are normal release resources. The pre-upgrade hook must not create them:
+  Helm 3 fails the upgrade when the object already exists but the previous release
+  does not list the name.
+  Replicas come from the live Deployment when one exists, so a finished cutover
+  that scaled this Deployment to 0 stays at 0. A missing Deployment uses app.replicas.
+  Leave drainingBuilds set after success. Removing an entry drops this Deployment
+  from the release. Helm then deletes it, and Kubernetes deletes its pods.
+  A failed scale-to-0 does not orphan pods: the Deployment stays in the release,
+  the pair is not recorded, and the next upgrade runs the Job again.
 */ -}}
 {{- if $.Values.vlmWorkerVersioning.enabled }}
 {{- range $mapping := $.Values.ontapVersionVlmImageMappings }}
@@ -14,6 +19,12 @@
     {{- $drainBuild := (default "" $drain.buildId) | toString | trim }}
     {{- if $drainBuild }}
     {{- $drainSuffix := printf "%s-drain-%s" $version $drainBuild }}
+    {{- $drainName := printf "%s-%s" $.Values.app.name $drainSuffix }}
+    {{- $liveDrain := lookup "apps/v1" "Deployment" $.Release.Namespace $drainName }}
+    {{- $drainReplicas := $.Values.app.replicas }}
+    {{- if and $liveDrain $liveDrain.spec (hasKey $liveDrain.spec "replicas") }}
+    {{- $drainReplicas = $liveDrain.spec.replicas }}
+    {{- end }}
     {{- $drainImageName := default $mapping.vlmImageName $drain.vlmImageName }}
     {{- $drainImageTag := default $mapping.vlmImageTag $drain.vlmImageTag }}
     {{- $drainDigest := default "" $drain.vlmImageDigest | toString | trim }}
@@ -26,15 +37,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $.Values.app.name }}-{{ $drainSuffix }}
+  name: {{ $drainName }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+    app: {{ $drainName }}
     vlm.netapp.io/role: drain
     vlm-ontap-version: {{ $versionName | quote }}
     vlm-build-id: {{ $drainBuild | quote }}
 spec:
-  replicas: {{ $.Values.app.replicas }}
+  replicas: {{ $drainReplicas }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -42,18 +53,18 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+      app: {{ $drainName }}
   template:
     metadata:
       labels:
-        app: {{ $.Values.app.name }}-{{ $drainSuffix }}
+        app: {{ $drainName }}
         vlm.netapp.io/role: drain
         vlm-ontap-version: {{ $versionName | quote }}
         vlm-build-id: {{ $drainBuild | quote }}
     spec:
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       containers:
-        - name: {{ $.Values.app.name }}-{{ $drainSuffix }}
+        - name: {{ $drainName }}
           {{- if $drainSecondary }}
           image: "{{- include "containerImage" (list $ (dict "secondary" true "vlmImageName" $drainImageName "vlmImageTag" $drainImageTag "vlmImageDigest" $drainDigest )) | trim -}}"
           {{- else }}

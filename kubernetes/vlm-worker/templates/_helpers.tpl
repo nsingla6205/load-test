@@ -76,6 +76,7 @@ Build ROLLOUT_SPEC JSON for D-patch targets (mappings with buildId + drainingBui
 */}}
 {{- define "vlmWorkerVersioning.rolloutSpec" -}}
 {{- $targets := list -}}
+{{- $initials := list -}}
 {{- range $mapping := .Values.ontapVersionVlmImageMappings -}}
   {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) -}}
   {{- $version := ($versionName | lower | replace "." "-") -}}
@@ -87,33 +88,6 @@ Build ROLLOUT_SPEC JSON for D-patch targets (mappings with buildId + drainingBui
       {{- $old := (default "" $drain.buildId) | toString | trim -}}
       {{- if $old -}}
         {{- $drainDep := printf "%s-%s-drain-%s" $.Values.app.name $version $old -}}
-        {{- $drainConfigMap := include "vlm-worker.configMapName" (list $ (printf "%s-drain-%s" $version $old)) | trim -}}
-        {{- $drainImageName := default $mapping.vlmImageName $drain.vlmImageName -}}
-        {{- $drainImageTag := default $mapping.vlmImageTag $drain.vlmImageTag -}}
-        {{- $drainDigest := default "" $drain.vlmImageDigest | toString | trim -}}
-        {{- if not $.Values.global.useTags -}}
-          {{- $drainDigest = required (printf "drainingBuilds[%s].vlmImageDigest is required when global.useTags is false" $old) $drainDigest -}}
-        {{- end -}}
-        {{- $drainSecondary := ternary true false (default $mapping.secondary $drain.secondary | toString | eq "true") -}}
-        {{- $drainPull := default $mapping.pullPolicy $drain.pullPolicy -}}
-        {{- $drainImage := include "containerImage" (list $ (dict "vlmImageName" $drainImageName "vlmImageTag" $drainImageTag "vlmImageDigest" $drainDigest "secondary" $drainSecondary)) | trim -}}
-        {{- $configData := dict
-          "PROVIDER" ($.Values.workerConfig.provider | toString)
-          "SERVER_IP" ($.Values.workerConfig.temporalHost | toString)
-          "SERVER_PORT" ($.Values.workerConfig.temporalPort | toString)
-          "TASK_QUEUE" $taskQueue
-          "DEBUG" ($.Values.workerConfig.debug | toString)
-          "MAX_CONCURRENT_ACTIVITIES" ($.Values.workerConfig.maxConcurrentActivities | toString)
-          "MAX_CONCURRENT_WORKFLOWS" ($.Values.workerConfig.maxConcurrentWorkflows | toString)
-          "MAX_CONCURRENT_WORKFLOW_TASK_POLLERS" ($.Values.workerConfig.maxConcurrentWorkflowTaskPollers | toString)
-          "MAX_CONCURRENT_ACTIVITY_TASK_POLLERS" ($.Values.workerConfig.maxConcurrentActivityTaskPollers | toString)
-          "GCE_METADATA_HOST" ($.Values.workerConfig.gceMetadataHost | toString)
-          "ENABLE_GLOBAL_GCP_CLIENTS" ($.Values.workerConfig.enableGlobalGcpClients | toString)
-          "USE_VM_RESERVATIONS" ($.Values.workerConfig.useVmReservations | toString)
-          "TEMPORAL_VERSIONING_ENABLED" "true"
-          "TEMPORAL_WORKER_BUILD_NUMBER" $old
-          "TEMPORAL_DEPLOYMENT_NAME" $deploymentName
-        -}}
         {{- $targets = append $targets (dict
           "ontapVersion" $versionName
           "taskQueue" $taskQueue
@@ -121,22 +95,63 @@ Build ROLLOUT_SPEC JSON for D-patch targets (mappings with buildId + drainingBui
           "newBuildId" $buildId
           "oldBuildId" $old
           "drainDeployment" $drainDep
-          "drainConfigMap" $drainConfigMap
-          "drainImage" $drainImage
-          "drainImagePullPolicy" $drainPull
           "drainReplicas" $.Values.app.replicas
-          "serviceAccountName" $.Values.serviceAccount.name
-          "secretName" (include "vlm-worker.secretName" $)
-          "resources" $.Values.resources
-          "configData" $configData
           "releaseName" $.Release.Name
-          "releaseNamespace" $.Release.Namespace
         ) -}}
       {{- end -}}
     {{- end -}}
+  {{- else if $buildId -}}
+    {{- $initials = append $initials (dict
+      "ontapVersion" $versionName
+      "taskQueue" $taskQueue
+      "deploymentName" $deploymentName
+      "buildId" $buildId
+      "releaseName" $.Release.Name
+    ) -}}
   {{- end -}}
 {{- end -}}
-{{- $targets | toJson -}}
+{{- dict "targets" $targets "initialCurrents" $initials | toJson -}}
+{{- end -}}
+
+{{/*
+cutoverPending is true when any drainingBuilds pair is not yet recorded in
+<release>-versioning-cutover. The hook Jobs are omitted when this is false,
+so a later upgrade does not start them. lookup is empty during helm template
+with no cluster, which keeps the Jobs rendered.
+Key format must match cutoverRecordKey in tools/vlm-worker-versioning-rollout.
+*/}}
+{{- define "vlmWorkerVersioning.cutoverPending" -}}
+{{- $recorded := lookup "v1" "ConfigMap" .Release.Namespace (printf "%s-versioning-cutover" .Release.Name) -}}
+{{- $pending := "false" -}}
+{{- range $mapping := .Values.ontapVersionVlmImageMappings -}}
+  {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) -}}
+  {{- $buildId := (default "" $mapping.buildId) | toString | trim -}}
+  {{- if and $buildId $mapping.drainingBuilds -}}
+    {{- range $drain := $mapping.drainingBuilds -}}
+      {{- $old := (default "" $drain.buildId) | toString | trim -}}
+      {{- if $old -}}
+        {{- $key := printf "%s__%s__%s" $versionName $buildId $old -}}
+        {{- $have := "" -}}
+        {{- if and $recorded $recorded.data (hasKey $recorded.data $key) -}}
+          {{- $have = index $recorded.data $key | toString -}}
+        {{- end -}}
+        {{- if ne $have "done" -}}
+          {{- $pending = "true" -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- else if $buildId -}}
+    {{- $key := printf "%s__%s__initial" $versionName $buildId -}}
+    {{- $have := "" -}}
+    {{- if and $recorded $recorded.data (hasKey $recorded.data $key) -}}
+      {{- $have = index $recorded.data $key | toString -}}
+    {{- end -}}
+    {{- if ne $have "done" -}}
+      {{- $pending = "true" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $pending -}}
 {{- end -}}
 
 {{/*

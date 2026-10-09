@@ -1,4 +1,4 @@
-{{- if and .Values.vlmWorkerVersioning.enabled .Values.vlmWorkerVersioning.rollout.enabled }}
+{{- if and .Values.vlmWorkerVersioning.enabled .Values.vlmWorkerVersioning.rollout.enabled (eq (include "vlmWorkerVersioning.cutoverPending" .) "true") }}
 {{- $rolloutDigest := .Values.vlmWorkerVersioning.rollout.image.digest | toString | trim }}
 {{- if not .Values.global.useTags }}
 {{- $rolloutDigest = required "vlmWorkerVersioning.rollout.image.digest is required when global.useTags is false" $rolloutDigest }}

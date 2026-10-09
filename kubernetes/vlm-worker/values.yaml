@@ -53,7 +53,13 @@ ontapVersionVlmImageMappings:
     vlmImageDigest: "sha256:0b0a7f4063ba4e848af6f5d43c120c830ab1bcadf4f13e11710a3f15f066bf27"
     # Set by the D-patch pipeline when vlmWorkerVersioning.enabled. Empty = not a D-patch.
     # buildId is the new VLM image tag suffix (e.g. R9.18.1x_8141647 → "8141647").
-    # drainingBuilds is the previous build for the duration of the rollout only, e.g.:
+    # drainingBuilds is the previous build for that cutover. The chart renders that
+    # drain ConfigMap and Deployment. The pre-upgrade hook does not create them:
+    # Helm fails the first upgrade if the hook creates a name the previous release
+    # does not list. After the new build is Current and the old build is drained,
+    # later upgrades leave the cutover alone. After the Job records the finished
+    # pair, the chart omits the hook Jobs. The drain Deployment keeps its live
+    # replica count, so a finished drain stays at 0. e.g.:
     #   drainingBuilds:
     #     - buildId: "8083481"
     #       vlmImageDigest: "sha256:35ed962d3209593086b29403dc158e36d3a84bc21eecd8c835ee2b6a17e37f02"
@@ -154,8 +160,8 @@ vlmWorkerVersioning:
   temporalWorkerDeploymentName: ""
   rollout:
     enabled: false
-    # Only skips the post-upgrade promote/retire actions; the pre-upgrade
-    # ensure-drain gate still creates/patches drain resources and waits.
+    # Only skips the post-upgrade promote/retire actions. The pre-upgrade
+    # ensure-drain gate still waits when the drain Deployment already exists.
     dryRun: true
     deleteVersionAfterDrain: false
     pollEverySeconds: 15

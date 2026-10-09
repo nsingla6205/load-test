@@ -117,6 +117,39 @@ func TestWaitForDeploymentReady(t *testing.T) {
 	assert.Equal(t, 2, replicas)
 }
 
+func TestRecordFinishedCutoverCreatesConfigMapWhenMissing(t *testing.T) {
+	var requests []struct {
+		method string
+		path   string
+		body   map[string]any
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		requests = append(requests, struct {
+			method string
+			path   string
+			body   map[string]any
+		}{method: r.Method, path: r.URL.Path, body: body})
+		if r.Method == http.MethodPatch {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
+	require.NoError(t, k8s.recordFinishedCutover(context.Background(), "vlm-worker-ontap-9-17-1", "9.19.1P2", "8258295", "8293640"))
+
+	require.Len(t, requests, 2)
+	assert.Equal(t, http.MethodPatch, requests[0].method)
+	assert.Equal(t, "/api/v1/namespaces/vlm/configmaps/vlm-worker-ontap-9-17-1-versioning-cutover", requests[0].path)
+	assert.Equal(t, http.MethodPost, requests[1].method)
+	data := requests[1].body["data"].(map[string]any)
+	assert.Equal(t, "done", data["9.19.1P2__8258295__8293640"])
+}
+
 func TestNewK8sClientRequiresNamespace(t *testing.T) {
 	_, err := newK8sClient("  ")
 	require.Error(t, err)
@@ -127,19 +160,29 @@ func TestValidateEnsureDrainTarget(t *testing.T) {
 	target := validRolloutTarget()
 	require.NoError(t, validateEnsureDrainTarget(target))
 
-	target.DrainImage = ""
-	assert.ErrorContains(t, validateEnsureDrainTarget(target), "drain image is required")
+	target.DrainDeployment = ""
+	assert.ErrorContains(t, validateEnsureDrainTarget(target), "drain Deployment is required")
 }
 
 type ensureK8s struct {
 	readyK8s
-	ensureErr error
-	ensured   []string
+	scaleErr  error
+	scaled    []string
+	recordErr error
+	recorded  []string
 }
 
-func (f *ensureK8s) ensureDrainResources(_ context.Context, target RolloutTarget) error {
-	f.ensured = append(f.ensured, target.DrainDeployment)
-	return f.ensureErr
+func (f *ensureK8s) scaleDeployment(_ context.Context, name string, replicas int) error {
+	f.scaled = append(f.scaled, name)
+	if replicas < 1 {
+		return errors.New("replicas must be positive")
+	}
+	return f.scaleErr
+}
+
+func (f *ensureK8s) recordFinishedCutover(_ context.Context, _, ontapVersion, newBuildID, oldBuildID string) error {
+	f.recorded = append(f.recorded, cutoverRecordKey(ontapVersion, newBuildID, oldBuildID))
+	return f.recordErr
 }
 
 func TestEnsureDrainTargetsEstablishesOldBuildBeforeUpgrade(t *testing.T) {
@@ -165,19 +208,47 @@ func TestEnsureDrainTargetsEstablishesOldBuildBeforeUpgrade(t *testing.T) {
 		time.Millisecond,
 		time.Second,
 		wait,
+		nil,
+		nil,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"drain-deployment"}, k8s.ensured)
+	assert.Empty(t, k8s.scaled)
 	assert.Equal(t, []string{"A"}, waitedBuilds)
 }
 
-func TestEnsureDrainTargetsStopsWhenResourcesFail(t *testing.T) {
-	ensureErr := errors.New("Kubernetes unavailable")
+func TestEnsureDrainTargetsLeavesMissingDeploymentToHelm(t *testing.T) {
+	k8s := &ensureK8s{readyK8s: readyK8s{err: errDeploymentNotFound}}
+	waited := false
+	wait := func(context.Context, workerdeployment.Client, string, string, string, time.Duration) error {
+		waited = true
+		return nil
+	}
+
+	err := ensureDrainTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		time.Millisecond,
+		time.Second,
+		wait,
+		nil,
+		nil,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.False(t, waited)
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestEnsureDrainTargetsStopsWhenScaleFails(t *testing.T) {
+	scaleErr := errors.New("Kubernetes unavailable")
 	k8s := &ensureK8s{
-		readyK8s:  readyK8s{ready: true, replicas: 1},
-		ensureErr: ensureErr,
+		readyK8s: readyK8s{ready: false, replicas: 0},
+		scaleErr: scaleErr,
 	}
 
 	err := ensureDrainTargets(
@@ -188,79 +259,13 @@ func TestEnsureDrainTargetsStopsWhenResourcesFail(t *testing.T) {
 		time.Millisecond,
 		time.Second,
 		nil,
+		nil,
+		nil,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
-	require.ErrorIs(t, err, ensureErr)
-}
-
-func TestEnsureDrainResourcesCreatesConfigMapAndPatchesDeployment(t *testing.T) {
-	var requests []struct {
-		method      string
-		path        string
-		contentType string
-		body        map[string]any
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		requests = append(requests, struct {
-			method      string
-			path        string
-			contentType string
-			body        map[string]any
-		}{method: r.Method, path: r.URL.Path, contentType: r.Header.Get("Content-Type"), body: body})
-
-		if r.Method == http.MethodPatch {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	k8s := &k8sClient{
-		http:      server.Client(),
-		token:     "token",
-		namespace: "default",
-		baseURL:   server.URL,
-	}
-	require.NoError(t, k8s.ensureDrainResources(context.Background(), validRolloutTarget()))
-
-	require.Len(t, requests, 4)
-	assert.Equal(t, http.MethodPatch, requests[0].method)
-	assert.Equal(t, "/api/v1/namespaces/default/configmaps/drain-config", requests[0].path)
-	assert.Equal(t, "application/merge-patch+json", requests[0].contentType)
-	assert.Equal(t, http.MethodPost, requests[1].method)
-	assert.Equal(t, "/api/v1/namespaces/default/configmaps", requests[1].path)
-	assert.Equal(t, http.MethodPatch, requests[2].method)
-	assert.Equal(t, "/apis/apps/v1/namespaces/default/deployments/drain-deployment", requests[2].path)
-	assert.Equal(t, http.MethodPost, requests[3].method)
-	assert.Equal(t, "/apis/apps/v1/namespaces/default/deployments", requests[3].path)
-
-	configMetadata := requests[1].body["metadata"].(map[string]any)
-	configAnnotations := configMetadata["annotations"].(map[string]any)
-	assert.Equal(t, "release", configAnnotations["meta.helm.sh/release-name"])
-
-	deploymentMetadata := requests[3].body["metadata"].(map[string]any)
-	deploymentLabels := deploymentMetadata["labels"].(map[string]any)
-	assert.Equal(t, "Helm", deploymentLabels["app.kubernetes.io/managed-by"])
-
-	deploymentSpec := requests[3].body["spec"].(map[string]any)
-	strategy := deploymentSpec["strategy"].(map[string]any)
-	rollingUpdate := strategy["rollingUpdate"].(map[string]any)
-	assert.Equal(t, float64(0), rollingUpdate["maxUnavailable"])
-	podTemplate := deploymentSpec["template"].(map[string]any)
-	podMetadata := podTemplate["metadata"].(map[string]any)
-	podLabels := podMetadata["labels"].(map[string]any)
-	assert.NotContains(t, podLabels, "app.kubernetes.io/managed-by")
-	podSpec := podTemplate["spec"].(map[string]any)
-	containers := podSpec["containers"].([]any)
-	container := containers[0].(map[string]any)
-	assert.Equal(t, "registry/vlm@sha256:old", container["image"])
+	require.ErrorIs(t, err, scaleErr)
+	assert.Equal(t, []string{"drain-deployment"}, k8s.scaled)
 }
 
 func TestDeploymentReadyWaitsForCurrentGeneration(t *testing.T) {
@@ -294,15 +299,22 @@ func TestDeploymentReadyWaitsForCurrentGeneration(t *testing.T) {
 
 type retireK8s struct {
 	readyK8s
-	scaled   []string
-	scaledTo []int
-	scaleErr error
+	scaled    []string
+	scaledTo  []int
+	scaleErr  error
+	recordErr error
+	recorded  []string
 }
 
 func (f *retireK8s) scaleDeployment(_ context.Context, name string, replicas int) error {
 	f.scaled = append(f.scaled, name)
 	f.scaledTo = append(f.scaledTo, replicas)
 	return f.scaleErr
+}
+
+func (f *retireK8s) recordFinishedCutover(_ context.Context, _, ontapVersion, newBuildID, oldBuildID string) error {
+	f.recorded = append(f.recorded, cutoverRecordKey(ontapVersion, newBuildID, oldBuildID))
+	return f.recordErr
 }
 
 type promoteRecorder struct {
@@ -341,6 +353,46 @@ func (r *promoteRecorder) deleteBuild(_ context.Context, _ workerdeployment.Clie
 	return nil
 }
 
+func TestPromoteInitialCurrent(t *testing.T) {
+	tests := []struct {
+		name      string
+		current   string
+		wantPromo []string
+		wantKey   string
+		wantErr   string
+	}{
+		{name: "unset current", wantPromo: []string{"8258295"}, wantKey: "9.19.1P2__8258295__initial"},
+		{name: "already current", current: "8258295", wantKey: "9.19.1P2__8258295__initial"},
+		{name: "different current", current: "8293640", wantErr: "set drainingBuilds"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			k8s := &retireK8s{}
+			rec := &promoteRecorder{}
+			opts := promoteTestOpts(rec, false, false)
+			opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+				return test.current, nil
+			}
+			err := promoteInitialCurrents(context.Background(), k8s, nil, []InitialCurrent{{
+				OntapVersion:   "9.19.1P2",
+				TaskQueue:      "vsa-lifecycle-manager-9.19.1P2",
+				DeploymentName: "vsa-lifecycle-manager-9-19-1P2",
+				BuildID:        "8258295",
+				ReleaseName:    "vlm-worker-ontap-9-17-1",
+			}}, opts, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				assert.Empty(t, rec.promoted)
+				assert.Empty(t, k8s.recorded)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.wantPromo, rec.promoted)
+			assert.Equal(t, []string{test.wantKey}, k8s.recorded)
+		})
+	}
+}
+
 func promoteTestOpts(rec *promoteRecorder, dryRun, deleteAfter bool) promoteAndRetireOptions {
 	return promoteAndRetireOptions{
 		dryRun:         dryRun,
@@ -376,6 +428,76 @@ func TestPromoteAndRetireTargetsDryRunDoesNotMutate(t *testing.T) {
 	assert.Empty(t, k8s.scaled)
 }
 
+func TestEnsureDrainTargetsSkipsFinishedCutover(t *testing.T) {
+	k8s := &ensureK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	current := func(context.Context, workerdeployment.Client, string) (string, error) { return "B", nil }
+	drained := func(context.Context, workerdeployment.Client, string, string) (bool, error) { return true, nil }
+
+	err := ensureDrainTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		time.Millisecond,
+		time.Second,
+		nil,
+		current,
+		drained,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, k8s.scaled)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
+}
+
+func TestPromoteAndRetireTargetsSkipsFinishedCutover(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, true)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) { return "B", nil }
+	opts.buildDrained = func(context.Context, workerdeployment.Client, string, string) (bool, error) { return true, nil }
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, rec.promoted)
+	assert.Empty(t, rec.drained)
+	assert.Empty(t, rec.deleted)
+	assert.Empty(t, k8s.scaled)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
+}
+
+func TestPromoteAndRetireTargetsSkipsSetCurrentWhenAlreadyCurrent(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(_ context.Context, _ workerdeployment.Client, _ string) (string, error) {
+		return "B", nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, rec.promoted)
+	assert.Equal(t, []string{"A"}, rec.drained)
+	assert.Equal(t, []int{0}, k8s.scaledTo)
+}
+
 func TestPromoteAndRetireTargetsScalesDrainToZeroAfterDrain(t *testing.T) {
 	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
 	rec := &promoteRecorder{}
@@ -394,6 +516,7 @@ func TestPromoteAndRetireTargetsScalesDrainToZeroAfterDrain(t *testing.T) {
 	assert.Equal(t, []string{"A"}, rec.drained)
 	assert.Equal(t, []string{"drain-deployment"}, k8s.scaled)
 	assert.Equal(t, []int{0}, k8s.scaledTo)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
 	assert.Empty(t, rec.deleted)
 }
 
@@ -426,6 +549,71 @@ func TestPromoteAndRetireTargetsDeletesBuildOnlyWhenEnabled(t *testing.T) {
 			assert.Equal(t, tc.wantDeleted, rec.deleted)
 		})
 	}
+}
+
+func TestPromoteAndRetireTargetsFailsWhenCutoverStateCannotBeRead(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "", errors.New("temporal unavailable")
+	}
+	opts.buildDrained = func(context.Context, workerdeployment.Client, string, string) (bool, error) {
+		return false, nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "read cutover state")
+	assert.Empty(t, rec.promoted)
+	assert.Empty(t, k8s.recorded)
+}
+
+func TestPromoteAndRetireTargetsFailsWhenFinishedCutoverCannotBeRecorded(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}, recordErr: errors.New("configmap write failed")}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) { return "B", nil }
+	opts.buildDrained = func(context.Context, workerdeployment.Client, string, string) (bool, error) { return true, nil }
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "record finished cutover")
+	assert.Empty(t, rec.promoted)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
+}
+
+func TestPromoteAndRetireTargetsFailsWhenRecordAfterScaleFails(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}, recordErr: errors.New("configmap write failed")}
+	rec := &promoteRecorder{}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		promoteTestOpts(rec, false, false),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "record finished cutover")
+	assert.Equal(t, []string{"B"}, rec.promoted)
+	assert.Equal(t, []int{0}, k8s.scaledTo)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
 }
 
 func TestPromoteAndRetireTargetsContinuesAfterTargetFailure(t *testing.T) {
@@ -495,27 +683,13 @@ func TestShutdownIstioSidecar(t *testing.T) {
 
 func validRolloutTarget() RolloutTarget {
 	return RolloutTarget{
-		OntapVersion:         "9.18.1P3",
-		TaskQueue:            "vsa-lifecycle-manager-9.18.1P3",
-		DeploymentName:       "vsa-lifecycle-manager-9-18-1P3",
-		NewBuildID:           "B",
-		OldBuildID:           "A",
-		DrainDeployment:      "drain-deployment",
-		DrainConfigMap:       "drain-config",
-		DrainImage:           "registry/vlm@sha256:old",
-		DrainImagePullPolicy: "IfNotPresent",
-		DrainReplicas:        1,
-		ServiceAccountName:   "vlm-worker-ksa",
-		SecretName:           "vlm-worker-secret",
-		Resources: map[string]map[string]string{
-			"requests": {"cpu": "100m", "memory": "128Mi"},
-			"limits":   {"cpu": "500m", "memory": "256Mi"},
-		},
-		ConfigData: map[string]string{
-			"TASK_QUEUE":                   "vsa-lifecycle-manager-9.18.1P3",
-			"TEMPORAL_WORKER_BUILD_NUMBER": "A",
-		},
-		ReleaseName:      "release",
-		ReleaseNamespace: "default",
+		OntapVersion:    "9.18.1P3",
+		TaskQueue:       "vsa-lifecycle-manager-9.18.1P3",
+		DeploymentName:  "vsa-lifecycle-manager-9-18-1P3",
+		NewBuildID:      "B",
+		OldBuildID:      "A",
+		DrainDeployment: "drain-deployment",
+		DrainReplicas:   1,
+		ReleaseName:     "release",
 	}
 }

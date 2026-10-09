@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,7 +62,7 @@ func (c *k8sClient) deploymentReady(ctx context.Context, name string) (ready boo
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
-		return false, 0, nil
+		return false, 0, errDeploymentNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
 		return false, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
@@ -115,97 +116,43 @@ func (c *k8sClient) scaleDeployment(ctx context.Context, name string, replicas i
 	return nil
 }
 
-func (c *k8sClient) ensureDrainResources(ctx context.Context, target RolloutTarget) error {
-	resourceLabels := map[string]string{
-		"app":                          target.DrainDeployment,
-		"vlm.netapp.io/role":           "drain",
-		"vlm-ontap-version":            target.OntapVersion,
-		"vlm-build-id":                 target.OldBuildID,
-		"app.kubernetes.io/managed-by": "Helm",
-	}
-	podLabels := map[string]string{
-		"app":                target.DrainDeployment,
-		"vlm.netapp.io/role": "drain",
-		"vlm-ontap-version":  target.OntapVersion,
-		"vlm-build-id":       target.OldBuildID,
-	}
-	annotations := map[string]string{
-		"meta.helm.sh/release-name":      target.ReleaseName,
-		"meta.helm.sh/release-namespace": target.ReleaseNamespace,
-	}
-	configMap := map[string]any{
-		"apiVersion": "v1",
-		"kind":       "ConfigMap",
-		"metadata": map[string]any{
-			"name":        target.DrainConfigMap,
-			"namespace":   c.namespace,
-			"labels":      resourceLabels,
-			"annotations": annotations,
-		},
-		"data": target.ConfigData,
-	}
-	if err := c.upsertResource(ctx, "/api/v1", "configmaps", target.DrainConfigMap, configMap); err != nil {
-		return fmt.Errorf("ensure drain ConfigMap %q: %w", target.DrainConfigMap, err)
-	}
+const (
+	cutoverRecordValue   = "done"
+	initialCutoverMarker = "initial"
+)
 
-	deployment := map[string]any{
-		"apiVersion": "apps/v1",
-		"kind":       "Deployment",
-		"metadata": map[string]any{
-			"name":        target.DrainDeployment,
-			"namespace":   c.namespace,
-			"labels":      resourceLabels,
-			"annotations": annotations,
-		},
-		"spec": map[string]any{
-			"replicas": target.DrainReplicas,
-			"strategy": map[string]any{
-				"type": "RollingUpdate",
-				"rollingUpdate": map[string]any{
-					"maxUnavailable": 0,
-					"maxSurge":       1,
-				},
-			},
-			"selector": map[string]any{
-				"matchLabels": map[string]string{"app": target.DrainDeployment},
-			},
-			"template": map[string]any{
-				"metadata": map[string]any{"labels": podLabels},
-				"spec": map[string]any{
-					"serviceAccountName": target.ServiceAccountName,
-					"containers": []any{map[string]any{
-						"name":            target.DrainDeployment,
-						"image":           target.DrainImage,
-						"imagePullPolicy": target.DrainImagePullPolicy,
-						"resources":       target.Resources,
-						"envFrom": []any{
-							map[string]any{"configMapRef": map[string]string{"name": target.DrainConfigMap}},
-							map[string]any{"secretRef": map[string]string{"name": target.SecretName}},
-						},
-					}},
-				},
-			},
-		},
-	}
-	if err := c.upsertResource(ctx, "/apis/apps/v1", "deployments", target.DrainDeployment, deployment); err != nil {
-		return fmt.Errorf("ensure drain Deployment %q: %w", target.DrainDeployment, err)
-	}
-	return nil
+// cutoverConfigMapName is the ConfigMap the chart looks up to skip hook Jobs.
+// The chart uses the same "<release>-versioning-cutover" name.
+func cutoverConfigMapName(releaseName string) string {
+	return strings.TrimSpace(releaseName) + "-versioning-cutover"
 }
 
-func (c *k8sClient) upsertResource(
-	ctx context.Context,
-	apiPath string,
-	resource string,
-	name string,
-	object map[string]any,
-) error {
-	payload, err := json.Marshal(object)
-	if err != nil {
-		return fmt.Errorf("marshal %s %q: %w", resource, name, err)
+// cutoverRecordKey is one finished buildId and drainingBuilds pair.
+// ConfigMap keys allow '.', '_', and '-'. The chart builds the same key.
+func cutoverRecordKey(ontapVersion, newBuildID, oldBuildID string) string {
+	return strings.TrimSpace(ontapVersion) + "__" + strings.TrimSpace(newBuildID) + "__" + strings.TrimSpace(oldBuildID)
+}
+
+// errDeploymentNotFound means the drain Deployment is not on the cluster yet.
+// The pre-upgrade hook treats that as success: Helm creates the chart object.
+// Creating it in the hook first makes Helm 3 fail the upgrade with
+// "no ConfigMap with the name ... found" when the name is missing from the previous release.
+var errDeploymentNotFound = errors.New("drain deployment not found")
+
+func (c *k8sClient) recordFinishedCutover(ctx context.Context, releaseName, ontapVersion, newBuildID, oldBuildID string) error {
+	name := cutoverConfigMapName(releaseName)
+	key := cutoverRecordKey(ontapVersion, newBuildID, oldBuildID)
+	if strings.TrimSpace(releaseName) == "" || strings.Contains(key, "____") || strings.HasPrefix(key, "__") || strings.HasSuffix(key, "__") {
+		return fmt.Errorf("cutover record %q is incomplete", key)
 	}
-	collectionURL := fmt.Sprintf("%s%s/namespaces/%s/%s", c.baseURL, apiPath, c.namespace, resource)
-	status, responseBody, err := c.doJSON(ctx, http.MethodPatch, collectionURL+"/"+name, payload)
+	patch, err := json.Marshal(map[string]any{
+		"data": map[string]string{key: cutoverRecordValue},
+	})
+	if err != nil {
+		return fmt.Errorf("marshal cutover record %q: %w", name, err)
+	}
+	collectionURL := fmt.Sprintf("%s/api/v1/namespaces/%s/configmaps", c.baseURL, c.namespace)
+	status, responseBody, err := c.doJSON(ctx, http.MethodPatch, collectionURL+"/"+name, patch)
 	if err != nil {
 		return err
 	}
@@ -213,15 +160,29 @@ func (c *k8sClient) upsertResource(
 		return nil
 	}
 	if status != http.StatusNotFound {
-		return fmt.Errorf("patch %s %q: HTTP %d: %s", resource, name, status, responseBody)
+		return fmt.Errorf("patch cutover ConfigMap %q: HTTP %d: %s", name, status, responseBody)
 	}
-
-	status, responseBody, err = c.doJSON(ctx, http.MethodPost, collectionURL, payload)
+	create, err := json.Marshal(map[string]any{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": map[string]any{
+			"name":      name,
+			"namespace": c.namespace,
+			"labels": map[string]string{
+				"vlm.netapp.io/role": "versioning-cutover",
+			},
+		},
+		"data": map[string]string{key: cutoverRecordValue},
+	})
+	if err != nil {
+		return fmt.Errorf("marshal cutover ConfigMap %q: %w", name, err)
+	}
+	status, responseBody, err = c.doJSON(ctx, http.MethodPost, collectionURL, create)
 	if err != nil {
 		return err
 	}
 	if status < 200 || status >= 300 {
-		return fmt.Errorf("create %s %q: HTTP %d: %s", resource, name, status, responseBody)
+		return fmt.Errorf("create cutover ConfigMap %q: HTTP %d: %s", name, status, responseBody)
 	}
 	return nil
 }
