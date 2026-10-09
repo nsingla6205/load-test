@@ -130,7 +130,7 @@ workerConfig:
   vlmMaintenanceTimeoutMinutes: ""
   vlmMediatorMaintenanceRebootMigrateTimeoutMinutes: ""
   vlmMediatorMaintenanceRecreateTimeoutMinutes: ""
-  ontapVersionDetails: "9.19.1P2"
+  ontapVersionDetails: "9.19.1P2D1"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 

@@ -18,5 +18,5 @@ database:
 images:
   ociProxy:
     name: oci-proxy
-    tag: "26074.0.0-OCI-RC.5"
+    tag: "26101.0.0-OCI-RC.3"
     digest: ""
