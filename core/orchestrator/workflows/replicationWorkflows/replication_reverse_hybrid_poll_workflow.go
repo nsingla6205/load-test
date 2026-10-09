@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -29,14 +28,14 @@ type reverseHybridReplicationPollWorkflow struct {
 
 // ReverseHybridReplicationPollWorkflow polls snapmirror destinations and updates replication state
 func ReverseHybridReplicationPollWorkflow(ctx workflow.Context, result *replication.ReverseHybridReplicationResult) error {
-	logger := util.GetLogger(ctx)
-	logger.Infof("Starting ReverseHybridReplicationPollWorkflow for replication %s", result.DbVolReplication.UUID)
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting ReverseHybridReplicationPollWorkflow", "replicationUUID", result.DbVolReplication.UUID)
 
 	pollWf := new(reverseHybridReplicationPollWorkflow)
 
 	err := pollWf.Setup(ctx, nil)
 	if err != nil {
-		logger.Errorf("Failed to setup ReverseHybridReplicationPollWorkflow: %v", err)
+		logger.Error("Failed to setup ReverseHybridReplicationPollWorkflow", "error", err)
 		return err
 	}
 	pollWf.Status = workflows.WorkflowStatusRunning
@@ -51,14 +50,14 @@ func ReverseHybridReplicationPollWorkflow(ctx workflow.Context, result *replicat
 		pollWf.Status = workflows.WorkflowStatusFailed
 		err2 := pollWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			pollWf.Logger.Errorf("Failed to update job status: %v", err2)
+			workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	pollWf.Status = workflows.WorkflowStatusCompleted
 	err2 := pollWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		pollWf.Logger.Errorf("Failed to update job status: %v", err2)
+		workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -68,9 +67,6 @@ func (wf *reverseHybridReplicationPollWorkflow) Setup(ctx workflow.Context, inpu
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -81,14 +77,14 @@ func (wf *reverseHybridReplicationPollWorkflow) Setup(ctx workflow.Context, inpu
 
 func (wf *reverseHybridReplicationPollWorkflow) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, customErr *vsaerrors.CustomError) {
 	result := args[0].(*replication.ReverseHybridReplicationResult)
-	logger := util.GetLogger(ctx)
-	logger.Infof("Running ReverseHybridReplicationPollWorkflow for replication %s", result.DbVolReplication.UUID)
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Running ReverseHybridReplicationPollWorkflow", "replicationUUID", result.DbVolReplication.UUID)
 
 	defer func() {
 		if customErr != nil && result != nil && result.DbVolReplication != nil {
 			replicationActivity := &replicationActivities.ReverseHybridReplicationActivity{}
 			if updateErr := workflow.ExecuteActivity(ctx, replicationActivity.SetReplicationToErrorForReverseHybrid, result.DbVolReplication, customErr.Error(), result.IsSrcForHybridReplication).Get(ctx, nil); updateErr != nil {
-				wf.Logger.Errorf("Failed to update volume replication state in DB to error: %v", updateErr)
+				logger.Error("Failed to update volume replication state in DB to error", "error", updateErr)
 			}
 		}
 	}()
@@ -137,23 +133,23 @@ func (wf *reverseHybridReplicationPollWorkflow) Run(ctx workflow.Context, args .
 	var err error
 	err = workflow.ExecuteActivity(listDestinationsCtx, replicationActivity.ListSnapmirrorDestinationsForHybridReverse, result).Get(listDestinationsCtx, result)
 	if err != nil {
-		logger.Warnf("Failed to find snapmirror destination after max retries for replication %s: %v", result.DbVolReplication.UUID, err)
+		logger.Warn("Failed to find snapmirror destination after max retries", "replicationUUID", result.DbVolReplication.UUID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	logger.Infof("Successfully found snapmirror destination for replication %s", result.DbVolReplication.UUID)
+	logger.Info("Successfully found snapmirror destination", "replicationUUID", result.DbVolReplication.UUID)
 
 	// 2. Hydrate replication state and type for reverse hybrid replication
 	err = workflow.ExecuteActivity(ctx, replicationActivity.HydrateReplicationSateAndTypeForReverseHybridReplication, result).Get(ctx, result)
 	if err != nil {
-		logger.Errorf("Failed to hydrate replication state and type: %v", err)
+		logger.Error("Failed to hydrate replication state and type", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	// 3. Update replication state based on snapmirror status
 	err = workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationStateForHybridReverse, result).Get(ctx, result)
 	if err != nil {
-		logger.Errorf("Failed to update replication state: %v", err)
+		logger.Error("Failed to update replication state", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -161,14 +157,14 @@ func (wf *reverseHybridReplicationPollWorkflow) Run(ctx workflow.Context, args .
 	// Get destination base path
 	err = workflow.ExecuteActivity(ctx, replicationActivity.GetDstBasePathForHybridReverse, result).Get(ctx, result)
 	if err != nil {
-		logger.Errorf("Failed to get destination base path: %v", err)
+		logger.Error("Failed to get destination base path", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	// Get destination JWT token
 	err = workflow.ExecuteActivity(ctx, replicationActivity.GetSignedDstTokenForHybridReverse, result).Get(ctx, result)
 	if err != nil {
-		logger.Errorf("Failed to get destination JWT token: %v", err)
+		logger.Error("Failed to get destination JWT token", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
@@ -181,21 +177,21 @@ func (wf *reverseHybridReplicationPollWorkflow) Run(ctx workflow.Context, args .
 	}
 	err = workflow.ExecuteActivity(ctx, updateAttrActivity.UpdateSrcVolumeReplication, &updateAttrResult).Get(ctx, &updateAttrResult)
 	if err != nil {
-		logger.Errorf("Failed to update volume replication attributes: %v", err)
+		logger.Error("Failed to update volume replication attributes", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	// 5. Cleanup old replication on destination (new source after reverse)
 	err = workflow.ExecuteActivity(ctx, replicationActivity.CleanupOldReplicationForHybridReverse, result).Get(ctx, result)
 	if err != nil {
-		logger.Errorf("Failed to cleanup old replication: %v", err)
+		logger.Error("Failed to cleanup old replication", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	// 6. Describe remote job for cleanup operation
 	err = workflow.ExecuteActivity(ctx1, replicationActivity.DescribeRemoteJobOnDstForHybridReverse, result).Get(ctx, nil)
 	if err != nil {
-		logger.Errorf("Failed to describe remote job: %v", err)
+		logger.Error("Failed to describe remote job", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 

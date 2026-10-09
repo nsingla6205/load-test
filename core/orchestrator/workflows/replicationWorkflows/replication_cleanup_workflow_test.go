@@ -182,8 +182,8 @@ func TestReplicationCleanupWorkflowWhenError(t *testing.T) {
 		env.OnActivity("GetSignedDstTokenCleanup", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity("GetReplicationOnDestinationForCleanup", mock.Anything, mock.Anything).Return(replicationResult, nil)
 		env.OnActivity(resumeReplicationActivity.StopReplicationOnDestinationForCleanup, mock.Anything, mock.Anything).Return(nil, errors.New("failed to update volume details"))
-		env.OnActivity("UpdateReplicationOnDestinationToErrorStateForCleanup", mock.Anything, mock.Anything).Return(replicationResult, nil)
-		env.OnActivity("UpdateReplicationOnSourceToErrorStateForCleanup", mock.Anything, mock.Anything).Return(replicationResult, nil)
+		env.OnActivity("UpdateReplicationOnDestinationToErrorStateForCleanup", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		env.OnActivity("UpdateReplicationOnSourceToErrorStateForCleanup", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.ExecuteWorkflow(ReplicationCleanupWorkflow, params, event)
 		// Assert that the workflow was executed and handled the error

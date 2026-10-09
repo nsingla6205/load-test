@@ -15,7 +15,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -32,7 +31,7 @@ type internalVolumeReplicationStopWorkflow struct {
 var _ workflows.WorkflowInterface = &internalVolumeReplicationStopWorkflow{}
 
 func StopInternalVolumeReplicationWorkflow(ctx workflow.Context, replicationDb *datamodel.VolumeReplication, forceStop bool) (*vsa.VolumeReplication, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	stopRepWf := new(internalVolumeReplicationStopWorkflow)
 	err := stopRepWf.Setup(ctx, replicationDb)
 	if err != nil {
@@ -51,7 +50,7 @@ func StopInternalVolumeReplicationWorkflow(ctx workflow.Context, replicationDb *
 
 		// Check if this is a quota rule failure (partial success case) and quotaRuleSync is enabled
 		if quotaRuleSyncEnabled && isQuotaRuleFailure(customErr) {
-			logger.Warnf("Break replication succeeded but quota rule creation failed, marking workflow as completed")
+			logger.Warn("Break replication succeeded but quota rule creation failed, marking workflow as completed")
 			stopRepWf.Status = workflows.WorkflowStatusCompleted
 			// Use vsaerrors.NewVCPError so it's recognized as CustomError in UpdateJobStatus
 			quotaRuleErr := vsaerrors.NewVCPError(
@@ -86,9 +85,6 @@ func (wf *internalVolumeReplicationStopWorkflow) Setup(ctx workflow.Context, inp
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = replicationParams.Account.Name
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -119,7 +115,7 @@ func (wf *internalVolumeReplicationStopWorkflow) Run(ctx workflow.Context, args 
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	// Defer function to mark the database entry in error state if any error occurs
 	defer func() {
@@ -129,7 +125,7 @@ func (wf *internalVolumeReplicationStopWorkflow) Run(ctx workflow.Context, args 
 			dbReplication.StateDetails = err.Error()
 			err2 := workflow.ExecuteActivity(ctx, replicationCommonActivity.UpdateReplicationState, *dbReplication).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to error: %v", err2)
+				log.Error("Failed to update volume state in DB to error", "error", err2)
 			}
 		}
 	}()
@@ -182,22 +178,22 @@ func (wf *internalVolumeReplicationStopWorkflow) Run(ctx workflow.Context, args 
 		err = workflow.ExecuteActivity(ctx, quotaRuleActivity.ListQuotaRuleForVolume, dbReplication).Get(ctx, &quotaRules)
 		if err != nil {
 			// Log error and set failure flag, but continue with workflow
-			log.Errorf("Failed to list quota rules for source volume: %v", err)
+			log.Error("Failed to list quota rules for source volume", "error", err)
 			quotaRuleFailure = true
 		} else {
 			if len(quotaRules) > 0 {
 				// Quota rules found, process them using helper function
-				log.Infof("Found %d quota rules, creating them on destination volume", len(quotaRules))
+				log.Info("Found quota rules, creating them on destination volume", "count", len(quotaRules))
 				failedQuotaRules = processQuotaRulesPostBreakReplication(ctx, dbReplication, quotaRules, node)
 				if len(failedQuotaRules) > 0 {
 					// Store failed quota rules for future use
-					log.Warnf("Quota rule creation completed with %d failed rules", len(failedQuotaRules))
+					log.Warn("Quota rule creation completed with failed rules", "failedCount", len(failedQuotaRules))
 					for _, failedRule := range failedQuotaRules {
-						log.Warnf("  - Failed Quota Rule: UUID=%s, Name=%s", failedRule.UUID, failedRule.Name)
+						log.Warn("Failed quota rule", "uuid", failedRule.UUID, "name", failedRule.Name)
 					}
 					quotaRuleFailure = true
 				} else {
-					log.Infof("Successfully created all quota rules on destination volume")
+					log.Info("Successfully created all quota rules on destination volume")
 				}
 			}
 		}
@@ -205,12 +201,12 @@ func (wf *internalVolumeReplicationStopWorkflow) Run(ctx workflow.Context, args 
 
 	// Handle quota rule failures - update states but don't fail the workflow
 	if quotaRuleFailure {
-		log.Warnf("Break replication succeeded but quota rule operations failed")
+		log.Warn("Break replication succeeded but quota rule operations failed")
 		if len(failedQuotaRules) > 0 {
 			// Update failed quota rules state to ERROR
 			err = workflow.ExecuteActivity(ctx, replicationActivity.UpdateQuotaRulesStateToError, failedQuotaRules).Get(ctx, nil)
 			if err != nil {
-				log.Errorf("Failed to update quota rules state to ERROR: %v", err)
+				log.Error("Failed to update quota rules state to ERROR", "error", err)
 				return nil, workflows.ConvertToVSAError(
 					vsaerrors.NewVCPError(
 						vsaerrors.ErrDatabaseDataUpdateError,
@@ -224,20 +220,20 @@ func (wf *internalVolumeReplicationStopWorkflow) Run(ctx workflow.Context, args 
 		var updatedReplication *datamodel.VolumeReplication
 		err = workflow.ExecuteActivity(ctx, replicationActivity.GetReplicationFromDB, dbReplication.UUID).Get(ctx, &updatedReplication)
 		if err != nil {
-			log.Errorf("Failed to get updated replication from DB for quota error: %v", err)
+			log.Error("Failed to get updated replication from DB for quota error", "error", err)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 
 		// Update volume replication state to ERROR (even if listing failed or quota rule creation failed)
 		err = workflow.ExecuteActivity(ctx, replicationActivity.UpdateVolumeReplicationForQuotaError, updatedReplication).Get(ctx, nil)
 		if err != nil {
-			log.Errorf("Failed to update volume replication state for quota error: %v", err)
+			log.Error("Failed to update volume replication state for quota error", "error", err)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 
 		// Return quota-specific error to be handled specially by error handler
 		// This allows the workflow to be marked as completed (partial success) instead of failed
-		log.Warnf("Break replication succeeded but quota rule operations failed")
+		log.Warn("Break replication succeeded but quota rule operations failed")
 		return nil, workflows.ConvertToVSAError(
 			vsaerrors.NewVCPError(
 				vsaerrors.ErrBreakReplicationQuotaRuleFailure,
@@ -260,7 +256,7 @@ func processQuotaRulesPostBreakReplication(
 	quotaRules []*datamodel.QuotaRule,
 	node *models.Node,
 ) []*datamodel.QuotaRule {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	destinationVolumeUUID := replication.ReplicationAttributes.DestinationVolumeUUID
 
@@ -281,7 +277,7 @@ func processQuotaRulesPostBreakReplication(
 	err = workflow.ExecuteActivity(ctx, quotaRuleActivity.GetVolumeByID,
 		replication.Volume.ID, replication.Volume.AccountID).Get(ctx, &volumeDetails)
 	if err != nil {
-		log.Errorf("Failed to fetch volume details for quota rule processing: %v", err)
+		log.Error("Failed to fetch volume details for quota rule processing", "error", err)
 		// Return all quota rules as failed since we can't proceed without volume details
 		return quotaRules
 	}
@@ -289,7 +285,7 @@ func processQuotaRulesPostBreakReplication(
 	// Extract SVM external UUID from the fetched volume details
 	// This is required for RQuota operations on ONTAP
 	if volumeDetails.Svm == nil || volumeDetails.Svm.SvmDetails == nil {
-		log.Errorf("SVM or SvmDetails is nil in volume details")
+		log.Error("SVM or SvmDetails is nil in volume details")
 		// Return all quota rules as failed since we can't proceed without SVM details
 		return quotaRules
 	}
@@ -297,7 +293,7 @@ func processQuotaRulesPostBreakReplication(
 
 	// Volume must have VolumeAttributes with ExternalUUID for quota operations
 	if volumeDetails.VolumeAttributes == nil || volumeDetails.VolumeAttributes.ExternalUUID == "" {
-		log.Errorf("Volume %s has no ExternalUUID in VolumeAttributes", volumeDetails.UUID)
+		log.Error("Volume has no ExternalUUID in VolumeAttributes", "volumeUUID", volumeDetails.UUID)
 		return quotaRules
 	}
 
@@ -306,15 +302,15 @@ func processQuotaRulesPostBreakReplication(
 		// Determine if this is the last rule (quota enable required on last rule)
 		isLastRule := (i == len(quotaRules)-1)
 
-		log.Infof("Processing quota rule %d/%d: UUID=%s, Type=%s, Target=%s, IsLastRule=%t",
-			i+1, len(quotaRules), quotaRule.UUID, quotaRule.QuotaType, quotaRule.QuotaTarget, isLastRule)
+		log.Info("Processing quota rule",
+			"index", i+1, "total", len(quotaRules), "uuid", quotaRule.UUID, "quotaType", quotaRule.QuotaType, "target", quotaRule.QuotaTarget, "isLastRule", isLastRule)
 
 		if isLastRule {
-			log.Infof("Enabling RQuota on SVM for quota rule: %s", quotaRule.UUID)
+			log.Info("Enabling RQuota on SVM for quota rule", "uuid", quotaRule.UUID)
 			err = workflow.ExecuteActivity(ctx, quotaRuleActivity.UpdateRQuotaOnSvm,
 				svmExternalUUID, node, true).Get(ctx, nil)
 			if err != nil {
-				log.Errorf("Failed to enable RQuota on SVM: %v", err)
+				log.Error("Failed to enable RQuota on SVM", "error", err)
 				failedQuotaRules = append(failedQuotaRules, quotaRule)
 				continue
 			}
@@ -325,7 +321,7 @@ func processQuotaRulesPostBreakReplication(
 
 		// Try to update default quota if it's a default quota
 		if quotaRule.QuotaTarget == "" {
-			log.Infof("Attempting to update existing default quota for rule: %s", quotaRule.UUID)
+			log.Info("Attempting to update existing default quota for rule", "uuid", quotaRule.UUID)
 			updateErr = workflow.ExecuteActivity(ctx, quotaRuleCreateActivity.HandleDefaultQuotaRuleUpdate,
 				volumeDetails, node, quotaRule.QuotaType, quotaRule.DiskLimitInKib).Get(ctx, nil)
 
@@ -334,7 +330,7 @@ func processQuotaRulesPostBreakReplication(
 				isNotFound := customerrors.IsNotFoundErr(updateErr) ||
 					strings.Contains(strings.ToLower(updateErr.Error()), "not found")
 				if !isNotFound {
-					log.Errorf("Failed to update default quota rule: %v", updateErr)
+					log.Error("Failed to update default quota rule", "error", updateErr)
 					failedQuotaRules = append(failedQuotaRules, quotaRule)
 					continue
 				}
@@ -345,11 +341,11 @@ func processQuotaRulesPostBreakReplication(
 		isNotFound := updateErr != nil && (customerrors.IsNotFoundErr(updateErr) ||
 			strings.Contains(strings.ToLower(updateErr.Error()), "not found"))
 		if quotaRule.QuotaTarget != "" || isNotFound {
-			log.Infof("Creating quota rule: %s (Type=%s, Target=%s)", quotaRule.UUID, quotaRule.QuotaType, quotaRule.QuotaTarget)
+			log.Info("Creating quota rule", "uuid", quotaRule.UUID, "quotaType", quotaRule.QuotaType, "target", quotaRule.QuotaTarget)
 			err = workflow.ExecuteActivity(ctx, quotaRuleCreateActivity.CreateQuotaRuleOnONTAP,
 				node, volumeDetails, quotaRule).Get(ctx, &quotaRuleResponse)
 			if err != nil {
-				log.Errorf("Failed to create quota rule: %v", err)
+				log.Error("Failed to create quota rule", "error", err)
 				failedQuotaRules = append(failedQuotaRules, quotaRule)
 				continue
 			}
@@ -361,11 +357,11 @@ func processQuotaRulesPostBreakReplication(
 
 			// Step 3: Enable quota subsystem on last rule (only after quota creation)
 			if isLastRule {
-				log.Infof("Last quota rule processed, enabling quota subsystem for volume: %s", destinationVolumeUUID)
+				log.Info("Last quota rule processed, enabling quota subsystem", "destinationVolumeUUID", destinationVolumeUUID)
 				err = workflow.ExecuteActivity(ctx, quotaRuleActivity.HandleQuotaEnablementAndReinitialization,
 					node, volumeDetails, lastQuotaRuleResponse).Get(ctx, nil)
 				if err != nil {
-					log.Errorf("Failed to enable quota subsystem: %v", err)
+					log.Error("Failed to enable quota subsystem", "error", err)
 					failedQuotaRules = append(failedQuotaRules, quotaRule)
 				}
 			}

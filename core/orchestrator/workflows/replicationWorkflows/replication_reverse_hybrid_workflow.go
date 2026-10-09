@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -26,12 +25,12 @@ var (
 
 // ReverseHybridReplicationWorkflow handles reverse operations for hybrid replications
 func ReverseHybridReplicationWorkflow(ctx workflow.Context, params *commonparams.ReverseAndResumeReplicationParams, event *replication.ReverseReplicationEvent) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeRepWf := new(reverseHybridReplicationWorkflow)
 
 	err := volumeRepWf.Setup(ctx, params)
 	if err != nil {
-		log.Errorf("Failed to setup ReverseHybridReplicationWorkflow: %v", err)
+		log.Error("Failed to setup ReverseHybridReplicationWorkflow", "error", err)
 		return err
 	}
 
@@ -63,10 +62,6 @@ func (wf *reverseHybridReplicationWorkflow) Setup(ctx workflow.Context, input in
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = reverseReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,

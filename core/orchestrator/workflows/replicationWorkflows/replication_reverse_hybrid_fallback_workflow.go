@@ -12,7 +12,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -59,9 +58,6 @@ func (wf *reverseHybridFallbackReplicationWorkflow) Setup(ctx workflow.Context, 
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = reverseReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -73,7 +69,7 @@ func (wf *reverseHybridFallbackReplicationWorkflow) Setup(ctx workflow.Context, 
 }
 
 func (wf *reverseHybridFallbackReplicationWorkflow) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, customErr *vsaerrors.CustomError) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	result := args[0].(*replication.ReverseHybridReplicationResult)
 	params := args[1].(*commonparams.ReverseAndResumeReplicationParams)
 	replicationActivity := &replicationActivities.ReverseVolumeReplicationActivity{}
@@ -105,7 +101,7 @@ func (wf *reverseHybridFallbackReplicationWorkflow) Run(ctx workflow.Context, ar
 		if customErr != nil {
 			if result != nil && result.DbVolReplication != nil {
 				if updateErr := workflow.ExecuteActivity(ctx, reverseHybridActivity.SetReplicationToErrorForReverseHybrid, result.DbVolReplication, customErr.Error(), result.IsSrcForHybridReplication).Get(ctx, nil); updateErr != nil {
-					wf.Logger.Errorf("Failed to update volume replication state in DB to error: %v", updateErr)
+					logger.Error("Failed to update volume replication state in DB to error", "error", updateErr)
 				}
 			}
 			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
@@ -167,13 +163,13 @@ func (wf *reverseHybridFallbackReplicationWorkflow) Run(ctx workflow.Context, ar
 	}
 	err = workflow.ExecuteActivity(ctx, updateAttrActivity.GetSnapmirrorDetailsFromOntap, &updateAttrResult).Get(ctx, &updateAttrResult)
 	if err != nil {
-		logger.Errorf("Failed to update volume replication attributes: %v", err)
+		logger.Error("Failed to update volume replication attributes", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	err = workflow.ExecuteActivity(ctx, updateAttrActivity.UpdateDstVolumeReplication, &updateAttrResult).Get(ctx, &updateAttrResult)
 	if err != nil {
-		logger.Errorf("Failed to update volume replication attributes: %v", err)
+		logger.Error("Failed to update volume replication attributes", "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 

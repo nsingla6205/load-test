@@ -11,7 +11,6 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -26,24 +25,24 @@ var _ workflows.WorkflowInterface = &internalSnapshotDeleteWorkflow{}
 
 // DeleteInternalSnapshotWorkflow Delete Snapshot Workflow process snapshot related requests from a customer.
 func DeleteInternalSnapshotWorkflow(ctx workflow.Context, params *common.SnapshotsInternalDeleteParams) (gcpgenserver.V1betaDescribeSnapshotRes, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	snapshotWf := new(internalSnapshotDeleteWorkflow)
 	err := snapshotWf.Setup(ctx, params)
 	if err != nil {
-		logger.Infof("Snapshot Delete workflow setup executed with error: %v", err)
+		logger.Error("Snapshot Delete workflow setup executed with error", "error", err)
 		return nil, err
 	}
 	snapshotWf.Status = workflows.WorkflowStatusRunning
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		logger.Infof("Update job status for snapshot executed with error: %v", err)
+		logger.Error("Update job status for snapshot executed with error", "error", err)
 		snapshotWf.Status = workflows.WorkflowStatusFailed
 		err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
 		return nil, err
 	}
 	_, customErr := snapshotWf.Run(ctx, params)
 	if customErr != nil {
-		logger.Infof("Snapshot delete workflow run executed with error: %v", customErr)
+		logger.Error("Snapshot delete workflow run executed with error", "error", customErr)
 		snapshotWf.Status = workflows.WorkflowStatusFailed
 		err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		return nil, err
@@ -60,9 +59,6 @@ func (wf *internalSnapshotDeleteWorkflow) Setup(ctx workflow.Context, input inte
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = deleteSnapshotParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -74,7 +70,7 @@ func (wf *internalSnapshotDeleteWorkflow) Setup(ctx workflow.Context, input inte
 }
 
 func (wf *internalSnapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	params := args[0].(*common.SnapshotsInternalDeleteParams)
 	replicationActivity := &replicationActivities.InternalSnapshotsDeleteActivity{}
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -93,7 +89,7 @@ func (wf *internalSnapshotDeleteWorkflow) Run(ctx workflow.Context, args ...inte
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
-	logger.Infof("Starting the snapshot deletion workflow for snapshots")
+	logger.Info("Starting the snapshot deletion workflow for snapshots")
 	err = workflow.ExecuteActivity(ctx, replicationActivity.GetNodeFromDB, &params).Get(ctx, &params)
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)

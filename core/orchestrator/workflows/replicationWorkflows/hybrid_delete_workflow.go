@@ -13,7 +13,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -65,9 +64,6 @@ func (wf *hybridReplicationDeleteWorkflow) Setup(ctx workflow.Context, input int
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = deleteReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -79,7 +75,7 @@ func (wf *hybridReplicationDeleteWorkflow) Setup(ctx workflow.Context, input int
 }
 
 func (wf *hybridReplicationDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	event := args[0].(*replication.DeleteReplicationEvent)
 
 	replicationActivity := &replicationActivities.DeleteVolumeReplicationActivity{}
@@ -122,7 +118,7 @@ func (wf *hybridReplicationDeleteWorkflow) Run(ctx workflow.Context, args ...int
 		if err != nil {
 			err2 := workflow.ExecuteActivity(ctx1, replicationActivity.UpdateReplicationInDBToErrorState, &replicationResult).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume replication state in DB to error: %v", err2)
+				log.Error("Failed to update volume replication state in DB to error", "error", err2)
 			}
 		}
 	}()
@@ -354,7 +350,7 @@ func HybridDeleteDestinationVolumeWorkflow(ctx workflow.Context, replicationResu
 		deleteVolWf.Status = workflows.WorkflowStatusFailed
 		err2 := deleteVolWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			deleteVolWf.Logger.Errorf("Failed to update job status: %v", err2)
+			workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
@@ -362,7 +358,7 @@ func HybridDeleteDestinationVolumeWorkflow(ctx workflow.Context, replicationResu
 	deleteVolWf.Status = workflows.WorkflowStatusCompleted
 	err2 := deleteVolWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		deleteVolWf.Logger.Errorf("Failed to update job status: %v", err2)
+		workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -372,9 +368,6 @@ func (wf *hybridDeleteDestinationVolumeWorkflow) Setup(ctx workflow.Context, inp
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{

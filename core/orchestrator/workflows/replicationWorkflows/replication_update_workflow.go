@@ -11,7 +11,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -53,10 +52,6 @@ func (wf *ReplicationUpdateWorkflow) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = updateReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -97,7 +92,7 @@ func (wf *ReplicationUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 		DbVolReplication: event.ReplicationModel,
 	}
 
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	dbReplication := event.ReplicationModel
 	// Defer function to mark the database entry in error state if any error occurs
 	defer func() {
@@ -107,7 +102,7 @@ func (wf *ReplicationUpdateWorkflow) Run(ctx workflow.Context, args ...interface
 			dbReplication.StateDetails = err.Error()
 			err2 := workflow.ExecuteActivity(ctx, replicationCommonActivity.UpdateReplicationState, *dbReplication).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to error: %v", err2)
+				log.Error("Failed to update volume state in DB to error", "error", err2)
 			}
 		}
 	}()

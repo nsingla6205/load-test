@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -23,26 +22,39 @@ type VolumeReplicationAttributesupdateWorkflow struct {
 var _ workflows.WorkflowInterface = &VolumeReplicationAttributesupdateWorkflow{}
 
 func UpdateVolumeReplicationAttributesWorkflow(ctx workflow.Context, params *commonparams.UpdateVolumeReplicationAttributesParams, event *replication.UpdateVolumeReplicationAttributesEvent) error {
+	logger := workflow.GetLogger(ctx)
 	updateAttrWf := new(VolumeReplicationAttributesupdateWorkflow)
 	err := updateAttrWf.Setup(ctx, params)
 	if err != nil {
+		logger.Error("UpdateVolumeReplicationAttributesWorkflow setup failed", "error", err)
 		return err
 	}
 	updateAttrWf.Status = workflows.WorkflowStatusRunning
 	err = updateAttrWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
+		logger.Error("Failed to update job status to Processing for UpdateVolumeReplicationAttributesWorkflow", "error", err)
 		updateAttrWf.Status = workflows.WorkflowStatusFailed
 		err = updateAttrWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for UpdateVolumeReplicationAttributesWorkflow", "error", err)
+		}
 		return err
 	}
 	_, customErr := updateAttrWf.Run(ctx, event)
 	if customErr != nil {
+		logger.Error("UpdateVolumeReplicationAttributesWorkflow run failed", "error", customErr)
 		updateAttrWf.Status = workflows.WorkflowStatusFailed
 		err = updateAttrWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for UpdateVolumeReplicationAttributesWorkflow", "error", err)
+		}
 		return err
 	}
 	updateAttrWf.Status = workflows.WorkflowStatusCompleted
 	err = updateAttrWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
+	if err != nil {
+		logger.Error("Failed to update job status to Done for UpdateVolumeReplicationAttributesWorkflow", "error", err)
+	}
 	return err
 }
 
@@ -52,10 +64,6 @@ func (wf *VolumeReplicationAttributesupdateWorkflow) Setup(ctx workflow.Context,
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = updateAttributesParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,

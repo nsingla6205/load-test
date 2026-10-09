@@ -13,7 +13,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -33,7 +32,7 @@ func StopReplicationWorkflow(ctx workflow.Context, params *commonparams.StopRepl
 	if err != nil {
 		return nil, err
 	}
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	repWf.Status = workflows.WorkflowStatusRunning
 	err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
@@ -45,7 +44,7 @@ func StopReplicationWorkflow(ctx workflow.Context, params *commonparams.StopRepl
 	if customErr != nil {
 		// Check if this is a quota rule failure (partial success case) and quotaRuleSync is enabled
 		if quotaRuleSyncEnabled && isQuotaRuleFailure(customErr) {
-			logger.Warnf("Stop replication succeeded but quota rule sync failed on destination, marking workflow as completed")
+			logger.Warn("Stop replication succeeded but quota rule sync failed on destination, marking workflow as completed")
 			repWf.Status = workflows.WorkflowStatusCompleted
 			// Use vsaerrors.NewVCPError so it's recognized as CustomError in UpdateJobStatus
 			quotaRuleErr := vsaerrors.NewVCPError(
@@ -72,10 +71,6 @@ func (wf *ReplicationStopWorkflow) Setup(ctx workflow.Context, input interface{}
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = stopReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,

@@ -13,7 +13,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -86,10 +85,6 @@ func (wf *replicationCleanupWorkflow) Setup(ctx workflow.Context, input interfac
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = cleanupReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -100,7 +95,7 @@ func (wf *replicationCleanupWorkflow) Setup(ctx workflow.Context, input interfac
 }
 
 func (wf *replicationCleanupWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	event := args[0].(*replication.DeleteReplicationEvent)
 	replicationActivity := &replicationActivities.CleanupVolumeReplicationActivity{}
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -154,18 +149,18 @@ func (wf *replicationCleanupWorkflow) Run(ctx workflow.Context, args ...interfac
 		cancellationActivity,
 		commonActivity,
 	); cancelErr != nil {
-		log.Warnf("Error handling cancellation: %v, proceeding with normal delete", cancelErr)
+		log.Warn("Error handling cancellation, proceeding with normal delete", "error", cancelErr)
 	}
 
 	defer func() {
 		if err != nil {
 			err2 := workflow.ExecuteActivity(ctx1, replicationActivity.UpdateReplicationOnDestinationToErrorStateForCleanup, &replicationResult).Get(ctx, &replicationResult)
 			if err2 != nil {
-				log.Errorf("Failed to update volume replication state in DB to error: %v", err2)
+				log.Error("Failed to update volume replication state in DB to error", "error", err2)
 			}
 			err3 := workflow.ExecuteActivity(ctx1, replicationActivity.UpdateReplicationOnSourceToErrorStateForCleanup, &replicationResult).Get(ctx, &replicationResult)
 			if err3 != nil {
-				log.Errorf("Failed to update volume replication state in DB to error: %v", err3)
+				log.Error("Failed to update volume replication state in DB to error", "error", err3)
 			}
 		}
 	}()

@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -23,26 +22,39 @@ type mountCheckWorkflow struct {
 var _ workflows.WorkflowInterface = &mountCheckWorkflow{}
 
 func PerformMountCheckWorkflow(ctx workflow.Context, replicationUUID string, accountName string) error {
+	logger := workflow.GetLogger(ctx)
 	mountCheckWF := new(mountCheckWorkflow)
 	err := mountCheckWF.Setup(ctx, accountName)
 	if err != nil {
+		logger.Error("PerformMountCheckWorkflow setup failed", "error", err)
 		return err
 	}
 	mountCheckWF.Status = workflows.WorkflowStatusRunning
 	err = mountCheckWF.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
+		logger.Error("Failed to update job status to Processing for PerformMountCheckWorkflow", "error", err)
 		mountCheckWF.Status = workflows.WorkflowStatusFailed
 		err = mountCheckWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for PerformMountCheckWorkflow", "error", err)
+		}
 		return err
 	}
 	_, customErr := mountCheckWF.Run(ctx, replicationUUID, accountName)
 	if customErr != nil {
+		logger.Error("PerformMountCheckWorkflow run failed", "error", customErr)
 		mountCheckWF.Status = workflows.WorkflowStatusFailed
 		err = mountCheckWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for PerformMountCheckWorkflow", "error", err)
+		}
 		return err
 	}
 	mountCheckWF.Status = workflows.WorkflowStatusCompleted
 	err = mountCheckWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
+	if err != nil {
+		logger.Error("Failed to update job status to Done for PerformMountCheckWorkflow", "error", err)
+	}
 	return err
 }
 
@@ -52,9 +64,6 @@ func (wf *mountCheckWorkflow) Setup(ctx workflow.Context, input interface{}) err
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{

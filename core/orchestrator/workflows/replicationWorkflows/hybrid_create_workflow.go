@@ -15,7 +15,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -43,12 +42,12 @@ var (
 
 // CreateHybridReplicationWorkflow Workflow process volume replication related request from a customer.
 func CreateHybridReplicationWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volume *datamodel.Volume) (gcpgenserver.V1betaDescribeVolumeRes, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeWf := new(createHybridReplicationWorkflow)
 
 	err := volumeWf.Setup(ctx, params)
 	if err != nil {
-		log.Errorf("Failed to setup CreateVolumeWorkflow: %v", err)
+		log.Error("Failed to setup CreateVolumeWorkflow", "error", err)
 		return nil, err
 	}
 	volumeWf.Status = workflows.WorkflowStatusRunning
@@ -75,9 +74,6 @@ func (wf *createHybridReplicationWorkflow) Setup(ctx workflow.Context, input int
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createPoolParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -241,14 +237,14 @@ func EstablishPeeringWorkflow(ctx workflow.Context, replicationResult replicatio
 		createEstablishPeeringWF.Status = workflows.WorkflowStatusFailed
 		err2 := createEstablishPeeringWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			createEstablishPeeringWF.Logger.Errorf("Failed to update job status: %v", err2)
+			workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	createEstablishPeeringWF.Status = workflows.WorkflowStatusCompleted
 	err2 := createEstablishPeeringWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		createEstablishPeeringWF.Logger.Errorf("Failed to update job status: %v", err2)
+		workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -258,9 +254,6 @@ func (wf *createEstablishPeeringWorkflow) Setup(ctx workflow.Context, input inte
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -270,7 +263,7 @@ func (wf *createEstablishPeeringWorkflow) Setup(ctx workflow.Context, input inte
 }
 
 func (wf *createEstablishPeeringWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	replicationResult := args[0].(replication.CreateHybridReplicationResult)
 	dbVolume := args[1].(*datamodel.Volume)
 	replicationActivity := &replicationActivities.HybridReplicationActivity{}
@@ -296,11 +289,11 @@ func (wf *createEstablishPeeringWorkflow) Run(ctx workflow.Context, args ...inte
 			updateStateDetailsAndCode(&replicationResult, workflows.ConvertToVSAError(err))
 			err2 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateClusterPeerDetailsOnErrorActivity, &replicationResult).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update cache parameters in DB: %v", err2)
+				log.Error("Failed to update cache parameters in DB", "error", err2)
 			}
 			err3 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationRowDetailsOnErrorActivity, &replicationResult).Get(ctx, nil)
 			if err3 != nil {
-				log.Errorf("Failed to update cache parameters in DB: %v", err3)
+				log.Error("Failed to update cache parameters in DB", "error", err3)
 			}
 			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
 			rollbackManager.ExecuteRollback(disconnectedCtx, err)
@@ -395,14 +388,14 @@ func InternalEstablishWorkflow(ctx workflow.Context, replicationResult replicati
 		createInternalEstablishWF.Status = workflows.WorkflowStatusFailed
 		err2 := createInternalEstablishWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), workflowErr)
 		if err2 != nil {
-			createInternalEstablishWF.Logger.Errorf("Failed to update job status: %v", err2)
+			workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		}
 		return workflowErr
 	}
 	createInternalEstablishWF.Status = workflows.WorkflowStatusCompleted
 	err2 := createInternalEstablishWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err2 != nil {
-		createInternalEstablishWF.Logger.Errorf("Failed to update job status: %v", err2)
+		workflow.GetLogger(ctx).Error("Failed to update job status", "error", err2)
 		return err2
 	}
 	return nil
@@ -412,9 +405,6 @@ func (wf *createInternalEstablishWorkflow) Setup(ctx workflow.Context, input int
 	info := workflow.GetInfo(ctx)
 	wf.ID = info.WorkflowExecution.ID
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:     wf.ID,
@@ -424,7 +414,7 @@ func (wf *createInternalEstablishWorkflow) Setup(ctx workflow.Context, input int
 }
 
 func (wf *createInternalEstablishWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	replicationResult := args[0].(replication.CreateHybridReplicationResult)
 	replicationActivity := &replicationActivities.HybridReplicationActivity{}
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -451,16 +441,16 @@ func (wf *createInternalEstablishWorkflow) Run(ctx workflow.Context, args ...int
 			updateStateDetailsAndCode(&replicationResult, workflows.ConvertToVSAError(err))
 			err4 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateSVMPeerOnErrorActivity, &replicationResult).Get(ctx, nil)
 			if err4 != nil {
-				log.Errorf("Failed to update cache parameters in DB: %v", err4)
+				log.Error("Failed to update cache parameters in DB", "error", err4)
 			}
 			err2 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateClusterPeerDetailsOnErrorActivity, &replicationResult).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update cache parameters in DB: %v", err2)
+				log.Error("Failed to update cache parameters in DB", "error", err2)
 			}
 
 			err3 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationRowDetailsOnErrorActivity, &replicationResult).Get(ctx, nil)
 			if err3 != nil {
-				log.Errorf("Failed to update cache parameters in DB: %v", err3)
+				log.Error("Failed to update cache parameters in DB", "error", err3)
 			}
 			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
 			rollbackManager.ExecuteRollback(disconnectedCtx, err)

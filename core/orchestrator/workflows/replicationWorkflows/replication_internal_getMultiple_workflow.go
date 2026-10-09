@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -23,27 +22,40 @@ type replicationInternalGetMultipleWorkflow struct {
 var _ workflows.WorkflowInterface = &replicationInternalGetMultipleWorkflow{}
 
 func GetMultipleReplicationsInternalWorkflow(ctx workflow.Context, params *common.ReplicationInternalGetMultipleParams) error {
+	logger := workflow.GetLogger(ctx)
 	repWf := new(replicationInternalGetMultipleWorkflow)
 	err := repWf.Setup(ctx, params)
 	if err != nil {
+		logger.Error("GetMultipleReplicationsInternalWorkflow setup failed", "error", err)
 		return err
 	}
 	repWf.Status = workflows.WorkflowStatusRunning
 	err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
+		logger.Error("Failed to update job status to Processing for GetMultipleReplicationsInternalWorkflow", "error", err)
 		repWf.Status = workflows.WorkflowStatusFailed
 		err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), err)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for GetMultipleReplicationsInternalWorkflow", "error", err)
+		}
 		return err
 	}
 
 	_, customErr := repWf.Run(ctx, params)
 	if customErr != nil {
+		logger.Error("GetMultipleReplicationsInternalWorkflow run failed", "error", customErr)
 		repWf.Status = workflows.WorkflowStatusFailed
 		err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
+		if err != nil {
+			logger.Error("Failed to update job status to Error for GetMultipleReplicationsInternalWorkflow", "error", err)
+		}
 		return err
 	}
 	repWf.Status = workflows.WorkflowStatusCompleted
 	err = repWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
+	if err != nil {
+		logger.Error("Failed to update job status to Done for GetMultipleReplicationsInternalWorkflow", "error", err)
+	}
 	return err
 }
 
@@ -53,9 +65,6 @@ func (wf *replicationInternalGetMultipleWorkflow) Setup(ctx workflow.Context, in
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = tParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{

@@ -13,7 +13,6 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -56,12 +55,12 @@ func ResumeReplicationWorkflow(ctx workflow.Context, params *commonparams.Resume
 	}
 	_, customErr := repWf.Run(ctx, event, params)
 	if customErr != nil {
-		logger := util.GetLogger(ctx)
+		logger := workflow.GetLogger(ctx)
 		logger.Info("Resume Volume Replication workflow run executed with error", "error", customErr)
 		// Check if this is a quota rule failure (partial success case) and quotaRuleSync is enabled
 		if quotaRuleSync && isResumeQuotaRuleFailure(customErr) {
 			// Quota rule sync failed but replication resume succeeded - treat as partial success
-			logger.Warnf("Resume replication succeeded but quota rule operations failed")
+			logger.Warn("Resume replication succeeded but quota rule operations failed")
 			repWf.Status = workflows.WorkflowStatusCompleted
 			// Use vsaerrors.NewVCPError so it's recognized as CustomError in UpdateJobStatus
 			quotaRuleErr := vsaerrors.NewVCPError(
@@ -86,10 +85,6 @@ func (wf *ReplicationResumeWorkflow) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = resumeReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -194,13 +189,13 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 
 	// Quota rules dehydration after mount
 	if quotaRuleSync && !replicationResult.IsHybridReplicationVolume {
-		logger := util.GetLogger(ctx)
+		logger := workflow.GetLogger(ctx)
 
 		// List source quota rules via VCP API
 		var sourceQuotaRules []*datamodel.QuotaRule
 		err = workflow.ExecuteActivity(ctx, replicationActivity.ListQuotaRulesOnSourceResume, &replicationResult).Get(ctx, &sourceQuotaRules)
 		if err != nil {
-			logger.Warnf("Resume replication succeeded but listing source quota rules failed: %v", err)
+			logger.Warn("Resume replication succeeded but listing source quota rules failed", "error", err)
 			return nil, vsaerrors.NewVCPError(
 				vsaerrors.ErrResumeReplicationQuotaRuleFailure,
 				errors.New(replicationQuotaRuleError),
@@ -212,7 +207,7 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 		var destinationQuotaRules []*datamodel.QuotaRule
 		err = workflow.ExecuteActivity(ctx, replicationActivity.ListQuotaRulesOnDestinationResume, &replicationResult).Get(ctx, &destinationQuotaRules)
 		if err != nil {
-			logger.Warnf("Resume replication succeeded but listing destination quota rules failed: %v", err)
+			logger.Warn("Resume replication succeeded but listing destination quota rules failed", "error", err)
 			return nil, vsaerrors.NewVCPError(
 				vsaerrors.ErrResumeReplicationQuotaRuleFailure,
 				errors.New(replicationQuotaRuleError),
@@ -232,7 +227,7 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 				*replicationResult.DstProjectNumber,
 			).Get(ctx, &dehydratedQuotaRules)
 			if err != nil {
-				logger.Warnf("Resume replication succeeded but dehydrating quota rules failed: %v", err)
+				logger.Warn("Resume replication succeeded but dehydrating quota rules failed", "error", err)
 				return nil, vsaerrors.NewVCPError(
 					vsaerrors.ErrResumeReplicationQuotaRuleFailure,
 					errors.New(replicationQuotaRuleError),
@@ -243,8 +238,8 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 			// Partial failure: clear source and keep only dehydrated rules for recovery re-sync
 			// Full success: keep both source and destination as-is for normal sync
 			if len(dehydratedQuotaRules) > 0 && (len(dehydratedQuotaRules) < len(replicationResult.DestinationQuotaRules)) {
-				logger.Warnf("Partial dehydration failure: %d/%d quota rules dehydrated. Entering recovery mode.",
-					len(dehydratedQuotaRules), len(replicationResult.DestinationQuotaRules))
+				logger.Warn("Partial dehydration failure. Entering recovery mode.",
+					"dehydrated", len(dehydratedQuotaRules), "total", len(replicationResult.DestinationQuotaRules))
 				replicationResult.SourceQuotaRules = nil
 				replicationResult.DestinationQuotaRules = dehydratedQuotaRules
 			}
@@ -253,7 +248,7 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 		// Sync source quota rules to destination via API (returns quota rules for hydration)
 		err = workflow.ExecuteActivity(ctx, replicationActivity.AddSrcQuotaRulesToDstDB, &replicationResult).Get(ctx, &replicationResult)
 		if err != nil {
-			logger.Warnf("Resume replication succeeded but syncing quota rules to destination failed: %v", err)
+			logger.Warn("Resume replication succeeded but syncing quota rules to destination failed", "error", err)
 			return nil, vsaerrors.NewVCPError(
 				vsaerrors.ErrResumeReplicationQuotaRuleFailure,
 				errors.New(replicationQuotaRuleError),
@@ -269,7 +264,7 @@ func (wf *ReplicationResumeWorkflow) Run(ctx workflow.Context, args ...interface
 				*replicationResult.DstProjectNumber,
 			).Get(ctx, nil)
 			if err != nil {
-				logger.Warnf("Resume replication succeeded but hydrating quota rules failed: %v", err)
+				logger.Warn("Resume replication succeeded but hydrating quota rules failed", "error", err)
 				return nil, vsaerrors.NewVCPError(
 					vsaerrors.ErrResumeReplicationQuotaRuleFailure,
 					errors.New(replicationQuotaRuleError),

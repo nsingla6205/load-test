@@ -8,7 +8,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -50,10 +49,6 @@ func (wf *internalVolumeReplicationRowDeleteWorkflow) Setup(ctx workflow.Context
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createReplicationParams.Account.Name
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -64,7 +59,7 @@ func (wf *internalVolumeReplicationRowDeleteWorkflow) Setup(ctx workflow.Context
 }
 
 func (wf *internalVolumeReplicationRowDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	replication := args[0].(*datamodel.VolumeReplication)
 	replicationActivity := &replicationActivities.InternalVolumeReplicationRowDeleteActivity{}
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -87,7 +82,7 @@ func (wf *internalVolumeReplicationRowDeleteWorkflow) Run(ctx workflow.Context, 
 		if err != nil {
 			err2 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationStateInDBForRelease, replication).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to error: %v", err2)
+				log.Error("Failed to update volume state in DB to error", "error", err2)
 			}
 		}
 	}()

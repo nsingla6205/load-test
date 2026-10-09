@@ -586,3 +586,74 @@ func TestReverseHybridReplicationPollWorkflow(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+func TestReverseHybridReplicationPollWorkflow_ActivityFailureLogging(t *testing.T) {
+	tests := []struct {
+		name                  string
+		failingActivity       string
+		failErrorStatusUpdate bool
+	}{
+		{name: "hydrate replication fails", failingActivity: "hydrate"},
+		{name: "get destination base path fails", failingActivity: "base path"},
+		{name: "get destination token fails", failingActivity: "token"},
+		{name: "error status update fails", failingActivity: "hydrate", failErrorStatusUpdate: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var testSuite testsuite.WorkflowTestSuite
+			env := testSuite.NewTestWorkflowEnvironment()
+			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+			encodedValue, err := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+			assert.NoError(t, err)
+			env.SetHeader(&commonpb.Header{
+				Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+			})
+
+			mockStorage := database.NewMockStorage(t)
+			replicationActivity := &replicationActivities.ReverseHybridReplicationActivity{SE: mockStorage}
+			commonActivity := &activities.CommonActivities{SE: mockStorage}
+			env.RegisterActivity(replicationActivity.ListSnapmirrorDestinationsForHybridReverse)
+			env.RegisterActivity(replicationActivity.HydrateReplicationSateAndTypeForReverseHybridReplication)
+			env.RegisterActivity(replicationActivity.UpdateReplicationStateForHybridReverse)
+			env.RegisterActivity(replicationActivity.GetDstBasePathForHybridReverse)
+			env.RegisterActivity(replicationActivity.GetSignedDstTokenForHybridReverse)
+			env.RegisterActivity(replicationActivity.SetReplicationToErrorForReverseHybrid)
+			env.RegisterActivity(commonActivity.UpdateJobStatus)
+
+			result := &replication.ReverseHybridReplicationResult{
+				DbVolReplication: &datamodel.VolumeReplication{
+					BaseModel: datamodel.BaseModel{UUID: "test-replication-uuid"},
+				},
+			}
+
+			mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+			if test.failErrorStatusUpdate {
+				mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(assert.AnError)
+			} else {
+				mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+			}
+
+			env.OnActivity(replicationActivity.ListSnapmirrorDestinationsForHybridReverse, mock.Anything, mock.Anything).Return(result, nil)
+			if test.failingActivity == "hydrate" {
+				env.OnActivity(replicationActivity.HydrateReplicationSateAndTypeForReverseHybridReplication, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+			} else {
+				env.OnActivity(replicationActivity.HydrateReplicationSateAndTypeForReverseHybridReplication, mock.Anything, mock.Anything).Return(result, nil)
+				env.OnActivity(replicationActivity.UpdateReplicationStateForHybridReverse, mock.Anything, mock.Anything).Return(result, nil)
+				if test.failingActivity == "base path" {
+					env.OnActivity(replicationActivity.GetDstBasePathForHybridReverse, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+				} else {
+					env.OnActivity(replicationActivity.GetDstBasePathForHybridReverse, mock.Anything, mock.Anything).Return(result, nil)
+					env.OnActivity(replicationActivity.GetSignedDstTokenForHybridReverse, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+				}
+			}
+			env.OnActivity(replicationActivity.SetReplicationToErrorForReverseHybrid, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+			env.ExecuteWorkflow(ReverseHybridReplicationPollWorkflow, result)
+
+			assert.True(t, env.IsWorkflowCompleted())
+			assert.Error(t, env.GetWorkflowError())
+			env.AssertExpectations(t)
+		})
+	}
+}

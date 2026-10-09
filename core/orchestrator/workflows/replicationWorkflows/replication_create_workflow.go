@@ -14,7 +14,6 @@ import (
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -70,10 +69,6 @@ func (wf *createVolumeReplicationWorkflow) Setup(ctx workflow.Context, input int
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createReplicationParams.AccountName
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
 			ID:         wf.ID,
@@ -84,7 +79,7 @@ func (wf *createVolumeReplicationWorkflow) Setup(ctx workflow.Context, input int
 }
 
 func (wf *createVolumeReplicationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeReplication := args[0].(*datamodel.VolumeReplication)
 	event := args[1].(*replication.CreateReplicationEvent)
 	replicationActivity := &replicationActivities.VolumeReplicationCreateActivity{}
@@ -125,7 +120,7 @@ func (wf *createVolumeReplicationWorkflow) Run(ctx workflow.Context, args ...int
 		volumeReplication.StateDetails = datamodel.LifeCycleStateCreationErrorDetails
 		err2 := workflow.ExecuteActivity(disconnectedCtx, replicationActivity.UpdateReplicationState, *volumeReplication).Get(disconnectedCtx, nil)
 		if err2 != nil {
-			log.Errorf("Failed to update replication state in DB to error: %v", err2)
+			log.Error("Failed to update replication state in DB to error", "error", err2)
 		}
 		return err2
 	}

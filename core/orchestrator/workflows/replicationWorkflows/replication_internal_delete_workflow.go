@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -52,9 +51,6 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Setup(ctx workflow.Context, i
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = deleteReplicationParams.Account.Name
 	wf.Status = workflows.WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
 
 	return workflow.SetQueryHandler(ctx, "status", func() (*workflows.WorkflowStatus, error) {
 		return &workflows.WorkflowStatus{
@@ -66,7 +62,7 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Setup(ctx workflow.Context, i
 }
 
 func (wf *internalVolumeReplicationDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	replication := args[0].(*datamodel.VolumeReplication)
 	cleanupAfterReverse := args[1].(bool)
 	isCleanup := args[2].(bool)
@@ -92,7 +88,7 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Run(ctx workflow.Context, arg
 		if err != nil {
 			err2 := workflow.ExecuteActivity(ctx, replicationActivity.UpdateReplicationStateInDBForDelete, replication).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to error: %v", err2)
+				log.Error("Failed to update volume state in DB to error", "error", err2)
 			}
 		}
 	}()
@@ -117,7 +113,7 @@ func (wf *internalVolumeReplicationDeleteWorkflow) Run(ctx workflow.Context, arg
 			return nil, workflows.ConvertToVSAError(err)
 		}
 		if replicationActivities.ShouldBreakBeforeDelete(ontapReplication) {
-			log.Infof("Replication is %s on ONTAP; stopping it before delete", ontapReplication.MirrorState)
+			log.Info("Stopping replication on ONTAP before delete", "mirror_state", ontapReplication.MirrorState)
 			forceStop := true
 			err = workflow.ExecuteActivity(ctx, stopActivity.BreakVolumeReplication, replication, node, forceStop).Get(ctx, nil)
 			if err != nil {

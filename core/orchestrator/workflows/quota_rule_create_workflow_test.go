@@ -1055,8 +1055,9 @@ func TestCreateQuotaRuleWorkflow(t *testing.T) {
 			},
 		}
 
-		// Mock all activities to succeed
-		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+		// A DONE status update failure is logged but does not fail an otherwise successful workflow.
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Once()
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(errors.New("failed to mark completed job done")).Once()
 		env.OnActivity("GetVolumeByID", mock.Anything, volumeID, int64(0)).Return(volume, nil)
 		env.OnActivity("GetNode", mock.Anything, poolID).Return(nodes, nil)
 		env.OnActivity("UpdateRQuotaOnSvm", mock.Anything, "svm-external-uuid", mock.Anything, true).Return(nil)
