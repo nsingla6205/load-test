@@ -11,7 +11,6 @@ import (
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -34,11 +33,11 @@ var _ WorkflowInterface = &snapshotCreateWorkflow{}
 
 // CreateSnapshotWorkflow processes snapshot creation requests.
 func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotParams, snapshot *datamodel.Snapshot) (gcpgenserver.V1betaCreateSnapshotRes, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	snapshotWf := new(snapshotCreateWorkflow)
 	err := snapshotWf.Setup(ctx, params)
 	if err != nil {
-		logger.Infof("Snapshot workflow setup executed with error: %v", err)
+		logger.Error("Snapshot workflow setup executed with error", "error", err)
 		return nil, err
 	}
 	if err = snapshotWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -48,17 +47,17 @@ func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotP
 	snapshotWf.Status = WorkflowStatusRunning
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		logger.Infof("Update job status for snapshot executed with error: %v", err)
+		logger.Error("Update job status for snapshot executed with error", "error", err)
 		return nil, err
 	}
 
 	_, customErr := snapshotWf.Run(ctx, snapshot)
 	if customErr != nil {
-		logger.Infof("Snapshot workflow run executed with error: %v", customErr)
+		logger.Error("Snapshot workflow run executed with error", "error", customErr)
 		snapshotWf.Status = WorkflowStatusFailed
 		jobUpdateErr := snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if jobUpdateErr != nil {
-			logger.Errorf("Failed to update job status to ERROR for CreateSnapshotWorkflow: %v", jobUpdateErr)
+			logger.Error("Failed to update job status to ERROR for CreateSnapshotWorkflow", "error", jobUpdateErr)
 			return nil, jobUpdateErr
 		}
 		return nil, customErr
@@ -67,7 +66,7 @@ func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotP
 	snapshotWf.Status = WorkflowStatusCompleted
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		logger.Errorf("Failed to update job status to Done for CreateSnapshotWorkflow: %v", err)
+		logger.Error("Failed to update job status to Done for CreateSnapshotWorkflow", "error", err)
 	}
 	logger.Debug("Create Snapshot workflow completed successfully")
 	return nil, nil
@@ -80,10 +79,6 @@ func (wf *snapshotCreateWorkflow) Setup(ctx workflow.Context, input interface{})
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createSnapshotParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -100,7 +95,7 @@ func (wf *snapshotCreateWorkflow) Setup(ctx workflow.Context, input interface{})
 // DeleteSnapshotInONTAP is also registered (LIFO: ONTAP delete runs first, then DB error write).
 func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	snapshot := args[0].(*datamodel.Snapshot)
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	snapshotActivity := &activities.SnapshotCreateActivity{}
 	deleteActivity := &activities.SnapshotDeleteActivity{}
 
@@ -125,7 +120,7 @@ func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{})
 	snapshotDescription := dbSnapshot.Description
 	dbSnapshot.Description = wf.ID // Job UUID sent as the ONTAP snapshot comment for end-to-end traceability.
 
-	logger.Infof("Starting the snapshot creation workflow for snapshot: %s", dbSnapshot.Name)
+	logger.Info("Starting the snapshot creation workflow", "snapshot", dbSnapshot.Name)
 
 	cancellationHandler := common.NewWorkflowCancellationHandler(ctx, CancelSnapshotSignalName, dbSnapshot.UUID, "snapshot")
 
@@ -165,7 +160,7 @@ func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{})
 
 	var snapshotCreateResponse *vsa.SnapshotProviderResponse
 	if err = workflow.ExecuteActivity(ctx, snapshotActivity.CreateSnapshotInONTAP, &dbSnapshot, &node).Get(ctx, &snapshotCreateResponse); err != nil {
-		logger.Errorf("Failed to create snapshot in ONTAP: %v", err)
+		logger.Error("Failed to create snapshot in ONTAP", "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 

@@ -67,6 +67,8 @@ func TestBuildWorkerOptions(t *testing.T) {
 	assert.Equal(t, 8, opts.MaxConcurrentLocalActivityExecutionSize)
 	assert.Equal(t, 3.5, opts.WorkerActivitiesPerSecond)
 	assert.Equal(t, 1.0, opts.TaskQueueActivitiesPerSecond)
+	assert.Len(t, opts.Interceptors, 1)
+	assert.NotNil(t, opts.Interceptors[0])
 	assert.Equal(t, defaultDeadlockDetectionTimeout, opts.DeadlockDetectionTimeout)
 	assert.Equal(t, workerSDK.BlockWorkflow, opts.WorkflowPanicPolicy)
 }

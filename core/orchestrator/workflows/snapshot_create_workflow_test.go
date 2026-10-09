@@ -153,7 +153,7 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnActivityError()
 
 	// Mock UpdateJob method calls - use mock.Anything for error details since they may vary
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
-	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(nil)
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(assert.AnError)
 
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
@@ -248,7 +248,7 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnJobStatusUpdate
 	assert.Error(s.T(), s.env.GetWorkflowError())
 }
 
-func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnFinalJobStatusUpdateError() {
+func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowCompletesDespiteFinalJobStatusUpdateError() {
 	commonActivity := activities.CommonActivities{}
 	snapshotCreateActivity := activities.SnapshotCreateActivity{}
 
@@ -294,13 +294,14 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnFinalJobStatusU
 	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snapshot-uuid"}, SizeInBytes: 1024, LogicalSizeInBytes: 1024}, nil)
 	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	// Mock UpdateJobStatus to return error for DONE state
+	// PROCESSING succeeds; the final DONE update fails.
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil).Once()
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(assert.AnError)
 
 	s.env.ExecuteWorkflow(CreateSnapshotWorkflow, params, snapshot)
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
-	assert.Error(s.T(), s.env.GetWorkflowError())
+	assert.NoError(s.T(), s.env.GetWorkflowError())
 }
 
 // TestSnapshotCreateWorkflowRollbackOnONTAPFailure verifies that when ONTAP creation fails,

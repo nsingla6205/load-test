@@ -14,7 +14,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -71,23 +70,23 @@ func ResolveVolumeReference(ctx workflow.Context, volumeReference interface{}) (
 func MarkVolumeResolutionFailure(ctx workflow.Context, resolveErr error) {
 	baseWf := &BaseWorkflow{ID: workflow.GetInfo(ctx).WorkflowExecution.ID, Status: WorkflowStatusFailed}
 	if err := baseWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), resolveErr); err != nil {
-		util.GetLogger(ctx).Errorf("Failed to mark job ERROR after volume resolution failure: %v", err)
+		workflow.GetLogger(ctx).Error("Failed to mark job ERROR after volume resolution failure", "error", err)
 	}
 }
 
 // DeleteVolumeWorkflow processes a volume delete request.
 func DeleteVolumeWorkflow(ctx workflow.Context, volumeReference interface{}) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume, err := ResolveVolumeReference(ctx, volumeReference)
 	if err != nil {
 		MarkVolumeResolutionFailure(ctx, err)
-		log.Errorf("Failed to resolve volume for DeleteVolumeWorkflow: %v", err)
+		log.Error("Failed to resolve volume for DeleteVolumeWorkflow", "error", err)
 		return err
 	}
 
 	volumeWf := new(volumeDeleteWorkflow)
 	if err = volumeWf.Setup(ctx, volume); err != nil {
-		log.Errorf("Volume delete workflow setup executed with error: %v", err)
+		log.Error("Volume delete workflow setup executed with error", "error", err)
 		return err
 	}
 	if err = volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -97,17 +96,17 @@ func DeleteVolumeWorkflow(ctx workflow.Context, volumeReference interface{}) err
 	volumeWf.Status = WorkflowStatusRunning
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for DeleteVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for DeleteVolumeWorkflow", "error", err)
 		return err
 	}
 
 	_, customErr := volumeWf.Run(ctx, volume)
 	if customErr != nil {
-		log.Errorf("DeleteVolumeWorkflow completed with error: %v", customErr)
+		log.Error("DeleteVolumeWorkflow completed with error", "error", customErr)
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with err for DeleteVolumeWorkflow: %v", err)
+			log.Error("Failed to update job status to Done with err for DeleteVolumeWorkflow", "error", err)
 			return err2
 		}
 		return customErr
@@ -116,7 +115,7 @@ func DeleteVolumeWorkflow(ctx workflow.Context, volumeReference interface{}) err
 	volumeWf.Status = WorkflowStatusCompleted
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for DeleteVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for DeleteVolumeWorkflow", "error", err)
 	}
 	return err
 }
@@ -127,10 +126,6 @@ func (wf *volumeDeleteWorkflow) Setup(ctx workflow.Context, input interface{}) e
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = volume.Account.Name
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -219,7 +214,7 @@ func SmbTeardownWorkflow(ctx workflow.Context, volume *datamodel.Volume, node *m
 }
 
 func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.Volume)
 	deleteActivity := &activities.VolumeDeleteActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
@@ -255,7 +250,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	if volume.LargeVolumeAttributes != nil && volume.LargeVolumeAttributes.LargeCapacity {
 		createJobType = datamodel.JobTypeCreateLargeVolume
 	}
-	if cancelErr := common.HandleCancellationForCreatingResource(ctx, wf.Logger,
+	if cancelErr := common.HandleCancellationForCreatingResource(ctx, log,
 		common.HandleCancellationForCreatingResourceParams{
 			ResourceUUID:               volume.UUID,
 			ResourceState:              volume.State,
@@ -268,7 +263,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		cancellationActivity,
 		commonActivity,
 	); cancelErr != nil {
-		wf.Logger.Warnf("Error handling cancellation: %v, proceeding with deletion", cancelErr)
+		log.Warn("Error handling cancellation, proceeding with deletion", "error", cancelErr)
 	}
 
 	rollbackManager := common.NewRollbackManager()
@@ -277,7 +272,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if shouldUpdateVolumeStateToError(err) {
 				err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails).Get(ctx, nil)
 				if err2 != nil {
-					log.Errorf("Failed to update volume state in DB to error: %v", err2)
+					log.Error("Failed to update volume state in DB to error", "error", err2)
 				}
 			} else {
 				previousState, previousStateDetails := volume.State, volume.StateDetails
@@ -286,7 +281,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				if restoreFromJobVersion != workflow.DefaultVersion {
 					var job *datamodel.Job
 					if jobErr := workflow.ExecuteActivity(ctx, activities.CommonActivities.GetJob, wf.ID).Get(ctx, &job); jobErr != nil {
-						log.Errorf("Failed to load delete job for state restore: %v", jobErr)
+						log.Error("Failed to load delete job for state restore", "error", jobErr)
 					} else if job != nil && job.JobAttributes != nil && job.JobAttributes.PreviousState != "" {
 						previousState = job.JobAttributes.PreviousState
 						previousStateDetails = job.JobAttributes.PreviousStateDetails
@@ -294,7 +289,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				}
 				err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, previousState, previousStateDetails).Get(ctx, nil)
 				if err2 != nil {
-					log.Errorf("Failed to restore volume state to previous state: %v", err2)
+					log.Error("Failed to restore volume state to previous state", "error", err2)
 				}
 			}
 			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
@@ -446,7 +441,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		err = workflow.ExecuteActivity(ctx, deleteActivity.CleanupAutoGeneratedVPG, volume.VolumePerformanceGroupID.Int64, &node).Get(ctx, nil)
 		if err != nil {
 			// Log error but don't fail the workflow - VPG cleanup is best effort
-			log.Errorf("Failed to cleanup auto-generated VPG: %v", err)
+			log.Error("Failed to cleanup auto-generated VPG", "error", err)
 		}
 	}
 

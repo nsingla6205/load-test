@@ -45,6 +45,26 @@ func setupVPGDeleteWorkflowEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 }
 
 func TestDeleteVolumePerformanceGroupWorkflow(t *testing.T) {
+	t.Run("FailsWhenProcessingStatusUpdateFails", func(tt *testing.T) {
+		env := setupVPGDeleteWorkflowEnv(tt)
+		commonActivity := activities.CommonActivities{}
+		env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "wf-id"},
+			State:     string(datamodel.JobsStateNEW),
+		}, nil)
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(errors.New("processing status failed"))
+
+		params := &DeleteVolumePerformanceGroupWorkflowParams{
+			VPG:         &datamodel.VolumePerformanceGroup{},
+			AccountName: "test-account",
+		}
+		env.ExecuteWorkflow(DeleteVolumePerformanceGroupWorkflow, params)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.ErrorContains(tt, env.GetWorkflowError(), "processing status failed")
+	})
+
 	t.Run("Success", func(tt *testing.T) {
 		env := setupVPGDeleteWorkflowEnv(tt)
 
@@ -70,7 +90,9 @@ func TestDeleteVolumePerformanceGroupWorkflow(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "wf-id"},
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
-		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(errors.New("done status failed")).Times(10)
 		env.OnActivity(vpgActivity.GetPoolViewByPoolID, mock.Anything, int64(1)).Return(poolView, nil)
 		env.OnActivity(commonActivity.GetNode, mock.Anything, int64(1)).Return(nodes, nil)
 		env.OnActivity(vpgActivity.DeleteQoSPolicyInONTAP, mock.Anything, "qos-uuid", "test-vpg", int64(1), mock.Anything).Return(nil)

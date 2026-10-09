@@ -1,14 +1,15 @@
 package workflows
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -19,6 +20,28 @@ import (
 )
 
 func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
+	t.Run("FailsWhenProcessingStatusUpdateFails", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		commonActivity := activities.CommonActivities{}
+		env.RegisterWorkflow(UpdateVolumePerformanceGroupWorkflow)
+		env.RegisterActivity(commonActivity.GetJob)
+		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "wf-id"},
+			State:     string(datamodel.JobsStateNEW),
+		}, nil)
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(errors.New("processing status failed"))
+
+		params := &common.UpdateVolumePerformanceGroupParams{AccountName: "12345"}
+		vpg := &datamodel.VolumePerformanceGroup{}
+		env.ExecuteWorkflow(UpdateVolumePerformanceGroupWorkflow, params, vpg)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		assert.ErrorContains(tt, env.GetWorkflowError(), "processing status failed")
+	})
+
 	t.Run("Success_WithNameAndThroughput", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
@@ -45,8 +68,8 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 
 		poolView := &datamodel.PoolView{
 			Pool: datamodel.Pool{
-				BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
-				DeploymentName: "test-deployment",
+				BaseModel:       datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+				DeploymentName:  "test-deployment",
 				PoolCredentials: &datamodel.PoolCredentials{Password: "pwd"},
 			},
 		}
@@ -56,7 +79,9 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "wf-id"},
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
-		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(errors.New("done status failed")).Times(10)
 		env.OnActivity(vpgActivity.GetPoolViewByPoolID, mock.Anything, int64(1)).Return(poolView, nil)
 		env.OnActivity(commonActivity.GetNode, mock.Anything, int64(1)).Return(nodes, nil)
 		env.OnActivity(vpgActivity.UpdateQoSPolicyInONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything, "new-name", int64(200), int64(600)).Return(nil)
@@ -73,13 +98,13 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 			Iops:                     &iops,
 		}
 		vpg := &datamodel.VolumePerformanceGroup{
-			BaseModel:       datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"},
-			Name:            "old-name",
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"},
+			Name:             "old-name",
 			OntapQosPolicyID: "old-name",
-			PoolID:          1,
+			PoolID:           1,
 			ThroughputMibps:  100,
-			Iops:            500,
-			AllocationType: models.AllocationTypeShared,
+			Iops:             500,
+			AllocationType:   models.AllocationTypeShared,
 		}
 
 		env.ExecuteWorkflow(UpdateVolumePerformanceGroupWorkflow, params, vpg)
@@ -115,8 +140,8 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 
 		poolView := &datamodel.PoolView{
 			Pool: datamodel.Pool{
-				BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
-				DeploymentName: "test-deployment",
+				BaseModel:       datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+				DeploymentName:  "test-deployment",
 				PoolCredentials: &datamodel.PoolCredentials{Password: "pwd"},
 			},
 		}
@@ -143,13 +168,13 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 			Iops:                     nil, // use vpg.Iops
 		}
 		vpg := &datamodel.VolumePerformanceGroup{
-			BaseModel:       datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"},
-			Name:            "current-name",
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"},
+			Name:             "current-name",
 			OntapQosPolicyID: "current-name",
-			PoolID:          1,
+			PoolID:           1,
 			ThroughputMibps:  100,
-			Iops:            500,
-			AllocationType: models.AllocationTypeShared,
+			Iops:             500,
+			AllocationType:   models.AllocationTypeShared,
 		}
 
 		env.ExecuteWorkflow(UpdateVolumePerformanceGroupWorkflow, params, vpg)
@@ -221,7 +246,7 @@ func TestUpdateVolumePerformanceGroupWorkflow(t *testing.T) {
 			PoolID:           1,
 			ThroughputMibps:  100,
 			Iops:             500,
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:   models.AllocationTypeShared,
 			Description:      "old description",
 		}
 

@@ -4868,7 +4868,7 @@ func TestHandleCancellationForCreatingResource_CorrelationIDError_ContinuesWithE
 	env.SetTestTimeout(1 * time.Minute)
 
 	mockLogger := &log.MockLogger{}
-	mockLogger.On("Warnf", "Could not get correlation ID from workflow context: %v", mock.Anything).Return()
+	mockLogger.On("Warn", "Could not get correlation ID from workflow context", "error", mock.Anything).Return()
 	params := HandleCancellationForCreatingResourceParams{
 		ResourceUUID:  "resource-uuid",
 		ResourceState: datamodel.LifeCycleStateCreating,

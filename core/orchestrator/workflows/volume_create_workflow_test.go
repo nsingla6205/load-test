@@ -798,6 +798,25 @@ func TestUnitTestSuite(t *testing.T) {
 	suite.Run(t, new(UnitTestSuite))
 }
 
+func TestCreateVolumeWorkflow_VolumeLookupFailure(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestWorkflowEnvironment()
+	volumeCreateActivity := &activities.VolumeCreateActivity{}
+	testEnv.RegisterWorkflow(CreateVolumeWorkflow)
+	testEnv.RegisterActivity(volumeCreateActivity.GetVolumeByVolumeID)
+	testEnv.OnActivity(volumeCreateActivity.GetVolumeByVolumeID, mock.Anything, "missing-volume").
+		Return(nil, errors.New("volume lookup failed"))
+
+	testEnv.ExecuteWorkflow(
+		CreateVolumeWorkflow,
+		&common.CreateVolumeParams{AccountName: "test-account"},
+		"missing-volume",
+	)
+
+	assert.True(t, testEnv.IsWorkflowCompleted())
+	assert.ErrorContains(t, testEnv.GetWorkflowError(), "volume lookup failed")
+}
+
 func (s *UnitTestSuite) Test_SyncBucketDetailsWithGCP_DelegatesToPrivateFunction() {
 	mockStorage := database.NewMockStorage(s.T())
 	syncBackupZiZsActivity := backgroundactivities.SyncBackupZiZsActivity{SE: mockStorage}

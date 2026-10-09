@@ -8,7 +8,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -26,10 +25,10 @@ var _ WorkflowInterface = &vpgDeleteWorkflow{}
 
 // DeleteVolumePerformanceGroupWorkflow deletes a VPG's QoS policy from ONTAP and hard-deletes the row from the database.
 func DeleteVolumePerformanceGroupWorkflow(ctx workflow.Context, params *DeleteVolumePerformanceGroupWorkflowParams) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	wf := new(vpgDeleteWorkflow)
 	if err := wf.Setup(ctx, params); err != nil {
-		log.Errorf("VPG delete workflow setup error: %v", err)
+		log.Error("VPG delete workflow setup error", "error", err)
 		return err
 	}
 	if err := wf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -37,13 +36,13 @@ func DeleteVolumePerformanceGroupWorkflow(ctx workflow.Context, params *DeleteVo
 	}
 	wf.Status = WorkflowStatusRunning
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
-		log.Errorf("Failed to update job status to Processing: %v", err)
+		log.Error("Failed to update job status to Processing", "error", err)
 		return err
 	}
 
 	_, customErr := wf.Run(ctx, params)
 	if customErr != nil {
-		log.Errorf("DeleteVolumePerformanceGroupWorkflow failed: %v", customErr)
+		log.Error("DeleteVolumePerformanceGroupWorkflow failed", "error", customErr)
 		wf.Status = WorkflowStatusFailed
 		_ = wf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		return customErr
@@ -51,7 +50,7 @@ func DeleteVolumePerformanceGroupWorkflow(ctx workflow.Context, params *DeleteVo
 
 	wf.Status = WorkflowStatusCompleted
 	if err := wf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil); err != nil {
-		log.Errorf("Failed to update job status to Done: %v", err)
+		log.Error("Failed to update job status to Done", "error", err)
 	}
 	return nil
 }
@@ -62,8 +61,6 @@ func (wf *vpgDeleteWorkflow) Setup(ctx workflow.Context, input interface{}) erro
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = params.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	wf.Logger = util.GetLogger(ctx)
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{ID: wf.ID, Status: wf.Status, CustomerID: wf.CustomerID}, nil
 	})

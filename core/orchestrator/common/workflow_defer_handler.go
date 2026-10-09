@@ -4,8 +4,7 @@ import (
 	"fmt"
 
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	temporallog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -16,7 +15,7 @@ import (
 //   - cancellationHandler: The cancellation handler to check for cancellation
 //   - rollbackManager: The rollback manager to execute rollback
 //   - err: The error from the workflow (can be nil)
-//   - logger: Optional logger. If nil, logger will be obtained from context using util.GetLogger
+//   - logger: Optional logger. If nil, logger will be obtained from the workflow context
 //   - resourceType: The type of resource being created (e.g., "volume", "pool", "active directory")
 //   - resourceUUID: The UUID of the resource being created
 //   - updateErrorState: Optional callback function to execute when there's an error (not cancellation).
@@ -25,17 +24,17 @@ import (
 //     before executing rollback. This allows adding activities or performing cleanup before rollback.
 //   - shouldRollbackOnError: Optional callback function that returns whether to execute rollback on error.
 //     If nil, rollback will always be executed on error. If provided, rollback is only executed if it returns true.
-func ExecuteDeferredCleanup(ctx workflow.Context, cancellationHandler *WorkflowCancellationHandler, rollbackManager *RollbackManager, err error, logger log.Logger, resourceType string, resourceUUID string, updateErrorState func(ctx workflow.Context) error, onCancellationCallback func(ctx workflow.Context, cancelErr error), shouldRollbackOnError func(ctx workflow.Context, err error) bool) {
+func ExecuteDeferredCleanup(ctx workflow.Context, cancellationHandler *WorkflowCancellationHandler, rollbackManager *RollbackManager, err error, logger temporallog.Logger, resourceType string, resourceUUID string, updateErrorState func(ctx workflow.Context) error, onCancellationCallback func(ctx workflow.Context, cancelErr error), shouldRollbackOnError func(ctx workflow.Context, err error) bool) {
 	if err == nil && !cancellationHandler.IsCancelled() {
 		return
 	}
 	disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
 	if logger == nil {
-		logger = util.GetLogger(ctx)
+		logger = workflow.GetLogger(ctx)
 	}
 
 	if cancellationHandler.IsCancelled() {
-		logger.Infof("%s creation cancelled, executing rollback: %s", resourceType, resourceUUID)
+		logger.Info("Resource creation cancelled, executing rollback", "resourceType", resourceType, "resourceUUID", resourceUUID)
 		cancelErr := vsaerrors.New(fmt.Sprintf("%s creation cancelled by delete request", resourceType))
 		if onCancellationCallback != nil {
 			onCancellationCallback(disconnectedCtx, cancelErr)

@@ -8,7 +8,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -17,7 +16,7 @@ import (
 // then updates the VPG row with the Ontap QoS policy ID.
 // The orchestrator creates the VPG in the DB first, starts this workflow, and returns the VPG to the caller as the ontap id is not returned to the caller
 func CreateVolumePerformanceGroupWorkflow(ctx workflow.Context, vpgUUID string) (*datamodel.VolumePerformanceGroup, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	vpgActivity := &activities.VolumePerformanceGroupActivity{}
 	commonActivity := activities.CommonActivities{}
 

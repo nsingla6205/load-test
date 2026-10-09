@@ -12,7 +12,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -61,17 +60,17 @@ var retryableErrors = []retryableErrorEntry{
 //   - ontapJobUUID: the ONTAP job UUID returned by InitiateSplitVolume; may be empty if
 //     ONTAP completed synchronously (no polling needed in that case)
 func VolumePollSplitWorkflow(ctx workflow.Context, volume *datamodel.Volume, node *models.Node, ontapJobUUID string) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeWf := new(volumePollSplitWorkflow)
 	err := volumeWf.Setup(ctx, volume)
 	if err != nil {
-		log.Errorf("Volume split workflow setup executed with error: %v", err)
+		log.Error("Volume split workflow setup executed with error", "error", err)
 		return err
 	}
 	volumeWf.Status = WorkflowStatusRunning
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for VolumePollSplitWorkflow, continuing as new:%v", err)
+		log.Error("Failed to update job status to Processing for VolumePollSplitWorkflow, continuing as new", "error", err)
 		return workflow.NewContinueAsNewError(ctx, VolumePollSplitWorkflow, volume, node, ontapJobUUID)
 	}
 
@@ -82,11 +81,11 @@ func VolumePollSplitWorkflow(ctx workflow.Context, volume *datamodel.Volume, nod
 		if workflow.IsContinueAsNewError(errRun.OriginalErr) {
 			return errRun.OriginalErr
 		}
-		log.Errorf("VolumePollSplitWorkflow completed with error: %v", errRun)
+		log.Error("VolumePollSplitWorkflow completed with error", "error", errRun)
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), errRun)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to ERROR for VolumePollSplitWorkflow: %v", err2)
+			log.Error("Failed to update job status to ERROR for VolumePollSplitWorkflow", "error", err2)
 			return err2
 		}
 		return errRun
@@ -95,7 +94,7 @@ func VolumePollSplitWorkflow(ctx workflow.Context, volume *datamodel.Volume, nod
 	volumeWf.Status = WorkflowStatusCompleted
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for VolumePollSplitWorkflow, continuing as new:  %v", err)
+		log.Error("Failed to update job status to Done for VolumePollSplitWorkflow, continuing as new", "error", err)
 		return workflow.NewContinueAsNewError(ctx, VolumePollSplitWorkflow, volume, node, ontapJobUUID)
 	}
 	return nil
@@ -107,10 +106,6 @@ func (wf *volumePollSplitWorkflow) Setup(ctx workflow.Context, input interface{}
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = volume.Account.Name
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -121,7 +116,7 @@ func (wf *volumePollSplitWorkflow) Setup(ctx workflow.Context, input interface{}
 }
 
 func (wf *volumePollSplitWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.Volume)
 	node := args[1].(*models.Node)
 	ontapJobUUID := args[2].(string)
@@ -179,7 +174,7 @@ func (wf *volumePollSplitWorkflow) Run(ctx workflow.Context, args ...interface{}
 			stateDetails,
 			removeCloneInfo,
 		).Get(ctx, nil); updateErr != nil {
-			log.Errorf("Failed to update clone parent state for volume %s: %v", volume.UUID, updateErr)
+			log.Error("Failed to update clone parent state for volume", "uuid", volume.UUID, "error", updateErr)
 		}
 	}()
 
@@ -190,15 +185,15 @@ func (wf *volumePollSplitWorkflow) Run(ctx workflow.Context, args ...interface{}
 			runErr = ConvertToVSAError(err)
 			return nil, runErr
 		}
-		log.Infof("ONTAP split job %s completed successfully for volume %s", ontapJobUUID, volume.Name)
+		log.Info("ONTAP split job completed successfully for volume", "ontapJobUUID", ontapJobUUID, "name", volume.Name)
 	} else {
-		log.Infof("No ONTAP job UUID provided for volume %s; ONTAP split completed synchronously", volume.Name)
+		log.Info("No ONTAP job UUID provided for volume; ONTAP split completed synchronously", "name", volume.Name)
 	}
 
 	// Clean up the clone snapshot that was created when the volume was cloned.
 	if err = workflow.ExecuteActivity(ctx, activities.VolumeSplitActivity.CleanupSplitSnapshot, volume).Get(ctx, nil); err != nil {
 		// Snapshot cleanup failure is non-fatal — the split itself succeeded.
-		log.Warnf("Failed to clean up split snapshot for volume %s: %v", volume.Name, err)
+		log.Warn("Failed to clean up split snapshot for volume", "name", volume.Name, "error", err)
 	}
 
 	return nil, nil
@@ -276,7 +271,7 @@ func pollONTAPSplitJob(ctx workflow.Context, volume *datamodel.Volume, node *mod
 // is triggered when the elapsed time exceeds GetSplitVolumeRunContinueAsNewDuration(),
 // ensuring every run restarts well before WorkflowRunTimeout regardless of history size.
 func pollONTAPSplitJobInternal(ctx workflow.Context, volume *datamodel.Volume, node *models.Node, ontapJobUUID string, maxHistoryLength int, runStart time.Time) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	continueAsNewAfter := workflowengine.GetSplitVolumeRunContinueAsNewDuration()
 
 	for {
@@ -293,10 +288,7 @@ func pollONTAPSplitJobInternal(ctx workflow.Context, volume *datamodel.Volume, n
 		if info.GetContinueAsNewSuggested() ||
 			elapsed >= continueAsNewAfter ||
 			(maxHistoryLength >= 0 && info.GetCurrentHistoryLength() >= maxHistoryLength) {
-			log.Infof(
-				"ContinueAsNew triggered for split job %s on volume %s (elapsed=%s, historyLen=%d)",
-				ontapJobUUID, volume.Name, elapsed, info.GetCurrentHistoryLength(),
-			)
+			log.Info("ContinueAsNew triggered for split job", "ontap_job_uuid", ontapJobUUID, "volume", volume.Name, "elapsed", elapsed, "history_len", info.GetCurrentHistoryLength())
 			return workflow.NewContinueAsNewError(ctx, VolumePollSplitWorkflow, volume, node, ontapJobUUID)
 		}
 
@@ -304,13 +296,12 @@ func pollONTAPSplitJobInternal(ctx workflow.Context, volume *datamodel.Volume, n
 		err := workflow.ExecuteActivity(ctx, activities.CommonActivities.GetOntapJob, ontapJobUUID, node).Get(ctx, &job)
 		if err != nil {
 			if classifiedErr, terminalFailure := ClassifyGetONTAPJobError(err); terminalFailure {
-				log.Errorf("GetOntapJob terminal failure for job %s on volume %s: %v", ontapJobUUID, volume.Name, classifiedErr)
+				log.Error("GetOntapJob terminal failure for job on volume", "ontapJobUUID", ontapJobUUID, "name", volume.Name, "error", classifiedErr)
 				return classifiedErr
 			}
 			// Check whitelist — only retry on known retryable errors
 			if IsRetryableError(err) {
-				log.Warnf("GetOntapJob retryable error for job %s on volume %s: %v — triggering ContinueAsNew",
-					ontapJobUUID, volume.Name, err)
+				log.Warn("GetOntapJob retryable error, triggering ContinueAsNew", "ontap_job_uuid", ontapJobUUID, "volume", volume.Name, "error", err)
 				return workflow.NewContinueAsNewError(ctx, VolumePollSplitWorkflow, volume, node, ontapJobUUID)
 			}
 			return err
@@ -328,7 +319,7 @@ func pollONTAPSplitJobInternal(ctx workflow.Context, volume *datamodel.Volume, n
 				ontapMessage = fmt.Sprintf("ONTAP split job %s failed with no error message", ontapJobUUID)
 			}
 			classifiedErr, ontapMsg := classifyONTAPSplitError(ontapMessage, ontapCode, volume.ClonesSharedBytes)
-			log.Errorf("ONTAP split job %s failed for volume %s: %s", ontapJobUUID, volume.Name, ontapMsg)
+			log.Error("ONTAP split job failed for volume", "ontapJobUUID", ontapJobUUID, "name", volume.Name, "ontapMsg", ontapMsg)
 			return classifiedErr
 		}
 

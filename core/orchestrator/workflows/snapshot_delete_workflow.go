@@ -9,7 +9,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -23,11 +22,11 @@ var _ WorkflowInterface = &snapshotDeleteWorkflow{}
 
 // DeleteSnapshotWorkflow Delete Snapshot Workflow process snapshot related requests from a customer.
 func DeleteSnapshotWorkflow(ctx workflow.Context, params *common.DeleteSnapshotParams, snapshot *datamodel.Snapshot) (gcpgenserver.V1betaDescribeSnapshotRes, error) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	snapshotWf := new(snapshotDeleteWorkflow)
 	err := snapshotWf.Setup(ctx, params)
 	if err != nil {
-		logger.Infof("Snapshot Delete workflow setup executed with error: %v", err)
+		logger.Error("Snapshot Delete workflow setup executed with error", "error", err)
 		return nil, err
 	}
 
@@ -38,16 +37,16 @@ func DeleteSnapshotWorkflow(ctx workflow.Context, params *common.DeleteSnapshotP
 	snapshotWf.Status = WorkflowStatusRunning
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		logger.Infof("Update job status for snapshot executed with error: %v", err)
+		logger.Error("Update job status for snapshot executed with error", "error", err)
 		return nil, err
 	}
 	_, customErr := snapshotWf.Run(ctx, snapshot)
 	if customErr != nil {
-		logger.Infof("Snapshot delete workflow run executed with error: %v", customErr)
+		logger.Error("Snapshot delete workflow run executed with error", "error", customErr)
 		snapshotWf.Status = WorkflowStatusFailed
 		jobUpdateErr := snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if jobUpdateErr != nil {
-			logger.Errorf("Failed to update job status to Done with error for DeleteSnapshotWorkflow: %v", jobUpdateErr)
+			logger.Error("Failed to update job status to Done with error for DeleteSnapshotWorkflow", "error", jobUpdateErr)
 			return nil, jobUpdateErr
 		}
 		return nil, customErr
@@ -55,7 +54,7 @@ func DeleteSnapshotWorkflow(ctx workflow.Context, params *common.DeleteSnapshotP
 	snapshotWf.Status = WorkflowStatusCompleted
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		logger.Errorf("Failed to update job status to Done for DeleteSnapshotWorkflow: %v", err)
+		logger.Error("Failed to update job status to Done for DeleteSnapshotWorkflow", "error", err)
 	}
 	logger.Debug("Delete Snapshot workflow completed successfully")
 	return nil, nil
@@ -67,10 +66,6 @@ func (wf *snapshotDeleteWorkflow) Setup(ctx workflow.Context, input interface{})
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = deleteSnapshotParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -81,7 +76,7 @@ func (wf *snapshotDeleteWorkflow) Setup(ctx workflow.Context, input interface{})
 }
 
 func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	snapshot := args[0].(*datamodel.Snapshot)
 	deleteActivity := &activities.SnapshotDeleteActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
@@ -102,7 +97,7 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 	ctx = workflow.WithActivityOptions(ctx, options)
 
 	dbSnapshot := snapshot
-	logger.Infof("Starting the snapshot deletion workflow for snapshot: %s", dbSnapshot.Name)
+	logger.Info("Starting the snapshot deletion workflow", "snapshot", dbSnapshot.Name)
 
 	// Cancellation handling uses the original snapshot state to decide whether an in-progress
 	// create workflow needs to be cancelled before we proceed with deletion.
@@ -110,7 +105,7 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{}
 	ackTimeout, forceTimeout := common.GetCancellationTimeouts("SNAPSHOT")
-	if cancelErr := common.HandleCancellationForCreatingResource(ctx, wf.Logger,
+	if cancelErr := common.HandleCancellationForCreatingResource(ctx, logger,
 		common.HandleCancellationForCreatingResourceParams{
 			ResourceUUID:               dbSnapshot.UUID,
 			ResourceState:              dbSnapshot.State,
@@ -123,7 +118,7 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 		cancellationActivity,
 		commonActivity,
 	); cancelErr != nil {
-		wf.Logger.Warnf("Error handling cancellation: %v, proceeding with deletion", cancelErr)
+		logger.Warn("Error handling cancellation, proceeding with deletion", "error", cancelErr)
 	}
 
 	// Default compensation: restore snapshot to READY (ONTAP snapshot still exists).

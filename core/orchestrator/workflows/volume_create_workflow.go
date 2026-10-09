@@ -22,7 +22,7 @@ import (
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	wfutil "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -231,12 +231,12 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	var isOntapClusterHealthy *bool
 	err = workflow.ExecuteActivity(ctx, volumeActivity.GetOntapClusterHealth, node).Get(ctx, &isOntapClusterHealthy)
 	if err != nil {
-		log.Errorf("failed to check ONTAP cluster health: %v", err)
+		log.Error("failed to check ONTAP cluster health", "error", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOntapClusterHealthCheckFailed, fmt.Errorf("failed to check ONTAP cluster health")))
 	}
 
@@ -244,10 +244,10 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 		// Delete Volume in DB when the ONTAP Health check fails
 		err := workflow.ExecuteActivity(ctx, volumeDeleteActivity.DeleteVolume, dbVolume).Get(ctx, nil)
 		if err != nil {
-			log.Errorf("Failed to delete volume: %v", err)
+			log.Error("Failed to delete volume", "error", err)
 			return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDeleteVolume, fmt.Errorf("failed to delete volume")))
 		}
-		log.Errorf("ONTAP cluster is not available. Cluster is down.")
+		log.Error("ONTAP cluster is not available. Cluster is down.")
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOntapClusterNotAvailable, fmt.Errorf("ONTAP cluster is down")))
 	}
 
@@ -399,10 +399,10 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 // The workflow also updates Active Directory association if necessary. Returns the updated volume.
 func PostFileVolumeWorkflowForSMB(ctx workflow.Context, dbVolume *datamodel.Volume, node *models.Node) (*datamodel.Volume, error) {
 	// Configure activity options
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
-		log.Error("Failed to populate retry policy params during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Failed to populate retry policy params during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 
@@ -412,27 +412,27 @@ func PostFileVolumeWorkflowForSMB(ctx workflow.Context, dbVolume *datamodel.Volu
 	var dbSvm *datamodel.Svm
 	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetSVM, &dbVolume.PoolID).Get(ctx, &dbSvm)
 	if err != nil {
-		log.Error("Failed to get SVM info during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Failed to get SVM info during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 
 	var activeDirectory *vsa.ActiveDirectory
 	err = workflow.ExecuteActivity(ctx, active_directory_activities.ActiveDirectoryActivity.GetActiveDirectoryForPool, &dbVolume.PoolID).Get(ctx, &activeDirectory)
 	if err != nil {
-		log.Error("Failed to get active directory during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Failed to get active directory during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 
 	if dbVolume.Pool == nil {
 		err = fmt.Errorf("pool details not loaded for volume %s", dbVolume.UUID)
-		log.Error("Pool details missing during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Pool details missing during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 
 	poolClusterDetails := dbVolume.Pool.ClusterDetails
 	if poolClusterDetails.SnHostProject == "" || poolClusterDetails.Network == "" {
 		err = fmt.Errorf("pool %s missing SN host project or network details", dbVolume.Pool.UUID)
-		log.Error("Pool network metadata missing during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Pool network metadata missing during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 
@@ -440,11 +440,11 @@ func PostFileVolumeWorkflowForSMB(ctx workflow.Context, dbVolume *datamodel.Volu
 	// Use the new workflow instead of the single activity
 	fqdn, err = EnsureCIFSShareWorkflow(ctx, dbVolume, node, activeDirectory, dbSvm.Name, dbSvm.SvmDetails.ExternalUUID)
 	if err != nil {
-		log.Error("Failed to create cifs share during PostFileVolumeWorkflowForSMB with error: ", err)
+		log.Error("Failed to create cifs share during PostFileVolumeWorkflowForSMB", "error", err)
 		return nil, WrapErrorForChildWorkflow(err)
 	}
 	if fqdn != "" && dbVolume.VolumeAttributes != nil && dbVolume.VolumeAttributes.FileProperties != nil {
-		log.Infof("Setting the fqdn: [%s] for volume:[%s]", fqdn, dbVolume.Name)
+		log.Info("Setting the FQDN for volume", "fqdn", fqdn, "volume", dbVolume.Name)
 		dbVolume.VolumeAttributes.FileProperties.Fqdn = fqdn
 	}
 
@@ -453,7 +453,7 @@ func PostFileVolumeWorkflowForSMB(ctx workflow.Context, dbVolume *datamodel.Volu
 		params := activities.UpdateSvmActiveDirectoryParams{Svm: dbSvm, ActiveDirectoryUUID: activeDirectory.UUID}
 		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.UpdateSvmActiveDirectory, params).Get(ctx, &updatedSvm)
 		if err != nil {
-			log.Error("Failed to update SVM Active Directory association during PostFileVolumeWorkflowForSMB with error: ", err)
+			log.Error("Failed to update SVM Active Directory association during PostFileVolumeWorkflowForSMB", "error", err)
 			return nil, WrapErrorForChildWorkflow(err)
 		}
 		dbSvm = updatedSvm
@@ -463,17 +463,17 @@ func PostFileVolumeWorkflowForSMB(ctx workflow.Context, dbVolume *datamodel.Volu
 		return nil, err
 	}
 
-	log.Info("SMB post-provisioning: created CIFS share for volume:", dbVolume.Name)
+	log.Info("SMB post-provisioning: created CIFS share", "volume", dbVolume.Name)
 	return dbVolume, nil
 }
 
 // EnsureCIFSShareWorkflow orchestrates the creation of CIFS share through individual activities
 func EnsureCIFSShareWorkflow(ctx workflow.Context, volume *datamodel.Volume, node *models.Node, activeDirectory *vsa.ActiveDirectory, svmName, externalSVMUUID string) (string, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	// Validate inputs
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil {
-		log.Warnf("Skipping CIFS share creation for non-file volume %s", volume.Name)
+		log.Warn("Skipping CIFS share creation for non-file volume", "name", volume.Name)
 		return "", nil
 	}
 
@@ -575,7 +575,7 @@ func _getActivityOptionsForEnsureCIFSShareVolumeActivity(retryPolicy *WorkflowRe
 
 // PostFileVolumeWorkflow handles post-provisioning for file volumes
 func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, node *models.Node) (*datamodel.Volume, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	// Configure activity options for child workflow
 	volumeActivity := &activities.VolumeCreateActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
@@ -622,21 +622,21 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 		log.Info("Configuring Kerberos for NFSv4 volume", "volume", dbVolume.Name)
 		if dbVolume.Pool == nil {
 			err = fmt.Errorf("pool details not loaded for volume %s", dbVolume.UUID)
-			log.Error("Pool details missing during PostFileVolumeWorkflow with error: ", err)
+			log.Error("Pool details missing during PostFileVolumeWorkflow", "error", err)
 			return nil, WrapErrorForChildWorkflow(vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
 		}
 
 		var dbSvm *datamodel.Svm
 		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetSVM, &dbVolume.PoolID).Get(ctx, &dbSvm)
 		if err != nil {
-			log.Error("Failed to get SVM info during PostFileVolumeWorkflow with error: ", err)
+			log.Error("Failed to get SVM info during PostFileVolumeWorkflow", "error", err)
 			return nil, WrapErrorForChildWorkflow(err)
 		}
 
 		var activeDirectory *vsa.ActiveDirectory
 		err = workflow.ExecuteActivity(ctx, active_directory_activities.ActiveDirectoryActivity.GetActiveDirectoryForPool, &dbVolume.PoolID).Get(ctx, &activeDirectory)
 		if err != nil {
-			log.Error("Failed to get active directory during PostFileVolumeWorkflow with error: ", err)
+			log.Error("Failed to get active directory during PostFileVolumeWorkflow", "error", err)
 			return nil, WrapErrorForChildWorkflow(err)
 		}
 
@@ -647,7 +647,7 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 		})
 		err = workflow.ExecuteChildWorkflow(kerberosChildCtx, EnsureKerberosConfigWorkflow, node, activeDirectory, dbSvm.Name, dbSvm.SvmDetails.ExternalUUID).Get(kerberosChildCtx, nil)
 		if err != nil {
-			log.Error("Failed to configure Kerberos during PostFileVolumeWorkflow with error: ", err)
+			log.Error("Failed to configure Kerberos during PostFileVolumeWorkflow", "error", err)
 			return nil, WrapErrorForChildWorkflow(err)
 		}
 		log.Info("Successfully configured Kerberos for NFSv4 volume", "volume", dbVolume.Name)
@@ -656,7 +656,7 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 	if enableLdap {
 		if dbVolume.Pool == nil {
 			err = fmt.Errorf("pool details not loaded for volume %s", dbVolume.UUID)
-			log.Error("Pool details missing during PostFileVolumeWorkflow with error: ", err)
+			log.Error("Pool details missing during PostFileVolumeWorkflow", "error", err)
 			return nil, WrapErrorForChildWorkflow(vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
 		}
 
@@ -669,26 +669,26 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 			var dbSvm *datamodel.Svm
 			err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetSVM, &dbVolume.PoolID).Get(ctx, &dbSvm)
 			if err != nil {
-				log.Error("Failed to get SVM info during PostFileVolumeWorkflow with error: ", err)
+				log.Error("Failed to get SVM info during PostFileVolumeWorkflow", "error", err)
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 
 			var activeDirectory *vsa.ActiveDirectory
 			err = workflow.ExecuteActivity(ctx, active_directory_activities.ActiveDirectoryActivity.GetActiveDirectoryForPool, &dbVolume.PoolID).Get(ctx, &activeDirectory)
 			if err != nil {
-				log.Error("Failed to get active directory during PostFileVolumeWorkflow with error: ", err)
+				log.Error("Failed to get active directory during PostFileVolumeWorkflow", "error", err)
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 
 			fqdn, err := EnsureCIFSShareWorkflow(ctx, dbVolume, node, activeDirectory, dbSvm.Name, dbSvm.SvmDetails.ExternalUUID)
 			if err != nil {
-				log.Error("Failed to create cifs share during PostFileVolumeWorkflow with error: ", err)
+				log.Error("Failed to create cifs share during PostFileVolumeWorkflow", "error", err)
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 
 			err = workflow.ExecuteActivity(ctx, volumeActivity.ConfigureLdap, dbVolume, node).Get(ctx, nil)
 			if err != nil {
-				log.Error("Failed to configure Ldap with error: ", err)
+				log.Error("Failed to configure Ldap", "error", err)
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 
@@ -701,7 +701,7 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 				params := activities.UpdateSvmActiveDirectoryParams{Svm: dbSvm, ActiveDirectoryUUID: activeDirectory.UUID}
 				err = workflow.ExecuteActivity(ctx, activities.CommonActivities.UpdateSvmActiveDirectory, params).Get(ctx, &updatedSvm)
 				if err != nil {
-					log.Error("Failed to update SVM Active Directory association during PostFileVolumeWorkflow with error: ", err)
+					log.Error("Failed to update SVM Active Directory association during PostFileVolumeWorkflow", "error", err)
 					return nil, WrapErrorForChildWorkflow(err)
 				}
 				dbSvm = updatedSvm
@@ -721,11 +721,17 @@ func PostFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, no
 // does not include the large Pool.VLMConfig blob. The *datamodel.Volume input remains temporarily
 // accepted to allow existing executions to replay while they drain.
 func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volumeReference interface{}) (gcpgenserver.V1betaDescribeVolumeRes, error) {
-	log := util.GetLogger(ctx)
+	// customerID is known before the volume is loaded. volumeUUID is added
+	// after the fetch below. The returned context must be passed onward;
+	// a reassignment inside Setup does not escape that function.
+	ctx = wfutil.AddExtraLoggerFields(ctx, map[string]interface{}{
+		"customerID": params.AccountName,
+	})
+	log := workflow.GetLogger(ctx)
 	volumeWf := new(volumeCreateWorkflow)
 	err := volumeWf.Setup(ctx, params)
 	if err != nil {
-		log.Errorf("Failed to setup CreateVolumeWorkflow: %v", err)
+		log.Error("Failed to setup CreateVolumeWorkflow", "error", err)
 		return nil, err
 	}
 
@@ -742,7 +748,7 @@ func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParam
 
 		volumeActivity := &activities.VolumeCreateActivity{}
 		if err = workflow.ExecuteActivity(fetchCtx, volumeActivity.GetVolumeByVolumeID, input).Get(fetchCtx, &volume); err != nil {
-			log.Errorf("Failed to fetch volume %s for CreateVolumeWorkflow: %v", input, err)
+			log.Error("Failed to fetch volume for CreateVolumeWorkflow", "input", input, "error", err)
 			return nil, err
 		}
 	case *datamodel.Volume:
@@ -763,12 +769,15 @@ func CreateVolumeWorkflow(ctx workflow.Context, params *common.CreateVolumeParam
 		return nil, fmt.Errorf("invalid CreateVolumeWorkflow volume input type %T", volumeReference)
 	}
 
+	ctx = wfutil.AddExtraLoggerFields(ctx, map[string]interface{}{
+		"volumeUUID": volume.UUID,
+	})
 	return runVolumeCreate(ctx, volumeWf, params, volume)
 }
 
 // runVolumeCreate drives the job-status lifecycle around volumeCreateWorkflow.Run.
 func runVolumeCreate(ctx workflow.Context, volumeWf *volumeCreateWorkflow, params *common.CreateVolumeParams, volume *datamodel.Volume) (gcpgenserver.V1betaDescribeVolumeRes, error) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	if err := volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
 		return nil, err
 	}
@@ -776,16 +785,16 @@ func runVolumeCreate(ctx workflow.Context, volumeWf *volumeCreateWorkflow, param
 	volumeWf.Status = WorkflowStatusRunning
 	err := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for CreateVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for CreateVolumeWorkflow", "error", err)
 		return nil, err
 	}
 	_, customErr := volumeWf.Run(ctx, volume, params)
 	if customErr != nil {
-		log.Errorf("CreateVolumeWorkflow completed with error: %v", customErr)
+		log.Error("CreateVolumeWorkflow completed with error", "error", customErr)
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with error for CreateVolumeWorkflow: %v", err2)
+			log.Error("Failed to update job status to Done with error for CreateVolumeWorkflow", "error", err2)
 			return nil, err2
 		}
 		return nil, customErr
@@ -793,7 +802,7 @@ func runVolumeCreate(ctx workflow.Context, volumeWf *volumeCreateWorkflow, param
 	volumeWf.Status = WorkflowStatusCompleted
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for CreateVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for CreateVolumeWorkflow", "error", err)
 	}
 	return nil, err
 }
@@ -804,10 +813,6 @@ func (wf *volumeCreateWorkflow) Setup(ctx workflow.Context, input interface{}) e
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = createPoolParams.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -818,7 +823,7 @@ func (wf *volumeCreateWorkflow) Setup(ctx workflow.Context, input interface{}) e
 }
 
 func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	dbVolume := args[0].(*datamodel.Volume)
 	createVolumeParams := args[1].(*common.CreateVolumeParams)
 	region := createVolumeParams.Region
@@ -862,13 +867,13 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				var volume *datamodel.Volume
 				err := workflow.ExecuteActivity(disconnectedCtx, volumeActivity.GetVolumeByVolumeID, dbVolume.UUID).Get(disconnectedCtx, &volume)
 				if err != nil {
-					log.Errorf("Failed to describe volume %s with error: %v", dbVolume.UUID, err)
+					log.Error("Failed to describe volume", "uuid", dbVolume.UUID, "error", err)
 				}
 				// Update volume state in DB before rollback
 				if volume != nil && volume.State != datamodel.LifeCycleStateDeleted {
 					err2 := workflow.ExecuteActivity(disconnectedCtx, volumeActivity.UpdateVolumeStateInDB, dbVolume.UUID, datamodel.LifeCycleStateError, datamodel.LifeCycleStateCreationErrorDetails).Get(disconnectedCtx, nil)
 					if err2 != nil {
-						log.Errorf("Failed to update volume state in DB to error: %v", err2)
+						log.Error("Failed to update volume state in DB to error", "error", err2)
 						return err2
 					}
 				}
@@ -908,7 +913,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	var backup *datamodel.Backup
 
 	if isRestoreFromBackup {
-		log.Infof("Fetching backup metadata from CVP/SDE for backup path: %s", createVolumeParams.BackupPath)
+		log.Info("Fetching backup metadata from CVP/SDE for backup path", "backupPath", createVolumeParams.BackupPath)
 
 		// Get authentication token for CVP API calls
 		if !env.IsLocalEnv() {
@@ -918,7 +923,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			var token string
 			err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, createVolumeParams.AccountName).Get(ctx, &token)
 			if err != nil {
-				log.Errorf("Failed to get token for account %s: %v", createVolumeParams.AccountName, err)
+				log.Error("Failed to get token for account", "accountName", createVolumeParams.AccountName, "error", err)
 				return nil, ConvertToVSAError(err)
 			}
 			ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
@@ -930,7 +935,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// FetchBackupVaultMetadataForRestore activity fetches backup vault metadata for restore
 		err = workflow.ExecuteActivity(ctx, volumeActivity.FetchBackupVaultMetadataForRestore, createVolumeParams.BackupPath, dbVolume, region).Get(ctx, &backupVault)
 		if err != nil {
-			log.Errorf("Failed to fetch backup vault metadata for restore: %v", err)
+			log.Error("Failed to fetch backup vault metadata for restore", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -941,7 +946,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// FetchBackupMetadataForRestore activity fetches backup metadata for restore
 		err = workflow.ExecuteActivity(ctx, volumeActivity.FetchBackupMetadataForRestore, createVolumeParams.BackupPath, backupVault, dbVolume, region).Get(ctx, &backup)
 		if err != nil {
-			log.Errorf("Failed to fetch backup metadata for restore: %v", err)
+			log.Error("Failed to fetch backup metadata for restore", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -949,22 +954,22 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			return nil, ConvertToVSAError(fmt.Errorf("failed to fetch backup metadata: received nil response"))
 		}
 
-		log.Infof("Successfully fetched backup metadata: backup='%s'", backup.Name)
+		log.Info("Successfully fetched backup metadata", "name", backup.Name)
 
 		// Validate backup is in available or ready state before proceeding with restore
 		// SDE backups use READY state, VCP backups use AVAILABLE state
-		log.Infof("Validating backup state for restore: backup='%s', state='%s'", backup.Name, backup.State)
+		log.Info("Validating backup state for restore", "name", backup.Name, "state", backup.State)
 		if backup.State != datamodel.LifeCycleStateAvailable && backup.State != datamodel.LifeCycleStateREADY {
 			err = fmt.Errorf("cannot restore from backup '%s' which is not in available or ready state (current state: %s)",
 				backup.Name, backup.State)
-			log.Errorf("Backup state validation failed: %v", err)
+			log.Error("Backup state validation failed", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 
 		// FetchBucketMetadataForRestore activity fetches bucket metadata and returns updated vault
 		err = workflow.ExecuteActivity(ctx, volumeActivity.FetchBucketMetadataForRestore, backup, backupVault).Get(ctx, &backupVault)
 		if err != nil {
-			log.Errorf("Failed to fetch bucket metadata for restore: %v", err)
+			log.Error("Failed to fetch bucket metadata for restore", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 
@@ -981,13 +986,13 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		requiredVolumeSize := utils.CalculateRequiredVolumeSize(backup.SizeInBytes, backupAttributes)
 		if dbVolume.SizeInBytes < requiredVolumeSize {
 			errmsg := fmt.Sprintf("restored volume size should be greater than or equal to the logical size of the backup: %d bytes", requiredVolumeSize)
-			log.Errorf("restore failed: %v", errmsg)
+			log.Error("restore failed", "error", errmsg)
 			err = fmt.Errorf("%s", errmsg)
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrInsufficientRestoreVolumeSize, err)
 		}
 
 		// Verify backup restore protocol compatibility
-		log.Infof("Verifying backup restore protocol compatibility")
+		log.Info("Verifying backup restore protocol compatibility")
 		err = verifyBackupRestoreCompatibilityForVolumes(backup, createVolumeParams)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
@@ -995,7 +1000,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 
 		// Verify backup restore compatibility for large volumes
 		if dbVolume.LargeVolumeAttributes != nil && dbVolume.LargeVolumeAttributes.LargeCapacity {
-			log.Infof("Verifying backup restore compatibility for large volume")
+			log.Info("Verifying backup restore compatibility for large volume")
 			createVolumeParams, err = _verifyBackupRestoreCompatibilityForLargeVolumes(backup, createVolumeParams)
 			if err != nil {
 				return nil, vsaerrors.NewVCPError(vsaerrors.ErrLargeVolumeBackupRestoreValidation, err)
@@ -1075,7 +1080,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	// Create VPG and QoS policy if throughputMibps was provided
 	var createdVPG *datamodel.VolumePerformanceGroup
 	if createVolumeParams.ThroughputMibps != nil {
-		log.Infof("Creating VPG and QoS policy for volume %s", dbVolume.Name)
+		log.Info("Creating VPG and QoS policy for volume", "name", dbVolume.Name)
 		vpgActivity := &activities.VolumePerformanceGroupActivity{}
 		if createVolumeParams.Iops == nil {
 			err = fmt.Errorf("missing auto-generated VPG details for volume %s", dbVolume.Name)
@@ -1095,7 +1100,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 		err = workflow.ExecuteActivity(ctx, vpgActivity.CreateQoSPolicyInONTAP, vpg, node).Get(ctx, &qosPolicyID)
 		if err != nil {
-			log.Errorf("Failed to create QoS policy in ONTAP: %v", err)
+			log.Error("Failed to create QoS policy in ONTAP", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		rollbackManager.AddActivity(vpgActivity.DeleteQoSPolicyInONTAP, qosPolicyID, "", dbVolume.Pool.ID, &node)
@@ -1106,7 +1111,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// Step 3: Create VPG in DB with QPG UUID already set
 		err = workflow.ExecuteActivity(ctx, vpgActivity.CreateVPGInDB, vpg).Get(ctx, &createdVPG)
 		if err != nil {
-			log.Errorf("Failed to create VPG in DB: %v", err)
+			log.Error("Failed to create VPG in DB", "error", err)
 			return nil, ConvertToVSAError(err)
 		}
 		rollbackManager.AddActivity(volumeDeleteActivity.CleanupAutoGeneratedVPG, createdVPG.ID, &node)
@@ -1114,7 +1119,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// Update volume with VPG ID
 		dbVolume.VolumePerformanceGroupID = sql.NullInt64{Int64: createdVPG.ID, Valid: true}
 		dbVolume.VolumePerformanceGroup = createdVPG
-		log.Infof("VPG created with QoS policy: vpg_id=%s, qos_policy=%s", createdVPG.UUID, createdVPG.OntapQosPolicyID)
+		log.Info("VPG created with QoS policy", "vpg_uuid", createdVPG.UUID, "qos_policy", createdVPG.OntapQosPolicyID)
 	}
 
 	// If the volume already exists in DB (created before workflow), update its VPG assignment
@@ -1122,10 +1127,10 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		updateActivity := &activities.VolumeUpdateActivity{}
 		err = workflow.ExecuteActivity(dbHbCtx, updateActivity.UpdateVolumePerformanceGroupInDBForVolume, dbVolume.UUID, createdVPG).Get(dbHbCtx, nil)
 		if err != nil {
-			log.Errorf("Failed to update volume %s with VPG: %v", dbVolume.UUID, err)
+			log.Error("Failed to update volume with VPG", "uuid", dbVolume.UUID, "error", err)
 			return nil, ConvertToVSAError(err)
 		}
-		log.Infof("Updated existing volume with VPG: volume_id=%s, vpg_id=%s", dbVolume.UUID, createdVPG.UUID)
+		log.Info("Updated existing volume with VPG", "volume_uuid", dbVolume.UUID, "vpg_uuid", createdVPG.UUID)
 	}
 	// Do not create the volume in DB here; it should already exist.
 	// Refresh from DB to ensure we have DB-generated fields and VPG association.
@@ -1133,7 +1138,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	var createdVolume *datamodel.Volume
 	err = workflow.ExecuteActivity(dbHbCtx, volumeActivity.GetVolumeByVolumeID, dbVolume.UUID).Get(dbHbCtx, &createdVolume)
 	if err != nil {
-		log.Errorf("Failed to fetch existing volume %s: %v", dbVolume.UUID, err)
+		log.Error("Failed to fetch existing volume", "uuid", dbVolume.UUID, "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 	dbVolume = createdVolume
@@ -1143,11 +1148,9 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	if createdVPG != nil {
 		dbVolume.VolumePerformanceGroup = createdVPG
 	}
-	log.Infof("Volume created in DB with VPG ID: volume_id=%s, vpg_id=%v, vpg_id_valid=%v",
-		dbVolume.UUID, dbVolume.VolumePerformanceGroupID.Int64, dbVolume.VolumePerformanceGroupID.Valid)
+	log.Info("Volume created in DB with VPG", "volume_uuid", dbVolume.UUID, "vpg_id", dbVolume.VolumePerformanceGroupID.Int64, "vpg_id_valid", dbVolume.VolumePerformanceGroupID.Valid)
 	if dbVolume.VolumePerformanceGroupID.Valid && dbVolume.VolumePerformanceGroup != nil {
-		log.Infof("Volume VPG details: vpg_uuid=%s, qos_policy=%s",
-			dbVolume.VolumePerformanceGroup.UUID, dbVolume.VolumePerformanceGroup.OntapQosPolicyID)
+		log.Info("Volume VPG details", "vpg_uuid", dbVolume.VolumePerformanceGroup.UUID, "qos_policy", dbVolume.VolumePerformanceGroup.OntapQosPolicyID)
 	}
 
 	// Add volume deletion to rollback manager in case workflow fails after this point
@@ -1176,11 +1179,11 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	// (i.e., it was auto-provisioned by ONTAP) AND we got the count from the creation response
 	if dbVolume.LargeVolumeAttributes != nil && dbVolume.LargeVolumeAttributes.LargeCapacity &&
 		dbVolume.LargeVolumeAttributes.LargeVolumeConstituentCount == nil && volCreateResponse.ConstituentCount != nil {
-		log.Debugf("Updating CV count for auto-provisioned volume %s: %d", dbVolume.UUID, *volCreateResponse.ConstituentCount)
+		log.Debug("Updating CV count for auto-provisioned volume", "uuid", dbVolume.UUID, "constituentCount", *volCreateResponse.ConstituentCount)
 
 		// Update the dbVolume struct with the actual CV count from ONTAP creation response
 		dbVolume.LargeVolumeAttributes.LargeVolumeConstituentCount = volCreateResponse.ConstituentCount
-		log.Debugf("Successfully updated CV count for auto-provisioned volume %s to %d", dbVolume.UUID, *volCreateResponse.ConstituentCount)
+		log.Debug("Successfully updated CV count for auto-provisioned volume to", "uuid", dbVolume.UUID, "constituentCount", *volCreateResponse.ConstituentCount)
 	}
 
 	// Calculate the available LUN space by subtracting the reserved space for snapshots
@@ -1208,12 +1211,12 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// ONTAP doesn't accept auto tiering policy during clone creation, so we update it after creation
 		// This also handles the case where AT is disabled - we explicitly set it to "none" to prevent
 		// ONTAP from inheriting the parent volume's AT policy
-		log.Debugf("Updating auto tiering policy for clone volume %s after creation", dbVolume.Name)
+		log.Debug("Updating auto tiering policy for clone volume after creation", "name", dbVolume.Name)
 		err = workflow.ExecuteActivity(ctx, volumeActivity.UpdateVolumeAutoTieringPolicyInONTAP, &dbVolume, &node).Get(ctx, nil)
 		if err != nil {
 			return nil, ConvertToVSAError(fmt.Errorf("failed to update auto tiering policy for clone volume: %w", err))
 		}
-		log.Debugf("Successfully updated auto tiering policy for clone volume %s", dbVolume.Name)
+		log.Debug("Successfully updated auto tiering policy for clone volume", "name", dbVolume.Name)
 	}
 
 	var hostGroups []*datamodel.HostGroup
@@ -1304,7 +1307,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			var token string
 			err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, createVolumeParams.AccountName).Get(ctx, &token)
 			if err != nil {
-				log.Errorf("Failed to get token for account %s: %v", createVolumeParams.AccountName, err)
+				log.Error("Failed to get token for account", "accountName", createVolumeParams.AccountName, "error", err)
 				return nil, ConvertToVSAError(err)
 			}
 			ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
@@ -1346,7 +1349,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if backupVault.BucketDetails != nil && len(backupVault.BucketDetails) > 0 {
 				tenancyDetails.RegionalTenantProject = backupVault.BucketDetails[0].TenantProjectNumber
 			} else {
-				log.Errorf("GCBDR vault %s has no bucket details with tenant project", backupVault.UUID)
+				log.Error("GCBDR vault has no bucket details with tenant project", "uuid", backupVault.UUID)
 				return nil, ConvertToVSAError(fmt.Errorf("GCBDR vault has no tenant project information"))
 			}
 		}
@@ -1418,15 +1421,15 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			}
 			poolDetails := dbVolume.Pool
 			if poolDetails == nil {
-				log.Errorf("Pool details not available for volume %s", dbVolume.UUID)
+				log.Error("Pool details not available for volume", "uuid", dbVolume.UUID)
 				return nil, ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
 			}
 			err = workflow.ExecuteActivity(ctx, volumeActivity.SetupCrossProjectBackupPermissions, poolDetails, &bucketDetails).Get(ctx, nil)
 			if err != nil {
-				log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+				log.Error("Failed to setup cross-project backup permissions", "error", err)
 				return nil, ConvertToVSAError(err)
 			}
-			log.Infof("Successfully granted pool SA access to GCBDR bucket %s", bucketDetails.BucketName)
+			log.Info("Successfully granted pool SA access to GCBDR bucket", "bucketName", bucketDetails.BucketName)
 		}
 
 		// TODO: Optimize this to avoid running for each volume call.
@@ -1444,7 +1447,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			// Wait for service account to be ready
 			err = workflowSleep(ctx, time.Second*90)
 			if err != nil {
-				log.Errorf("Failed to sleep after cross-region backup permissions are created: %v", err)
+				log.Error("Failed to sleep after cross-region backup permissions are created", "error", err)
 			}
 		}
 	}
@@ -1464,7 +1467,7 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				return nil, cancelErr
 			}
 			if !utils.IsCVPHostConfigured() {
-				log.Warnf("Backup policy %s does not exist in VCP in a VCP-only region (SDE unavailable); volume creation requires an existing VCP backup policy", dbVolume.DataProtection.BackupPolicyID)
+				log.Warn("Backup policy does not exist in VCP in a VCP-only region (SDE unavailable); volume creation requires an existing VCP backup policy", "backupPolicyID", dbVolume.DataProtection.BackupPolicyID)
 				return nil, ConvertToVSAError(customerrors.NewNotFoundErr(
 					fmt.Sprintf("Backup policy %s not found", dbVolume.DataProtection.BackupPolicyID),
 					nil,
@@ -1602,7 +1605,7 @@ func SyncBucketDetailsWithGCP(ctx workflow.Context, bucketDetails *common.Bucket
 
 // syncBucketDetailsWithGCP syncs bucket details with GCP to get the latest ZiZs information
 func syncBucketDetailsWithGCP(ctx workflow.Context, bucketDetails *common.BucketDetails) error {
-	logger := util.GetLogger(ctx)
+	logger := workflow.GetLogger(ctx)
 	existingBucketDetails := &datamodel.BucketDetails{
 		BucketName:          bucketDetails.BucketName,
 		TenantProjectNumber: bucketDetails.TenantProjectNumber,
@@ -1622,7 +1625,7 @@ func syncBucketDetailsWithGCP(ctx workflow.Context, bucketDetails *common.Bucket
 	err := workflow.ExecuteActivity(actCtx, syncBackupZiZsActivity.SyncBucketDetails, existingBucketDetails).Get(actCtx, &updatedBucketDetails)
 	if err != nil {
 		// Log the error, but do not fail the workflow
-		logger.Errorf("Failed to sync bucket details for bucket %s: %v", existingBucketDetails.BucketName, err)
+		logger.Error("Failed to sync bucket details for bucket", "bucketName", existingBucketDetails.BucketName, "error", err)
 	} else if updatedBucketDetails != nil {
 		bucketDetails.SatisfiesPzi = updatedBucketDetails.SatisfiesPzi
 		bucketDetails.SatisfiesPzs = updatedBucketDetails.SatisfiesPzs
@@ -1767,7 +1770,7 @@ func updateActiveDirectoryStateToInUse(
 	ctx workflow.Context,
 	activeDirectory *vsa.ActiveDirectory,
 ) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	if activeDirectory == nil {
 		return ConvertToVSAError(fmt.Errorf("active Directory is nil"))
 	}
@@ -1776,7 +1779,7 @@ func updateActiveDirectoryStateToInUse(
 		err := workflow.ExecuteActivity(ctx, active_directory_activities.ActiveDirectoryActivity.UpdateActiveDirectoryState,
 			activeDirectory.UUID, datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails).Get(ctx, nil)
 		if err != nil {
-			log.Error("Failed to update Active Directory state to IN_USE with error: ", err)
+			log.Error("Failed to update Active Directory state to IN_USE", "error", err)
 			return ConvertToVSAError(err)
 		}
 	}

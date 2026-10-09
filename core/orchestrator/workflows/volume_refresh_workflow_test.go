@@ -42,6 +42,34 @@ func volumeIDsFromVolumes(volumes []*datamodel.Volume) []string {
 	return ids
 }
 
+func TestVolumeRefreshWorkflow_InvalidActivityTimeoutUsesDefault(t *testing.T) {
+	originalTimeout := VolumeRefreshWorkflowActivityTimeout
+	VolumeRefreshWorkflowActivityTimeout = "invalid"
+	t.Cleanup(func() {
+		VolumeRefreshWorkflowActivityTimeout = originalTimeout
+	})
+
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestWorkflowEnvironment()
+	volumeRefreshActivity := &activities.VolumeRefreshActivity{}
+	testEnv.RegisterWorkflow(VolumeRefreshWorkflow)
+	testEnv.RegisterActivity(volumeRefreshActivity.GetVolumesForRefresh)
+	testEnv.OnActivity(
+		volumeRefreshActivity.GetVolumesForRefresh,
+		mock.Anything,
+		mock.Anything,
+	).Return([]*datamodel.Volume{}, nil)
+
+	testEnv.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{
+		AccountName: "test-account",
+		AccountID:   1,
+		VolumeIDs:   []string{"volume-uuid"},
+	})
+
+	assert.True(t, testEnv.IsWorkflowCompleted())
+	assert.NoError(t, testEnv.GetWorkflowError())
+}
+
 type VolumeGetWorkflowTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite

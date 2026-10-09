@@ -49,8 +49,10 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	tManagerPkg "github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/temporalmanager"
 	workflowEngine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
+	workflowutil "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/interceptor"
 	workerSDK "go.temporal.io/sdk/worker"
 	"golang.org/x/sync/errgroup"
 )
@@ -119,6 +121,7 @@ func buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity int, activiti
 		TaskQueueActivitiesPerSecond:            taskQueuePerSec,
 		WorkflowPanicPolicy:                     panicPolicy,
 		DeadlockDetectionTimeout:                deadlockTimeout,
+		Interceptors:                            []interceptor.WorkerInterceptor{workflowutil.NewLoggerInterceptor()},
 	}
 }
 

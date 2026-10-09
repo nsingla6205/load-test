@@ -9,7 +9,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -29,11 +28,11 @@ var _ WorkflowInterface = &volumeRevertWorkflow{}
 
 // RevertVolumeWorkflow Update Volume Workflow process volume related requests from a customer.
 func RevertVolumeWorkflow(ctx workflow.Context, params *common.RevertVolumeParams, volume *datamodel.Volume, snapshot *datamodel.Snapshot) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeWf := new(volumeRevertWorkflow)
 	err := volumeWf.Setup(ctx, volume)
 	if err != nil {
-		log.Errorf("Volume update workflow setup executed with error: %v", err)
+		log.Error("Volume update workflow setup executed with error", "error", err)
 		return err
 	}
 	if err = volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -42,17 +41,17 @@ func RevertVolumeWorkflow(ctx workflow.Context, params *common.RevertVolumeParam
 	volumeWf.Status = WorkflowStatusRunning
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for RevertVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for RevertVolumeWorkflow", "error", err)
 		return err
 	}
 
 	_, errRun := volumeWf.Run(ctx, params, volume, snapshot)
 	if errRun != nil {
-		log.Errorf("RevertVolumeWorkflow completed with error: %v", errRun)
+		log.Error("RevertVolumeWorkflow completed with error", "error", errRun)
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), errRun)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with err for RevertVolumeWorkflow: %v", err)
+			log.Error("Failed to update job status to Done with err for RevertVolumeWorkflow", "error", err2)
 			return err2
 		}
 		return errRun
@@ -61,7 +60,7 @@ func RevertVolumeWorkflow(ctx workflow.Context, params *common.RevertVolumeParam
 	volumeWf.Status = WorkflowStatusCompleted
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for RevertVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for RevertVolumeWorkflow", "error", err)
 	}
 	return nil
 }
@@ -72,10 +71,6 @@ func (wf *volumeRevertWorkflow) Setup(ctx workflow.Context, input interface{}) e
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = volume.Account.Name
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,

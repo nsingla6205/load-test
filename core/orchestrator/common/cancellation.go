@@ -9,10 +9,9 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
+	temporallog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -87,7 +86,7 @@ func WaitForWorkflowCancellationAck(ctx context.Context, temporalClient client.C
 type WorkflowCancellationHandler struct {
 	cancelled        bool
 	cancelSignalChan workflow.ReceiveChannel
-	logger           log.Logger
+	logger           temporallog.Logger
 	resourceUUID     string
 	resourceName     string
 }
@@ -98,10 +97,9 @@ func NewWorkflowCancellationHandler(ctx workflow.Context, signalName string, res
 		signalName = DefaultCancelSignalName
 	}
 
-	logger := util.GetLogger(ctx)
 	return &WorkflowCancellationHandler{
 		cancelSignalChan: workflow.GetSignalChannel(ctx, signalName),
-		logger:           logger,
+		logger:           workflow.GetLogger(ctx),
 		resourceUUID:     resourceUUID,
 		resourceName:     resourceName,
 	}
@@ -117,7 +115,7 @@ func (h *WorkflowCancellationHandler) CheckCancellation(ctx workflow.Context) er
 		if more {
 			var cancelData string
 			c.Receive(ctx, &cancelData)
-			h.logger.Infof("Received cancellation signal for %s %s: %s", h.resourceName, h.resourceUUID, cancelData)
+			h.logger.Info("Received cancellation signal", "resourceName", h.resourceName, "resourceUUID", h.resourceUUID, "cancelData", cancelData)
 			h.cancelled = true
 		}
 	})
@@ -127,8 +125,7 @@ func (h *WorkflowCancellationHandler) CheckCancellation(ctx workflow.Context) er
 	selector.Select(ctx)
 
 	if h.cancelled {
-		h.logger.Infof("%s creation cancelled, will stop after current activity completes for %s: %s",
-			h.resourceName, h.resourceName, h.resourceUUID)
+		h.logger.Info("creation cancelled, will stop after current activity completes", "resourceName", h.resourceName, "resourceUUID", h.resourceUUID)
 		return fmt.Errorf("%s creation cancelled by delete request", h.resourceName)
 	}
 	return nil
@@ -175,8 +172,8 @@ func HandleCancellationInDeleteWorkflow(
 	cancellationActivity CancellationActivityMethods,
 	commonActivity CommonActivityMethods,
 ) error {
-	logger := util.GetLogger(ctx)
-	logger.Infof("Resource %s is in CREATING state, handling cancellation of create workflow", params.ResourceUUID)
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Resource is in CREATING state, handling cancellation of create workflow", "resourceUUID", params.ResourceUUID)
 
 	if params.SignalName == "" {
 		params.SignalName = DefaultCancelSignalName
@@ -189,7 +186,7 @@ func HandleCancellationInDeleteWorkflow(
 	}
 
 	if params.CreateJobType == "" {
-		logger.Warnf("CreateJobType not specified for resource %s, skipping cancellation handling", params.ResourceUUID)
+		logger.Warn("CreateJobType not specified, skipping cancellation handling", "resourceUUID", params.ResourceUUID)
 		return nil
 	}
 
@@ -198,29 +195,29 @@ func HandleCancellationInDeleteWorkflow(
 	err := workflow.ExecuteActivity(ctx, getCreateJobActivity,
 		params.ResourceUUID, params.CorrelationID, string(params.CreateJobType)).Get(ctx, &createJobResult)
 	if err != nil {
-		logger.Warnf("Could not find create job for resource %s: %v, proceeding with normal delete", params.ResourceUUID, err)
+		logger.Warn("Could not find create job, proceeding with normal delete", "resourceUUID", params.ResourceUUID, "error", err)
 		return nil
 	}
 
 	if createJobResult == nil || createJobResult.WorkflowID == "" {
-		logger.Warnf("Create job not found or workflow ID missing for resource %s, proceeding with normal delete", params.ResourceUUID)
+		logger.Warn("Create job not found or workflow ID missing, proceeding with normal delete", "resourceUUID", params.ResourceUUID)
 		return nil
 	}
 
-	logger.Infof("Found matching create job %s with workflow ID %s", createJobResult.JobUUID, createJobResult.WorkflowID)
+	logger.Info("Found matching create job", "jobUUID", createJobResult.JobUUID, "createWorkflowID", createJobResult.WorkflowID)
 
 	// Checking if workflow is still running
 	var isRunning bool
 	err = workflow.ExecuteActivity(ctx, cancellationActivity.IsWorkflowRunningActivity,
 		createJobResult.WorkflowID).Get(ctx, &isRunning)
 	if err != nil {
-		logger.Warnf("Failed to check workflow status: %v, proceeding with normal delete", err)
+		logger.Warn("Failed to check workflow status, proceeding with normal delete", "error", err)
 		return nil
 	}
 
 	if !isRunning {
 		// Workflow already completed - update job state and proceed
-		logger.Infof("Create workflow %s is already completed, updating job state", createJobResult.WorkflowID)
+		logger.Info("Create workflow is already completed, updating job state", "createWorkflowID", createJobResult.WorkflowID)
 		createJob := &datamodel.Job{
 			BaseModel:    datamodel.BaseModel{UUID: createJobResult.JobUUID},
 			State:        string(datamodel.JobsStateERROR),
@@ -228,57 +225,57 @@ func HandleCancellationInDeleteWorkflow(
 			ErrorDetails: "Resource creation cancelled due to delete request",
 		}
 		if err := workflow.ExecuteActivity(ctx, commonActivity.UpdateJobStatus, createJob).Get(ctx, nil); err != nil {
-			logger.Warnf("Failed to update create job with error details: %v", err)
+			logger.Warn("Failed to update create job with error details", "error", err)
 		}
 		return nil
 	}
 
 	// Send cancellation signal to create workflow
-	logger.Infof("Sending cancellation signal to create workflow %s", createJobResult.WorkflowID)
+	logger.Info("Sending cancellation signal to create workflow", "createWorkflowID", createJobResult.WorkflowID)
 	signalData := fmt.Sprintf("Delete requested for resource %s", params.ResourceUUID)
 	err = workflow.ExecuteActivity(ctx, cancellationActivity.SendCancelSignalActivity,
 		createJobResult.WorkflowID, params.SignalName, signalData).Get(ctx, nil)
 	if err != nil {
-		logger.Warnf("Failed to send cancel signal: %v, will force cancel if needed", err)
+		logger.Warn("Failed to send cancel signal, will force cancel if needed", "error", err)
 	}
 
 	// Wait for cancellation acknowledgment with timeout
-	logger.Infof("Waiting for create workflow cancellation acknowledgment (timeout: %v)", params.CancellationAckTimeout)
+	logger.Info("Waiting for create workflow cancellation acknowledgment", "timeout", params.CancellationAckTimeout)
 	var acknowledged bool
 	err = workflow.ExecuteActivity(ctx, cancellationActivity.WaitForWorkflowCancellationAckActivity,
 		createJobResult.WorkflowID, params.CancellationAckTimeout).Get(ctx, &acknowledged)
 
 	if err != nil {
-		logger.Warnf("Error waiting for cancellation: %v", err)
+		logger.Warn("Error waiting for cancellation", "error", err)
 	}
 
 	// Handle timeout or success
 	var errorMessage string
 	if !acknowledged {
 		// Terminating the parent workflow
-		logger.Warnf("Timeout waiting for cancellation acknowledgment (> %v), forcefully terminating workflow %s (this will also stop all child workflows)",
-			params.CancellationAckTimeout, createJobResult.WorkflowID)
+		logger.Warn("Timeout waiting for cancellation acknowledgment, forcefully terminating workflow (this will also stop all child workflows)",
+			"timeout", params.CancellationAckTimeout, "createWorkflowID", createJobResult.WorkflowID)
 		err = workflow.ExecuteActivity(ctx, cancellationActivity.ForceCancelWorkflowActivity,
 			createJobResult.WorkflowID).Get(ctx, nil)
 		if err != nil {
-			logger.Warnf("Failed to force cancel workflow %s: %v, proceeding anyway", createJobResult.WorkflowID, err)
+			logger.Warn("Failed to force cancel workflow, proceeding anyway", "createWorkflowID", createJobResult.WorkflowID, "error", err)
 		} else {
 			// Wait for the workflow to actually be cancelled
-			logger.Infof("Waiting for force cancellation to complete for workflow %s (timeout: %v)", createJobResult.WorkflowID, params.ForceTerminationAckTimeout)
+			logger.Info("Waiting for force cancellation to complete", "createWorkflowID", createJobResult.WorkflowID, "timeout", params.ForceTerminationAckTimeout)
 			var forceCancelAcknowledged bool
 			waitErr := workflow.ExecuteActivity(ctx, cancellationActivity.WaitForWorkflowCancellationAckActivity,
 				createJobResult.WorkflowID, params.ForceTerminationAckTimeout).Get(ctx, &forceCancelAcknowledged)
 			if waitErr != nil {
-				logger.Warnf("Error waiting for force cancellation to complete: %v, proceeding anyway", waitErr)
+				logger.Warn("Error waiting for force cancellation to complete, proceeding anyway", "error", waitErr)
 			} else if forceCancelAcknowledged {
-				logger.Infof("Force cancellation completed for workflow %s", createJobResult.WorkflowID)
+				logger.Info("Force cancellation completed", "createWorkflowID", createJobResult.WorkflowID)
 			} else {
-				logger.Warnf("Force cancellation wait timeout for workflow %s, proceeding anyway", createJobResult.WorkflowID)
+				logger.Warn("Force cancellation wait timeout, proceeding anyway", "createWorkflowID", createJobResult.WorkflowID)
 			}
 		}
 		errorMessage = "Resource creation forcefully terminated due to delete request (timeout exceeded)"
 	} else {
-		logger.Infof("Create workflow %s cancelled successfully", createJobResult.WorkflowID)
+		logger.Info("Create workflow cancelled successfully", "createWorkflowID", createJobResult.WorkflowID)
 		errorMessage = "Resource creation cancelled due to delete request"
 	}
 
@@ -291,9 +288,9 @@ func HandleCancellationInDeleteWorkflow(
 	}
 	updateErr := workflow.ExecuteActivity(ctx, commonActivity.UpdateJobStatus, createJob).Get(ctx, nil)
 	if updateErr != nil {
-		logger.Warnf("Failed to update create job with error details: %v", updateErr)
+		logger.Warn("Failed to update create job with error details", "error", updateErr)
 	} else {
-		logger.Infof("Updated create job %s with error details", createJobResult.JobUUID)
+		logger.Info("Updated create job with error details", "jobUUID", createJobResult.JobUUID)
 	}
 
 	return nil
@@ -310,7 +307,7 @@ type HandleCancellationForCreatingResourceParams struct {
 }
 
 // HandleCancellationForCreatingResource is a helper function that handles cancellation logic for resources in CREATING state within delete workflows.
-func HandleCancellationForCreatingResource(ctx workflow.Context, logger log.Logger, params HandleCancellationForCreatingResourceParams, getCreateJobActivity interface{}, cancellationActivity CancellationActivityMethods, commonActivity CommonActivityMethods) error {
+func HandleCancellationForCreatingResource(ctx workflow.Context, logger temporallog.Logger, params HandleCancellationForCreatingResourceParams, getCreateJobActivity interface{}, cancellationActivity CancellationActivityMethods, commonActivity CommonActivityMethods) error {
 	// Only handle cancellation if resource is in CREATING state
 	if params.ResourceState != datamodel.LifeCycleStateCreating {
 		return nil
@@ -318,7 +315,7 @@ func HandleCancellationForCreatingResource(ctx workflow.Context, logger log.Logg
 	// Get correlation ID from workflow context
 	correlationID, errCorr := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx)
 	if errCorr != nil {
-		logger.Warnf("Could not get correlation ID from workflow context: %v", errCorr)
+		logger.Warn("Could not get correlation ID from workflow context", "error", errCorr)
 		correlationID = ""
 	}
 	// Set up cancellation parameters
@@ -332,7 +329,7 @@ func HandleCancellationForCreatingResource(ctx workflow.Context, logger log.Logg
 	}
 	// Handle cancellation
 	if cancelErr := HandleCancellationInDeleteWorkflow(ctx, cancellationParams, getCreateJobActivity, cancellationActivity, commonActivity); cancelErr != nil {
-		logger.Warnf("Error handling cancellation: %v, proceeding with normal delete", cancelErr)
+		logger.Warn("Error handling cancellation, proceeding with normal delete", "error", cancelErr)
 		return cancelErr
 	}
 	return nil

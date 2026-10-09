@@ -21,7 +21,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	"go.temporal.io/sdk/temporal"
@@ -51,11 +50,11 @@ var (
 
 // UpdateVolumeWorkflow Update Volume Workflow process volume related requests from a customer.
 func UpdateVolumeWorkflow(ctx workflow.Context, params *common.UpdateVolumeParams, volume *datamodel.Volume) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volumeWf := new(volumeUpdateWorkflow)
 	err := volumeWf.Setup(ctx, volume)
 	if err != nil {
-		log.Errorf("Volume update workflow setup executed with error: %v", err)
+		log.Error("Volume update workflow setup executed with error", "error", err)
 		return err
 	}
 	if err = volumeWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
@@ -64,17 +63,17 @@ func UpdateVolumeWorkflow(ctx workflow.Context, params *common.UpdateVolumeParam
 	volumeWf.Status = WorkflowStatusRunning
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Processing for UpdateVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Processing for UpdateVolumeWorkflow", "error", err)
 		return err
 	}
 
 	_, customErr := volumeWf.Run(ctx, params, volume)
 	if customErr != nil {
-		log.Errorf("UpdateVolumeWorkflow completed with error: %v", customErr)
+		log.Error("UpdateVolumeWorkflow completed with error", "error", customErr)
 		volumeWf.Status = WorkflowStatusFailed
 		err2 := volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if err2 != nil {
-			log.Errorf("Failed to update job status to Done with err for UpdateVolumeWorkflow: %v", err2)
+			log.Error("Failed to update job status to Done with err for UpdateVolumeWorkflow", "error", err2)
 			return err2
 		}
 		return customErr
@@ -83,7 +82,7 @@ func UpdateVolumeWorkflow(ctx workflow.Context, params *common.UpdateVolumeParam
 	volumeWf.Status = WorkflowStatusCompleted
 	err = volumeWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
-		log.Errorf("Failed to update job status to Done for UpdateVolumeWorkflow: %v", err)
+		log.Error("Failed to update job status to Done for UpdateVolumeWorkflow", "error", err)
 	}
 	return err
 }
@@ -94,10 +93,6 @@ func (wf *volumeUpdateWorkflow) Setup(ctx workflow.Context, input interface{}) e
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = volume.Account.Name
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -108,7 +103,7 @@ func (wf *volumeUpdateWorkflow) Setup(ctx workflow.Context, input interface{}) e
 }
 
 func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	params := args[0].(*common.UpdateVolumeParams)
 	volume := args[1].(*datamodel.Volume)
 	sanitizeUpdateParamsForFlexCache(params, volume)
@@ -155,7 +150,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			disconnectedOrchCtx := orchestrator.NewDisconnectedContext(orchCtx).ClearOperationBudgetCheck()
 			if runErr := orchestrator.RunActivity(disconnectedOrchCtx, volumeCreateActivity.UpdateVolumeStateInDB, nil,
 				volume.UUID, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails); runErr != nil {
-				log.Errorf("Failed to update volume state in DB to READY: %v", runErr)
+				log.Error("Failed to update volume state in DB to READY", "error", runErr)
 			}
 			// rollbackManager.ExecuteRollback still takes workflow.Context
 			rollbackManager.ExecuteRollback(temporalbackend.WorkflowCtx(disconnectedOrchCtx), err)
@@ -224,7 +219,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			}
 			if !isExpertModeVolume {
 				if snapshotErr := orchestrator.RunActivity(orchCtx.ClearOperationBudgetCheck(), backupActivity.DeleteBackupSnapshotFromDB, nil, latestBackup); snapshotErr != nil {
-					log.Errorf("Failed to delete snapshot from database: %v", snapshotErr)
+					log.Error("Failed to delete snapshot from database", "error", snapshotErr)
 				}
 			}
 
@@ -252,15 +247,14 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 					volume.Name,
 					location,
 					volume.Account.Name); hydrateSnapshotErr != nil {
-					log.Errorf("Failed to hydrate snapshot deletion to CCFE for backup %s: %v", latestBackup.Name, hydrateSnapshotErr)
+					log.Error("Failed to hydrate snapshot deletion to CCFE for backup", "name", latestBackup.Name, "error", hydrateSnapshotErr)
 				}
 			}
 		}
 
 		volume.DataProtection.BackupVaultID = newBackupVaultID
 		backupVaultSwitched = true
-		log.Infof("Backup vault switched for volume %s (old_vault=%s new_vault=%s); backup_chain_bytes unchanged until DB recalc",
-			volume.UUID, oldBackupVaultID, newBackupVaultID)
+		log.Info("Backup vault switched for volume; backup_chain_bytes unchanged until DB recalc", "uuid", volume.UUID, "old_vault", oldBackupVaultID, "new_vault", newBackupVaultID)
 	}
 	if orchCtx.OperationBudgetExceeded() {
 		err = fmt.Errorf("operation budget exceeded after backup vault switch")
@@ -315,11 +309,10 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				"Free up space or choose a larger size",
 				utils.FmtUint64Bytes(uint64(params.QuotaInBytes)),
 				utils.FmtUint64Bytes(uint64(volResponse.UsedBytes)))
-			log.Error(err.Error())
+			log.Error("cannot reduce volume size below used space", "uuid", volume.UUID, "error", err)
 			return nil, ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrVolumeSizeTooSmall, err))
 		}
-		log.Debugf("Volume size reduction validation passed for volume %s: new size %d >= used bytes %d",
-			volume.UUID, params.QuotaInBytes, volResponse.UsedBytes)
+		log.Debug("Volume size reduction validation passed", "uuid", volume.UUID, "new_size", params.QuotaInBytes, "used_bytes", volResponse.UsedBytes)
 	}
 
 	if factorycommon.IsVolumeUpdateRequired(volResponse, params, volume) {
@@ -355,36 +348,35 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	if isUpdateFlexCachePrepopulateRequired(volume, params) {
 		if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
 			volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCACHEPREPOPULATESTATEUNSPECIFIED); prepopErr != nil {
-			log.Errorf("Failed to update prepopulate state to UNSPECIFIED: %v", prepopErr)
+			log.Error("Failed to update prepopulate state to UNSPECIFIED", "error", prepopErr)
 		}
 
 		// Start the ONTAP prepopulate job
 		var ontapJobUUID string
 		if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.StartFlexCachePrepopulate, &ontapJobUUID,
 			volume, params, node); prepopErr != nil {
-			log.Errorf("Failed to start prepopulate in ONTAP: %v", prepopErr)
+			log.Error("Failed to start prepopulate in ONTAP", "error", prepopErr)
 			if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
 				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR); stateErr != nil {
-				log.Errorf("Failed to update prepopulate state to ERROR after ONTAP failure: %v", stateErr)
+				log.Error("Failed to update prepopulate state to ERROR after ONTAP failure", "error", stateErr)
 			}
-			log.Warnf("Prepopulate failed to start but continuing with volume update - prepopulate is best-effort")
+			log.Warn("Prepopulate failed to start but continuing with volume update - prepopulate is best-effort")
 		} else if ontapJobUUID == "" {
 			if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
 				volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateCOMPLETE); stateErr != nil {
-				log.Errorf("Failed to update prepopulate state to COMPLETE: %v", stateErr)
+				log.Error("Failed to update prepopulate state to COMPLETE", "error", stateErr)
 			}
 		} else {
 			// Create a Job record for tracking with ONTAP UUID in job attributes
 			var createdJobUUID string
 			if prepopErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.CreatePrepopulateJob, &createdJobUUID,
 				volume, ontapJobUUID); prepopErr != nil {
-				log.Errorf("Failed to create job record: %v", prepopErr)
+				log.Error("Failed to create job record", "error", prepopErr)
 				if stateErr := orchestrator.RunActivity(orchCtx, flexCacheUpdateActivity.UpdatePrepopulateState, nil,
 					volume.UUID, cvpModels.FlexCacheConfigV1betaCachePrePopulateStateERROR); stateErr != nil {
-					log.Errorf("Failed to update prepopulate state to ERROR after job creation failure: %v", stateErr)
+					log.Error("Failed to update prepopulate state to ERROR after job creation failure", "error", stateErr)
 				}
-				log.Warnf("ONTAP prepopulate job %s started but cannot be tracked - job will run to completion in ONTAP for volume %s",
-					ontapJobUUID, volume.UUID)
+				log.Warn("ONTAP prepopulate job started but cannot be tracked - job will run to completion in ONTAP for volume", "ontapJobUUID", ontapJobUUID, "uuid", volume.UUID)
 			}
 		}
 	}
@@ -522,7 +514,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		if !env.IsLocalEnv() {
 			var token string
 			if err = orchestrator.RunActivity(orchCtx, commonActivities.GetAuthJWTToken, &token, params.AccountName); err != nil {
-				log.Errorf("Failed to get token for account %s: %v", params.AccountName, err)
+				log.Error("Failed to get token for account", "accountName", params.AccountName, "error", err)
 				return nil, ConvertToVSAError(err)
 			}
 			orchCtx = orchestrator.WithValue(orchCtx, middleware.AuthorizationToken, token)
@@ -556,7 +548,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 					RegionalTenantProject: backupVault.BucketDetails[0].TenantProjectNumber,
 				}
 			} else {
-				log.Errorf("GCBDR vault %s has no bucket details with tenant project", backupVault.UUID)
+				log.Error("GCBDR vault has no bucket details with tenant project", "uuid", backupVault.UUID)
 				err = fmt.Errorf("GCBDR vault has no tenant project information")
 				return nil, ConvertToVSAError(err)
 			}
@@ -609,16 +601,16 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		// so that a pool attaching to an already-provisioned vault still receives the IAM grant.
 		if backupVault.ServiceType == activities.GCBDRServiceType {
 			if volume.Pool == nil {
-				log.Errorf("Pool details not available for volume %s", volume.UUID)
+				log.Error("Pool details not available for volume", "uuid", volume.UUID)
 				err = fmt.Errorf("pool details required for GCBDR bucket permissions")
 				return nil, ConvertToVSAError(err)
 			}
 			volumeCreateActivity := &activities.VolumeCreateActivity{}
 			if err = orchestrator.RunActivity(orchCtx, volumeCreateActivity.SetupCrossProjectBackupPermissions, nil, volume.Pool, bucketDetails); err != nil {
-				log.Errorf("Failed to setup cross-project backup permissions: %v", err)
+				log.Error("Failed to setup cross-project backup permissions", "error", err)
 				return nil, ConvertToVSAError(err)
 			}
-			log.Infof("Successfully granted pool SA access to GCBDR bucket %s", bucketDetails.BucketName)
+			log.Info("Successfully granted pool SA access to GCBDR bucket", "bucketName", bucketDetails.BucketName)
 		}
 
 		// TODO: Optimize this to avoid running for each volume call.
@@ -633,7 +625,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			// Wait for service account to be ready
 			err = workflowSleep(ctx, time.Second*90)
 			if err != nil {
-				log.Errorf("Failed to sleep after cross-region backup permissions are created: %v", err)
+				log.Error("Failed to sleep after cross-region backup permissions are created", "error", err)
 			}
 			if orchCtx.OperationBudgetExceeded() {
 				err = fmt.Errorf("operation budget exceeded after cross-region permission sleep")
@@ -651,7 +643,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		if !env.IsLocalEnv() {
 			var token string
 			if err = orchestrator.RunActivity(orchCtx, commonActivities.GetAuthJWTToken, &token, params.AccountName); err != nil {
-				log.Errorf("Failed to get token for account %s: %v", params.AccountName, err)
+				log.Error("Failed to get token for account", "accountName", params.AccountName, "error", err)
 				return nil, ConvertToVSAError(err)
 			}
 			orchCtx = orchestrator.WithValue(orchCtx, middleware.AuthorizationToken, token)
@@ -666,7 +658,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		if !backupPolicyExists {
 			// Check if VCP region should be used
 			if !utils.IsCVPHostConfigured() {
-				log.Warnf("Backup policy %s does not exist in VCP in a VCP-only region (SDE unavailable); volume update requires an existing VCP backup policy", *params.DataProtection.BackupPolicyId)
+				log.Warn("Backup policy does not exist in VCP in a VCP-only region (SDE unavailable); volume update requires an existing VCP backup policy", "backupPolicyId", *params.DataProtection.BackupPolicyId)
 				return nil, ConvertToVSAError(customerrors.NewNotFoundErr(
 					fmt.Sprintf("Backup policy %s not found", *params.DataProtection.BackupPolicyId),
 					nil,
@@ -909,7 +901,7 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	metadataErr := orchestrator.RunActivity(orchCtx, backupActivity.UpdateBackupMetadataIfExistsActivity, nil, volume)
 	if metadataErr != nil {
 		// Log the error but don't fail the entire volume update workflow
-		log.Errorf("Failed to update BackupMetadata for volume %s: %v", volume.UUID, metadataErr)
+		log.Error("Failed to update BackupMetadata for volume", "uuid", volume.UUID, "error", metadataErr)
 	}
 
 	return nil, ConvertToVSAError(err)

@@ -9,7 +9,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -57,10 +56,6 @@ func (wf *updateVolumeInReplication) Setup(ctx workflow.Context, input interface
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = params.AccountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
 		return &WorkflowStatus{
 			ID:         wf.ID,
@@ -71,7 +66,7 @@ func (wf *updateVolumeInReplication) Setup(ctx workflow.Context, input interface
 }
 
 func (wf *updateVolumeInReplication) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	volume := args[0].(*datamodel.Volume)
 	params := args[1].(*common.UpdateVolumeParams)
 	updateActivity := &activities.UpdateVolumeInReplicationActivity{}
@@ -100,7 +95,7 @@ func (wf *updateVolumeInReplication) Run(ctx workflow.Context, args ...interface
 		if err != nil {
 			err2 := workflow.ExecuteActivity(ctx, activities.VolumeCreateActivity.UpdateVolumeStateInDB, volume.UUID, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Get(ctx, nil)
 			if err2 != nil {
-				log.Errorf("Failed to update volume state in DB to READY: %v", err2)
+				log.Error("Failed to update volume state in DB to READY", "error", err2)
 			}
 			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
 			rollbackManager.ExecuteRollback(disconnectedCtx, err)

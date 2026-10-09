@@ -7,7 +7,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -34,30 +33,30 @@ var _ WorkflowInterface = &volumeMetricHydrationWorkflow{}
 
 // VolumeRefreshWorkflow updates the volume fields by fetching the volume details from ONTAP
 func VolumeRefreshWorkflow(ctx workflow.Context, input VolumeRefreshWorkflowInput) error {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	if len(input.VolumeIDs) == 0 {
-		log.Errorf("VolumeRefreshWorkflow called with empty volume IDs")
+		log.Error("VolumeRefreshWorkflow called with empty volume IDs")
 		return temporal.NewNonRetryableApplicationError("no volumes provided", "VolumeRefreshWorkflowError", nil)
 	}
 	if input.AccountName == "" {
-		log.Errorf("VolumeRefreshWorkflow called with empty account name")
+		log.Error("VolumeRefreshWorkflow called with empty account name")
 		return temporal.NewNonRetryableApplicationError("account name is required", "VolumeRefreshWorkflowError", nil)
 	}
 	if input.AccountID == 0 {
-		log.Errorf("VolumeRefreshWorkflow called with zero account ID")
+		log.Error("VolumeRefreshWorkflow called with zero account ID")
 		return temporal.NewNonRetryableApplicationError("account ID is required", "VolumeRefreshWorkflowError", nil)
 	}
 
 	volumeWf := new(volumeMetricHydrationWorkflow)
 	err := volumeWf.Setup(ctx, input.AccountName)
 	if err != nil {
-		log.Errorf("Failed to setup VolumeRefreshWorkflow: %v", err)
+		log.Error("Failed to setup VolumeRefreshWorkflow", "error", err)
 		return err
 	}
 	volumeWf.Status = WorkflowStatusRunning
 	_, customErr := volumeWf.Run(ctx, input)
 	if customErr != nil {
-		log.Errorf("Failed to run VolumeRefreshWorkflow: %v", customErr)
+		log.Error("Failed to run VolumeRefreshWorkflow", "error", customErr)
 		volumeWf.Status = WorkflowStatusFailed
 		volumeWf.CompletionTime = workflow.Now(ctx)
 		return customErr
@@ -78,10 +77,6 @@ func (wf *volumeMetricHydrationWorkflow) Setup(ctx workflow.Context, input inter
 	wf.ID = info.WorkflowExecution.ID
 	wf.CustomerID = accountName
 	wf.Status = WorkflowStatusCreated
-	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
-	logger := util.GetLogger(ctx)
-	wf.Logger = logger
-
 	return workflow.SetQueryHandler(ctx, "status", func() (*VolumeRefreshWorkflowStatus, error) {
 		return &VolumeRefreshWorkflowStatus{
 			WorkflowStatus: &WorkflowStatus{
@@ -95,7 +90,7 @@ func (wf *volumeMetricHydrationWorkflow) Setup(ctx workflow.Context, input inter
 }
 
 func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
-	log := util.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	input := args[0].(VolumeRefreshWorkflowInput)
 	volumeRefreshActivity := &activities.VolumeRefreshActivity{}
 	// Setup activity options
@@ -107,8 +102,7 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 	// Override the default StartToCloseTimeout
 	startToCloseTimeout, parseErr := time.ParseDuration(VolumeRefreshWorkflowActivityTimeout)
 	if parseErr != nil {
-		log.Errorf("Failed to parse VOLUME_REFRESH_WORKFLOW_START_TO_CLOSE_TIMEOUT '%s', using default of 10m: %v",
-			VolumeRefreshWorkflowActivityTimeout, parseErr)
+		log.Error("Failed to parse VOLUME_REFRESH_WORKFLOW_START_TO_CLOSE_TIMEOUT, using default of 10m", "timeout", VolumeRefreshWorkflowActivityTimeout, "error", parseErr)
 		startToCloseTimeout = 10 * time.Minute
 	}
 
@@ -132,7 +126,7 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 			VolumeIDs: input.VolumeIDs,
 		}).Get(ctx, &dbVolumes)
 	if err != nil {
-		log.Errorf("GetVolumesForRefresh activity failed: %v", err)
+		log.Error("GetVolumesForRefresh activity failed", "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 	if len(dbVolumes) == 0 {
@@ -146,7 +140,7 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 	err = workflow.ExecuteActivity(ctx, volumeRefreshActivity.ProcessVolumePoolMapping,
 		&activities.ProcessVolumePoolMappingInput{Volumes: dbVolumes}).Get(ctx, &poolMappingResult)
 	if err != nil {
-		log.Errorf("ProcessVolumePoolMapping activity failed: %v", err)
+		log.Error("ProcessVolumePoolMapping activity failed", "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -156,11 +150,11 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 
 	// Step 2: Get ONTAP volumes for all pools in parallel
-	log.Debugf("Fetching ONTAP volumes for %d pools in parallel", len(poolMappingResult.PoolByUUID))
+	log.Debug("Fetching ONTAP volumes for pools in parallel", "poolCount", len(poolMappingResult.PoolByUUID))
 	futures := make([]workflow.Future, 0, len(poolMappingResult.PoolByUUID))
 	for _, poolUUID := range poolMappingResult.PoolUUIDs {
 		pool := poolMappingResult.PoolByUUID[poolUUID]
-		log.Debugf("Scheduling GetOntapVolumes for pool: %s", pool.Name)
+		log.Debug("Scheduling GetOntapVolumes for pool", "name", pool.Name)
 		future := workflow.ExecuteActivity(ctx, volumeRefreshActivity.GetOntapVolumes, pool)
 		futures = append(futures, future)
 	}
@@ -172,15 +166,15 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 		futErr := future.Get(ctx, &ontapVols)
 		if futErr != nil {
 			poolUUID := poolMappingResult.PoolUUIDs[i]
-			log.Errorf("GetOntapVolumes activity failed for pool %s: %v, skipping this pool", poolUUID, futErr)
+			log.Error("GetOntapVolumes activity failed, skipping this pool", "pool_uuid", poolUUID, "error", futErr)
 			continue
 		}
 		ontapVolumesResults[poolMappingResult.PoolUUIDs[i]] = ontapVols
-		log.Debugf("Successfully retrieved ONTAP volumes for pool %s", poolMappingResult.PoolUUIDs[i])
+		log.Debug("Successfully retrieved ONTAP volumes for pool", "poolUUID", poolMappingResult.PoolUUIDs[i])
 	}
 
 	// Step 4: Process volume matching and prepare updates
-	log.Debugf("Processing ONTAP volume matching and updates")
+	log.Debug("Processing ONTAP volume matching and updates")
 	var matchingResult *activities.ProcessOntapVolumeMatchingResult
 	err = workflow.ExecuteActivity(ctx, volumeRefreshActivity.ProcessOntapVolumeMatching,
 		&activities.ProcessOntapVolumeMatchingInput{
@@ -188,34 +182,32 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 			OntapVolumesResults: ontapVolumesResults,
 		}).Get(ctx, &matchingResult)
 	if err != nil {
-		log.Errorf("ProcessOntapVolumeMatching activity failed: %v", err)
+		log.Error("ProcessOntapVolumeMatching activity failed", "error", err)
 		return nil, ConvertToVSAError(err)
 	}
 
 	// Log processing summary
-	log.Debugf("Volume processing completed: %d matched, %d not found in ONTAP",
-		matchingResult.MatchedCount, matchingResult.NotFoundCount)
+	log.Debug("Volume processing completed: matched, not found in ONTAP", "matchedCount", matchingResult.MatchedCount, "notFoundCount", matchingResult.NotFoundCount)
 
 	if matchingResult.NotFoundCount > 0 {
-		log.Warnf("%d volumes were not found in ONTAP and will not be updated",
-			matchingResult.NotFoundCount)
+		log.Warn("volumes were not found in ONTAP and will not be updated", "notFoundCount", matchingResult.NotFoundCount)
 	}
 
 	// Step 5: Sync updates to database if we have volumes to update
 	if len(matchingResult.UpdatedVolumeByUUID) > 0 {
-		log.Debugf("Syncing %d volume updates to database", len(matchingResult.UpdatedVolumeByUUID))
+		log.Debug("Syncing volume updates to database", "updatedVolumeCount", len(matchingResult.UpdatedVolumeByUUID))
 		err = workflow.ExecuteActivity(ctx, volumeRefreshActivity.SyncUpdatedVolumesToDatabase,
 			&activities.SyncUpdatedVolumesInput{
 				UpdatedVolumeByUUID:               matchingResult.UpdatedVolumeByUUID,
 				VolumesWithClonesSharedBytesReset: matchingResult.VolumesWithClonesSharedBytesReset,
 			}).Get(ctx, nil)
 		if err != nil {
-			log.Errorf("SyncUpdatedVolumesToDatabase activity failed: %v", err)
+			log.Error("SyncUpdatedVolumesToDatabase activity failed", "error", err)
 			return nil, vsaerrors.ExtractCustomError(err)
 		}
-		log.Debugf("Database sync completed successfully")
+		log.Debug("Database sync completed successfully")
 	} else {
-		log.Debugf("No volumes to update in database")
+		log.Debug("No volumes to update in database")
 	}
 
 	// Step 6: Update account metadata with workflow completion timestamp
@@ -223,8 +215,7 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 		accountUUID := input.AccountUUID
 		completionTime := workflow.Now(ctx)
 
-		log.Infof("Updating account %s VolumeRefreshWorkflow completion timestamp to %v",
-			accountUUID, completionTime)
+		log.Info("Updating account VolumeRefreshWorkflow completion timestamp to", "accountUUID", accountUUID, "completionTime", completionTime)
 
 		err = workflow.ExecuteActivity(ctx, volumeRefreshActivity.UpdateAccountVolumeRefreshTimestamp,
 			&activities.UpdateAccountVolumeRefreshTimestampInput{
@@ -233,9 +224,9 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 			}).Get(ctx, nil)
 		if err != nil {
 			// Log error but don't fail the workflow - this is a metadata update
-			log.Errorf("Failed to update account volume refresh timestamp: %v", err)
+			log.Error("Failed to update account volume refresh timestamp", "error", err)
 		} else {
-			log.Infof("Successfully updated account volume refresh timestamp for account %s", accountUUID)
+			log.Info("Successfully updated account volume refresh timestamp for account", "accountUUID", accountUUID)
 		}
 	}
 

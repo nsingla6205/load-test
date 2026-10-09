@@ -102,6 +102,22 @@ func TestExtractFieldsFromHttpRequest(t *testing.T) {
 		assert.NotEmpty(t, fields["requestCorrelationID"])
 		assert.NotEmpty(t, fields["requestID"])
 	})
+
+	t.Run("Project in request path", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/projects/test-project/volumes", nil)
+
+		_, fields := extractFieldsFromHttpRequest(req)
+		assert.Equal(t, "test-project", fields["project"])
+		assert.Equal(t, "test-project", fields["customerID"])
+	})
+
+	t.Run("No project in request path", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+
+		_, fields := extractFieldsFromHttpRequest(req)
+		assert.NotContains(t, fields, "project")
+		assert.NotContains(t, fields, "customerID")
+	})
 }
 
 // TestGetLogger tests the getLogger function

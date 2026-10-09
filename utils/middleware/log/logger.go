@@ -129,8 +129,22 @@ func extractFieldsFromHttpRequest(r *http.Request) (Logger, Fields) {
 		"traceMethod":          r.Method,
 		"traceURL":             r.URL.String(),
 	}
+	if project := projectFromRequestPath(r.URL.Path); project != "" {
+		fields["project"] = project
+		fields["customerID"] = project
+	}
 	logger := globalLogger.WithFields("requestFields", fields)
 	return logger, fields
+}
+
+func projectFromRequestPath(path string) string {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for i := 0; i+1 < len(segments); i++ {
+		if segments[i] == "projects" && segments[i+1] != "" {
+			return segments[i+1]
+		}
+	}
+	return ""
 }
 
 // GetCorrelationID retrieves the correlation ID from the request header.
