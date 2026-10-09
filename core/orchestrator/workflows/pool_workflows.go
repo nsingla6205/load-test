@@ -63,6 +63,9 @@ var (
 	// vmrsConfigPathV2 is the c3 + c4 catalog, used when ONTAP supports c4; the
 	// legacy vmrsConfigPath above is c3-only. See resolveVMRSConfigPath.
 	vmrsConfigPathV2                   = env.GetString("VMRS_CONFIG_PATH_V2", "/config/vmrs_gcp_v2.yaml")
+	// True-zonal large-capacity pool catalogs (12-node / 24-node).
+	vmrsConfigPathTZ12Node = env.GetString("VMRS_CONFIG_PATH_TZ_12NODE", "/config/vmrs_gcp_tz_12node.yaml")
+	vmrsConfigPathTZ24Node = env.GetString("VMRS_CONFIG_PATH_TZ_24NODE", "/config/vmrs_gcp_tz_24node.yaml")
 	maxNodesPerGroup                   = env.GetInt("MAX_NODES_PER_GROUP", 200)
 	enableMetrics                      = env.GetBool("ENABLE_METRICS", false)
 	enableUniqueSerialNumberGeneration = env.GetBool("ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION", false)
@@ -130,9 +133,34 @@ const (
 	vmrsConfigVersionV1 = "vmrs_gcp.yaml"
 	// vmrsConfigVersionV2 labels the c3 + c4 VMRS catalog (vmrs_gcp_v2.yaml).
 	vmrsConfigVersionV2 = "vmrs_gcp_v2.yaml"
+	// vmrsConfigVersionTZ12Node labels the true-zonal 12-node (6 HA pair) catalog.
+	vmrsConfigVersionTZ12Node = "vmrs_gcp_tz_12node.yaml"
+	// vmrsConfigVersionTZ24Node labels the true-zonal 24-node (12 HA pair) catalog.
+	vmrsConfigVersionTZ24Node = "vmrs_gcp_tz_24node.yaml"
 	// ontapVersionWithC4Support is the minimum ONTAP major.minor that supports c4.
 	ontapVersionWithC4Support = "9.19.1"
 )
+
+// vmrsPoolCatalogTraits captures pool shape inputs for VMRS catalog selection.
+type vmrsPoolCatalogTraits struct {
+	LargeCapacity bool
+	IsTrueZonal   bool
+	LvHAPairs     int64
+}
+
+func vmrsPoolCatalogTraitsFromPool(pool *datamodel.Pool) vmrsPoolCatalogTraits {
+	if pool == nil {
+		return vmrsPoolCatalogTraits{}
+	}
+	traits := vmrsPoolCatalogTraits{
+		LargeCapacity: pool.LargeCapacity,
+		IsTrueZonal:   pool.IsTrueZonal(),
+	}
+	if pool.PoolAttributes != nil {
+		traits.LvHAPairs = pool.PoolAttributes.LvHAPairs
+	}
+	return traits
+}
 
 // vmrsCatalogVersionLabel returns the catalog filename persisted to
 // BuildInfo.VMRSVersion (the basename of configPath).
@@ -154,6 +182,22 @@ func ontapVersionForVMRS(pool *datamodel.Pool) string {
 // filename label when the deployed ONTAP major.minor is >=
 // ontapVersionWithC4Support; otherwise the legacy c3-only catalog.
 func resolveVMRSConfigPath(ontapVersion string) (path string, version string) {
+	return resolveVMRSConfigPathForPool(ontapVersion, vmrsPoolCatalogTraits{})
+}
+
+// resolveVMRSConfigPathForPool selects the VMRS catalog from pool shape and ONTAP
+// version. True-zonal large-capacity pools with 6 or 12 HA pairs use dedicated
+// catalogs; all other pools follow the standard v1/v2 ONTAP threshold logic.
+func resolveVMRSConfigPathForPool(ontapVersion string, traits vmrsPoolCatalogTraits) (path string, version string) {
+	if traits.LargeCapacity && traits.IsTrueZonal {
+		switch traits.LvHAPairs {
+		case common.LvHAPairsNodeCount12:
+			return vmrsConfigPathTZ12Node, vmrsCatalogVersionLabel(vmrsConfigPathTZ12Node)
+		case common.LvHAPairsNodeCount24:
+			return vmrsConfigPathTZ24Node, vmrsCatalogVersionLabel(vmrsConfigPathTZ24Node)
+		}
+	}
+
 	parseMajorMinor := func(v string) (float64, bool) {
 		parts := strings.Split(strings.TrimSpace(v), ".")
 		if len(parts) < 2 {
@@ -938,7 +982,8 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	customerRequestedPerformance.ScalingTopology = scalingTopology
 	// Pick the VMRS catalog based on the deployed ONTAP version. The version label
 	// is stored on the pool's BuildInfo below to record which catalog sized the VMs.
-	createVMRSConfigPath, createVMRSConfigVersion := resolveVMRSConfigPath(env.CurrentOntapVersionDetails)
+	createVMRSConfigPath, createVMRSConfigVersion := resolveVMRSConfigPathForPool(
+		env.CurrentOntapVersionDetails, vmrsPoolCatalogTraitsFromPool(pool))
 	identifyVMsRequest := activities.IdentifyVMsRequest{
 		VMRSConfigPath:      createVMRSConfigPath,
 		CustomerRequest:     *customerRequestedPerformance,
@@ -1775,7 +1820,8 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	// Pick the VMRS catalog from the pool's deployed ONTAP version, not the
 	// region's current ONTAP_VERSION_DETAILS. VMRSVersion is set at create and
 	// cluster upgrade only; it is not modified on pool update.
-	updateVMRSConfigPath, _ := resolveVMRSConfigPath(ontapVersionForVMRS(dbPool))
+	updateVMRSConfigPath, _ := resolveVMRSConfigPathForPool(
+		ontapVersionForVMRS(dbPool), vmrsPoolCatalogTraitsFromPool(dbPool))
 	identifyVMsRequest := activities.IdentifyVMsRequest{
 		VMRSConfigPath:      updateVMRSConfigPath,
 		CustomerRequest:     *customerRequestedPerformance,

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	envs "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -120,7 +121,39 @@ func TestOntapVersionForVMRS_RegionAheadOfPool(t *testing.T) {
 func TestVmrsCatalogVersionLabel(t *testing.T) {
 	assert.Equal(t, "vmrs_gcp.yaml", vmrsCatalogVersionLabel("/config/vmrs_gcp.yaml"))
 	assert.Equal(t, "vmrs_gcp_v2.yaml", vmrsCatalogVersionLabel("/config/vmrs_gcp_v2.yaml"))
+	assert.Equal(t, vmrsConfigVersionTZ12Node, vmrsCatalogVersionLabel(vmrsConfigPathTZ12Node))
+	assert.Equal(t, vmrsConfigVersionTZ24Node, vmrsCatalogVersionLabel(vmrsConfigPathTZ24Node))
 	assert.Equal(t, "custom_catalog.yaml", vmrsCatalogVersionLabel("/staging/custom_catalog.yaml"))
+}
+
+func TestResolveVMRSConfigPathForPool_TrueZonalLargeCapacity(t *testing.T) {
+	trueZonal12NodePool := &datamodel.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal: true,
+			LvHAPairs:   common.LvHAPairsNodeCount12,
+		},
+	}
+	path, version := resolveVMRSConfigPathForPool("9.18.1", vmrsPoolCatalogTraitsFromPool(trueZonal12NodePool))
+	assert.Equal(t, vmrsConfigPathTZ12Node, path)
+	assert.Equal(t, vmrsConfigVersionTZ12Node, version)
+
+	trueZonal24NodePool := &datamodel.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal: true,
+			LvHAPairs:   common.LvHAPairsNodeCount24,
+		},
+	}
+	path, version = resolveVMRSConfigPathForPool("9.20.1", vmrsPoolCatalogTraitsFromPool(trueZonal24NodePool))
+	assert.Equal(t, vmrsConfigPathTZ24Node, path)
+	assert.Equal(t, vmrsConfigVersionTZ24Node, version)
+
+	// Non-true-zonal large capacity still follows ONTAP version threshold.
+	regularLargePool := &datamodel.Pool{LargeCapacity: true}
+	path, version = resolveVMRSConfigPathForPool("9.19.1", vmrsPoolCatalogTraitsFromPool(regularLargePool))
+	assert.Equal(t, vmrsConfigPathV2, path)
+	assert.Equal(t, vmrsConfigVersionV2, version)
 }
 
 // TestVMRSVersionFromClusterUpgradeTarget documents the vmrsVersion written to

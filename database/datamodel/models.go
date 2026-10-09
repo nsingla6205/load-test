@@ -218,8 +218,9 @@ type PoolBuildInfo struct {
 	RbacFileHash       string    `json:"rbacFileHash"`
 	RbacFileUrl        string    `json:"rbacFileUrl"`
 	// VMRSVersion records which VMRS catalog was used to size this pool's VMs:
-	// "vmrs_gcp.yaml" (c3-only) or "vmrs_gcp_v2.yaml" (c3 + c4). Set at pool
-	// create and cluster upgrade from the pool's deployed ONTAP version.
+	// "vmrs_gcp.yaml" (c3-only), "vmrs_gcp_v2.yaml" (c3 + c4), or the true-zonal
+	// large-capacity catalogs "vmrs_gcp_tz_12node.yaml" / "vmrs_gcp_tz_24node.yaml".
+	// Set at pool create and cluster upgrade from pool shape and ONTAP version.
 	// Empty for pools created before this field existed.
 	VMRSVersion string `json:"vmrsVersion,omitempty"`
 	// VLMWorkerFeature is the VLM_WORKER_FEATURE_FLAG feature this pool was created with (empty when the

@@ -592,7 +592,8 @@ func (wf *clusterUpgradeWorkflow) upgradePhase(ctx workflow.Context, upgradeCont
 
 		// Update build info after successful VSA upgrade
 		now := time.Now()
-		_, vmrsVersion := resolveVMRSConfigPath(upgradeContext.Params.TargetVersion)
+		_, vmrsVersion := resolveVMRSConfigPathForPool(
+			upgradeContext.Params.TargetVersion, vmrsPoolCatalogTraitsFromPool(upgradeContext.Pool))
 		vsaBuildInfo := &datamodel.PoolBuildInfo{
 			MediatorBuildImage: upgradeContext.Params.MediatorImageName,
 			VSABuildImage:      upgradeContext.Params.VSAImageName,
