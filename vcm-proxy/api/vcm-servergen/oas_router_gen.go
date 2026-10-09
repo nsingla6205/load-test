@@ -134,7 +134,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						}
 
 						if len(elem) == 0 {
-							// Leaf node.
 							switch r.Method {
 							case "PATCH":
 								s.handleClusterUpdateV1Request([0]string{}, elemIsEscaped, w, r)
@@ -145,6 +144,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 
 							return
+						}
+						switch elem[0] {
+						case ':': // Prefix: ":refreshRbac"
+
+							if l := len(":refreshRbac"); len(elem) >= l && elem[0:l] == ":refreshRbac" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "POST":
+									s.handleClusterRefreshRbacV1Request([0]string{}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "POST")
+								}
+
+								return
+							}
+
 						}
 
 					case 'o': // Prefix: "onfig"
@@ -503,7 +524,6 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						}
 
 						if len(elem) == 0 {
-							// Leaf node.
 							switch method {
 							case "PATCH":
 								r.name = ClusterUpdateV1Operation
@@ -524,6 +544,32 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							default:
 								return
 							}
+						}
+						switch elem[0] {
+						case ':': // Prefix: ":refreshRbac"
+
+							if l := len(":refreshRbac"); len(elem) >= l && elem[0:l] == ":refreshRbac" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "POST":
+									r.name = ClusterRefreshRbacV1Operation
+									r.summary = "Refresh the ONTAP-mode user's RBAC role"
+									r.operationID = "clusterRefreshRbac_v1"
+									r.pathPattern = "/v1/cluster:refreshRbac"
+									r.args = args
+									r.count = 0
+									return r, true
+								default:
+									return
+								}
+							}
+
 						}
 
 					case 'o': // Prefix: "onfig"

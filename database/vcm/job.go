@@ -15,6 +15,9 @@ const (
 	JobTypePoolCreate = "POOL_CREATE"
 	// JobTypePoolUpdate is the durable job type for a VCM pool-update operation.
 	JobTypePoolUpdate = "POOL_UPDATE"
+	// JobTypeOntapModeRbacRefresh is the durable job type for a VCM ONTAP-mode
+	// RBAC refresh operation.
+	JobTypeOntapModeRbacRefresh = "ONTAP_MODE_RBAC_REFRESH"
 )
 
 // JobState is the durable execution state of a VCM job.

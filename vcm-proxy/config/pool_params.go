@@ -144,6 +144,26 @@ func (s *Store) UpdatePoolParams(requestID string, deadline time.Time, shape vcm
 	}, nil
 }
 
+// RefreshRbacParams builds the orchestrator input for an ONTAP-mode RBAC
+// refresh. Cluster identity and credentials come from the seed config held in
+// memory from POST /v1/config; the RBAC pair is taken from the request as-is.
+// CLH owns validation of the pair, so neither half is checked here.
+func (s *Store) RefreshRbacParams(requestID string, deadline time.Time, rbac vcmserver.OntapModeRbacV1) (*commonparams.RefreshRbacForPoolParams, error) {
+	vcm, err := s.SeedPoolParams()
+	if err != nil {
+		return nil, err
+	}
+	vcm.RequestID = requestID
+	vcm.Deadline = deadline
+	vcm.OntapModeRbacFileURL = strings.TrimSpace(rbac.RbacFileUrl.Or(""))
+	vcm.OntapModeRbacChecksum = strings.TrimSpace(rbac.RbacFileCheckSum.Or(""))
+	return &commonparams.RefreshRbacForPoolParams{
+		PoolID:      vcm.DeploymentID,
+		RbacFileURL: vcm.OntapModeRbacFileURL,
+		VCM:         vcm,
+	}, nil
+}
+
 // validateOntapModeCreateParams rejects an ONTAP-mode create request that
 // cannot provision the dedicated ONTAP-mode user and its restricted role.
 //

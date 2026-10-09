@@ -267,16 +267,31 @@ func (wf *updatePoolWorkflow) apply(ctx *orchestrator.Context) error {
 // getCurrentVLMConfig reads the live cluster's VLM config, which is the only
 // source for what the pool is currently running with.
 func (wf *updatePoolWorkflow) getCurrentVLMConfig(ctx *orchestrator.Context, creds vlm.OntapCredentials) (vlm.VLMConfig, error) {
-	p := wf.req
+	return getLiveVLMConfig(ctx, vcmclient.InvokeGetClusterDeployment, &wf.req.VCMCreatePoolParams, wf.inputs, creds)
+}
+
+// getClusterInvoker runs the VLM get-cluster child workflow. Callers pick the
+// child workflow ID through the invoker they pass.
+type getClusterInvoker func(*orchestrator.Context, *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error)
+
+// getLiveVLMConfig reads the live cluster's VLM config from VLM and applies
+// the VCM update flags to it.
+func getLiveVLMConfig(
+	ctx *orchestrator.Context,
+	invoke getClusterInvoker,
+	p *commonparams.VCMCreatePoolParams,
+	inputs *commonparams.VCMDerivedPoolInputs,
+	creds vlm.OntapCredentials,
+) (vlm.VLMConfig, error) {
 	region := ""
-	if wf.inputs != nil {
-		region = wf.inputs.Region
+	if inputs != nil {
+		region = inputs.Region
 	}
 	if region == "" {
 		region = env.Region
 	}
 
-	resp, err := vcmclient.InvokeGetClusterDeployment(ctx, &vlm.GetVSAClusterDeploymentRequest{
+	resp, err := invoke(ctx, &vlm.GetVSAClusterDeploymentRequest{
 		DeploymentID:     p.DeploymentID,
 		CloudProvider:    env.Hyperscaler,
 		ProjectID:        p.ServiceTenantProject,
@@ -1115,6 +1130,13 @@ func svmUUIDFromVLMConfig(cfg vlm.VLMConfig, svmName string) string {
 // also unaffected — resolveOntapCredentials reads the fully qualified name
 // straight from wf.inputs.OntapCredentials.
 func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials {
+	return nodeCredentialsFromInputs(wf.inputs)
+}
+
+// nodeCredentialsFromInputs builds the ONTAP node credentials described on
+// createPoolWorkflow.ontapNodeCredentials from derived pool inputs, so every
+// workflow that calls ONTAP directly resolves them the same way.
+func nodeCredentialsFromInputs(inputs *commonparams.VCMDerivedPoolInputs) *datamodel.PoolCredentials {
 	if isLocalEnv() {
 		return &datamodel.PoolCredentials{
 			Username: vcmLocalOntapUsername,
@@ -1122,13 +1144,13 @@ func (wf *createPoolWorkflow) ontapNodeCredentials() *datamodel.PoolCredentials 
 			AuthType: env.USERNAME_PWD,
 		}
 	}
-	if wf.inputs == nil || wf.inputs.OntapCredentials == nil {
+	if inputs == nil || inputs.OntapCredentials == nil {
 		return nil
 	}
 
 	// Copy: the same pointer feeds resolveOntapCredentials, which needs the
 	// fully qualified names.
-	nodeCreds := *wf.inputs.OntapCredentials
+	nodeCreds := *inputs.OntapCredentials
 	// VCM-provided certs carry the full CAS certificate resource name in
 	// CertificateID (and the private key's full Secret Manager resource name in
 	// CertPrivateKeySecretID), so vsa.GetProvidedCertificate can parse both.

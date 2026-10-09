@@ -29,6 +29,22 @@ func (UnimplementedHandler) ClusterCreateV1(ctx context.Context, req *ClusterV1,
 	return r, ht.ErrNotImplemented
 }
 
+// ClusterRefreshRbacV1 implements clusterRefreshRbac_v1 operation.
+//
+// Re-applies the ONTAP-mode RBAC role from the given file through the VLM
+// expert-mode user workflow in update mode. VCM does not validate the
+// cluster mode or the file; CLH owns those checks. Cluster identity and
+// ONTAP credentials are read from the configuration previously pushed via
+// POST /v1/config.
+// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+// where operationId equals requestId. Each new requestId starts its own
+// refresh; a repeated requestId returns its existing operation.
+//
+// POST /v1/cluster:refreshRbac
+func (UnimplementedHandler) ClusterRefreshRbacV1(ctx context.Context, req *OntapModeRbacV1, params ClusterRefreshRbacV1Params) (r ClusterRefreshRbacV1Res, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // ClusterUpdateV1 implements clusterUpdate_v1 operation.
 //
 // Updates specific fields of the existing ONTAP cluster using an update
@@ -54,7 +70,7 @@ func (UnimplementedHandler) ClusterUpdateV1(ctx context.Context, req *ClusterV1,
 // state only and carries secret resource IDs/URIs, never secret material.
 //
 // GET /v1/config
-func (UnimplementedHandler) GetConfigV1(ctx context.Context) (r *SetConfigRequestV1, _ error) {
+func (UnimplementedHandler) GetConfigV1(ctx context.Context, params GetConfigV1Params) (r *SetConfigRequestV1, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

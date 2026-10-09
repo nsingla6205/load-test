@@ -124,6 +124,43 @@ func TestStore_SeedPoolParams_MapsConfiguredInputs(t *testing.T) {
 	assert.Empty(t, params.OntapModeRbacFileURL, "the RBAC pair is request-owned")
 }
 
+func TestStore_RefreshRbacParams_MergesSeedWithRequest(t *testing.T) {
+	deadline := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	rbac := vcmserver.OntapModeRbacV1{
+		RbacFileUrl:      vcmserver.NewOptString(" gs://rbac-bucket/rbac.txt "),
+		RbacFileCheckSum: vcmserver.NewOptString("checksum=="),
+	}
+
+	params, err := poolSeedStore(t, nil).RefreshRbacParams("req-1", deadline, rbac)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gcnv-test", params.PoolID)
+	assert.Equal(t, "gs://rbac-bucket/rbac.txt", params.RbacFileURL)
+	require.NotNil(t, params.VCM)
+	assert.Equal(t, "req-1", params.VCM.RequestID)
+	assert.Equal(t, deadline, params.VCM.Deadline)
+	assert.Equal(t, "gcnv-test", params.VCM.DeploymentID)
+	assert.Equal(t, "gs://rbac-bucket/rbac.txt", params.VCM.OntapModeRbacFileURL)
+	assert.Equal(t, "checksum==", params.VCM.OntapModeRbacChecksum)
+	assert.Len(t, params.VCM.OntapCredentials, 3, "credentials come from the seed config")
+}
+
+func TestStore_RefreshRbacParams_PassesEmptyPairThrough(t *testing.T) {
+	params, err := poolSeedStore(t, nil).RefreshRbacParams("req-1", time.Time{}, vcmserver.OntapModeRbacV1{})
+
+	require.NoError(t, err, "CLH owns validation of the RBAC pair")
+	assert.Empty(t, params.VCM.OntapModeRbacFileURL)
+	assert.Empty(t, params.VCM.OntapModeRbacChecksum)
+}
+
+func TestStore_RefreshRbacParams_PropagatesSeedError(t *testing.T) {
+	store := poolSeedStore(t, func(seed *vcmserver.SeedConfigV1) { seed.DeploymentId.Reset() })
+
+	_, err := store.RefreshRbacParams("req-1", time.Time{}, vcmserver.OntapModeRbacV1{})
+
+	require.ErrorIs(t, err, datamodel.ErrInvalidConfig)
+}
+
 func TestStore_SeedPoolParams_AbsentDataNetStaysNil(t *testing.T) {
 	store := poolSeedStore(t, func(seed *vcmserver.SeedConfigV1) {
 		seed.NetConfig = vcmserver.NewOptNetConfigV1(vcmserver.NetConfigV1{

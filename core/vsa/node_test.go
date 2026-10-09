@@ -274,6 +274,51 @@ func TestGetNodeByName(t *testing.T) {
 	})
 }
 
+func TestGetClusterName(t *testing.T) {
+	name := "vcm-cluster-1"
+	blank := "  "
+	tests := []struct {
+		name    string
+		cluster *ontaprest.Cluster
+		getErr  error
+		want    string
+		wantErr bool
+	}{
+		{name: "WhenNameReturned_ThenReturnName", cluster: &ontaprest.Cluster{Cluster: models.Cluster{Name: &name}}, want: name},
+		{name: "WhenClusterGetFails_ThenReturnError", getErr: errors.New("boom"), wantErr: true},
+		{name: "WhenNameNil_ThenReturnError", cluster: &ontaprest.Cluster{}, wantErr: true},
+		{name: "WhenNameBlank_ThenReturnError", cluster: &ontaprest.Cluster{Cluster: models.Cluster{Name: &blank}}, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			mockCluster := new(ontaprest.MockClusterClient)
+			mockClient := new(ontaprest.MockRESTClient)
+			mockClient.On("Cluster").Return(mockCluster)
+			originalgetOntapClientFunc := getOntapClientFunc
+			defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+			getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+				return mockClient, nil
+			}
+			mockCluster.On("ClusterGet", mock.Anything, mock.MatchedBy(func(p *ontaprest.ClusterGetParams) bool {
+				return len(p.Fields) == 1 && p.Fields[0] == "name"
+			})).Return(tc.cluster, tc.getErr)
+
+			got, err := (&OntapRestProvider{}).GetClusterName(context.Background())
+
+			if tc.wantErr {
+				var customErr *vsaerrors.CustomError
+				assert.True(tt, vsaerrors.As(err, &customErr))
+				assert.Empty(tt, got)
+			} else {
+				assert.NoError(tt, err)
+				assert.Equal(tt, tc.want, got)
+			}
+			mockCluster.AssertExpectations(tt)
+			mockClient.AssertExpectations(tt)
+		})
+	}
+}
+
 func TestGetONTAPVersion(t *testing.T) {
 	t.Run("WhenVersionIsRetrievedSuccessfully_ThenReturnVersion", func(tt *testing.T) {
 		mockCluster := new(ontaprest.MockClusterClient)

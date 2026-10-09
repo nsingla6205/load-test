@@ -18,6 +18,7 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
@@ -1053,4 +1054,59 @@ func TestAreIPsMatching_Indirect(t *testing.T) {
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestClusterActivity_GetOntapClusterName(t *testing.T) {
+	node := &models.Node{DeploymentName: "gcnv-test"}
+
+	tests := []struct {
+		name        string
+		providerErr error
+		clusterName string
+		clusterErr  error
+		want        string
+		wantErr     bool
+	}{
+		{name: "success", clusterName: "gcnv-test-cluster", want: "gcnv-test-cluster"},
+		{
+			name:       "ONTAP error is a retryable orchestrator error",
+			clusterErr: vsaerrors.NewVCPError(vsaerrors.ErrCouldNotFetchVSAClusterDetails, errors.New("cluster get failed")),
+			wantErr:    true,
+		},
+		{
+			name:        "provider error is a retryable orchestrator error",
+			providerErr: vsaerrors.NewVCPError(vsaerrors.ErrCouldNotFetchVSAClusterDetails, errors.New("provider unavailable")),
+			wantErr:     true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockProvider := new(vsa.MockProvider)
+			original := vsa.GetProviderByNode
+			defer func() { vsa.GetProviderByNode = original }()
+			vsa.GetProviderByNode = func(ctx context.Context, n *models.Node) (vsa.Provider, error) {
+				if tc.providerErr != nil {
+					return nil, tc.providerErr
+				}
+				return mockProvider, nil
+			}
+			if tc.providerErr == nil {
+				mockProvider.EXPECT().GetClusterName(mock.Anything).Return(tc.clusterName, tc.clusterErr)
+			}
+
+			got, err := (&activities.ClusterActivity{}).GetOntapClusterName(context.Background(), node)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Empty(t, got)
+				var appErr *orchestrator.ApplicationError
+				require.True(t, errors.As(err, &appErr))
+				assert.False(t, appErr.NonRetryable())
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+			mockProvider.AssertExpectations(t)
+		})
+	}
 }

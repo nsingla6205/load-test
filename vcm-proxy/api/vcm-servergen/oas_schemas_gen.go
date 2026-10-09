@@ -317,6 +317,18 @@ func (s *ClusterLayoutV1) SetStandbyZone(val OptString) {
 	s.StandbyZone = val
 }
 
+type ClusterRefreshRbacV1BadRequest ErrorResponseV1
+
+func (*ClusterRefreshRbacV1BadRequest) clusterRefreshRbacV1Res() {}
+
+type ClusterRefreshRbacV1InternalServerError ErrorResponseV1
+
+func (*ClusterRefreshRbacV1InternalServerError) clusterRefreshRbacV1Res() {}
+
+type ClusterRefreshRbacV1Unauthorized ErrorResponseV1
+
+func (*ClusterRefreshRbacV1Unauthorized) clusterRefreshRbacV1Res() {}
+
 // CLH-computed technical blueprint stored for future VCM use.
 // Ref: #/components/schemas/ClusterShape_v1
 type ClusterShapeV1 struct {
@@ -1340,7 +1352,7 @@ func (s *OntapCredentialsV1) SetOntapModeUserCredentials(val OptUserCredentialsV
 type OntapModeRbacV1 struct {
 	// GCS URL of the RBAC bootstrap file.
 	RbacFileUrl OptString `json:"rbacFileUrl"`
-	// SHA-256 checksum of the RBAC bootstrap file.
+	// Base64-encoded SHA-256 checksum of the RBAC bootstrap file, as reported by GCS.
 	RbacFileCheckSum OptString `json:"rbacFileCheckSum"`
 }
 
@@ -1485,14 +1497,15 @@ func (s *OperationV1) SetResponse(val OptOperationV1Response) {
 	s.Response = val
 }
 
-func (*OperationV1) clusterCreateV1Res() {}
-func (*OperationV1) clusterUpdateV1Res() {}
-func (*OperationV1) operationGetV1Res()  {}
-func (*OperationV1) v1CreateIgroupRes()  {}
-func (*OperationV1) v1CreateVolumeRes()  {}
-func (*OperationV1) v1DeleteIgroupRes()  {}
-func (*OperationV1) v1DeleteVolumeRes()  {}
-func (*OperationV1) v1UpdateIgroupRes()  {}
+func (*OperationV1) clusterCreateV1Res()      {}
+func (*OperationV1) clusterRefreshRbacV1Res() {}
+func (*OperationV1) clusterUpdateV1Res()      {}
+func (*OperationV1) operationGetV1Res()       {}
+func (*OperationV1) v1CreateIgroupRes()       {}
+func (*OperationV1) v1CreateVolumeRes()       {}
+func (*OperationV1) v1DeleteIgroupRes()       {}
+func (*OperationV1) v1DeleteVolumeRes()       {}
+func (*OperationV1) v1UpdateIgroupRes()       {}
 
 // Success result when the operation completes with a stored terminal payload.
 // For volume create/update operations, this object contains `VolumeRead_v1`

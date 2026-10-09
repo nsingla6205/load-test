@@ -84,6 +84,8 @@ paths:
         the set-config payload. Access is gated until VCM is configured; once
         configured the in-memory config is always present. Reflects in-memory
         state only and carries secret resource IDs/URIs, never secret material.
+      parameters:
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
       responses:
         "200":
           description: Current in-memory configuration
@@ -710,6 +712,56 @@ paths:
           $ref: "#/components/responses/StandardError-404"
         "409":
           $ref: "#/components/responses/StandardError-409"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+  /v1/cluster:refreshRbac:
+    post:
+      operationId: clusterRefreshRbac_v1
+      tags: [cluster]
+      summary: Refresh the ONTAP-mode user's RBAC role
+      description: |
+        Re-applies the ONTAP-mode RBAC role from the given file through the VLM
+        expert-mode user workflow in update mode. VCM does not validate the
+        cluster mode or the file; CLH owns those checks. Cluster identity and
+        ONTAP credentials are read from the configuration previously pushed via
+        POST /v1/config.
+        Returns 202 Accepted; poll GET /v1/operations/{operationId}
+        where operationId equals requestId. Each new requestId starts its own
+        refresh; a repeated requestId returns its existing operation.
+      parameters:
+        - $ref: "#/components/parameters/requestIdQueryParameter"
+        - $ref: "#/components/parameters/timeoutQueryParameter"
+        - $ref: "#/components/parameters/xCorrelationIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OntapModeRbac_v1"
+            example:
+              rbacFileUrl: gs://rbac-bucket/ontap-mode/rbac.txt
+              rbacFileCheckSum: blxnZdSP5WyooHflXANWIoaG9Bwzt+kGYU/E5RVkKNs=
+      responses:
+        "202":
+          description: RBAC refresh accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+              example:
+                done: false
+                name: /v1/operations/3fa85f64-5717-4562-b3fc-2c963f66afa6
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "401":
+          $ref: "#/components/responses/StandardError-401"
         "500":
           $ref: "#/components/responses/StandardError-500"
         default:
@@ -2144,7 +2196,8 @@ components:
           description: GCS URL of the RBAC bootstrap file.
         rbacFileCheckSum:
           type: string
-          description: SHA-256 checksum of the RBAC bootstrap file.
+          description: Base64-encoded SHA-256 checksum of the RBAC bootstrap
+            file, as reported by GCS.
 
     IpConfig_v1:
       type: object

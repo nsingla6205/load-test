@@ -2,7 +2,9 @@ package vsa
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -118,6 +120,26 @@ func (rc *OntapRestProvider) GetONTAPVersion() (*string, error) {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrONTAPVersionFetchError, err)
 	}
 	return version, nil
+}
+
+// GetClusterName returns the ONTAP cluster name, which is also the name of the
+// cluster's admin SVM.
+func (rc *OntapRestProvider) GetClusterName(ctx context.Context) (string, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return "", err
+	}
+	cluster, err := client.Cluster().ClusterGet(ctx, &ontapRest.ClusterGetParams{
+		BaseParams: ontapRest.BaseParams{Fields: []string{"name"}},
+	})
+	if err != nil {
+		return "", vsaerrors.NewVCPError(vsaerrors.ErrCouldNotFetchVSAClusterDetails, err)
+	}
+	if cluster == nil || cluster.Name == nil || strings.TrimSpace(*cluster.Name) == "" {
+		return "", vsaerrors.NewVCPError(vsaerrors.ErrCouldNotFetchVSAClusterDetails,
+			errors.New("ONTAP returned an empty cluster name"))
+	}
+	return strings.TrimSpace(*cluster.Name), nil
 }
 
 func (rc *OntapRestProvider) PostClusterLicenseAccessToken(ctx context.Context, clientSecret string) (*string, error) {

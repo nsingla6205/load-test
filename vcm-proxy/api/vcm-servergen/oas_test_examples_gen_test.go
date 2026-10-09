@@ -152,6 +152,42 @@ func TestClusterLayoutV1_EncodeDecode(t *testing.T) {
 	var typ2 ClusterLayoutV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestClusterRefreshRbacV1BadRequest_EncodeDecode(t *testing.T) {
+	var typ ClusterRefreshRbacV1BadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterRefreshRbacV1BadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterRefreshRbacV1InternalServerError_EncodeDecode(t *testing.T) {
+	var typ ClusterRefreshRbacV1InternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterRefreshRbacV1InternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestClusterRefreshRbacV1Unauthorized_EncodeDecode(t *testing.T) {
+	var typ ClusterRefreshRbacV1Unauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ClusterRefreshRbacV1Unauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestClusterShapeV1_EncodeDecode(t *testing.T) {
 	var typ ClusterShapeV1
 	typ.SetFake()
@@ -616,6 +652,35 @@ func TestOntapModeRbacV1_EncodeDecode(t *testing.T) {
 
 	var typ2 OntapModeRbacV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestOntapModeRbacV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"rbacFileCheckSum\":\"blxnZdSP5WyooHflXANWIoaG9Bwzt+kGYU/E5RVkKNs=\",\"rbacFileUrl\":\"gs://rbac-bucket/ontap-mode/rbac.txt\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ OntapModeRbacV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 OntapModeRbacV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestOperationGetV1BadRequest_EncodeDecode(t *testing.T) {
 	var typ OperationGetV1BadRequest

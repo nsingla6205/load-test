@@ -270,6 +270,12 @@ func TestInvokeCreateExpertModeUser_ChildError_IsWrapped(t *testing.T) {
 	require.Error(t, err)
 }
 
+const testRefreshRequestID = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+func parentInvokeRefreshExpertModeUser(ctx *orchestrator.Context, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	return InvokeRefreshExpertModeUser(ctx, testRefreshRequestID, req)
+}
+
 // childExpertModeUserReportsID returns its own workflow ID in RbacFileChecksum
 // so tests can assert the ID the parent dispatched the child under.
 func childExpertModeUserReportsID(ctx *orchestrator.Context, _ *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
@@ -288,6 +294,96 @@ func TestInvokeCreateExpertModeUser_ChildIDKeyedOnDeployment(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "dep-1-exp-mode", resp.RbacFileChecksum)
+}
+
+func TestInvokeRefreshExpertModeUser_ChildIDKeyedOnRequestID(t *testing.T) {
+	req := &vlm.OntapExpertModeUserConfig{IsUpdate: true}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	var resp vlm.OntapExpertModeUserResponse
+	err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeRefreshExpertModeUser)
+		r.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childExpertModeUserReportsID)
+	}, parentInvokeRefreshExpertModeUser, &resp, req)
+
+	require.NoError(t, err)
+	assert.Equal(t, testRefreshRequestID+"-exp-mode", resp.RbacFileChecksum)
+}
+
+func parentInvokeRefreshGetCluster(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	return InvokeRefreshGetClusterDeployment(ctx, testRefreshRequestID, req)
+}
+
+// childGetClusterReportsID echoes its own workflow ID through the deployment
+// ID field so the parent can see which child ID it was dispatched under.
+func childGetClusterReportsID(ctx *orchestrator.Context, _ *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	resp := &vlm.GetVSAClusterDeploymentResponse{}
+	resp.VLMConfig.Deployment.DeploymentID = orchestrator.GetInfo(ctx).WorkflowExecution.ID
+	return resp, nil
+}
+
+func TestInvokeGetClusterDeployment_ChildIDs(t *testing.T) {
+	tests := []struct {
+		name   string
+		parent interface{}
+		wantID string
+	}{
+		{name: "default keyed on deployment", parent: parentInvokeGetCluster, wantID: "dep-1-get-cluster"},
+		{name: "refresh keyed on request id", parent: parentInvokeRefreshGetCluster, wantID: testRefreshRequestID + "-get-cluster"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var resp vlm.GetVSAClusterDeploymentResponse
+			err := runInvokeE2E(t, func(r orchestrator.WorkflowRegistrar) {
+				r.RegisterWorkflow(tt.parent)
+				r.RegisterWorkflowWithName(vlm.GetVSAClusterDeploymentWorkflowName, childGetClusterReportsID)
+			}, tt.parent, &resp, &vlm.GetVSAClusterDeploymentRequest{DeploymentID: "dep-1"})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantID, resp.VLMConfig.Deployment.DeploymentID)
+		})
+	}
+}
+
+func TestInvokeRefreshGetClusterDeployment_RequiresRequestID(t *testing.T) {
+	_, err := InvokeRefreshGetClusterDeployment(nil, "", &vlm.GetVSAClusterDeploymentRequest{DeploymentID: "dep-1"})
+	require.Error(t, err)
+}
+
+func TestInvokeRefreshExpertModeUser_Validation(t *testing.T) {
+	withDeployment := &vlm.OntapExpertModeUserConfig{}
+	withDeployment.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	tests := []struct {
+		name      string
+		requestID string
+		req       *vlm.OntapExpertModeUserConfig
+	}{
+		{name: "nil request", requestID: testRefreshRequestID},
+		{name: "missing deployment id", requestID: testRefreshRequestID, req: &vlm.OntapExpertModeUserConfig{}},
+		{name: "missing request id", req: withDeployment},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := InvokeRefreshExpertModeUser(nil, tt.requestID, tt.req)
+			require.Error(t, err)
+			appErr, ok := orchestrator.AsApplicationError(err)
+			require.True(t, ok)
+			assert.True(t, appErr.NonRetryable())
+		})
+	}
+}
+
+func TestInvokeRefreshExpertModeUser_ChildError_IsWrapped(t *testing.T) {
+	req := &vlm.OntapExpertModeUserConfig{}
+	req.VLMConfig.Deployment.DeploymentID = "dep-1"
+
+	err := runInvokeE2E[vlm.OntapExpertModeUserResponse](t, func(r orchestrator.WorkflowRegistrar) {
+		r.RegisterWorkflow(parentInvokeRefreshExpertModeUser)
+		r.RegisterWorkflowWithName(vlm.CreateVSAExpertModeUserWorkflowName, childExpertModeUserPermError)
+	}, parentInvokeRefreshExpertModeUser, nil, req)
+
+	require.Error(t, err)
 }
 
 func parentInvokeGetCluster(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {

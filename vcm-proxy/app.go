@@ -136,6 +136,11 @@ func main() {
 		logger.ErrorContext(ctx, "failed to register update-pool recovery handler", "error", err)
 		os.Exit(1)
 	}
+	if err := recoveryCoordinator.Register(vcmdb.JobTypeOntapModeRbacRefresh,
+		vcm.NewRbacRefreshRecoveryHandler(workflowRunner.WorkflowStarter(), logger)); err != nil {
+		logger.ErrorContext(ctx, "failed to register rbac-refresh recovery handler", "error", err)
+		os.Exit(1)
+	}
 	configStore.SetOngoingJobResumer(recoveryCoordinator)
 
 	serverState := vcmapi.NewServerState()
@@ -242,6 +247,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg := runner.Registrar()
 	reg.RegisterWorkflow(vcm_workflows.PoolWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.PoolUpdateWorkflow)
+	reg.RegisterWorkflow(vcm_workflows.OntapModeRbacRefreshWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmCreateHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmDeleteHostGroupWorkflow)
 	reg.RegisterWorkflow(vcm_workflows.VcmUpdateHostGroupWorkflow)
@@ -261,6 +267,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	var volumeDeleteActivity activities.VolumeDeleteActivity
 	var volumeUpdateActivity activities.VolumeUpdateActivity
 	var vcmHostGroupActivity activities.HostGroupActivity
+	var clusterActivity activities.ClusterActivity
 	var vcmVolumeActivity activities.VolumeActivity
 	jobActivity := &activities.JobActivity{Store: store}
 
@@ -271,6 +278,7 @@ func registerWorkflows(runner *gowfbackend.Runner, store *vcmconfig.Store) {
 	reg.RegisterActivity(svmActivity.CreateQoSPolicyAndApplyToSVM)
 	reg.RegisterActivity(svmActivity.UpdateNFSRWSizeOnSVM)
 	reg.RegisterActivity(svmActivity.GetSvmByName)
+	reg.RegisterActivity(clusterActivity.GetOntapClusterName)
 	reg.RegisterActivity(vcmHostGroupActivity.ValidateHostGroupsExistInONTAP)
 	reg.RegisterActivity(vcmHostGroupActivity.CreateIgroup)
 	reg.RegisterActivity(vcmHostGroupActivity.UpdateIgroup)

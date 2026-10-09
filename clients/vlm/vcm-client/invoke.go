@@ -162,6 +162,25 @@ func InvokeCreateExpertModeUser(ctx *orchestrator.Context, req *vlm.OntapExpertM
 	return invokeExpertModeUser(ctx, req.VLMConfig.Deployment.DeploymentID+expertModeWorkflowIDSuffix, req)
 }
 
+// InvokeRefreshExpertModeUser runs the VLM expert-mode user workflow as a child
+// workflow of a VCM RBAC refresh. The child workflow ID is keyed on the refresh
+// request ID rather than the deployment, so refreshes with different request
+// IDs run independently; whether to issue them concurrently is the caller's
+// decision.
+func InvokeRefreshExpertModeUser(ctx *orchestrator.Context, requestID string, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
+	if req == nil || req.VLMConfig.Deployment.DeploymentID == "" {
+		return nil, apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+				errors.New("deployment ID is required to refresh ONTAP mode user RBAC")), true)
+	}
+	if requestID == "" {
+		return nil, apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+				errors.New("request ID is required to refresh ONTAP mode user RBAC")), true)
+	}
+	return invokeExpertModeUser(ctx, requestID+expertModeWorkflowIDSuffix, req)
+}
+
 func invokeExpertModeUser(ctx *orchestrator.Context, workflowID string, req *vlm.OntapExpertModeUserConfig) (*vlm.OntapExpertModeUserResponse, error) {
 	retryPolicy, err := vlm.PopulateRetryPolicyParams()
 	if err != nil {
@@ -196,13 +215,31 @@ func invokeExpertModeUser(ctx *orchestrator.Context, workflowID string, req *vlm
 // InvokeGetClusterDeployment runs the VLM GetVSAClusterDeployment workflow as a
 // child workflow to resolve the current VLM configuration for a deployment.
 func InvokeGetClusterDeployment(ctx *orchestrator.Context, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	return invokeGetClusterDeployment(ctx, req.DeploymentID+getClusterWorkflowIDSuffix, req)
+}
+
+// InvokeRefreshGetClusterDeployment is InvokeGetClusterDeployment for an RBAC
+// refresh. Its child workflow ID is keyed on the refresh request ID, so
+// refreshes the caller runs concurrently do not collide on one child.
+func InvokeRefreshGetClusterDeployment(ctx *orchestrator.Context, requestID string, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
+	if requestID == "" {
+		return nil, apperror.WrapAsAppError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError,
+				errors.New("request ID is required to read the cluster for an RBAC refresh")), true)
+	}
+	return invokeGetClusterDeployment(ctx, requestID+getClusterWorkflowIDSuffix, req)
+}
+
+const getClusterWorkflowIDSuffix = "-get-cluster"
+
+func invokeGetClusterDeployment(ctx *orchestrator.Context, workflowID string, req *vlm.GetVSAClusterDeploymentRequest) (*vlm.GetVSAClusterDeploymentResponse, error) {
 	retryPolicy, err := vlm.PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, err
 	}
 
 	childCtx := ctx.WithChildWorkflowOptions(orchestrator.ChildWorkflowOptions{
-		WorkflowID:               req.DeploymentID + "-get-cluster",
+		WorkflowID:               workflowID,
 		WorkflowExecutionTimeout: vlm.GetVSAClusterDeploymentWorkflowExecutionTimeout,
 		RetryPolicy:              toRetryPolicy(retryPolicy),
 	})
@@ -211,11 +248,11 @@ func InvokeGetClusterDeployment(ctx *orchestrator.Context, req *vlm.GetVSACluste
 	logger := wfLogger(childCtx)
 	logger.Info("dispatching VLM child workflow",
 		"workflowName", vlm.GetVSAClusterDeploymentWorkflowName,
-		"workflowID", req.DeploymentID+"-get-cluster")
+		"workflowID", workflowID)
 	resp := &vlm.GetVSAClusterDeploymentResponse{}
 	if err := orchestrator.ExecuteChildWorkflow(childCtx, vlm.GetVSAClusterDeploymentWorkflowName, req).Get(childCtx, resp); err != nil {
 		logger.Error("VLM get-cluster child workflow failed",
-			"workflowID", req.DeploymentID+"-get-cluster", "error", err.Error())
+			"workflowID", workflowID, "error", err.Error())
 		handledErr := vlm.NewVLMErrorHandler().HandleVLMError(err)
 		return nil, apperror.WrapAsAppError(handledErr, false)
 	}

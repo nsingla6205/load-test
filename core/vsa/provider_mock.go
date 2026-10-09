@@ -3703,6 +3703,62 @@ func (_c *MockProvider_GetNodesWithClient_Call) RunAndReturn(run func(ontap_rest
 	return _c
 }
 
+// GetClusterName provides a mock function with given fields: ctx
+func (_m *MockProvider) GetClusterName(ctx context.Context) (string, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetClusterName")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (string, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) string); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_GetClusterName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetClusterName'
+type MockProvider_GetClusterName_Call struct {
+	*mock.Call
+}
+
+// GetClusterName is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockProvider_Expecter) GetClusterName(ctx interface{}) *MockProvider_GetClusterName_Call {
+	return &MockProvider_GetClusterName_Call{Call: _e.mock.On("GetClusterName", ctx)}
+}
+
+func (_c *MockProvider_GetClusterName_Call) Run(run func(ctx context.Context)) *MockProvider_GetClusterName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockProvider_GetClusterName_Call) Return(_a0 string, _a1 error) *MockProvider_GetClusterName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_GetClusterName_Call) RunAndReturn(run func(context.Context) (string, error)) *MockProvider_GetClusterName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetONTAPVersion provides a mock function with no fields
 func (_m *MockProvider) GetONTAPVersion() (*string, error) {
 	ret := _m.Called()

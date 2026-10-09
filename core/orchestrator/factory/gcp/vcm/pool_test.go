@@ -55,6 +55,10 @@ type fakeStore struct {
 	ongoingErr      error
 	ongoingResource string
 	ongoingJobType  string
+	// ongoingSeq, when set, is returned one element per call (falling back to
+	// ongoing once exhausted); it models a value that changes between the
+	// in-flight check and a later re-query.
+	ongoingSeq []*vcmdb.Job
 }
 
 func (f *fakeStore) NodeProviderInput() (vsa.NodeProviderInput, error) {
@@ -73,6 +77,11 @@ func (f *fakeStore) GetJob(_ context.Context, _ string) (*vcmdb.Job, error) {
 func (f *fakeStore) GetOngoingJobByResource(_ context.Context, resourceID, jobType string) (*vcmdb.Job, error) {
 	f.ongoingResource = resourceID
 	f.ongoingJobType = jobType
+	if len(f.ongoingSeq) > 0 {
+		next := f.ongoingSeq[0]
+		f.ongoingSeq = f.ongoingSeq[1:]
+		return next, f.ongoingErr
+	}
 	return f.ongoing, f.ongoingErr
 }
 

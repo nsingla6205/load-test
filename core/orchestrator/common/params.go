@@ -1932,6 +1932,10 @@ type RefreshRbacForPoolParams struct {
 	PoolID      string `json:"poolID"`
 	AccountName string `json:"accountName"`
 	RbacFileURL string `json:"rbacFileURL,omitempty"`
+	// VCM carries the VCM refresh inputs: configuration-owned cluster identity
+	// and credentials plus the RBAC pair in OntapModeRbacFileURL and
+	// OntapModeRbacChecksum. Nil on the VCP and OCI paths.
+	VCM *VCMCreatePoolParams `json:"vcm,omitempty"`
 }
 
 type RotateFabricPoolKeysParams struct {

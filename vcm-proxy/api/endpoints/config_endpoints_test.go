@@ -54,7 +54,7 @@ func TestGetConfigV1_ReturnsAppliedConfig(t *testing.T) {
 	store.Apply(context.Background(), applied)
 
 	handler := Handler{ConfigStore: store}
-	got, err := handler.GetConfigV1(context.Background())
+	got, err := handler.GetConfigV1(context.Background(), vcmserver.GetConfigV1Params{})
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, int64(7), got.StateDbConfig.Version.Value)

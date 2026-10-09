@@ -234,6 +234,30 @@ func (s *ClusterCreateV1InternalServerError) Validate() error {
 	return nil
 }
 
+func (s *ClusterRefreshRbacV1BadRequest) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterRefreshRbacV1InternalServerError) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterRefreshRbacV1Unauthorized) Validate() error {
+	alias := (*ErrorResponseV1)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *ClusterShapeV1) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer

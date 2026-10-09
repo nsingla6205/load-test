@@ -24,6 +24,7 @@ const (
 
 type Provider interface {
 	GetONTAPVersion() (*string, error)
+	GetClusterName(ctx context.Context) (string, error)
 	JobGet(jobUUID string) (*OntapJob, error)
 	AreAllNodeUpAndRunning() (bool, error)
 	IsAggregateOnline(aggregateName string) (bool, error)

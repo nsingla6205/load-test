@@ -155,6 +155,33 @@ func (s *ClusterLayoutV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ClusterRefreshRbacV1BadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterRefreshRbacV1BadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ClusterRefreshRbacV1InternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterRefreshRbacV1InternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ClusterRefreshRbacV1Unauthorized) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = ClusterRefreshRbacV1Unauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *ClusterShapeV1) SetFake() {
 	{
 		{

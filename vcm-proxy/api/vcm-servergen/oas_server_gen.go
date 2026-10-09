@@ -21,6 +21,19 @@ type Handler interface {
 	//
 	// POST /v1/cluster
 	ClusterCreateV1(ctx context.Context, req *ClusterV1, params ClusterCreateV1Params) (ClusterCreateV1Res, error)
+	// ClusterRefreshRbacV1 implements clusterRefreshRbac_v1 operation.
+	//
+	// Re-applies the ONTAP-mode RBAC role from the given file through the VLM
+	// expert-mode user workflow in update mode. VCM does not validate the
+	// cluster mode or the file; CLH owns those checks. Cluster identity and
+	// ONTAP credentials are read from the configuration previously pushed via
+	// POST /v1/config.
+	// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+	// where operationId equals requestId. Each new requestId starts its own
+	// refresh; a repeated requestId returns its existing operation.
+	//
+	// POST /v1/cluster:refreshRbac
+	ClusterRefreshRbacV1(ctx context.Context, req *OntapModeRbacV1, params ClusterRefreshRbacV1Params) (ClusterRefreshRbacV1Res, error)
 	// ClusterUpdateV1 implements clusterUpdate_v1 operation.
 	//
 	// Updates specific fields of the existing ONTAP cluster using an update
@@ -43,7 +56,7 @@ type Handler interface {
 	// state only and carries secret resource IDs/URIs, never secret material.
 	//
 	// GET /v1/config
-	GetConfigV1(ctx context.Context) (*SetConfigRequestV1, error)
+	GetConfigV1(ctx context.Context, params GetConfigV1Params) (*SetConfigRequestV1, error)
 	// GetHealth implements getHealth operation.
 	//
 	// Liveness check for the VCM process. Returns HTTP 200 while the process

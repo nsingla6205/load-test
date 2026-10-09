@@ -14,6 +14,8 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/apperror"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +23,8 @@ var (
 	IpSpace = env.GetString("VSA_IC_LIF_IPSPACE", "Gcnv")
 )
 
+// ClusterActivity reads cluster-level state directly from ONTAP.
+type ClusterActivity struct{}
 type ClusterPeerActivity struct {
 	SE database.Storage
 }
@@ -233,4 +237,22 @@ func (j *ClusterUpgradeActivity) UpdateClusterUpgradeJobStatusActivity(ctx conte
 
 	logger.Info("Successfully updated cluster upgrade job status", "jobUUID", jobUUID, "status", status)
 	return nil
+}
+
+// GetOntapClusterName returns the ONTAP cluster name, which is also the name of
+// the cluster's admin SVM.
+func (a *ClusterActivity) GetOntapClusterName(ctx context.Context, node *models.Node) (string, error) {
+	orchestrator.RecordHeartbeat(ctx, "Getting cluster name from ONTAP")
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return "", apperror.WrapAsAppError(err, false)
+	}
+
+	name, err := provider.GetClusterName(ctx)
+	if err != nil {
+		return "", apperror.WrapAsAppError(err, false)
+	}
+
+	orchestrator.RecordHeartbeat(ctx, "Got cluster name from ONTAP")
+	return name, nil
 }
