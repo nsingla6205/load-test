@@ -48,6 +48,10 @@ var adminCredentialPaths = map[string]struct{}{
 	"/api/snapmirror/relationships/{uuid}/restore":          {},
 	// Cluster licensing access token (SM-C)
 	"/api/cluster/licensing/access_tokens": {},
+	// SnapMirror policies. Archive updates look up the snapmirror-owned object
+	// store, which gcnvadmin cannot read.
+	"/api/snapmirror/policies":        {},
+	"/api/snapmirror/policies/{uuid}": {},
 	// SnapMirror object-store APIs
 	"/api/snapmirror/object-stores/{uuid}":                                   {},
 	"/api/snapmirror/object-stores/{uuid}/endpoints/{uuid}":                  {},
@@ -61,7 +65,7 @@ func CredentialMiddleware() func(http.Handler) http.Handler {
 			logger := util.GetLogger(r.Context())
 
 			// Passthrough routes use gcnvadmin by default. When SMC is enabled, use admin for
-			// SnapMirror relationships, access-token, and object-store APIs.
+			// SnapMirror relationships, policies, access-token, and object-store APIs.
 			credentialType := CredentialTypeExpertModeUser
 			if smcOperationEnabled && isAdminCredentialPath(ontapproxyutils.ExtractOntapPath(r.URL.Path)) {
 				credentialType = CredentialTypeAdmin

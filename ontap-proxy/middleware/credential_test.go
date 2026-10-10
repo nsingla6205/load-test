@@ -564,6 +564,10 @@ func TestIsAdminCredentialPath(t *testing.T) {
 	t.Run("access_tokens uses admin", func(t *testing.T) {
 		assert.True(t, isAdminCredentialPath("/api/cluster/licensing/access_tokens"))
 	})
+	t.Run("SnapMirror policies use admin (normalized paths)", func(t *testing.T) {
+		assert.True(t, isAdminCredentialPath("/api/snapmirror/policies"))
+		assert.True(t, isAdminCredentialPath("/api/snapmirror/policies/{uuid}"))
+	})
 	t.Run("object-stores use admin (normalized paths)", func(t *testing.T) {
 		assert.True(t, isAdminCredentialPath("/api/snapmirror/object-stores/{uuid}"))
 		assert.True(t, isAdminCredentialPath("/api/snapmirror/object-stores/{uuid}/endpoints/{uuid}"))
@@ -572,7 +576,6 @@ func TestIsAdminCredentialPath(t *testing.T) {
 	})
 	t.Run("other paths do not use admin", func(t *testing.T) {
 		assert.False(t, isAdminCredentialPath("/api/storage/volumes"))
-		assert.False(t, isAdminCredentialPath("/api/snapmirror/policies"))
 		assert.False(t, isAdminCredentialPath("/api/other/snapmirror/relationships"))
 		assert.False(t, isAdminCredentialPath("/api/cluster/licensing/licenses"))
 		assert.False(t, isAdminCredentialPath(""))
