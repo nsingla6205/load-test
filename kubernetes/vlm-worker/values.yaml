@@ -171,15 +171,18 @@ vlmWorkerVersioning:
     # Only skips the post-upgrade promote/retire actions. The pre-upgrade
     # ensure-drain gate still waits when the drain Deployment already exists.
     dryRun: false
+    # When false, the rollout promotes the new build directly.
+    # When true, it first pins running unversioned workflows to the draining build.
+    pinUnversionedWorkflows: true
     deleteVersionAfterDrain: false
     pollEverySeconds: 15
     drainTimeoutMinutes: 360
     temporalNamespace: "default"
     image:
       name: "vlm-worker-versioning-rollout"
-      tag: "v0.1.0"
+      tag: "vscp-7593-pin-two-scans"
       # Required when global.useTags is false (images resolve by digest).
-      digest: "sha256:76b7f4ac9e4bf4a380db5921352b655a285373f613b0218d5ce2231e960a2435"
+      digest: "sha256:ca457e41105613607218211d8a66213adca153cd7a632388d5f08e52baa7d8e6"
       secondary: true
       pullPolicy: IfNotPresent
     resources:

@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal/workerdeployment"
+	"go.temporal.io/api/serviceerror"
+	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 // RolloutSpec is injected by Helm as ROLLOUT_SPEC JSON.
@@ -233,19 +236,28 @@ type waitForDrainFunc func(ctx context.Context, wdc workerdeployment.Client, dep
 
 type deleteBuildFunc func(ctx context.Context, wdc workerdeployment.Client, deploymentName, buildID string) error
 
+// pinUnversionedFunc pins running unversioned workflows on a task queue to oldBuildID.
+type pinUnversionedFunc func(ctx context.Context, taskQueue, deploymentName, oldBuildID string, pollEvery time.Duration) error
+
+// listUnversionedFunc returns workflow IDs on taskQueue that are not using worker versioning.
+type listUnversionedFunc func(ctx context.Context, taskQueue string) ([]string, error)
+
 type promoteAndRetireOptions struct {
-	dryRun         bool
-	deleteAfter    bool
-	pollEvery      time.Duration
-	readyTimeout   time.Duration
-	drainTimeout   time.Duration
-	pollingTimeout time.Duration
-	waitForPolling waitForPollingFunc
-	promote        promoteFunc
-	currentBuild   currentBuildFunc
-	buildDrained   buildDrainedFunc
-	waitForDrain   waitForDrainFunc
-	deleteBuild    deleteBuildFunc
+	dryRun                  bool
+	deleteAfter             bool
+	pollEvery               time.Duration
+	readyTimeout            time.Duration
+	drainTimeout            time.Duration
+	pollingTimeout          time.Duration
+	waitForPolling          waitForPollingFunc
+	promote                 promoteFunc
+	currentBuild            currentBuildFunc
+	buildDrained            buildDrainedFunc
+	waitForDrain            waitForDrainFunc
+	deleteBuild             deleteBuildFunc
+	pinUnversionedWorkflows bool
+	pinUnversioned          pinUnversionedFunc
+	listUnversioned         listUnversionedFunc
 }
 
 func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
@@ -276,18 +288,25 @@ func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
 	}
 
 	opts := promoteAndRetireOptions{
-		dryRun:         os.Getenv("DRY_RUN") == "true",
-		deleteAfter:    os.Getenv("DELETE_VERSION_AFTER_DRAIN") == "true",
-		pollEvery:      time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second,
-		readyTimeout:   time.Duration(envInt("DRAIN_READY_TIMEOUT_MINUTES", 15)) * time.Minute,
-		drainTimeout:   time.Duration(envInt("DRAIN_TIMEOUT_MINUTES", 360)) * time.Minute,
-		pollingTimeout: 10 * time.Minute,
-		waitForPolling: workerdeployment.WaitForPolling,
-		promote:        workerdeployment.PromoteBuild,
-		currentBuild:   workerdeployment.CurrentBuildID,
-		buildDrained:   workerdeployment.IsBuildDrained,
-		waitForDrain:   workerdeployment.WaitForDrain,
-		deleteBuild:    workerdeployment.DeleteBuild,
+		dryRun:                  os.Getenv("DRY_RUN") == "true",
+		deleteAfter:             os.Getenv("DELETE_VERSION_AFTER_DRAIN") == "true",
+		pinUnversionedWorkflows: os.Getenv("PIN_UNVERSIONED_WORKFLOWS") == "true",
+		pollEvery:               time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second,
+		readyTimeout:            time.Duration(envInt("DRAIN_READY_TIMEOUT_MINUTES", 15)) * time.Minute,
+		drainTimeout:            time.Duration(envInt("DRAIN_TIMEOUT_MINUTES", 360)) * time.Minute,
+		pollingTimeout:          10 * time.Minute,
+		waitForPolling:          workerdeployment.WaitForPolling,
+		promote:                 workerdeployment.PromoteBuild,
+		currentBuild:            workerdeployment.CurrentBuildID,
+		buildDrained:            workerdeployment.IsBuildDrained,
+		waitForDrain:            workerdeployment.WaitForDrain,
+		deleteBuild:             workerdeployment.DeleteBuild,
+		pinUnversioned: func(ctx context.Context, taskQueue, deploymentName, oldBuildID string, pollEvery time.Duration) error {
+			return pinUnversionedWorkflows(ctx, tc, taskQueue, deploymentName, oldBuildID, pollEvery)
+		},
+		listUnversioned: func(ctx context.Context, taskQueue string) ([]string, error) {
+			return listUnversionedWorkflowIDs(ctx, tc, taskQueue)
+		},
 	}
 	if len(spec.Targets) > 0 {
 		if err := promoteAndRetireTargets(ctx, k8s, wdc, spec.Targets, opts, log); err != nil {
@@ -470,6 +489,16 @@ func promoteAndRetireTargets(
 			continue
 		}
 
+		// Pinning unversioned workflows is off unless PIN_UNVERSIONED_WORKFLOWS=true.
+		// With the flag off, this job promotes the new build directly, as before.
+		if opts.pinUnversionedWorkflows {
+			if err := pinUnversionedBeforePromote(ctx, wdc, depName, target, opts, pollingTimeout, pollEvery, log); err != nil {
+				return err
+			}
+		} else {
+			log.Info("pin unversioned workflows disabled", "workerDeployment", depName)
+		}
+
 		if opts.dryRun {
 			log.Info("DRY-RUN: would promote", "build", target.NewBuildID)
 		} else if already, err := buildAlreadyCurrent(ctx, wdc, depName, target.NewBuildID, opts.currentBuild); err != nil {
@@ -563,6 +592,245 @@ type waitForPollingFunc func(
 	string,
 	time.Duration,
 ) error
+
+const pinUnversionedStableEmptyPasses = 2
+
+type workflowExecutionPinner interface {
+	ListWorkflow(ctx context.Context, request *workflowservice.ListWorkflowExecutionsRequest) (*workflowservice.ListWorkflowExecutionsResponse, error)
+	UpdateWorkflowExecutionOptions(ctx context.Context, options client.UpdateWorkflowExecutionOptionsRequest) (client.WorkflowExecutionOptions, error)
+}
+
+// pinUnversionedBeforePromote runs only when the pin flag is on.
+// A first versioned rollout starts with Current set to unversioned (an empty
+// build ID). Make the old build Current before pinning or promoting the new
+// build. The old build uses the same binary as the unversioned worker, so any
+// workflow task dispatched during this migration replays against compatible code.
+// Pinning to the old build is only safe while Current is unset or is still the
+// old build. If Current is already the new build, a workflow that has already
+// run there must not be sent back to the old binary.
+func pinUnversionedBeforePromote(
+	ctx context.Context,
+	wdc workerdeployment.Client,
+	depName string,
+	target RolloutTarget,
+	opts promoteAndRetireOptions,
+	pollingTimeout time.Duration,
+	pollEvery time.Duration,
+	log *slog.Logger,
+) error {
+	currentIsNew := false
+	if opts.currentBuild != nil {
+		current, err := opts.currentBuild(ctx, wdc, depName)
+		if err != nil {
+			return fmt.Errorf("read current build for %q: %w", depName, err)
+		}
+		switch current {
+		case "":
+			if opts.dryRun {
+				log.Info("DRY-RUN: would set old build as migration current", "build", target.OldBuildID)
+			} else if err := opts.promote(ctx, wdc, depName, target.OldBuildID); err != nil {
+				return fmt.Errorf("set old build %q as migration current on %q: %w", target.OldBuildID, depName, err)
+			} else {
+				log.Info("set old build as migration current", "build", target.OldBuildID)
+			}
+		case target.OldBuildID:
+			// Resume while the old build is still Current. Pinning to it is safe.
+		case target.NewBuildID:
+			currentIsNew = true
+		default:
+			return fmt.Errorf(
+				"deployment %q current is %q; expected unversioned, old build %q, or new build %q",
+				depName,
+				current,
+				target.OldBuildID,
+				target.NewBuildID,
+			)
+		}
+	}
+
+	if currentIsNew {
+		return refusePinBackToOldBuild(ctx, target, opts, pollEvery, log)
+	}
+	if opts.dryRun {
+		log.Info("DRY-RUN: would pin unversioned workflows", "build", target.OldBuildID, "taskQueue", target.TaskQueue)
+		return nil
+	}
+	if opts.pinUnversioned == nil {
+		return nil
+	}
+	// Pin before set-current. Prod workflows on an unversioned poller have no
+	// build id, so the versioned old-image drain pod would otherwise not receive
+	// them. The next task would run on the new build and could nondeterministically
+	// replay. Pinning to the old build keeps that history on the same binary.
+	pinCtx, pinCancel := context.WithTimeout(ctx, pollingTimeout)
+	defer pinCancel()
+	if err := opts.pinUnversioned(pinCtx, target.TaskQueue, depName, target.OldBuildID, pollEvery); err != nil {
+		return fmt.Errorf("pin unversioned workflows on %q to %q: %w", target.TaskQueue, target.OldBuildID, err)
+	}
+	return nil
+}
+
+// refusePinBackToOldBuild stops a resume that would pin workflows onto the old
+// build after Current is already the new build. It returns nil only after two
+// empty lists, pollEvery apart. A workflow that shows up on either list is
+// returned to the operator instead of being pinned backward.
+func refusePinBackToOldBuild(ctx context.Context, target RolloutTarget, opts promoteAndRetireOptions, pollEvery time.Duration, log *slog.Logger) error {
+	if opts.dryRun {
+		log.Info("DRY-RUN: current is already the new build; would stop if unversioned workflows remain", "build", target.NewBuildID)
+		return nil
+	}
+	if opts.listUnversioned == nil {
+		return fmt.Errorf("current is already %q; cannot list unversioned workflows on %q", target.NewBuildID, target.TaskQueue)
+	}
+	if pollEvery <= 0 {
+		pollEvery = time.Millisecond
+	}
+	for pass := 0; pass < pinUnversionedStableEmptyPasses; pass++ {
+		ids, err := opts.listUnversioned(ctx, target.TaskQueue)
+		if err != nil {
+			return fmt.Errorf("list unversioned workflows on %q: %w", target.TaskQueue, err)
+		}
+		if len(ids) > 0 {
+			return fmt.Errorf("current is already %q; refusing to pin unversioned workflows [%s] back to %q", target.NewBuildID, strings.Join(ids, ", "), target.OldBuildID)
+		}
+		if pass+1 == pinUnversionedStableEmptyPasses {
+			break
+		}
+		timer := time.NewTimer(pollEvery)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("list unversioned workflows on %q: %w", target.TaskQueue, ctx.Err())
+		case <-timer.C:
+		}
+	}
+	log.Info("current is already the new build and no unversioned workflows remain", "build", target.NewBuildID)
+	return nil
+}
+
+// unversionedWorkflowQuery lists running workflows on taskQueue that are not
+// using worker versioning. TemporalWorkflowVersioningBehavior is null for
+// those executions. BuildIds is not used: server 1.32 stops writing it.
+func unversionedWorkflowQuery(taskQueue string) string {
+	return fmt.Sprintf(`ExecutionStatus="Running" AND TaskQueue=%q AND TemporalWorkflowVersioningBehavior IS NULL`, taskQueue)
+}
+
+func listUnversionedWorkflowIDs(ctx context.Context, tc workflowExecutionPinner, taskQueue string) ([]string, error) {
+	query := unversionedWorkflowQuery(taskQueue)
+	var ids []string
+	var pageToken []byte
+	for {
+		resp, err := tc.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
+			Query:         query,
+			NextPageToken: pageToken,
+			PageSize:      200,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list unversioned workflows: %w", err)
+		}
+		for _, execution := range resp.GetExecutions() {
+			workflowID := execution.GetExecution().GetWorkflowId()
+			if workflowID == "" {
+				continue
+			}
+			ids = append(ids, workflowID)
+		}
+		if len(resp.GetNextPageToken()) == 0 {
+			return ids, nil
+		}
+		pageToken = resp.GetNextPageToken()
+	}
+}
+
+// pinUnversionedWorkflows pins every running unversioned workflow on taskQueue
+// to deploymentName/oldBuildID. A pin error on one workflow is retried on the
+// next scan. The caller context is the deadline; when it expires, this returns
+// an error and the caller must not promote the new build.
+// It returns nil only after two consecutive scans that find nothing left to pin,
+// so a workflow that shows up late is pinned before promote.
+func pinUnversionedWorkflows(
+	ctx context.Context,
+	tc workflowExecutionPinner,
+	taskQueue, deploymentName, oldBuildID string,
+	pollEvery time.Duration,
+) error {
+	if pollEvery <= 0 {
+		pollEvery = time.Millisecond
+	}
+	query := unversionedWorkflowQuery(taskQueue)
+	emptyPasses := 0
+	for {
+		pinned, failed, err := pinUnversionedPage(ctx, tc, query, deploymentName, oldBuildID)
+		if err != nil {
+			return err
+		}
+		if pinned == 0 && failed == 0 {
+			emptyPasses++
+			if emptyPasses >= pinUnversionedStableEmptyPasses {
+				return nil
+			}
+		} else {
+			emptyPasses = 0
+		}
+		timer := time.NewTimer(pollEvery)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("wait for unversioned workflows to be pinned on %q: %w", taskQueue, ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func pinUnversionedPage(ctx context.Context, tc workflowExecutionPinner, query, deploymentName, oldBuildID string) (int, int, error) {
+	pinned := 0
+	failed := 0
+	var pageToken []byte
+	for {
+		resp, err := tc.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
+			Query:         query,
+			NextPageToken: pageToken,
+			PageSize:      200,
+		})
+		if err != nil {
+			return pinned, failed, fmt.Errorf("list unversioned workflows: %w", err)
+		}
+		for _, execution := range resp.GetExecutions() {
+			info := execution.GetExecution()
+			if info.GetWorkflowId() == "" {
+				continue
+			}
+			_, err := tc.UpdateWorkflowExecutionOptions(ctx, client.UpdateWorkflowExecutionOptionsRequest{
+				WorkflowId: info.GetWorkflowId(),
+				RunId:      info.GetRunId(),
+				WorkflowExecutionOptionsChanges: client.WorkflowExecutionOptionsChanges{
+					VersioningOverride: &client.VersioningOverrideChange{
+						Value: &client.PinnedVersioningOverride{
+							Version: worker.WorkerDeploymentVersion{
+								DeploymentName: deploymentName,
+								BuildID:        oldBuildID,
+							},
+						},
+					},
+				},
+			})
+			if err != nil {
+				var notFound *serviceerror.NotFound
+				if errors.As(err, &notFound) {
+					continue
+				}
+				failed++
+				slog.Warn("pin workflow failed, will retry", "workflowID", info.GetWorkflowId(), "error", err)
+				continue
+			}
+			pinned++
+		}
+		if len(resp.GetNextPageToken()) == 0 {
+			return pinned, failed, nil
+		}
+		pageToken = resp.GetNextPageToken()
+	}
+}
 
 func waitForBuildsPolling(
 	ctx context.Context,

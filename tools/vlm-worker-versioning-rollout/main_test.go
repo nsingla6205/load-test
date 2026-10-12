@@ -16,6 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal/workerdeployment"
+	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/api/serviceerror"
+	workflowpb "go.temporal.io/api/workflow/v1"
+	workflowservice "go.temporal.io/api/workflowservice/v1"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 func TestLoadSpec(t *testing.T) {
@@ -479,8 +485,14 @@ func TestPromoteAndRetireTargetsSkipsSetCurrentWhenAlreadyCurrent(t *testing.T) 
 	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
 	rec := &promoteRecorder{}
 	opts := promoteTestOpts(rec, false, false)
+	opts.pinUnversionedWorkflows = true
+	lists := 0
 	opts.currentBuild = func(_ context.Context, _ workerdeployment.Client, _ string) (string, error) {
 		return "B", nil
+	}
+	opts.listUnversioned = func(context.Context, string) ([]string, error) {
+		lists++
+		return nil, nil
 	}
 
 	err := promoteAndRetireTargets(
@@ -493,9 +505,350 @@ func TestPromoteAndRetireTargetsSkipsSetCurrentWhenAlreadyCurrent(t *testing.T) 
 	)
 
 	require.NoError(t, err)
+	assert.Equal(t, pinUnversionedStableEmptyPasses, lists)
 	assert.Empty(t, rec.promoted)
 	assert.Equal(t, []string{"A"}, rec.drained)
 	assert.Equal(t, []int{0}, k8s.scaledTo)
+}
+
+func TestPromoteAndRetireTargetsRefusesToPinBackwardWhenCurrentIsNew(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.pinUnversionedWorkflows = true
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "B", nil
+	}
+	opts.listUnversioned = func(context.Context, string) ([]string, error) {
+		return []string{"gcnv-late"}, nil
+	}
+	opts.pinUnversioned = func(context.Context, string, string, string, time.Duration) error {
+		t.Fatal("must not pin to the old build when current is already the new build")
+		return nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "gcnv-late")
+	require.ErrorContains(t, err, "refusing to pin")
+	assert.Empty(t, rec.promoted)
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestPromoteAndRetireTargetsRefusesWhenSecondScanFindsWorkflow(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.pinUnversionedWorkflows = true
+	lists := 0
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "B", nil
+	}
+	opts.listUnversioned = func(context.Context, string) ([]string, error) {
+		lists++
+		if lists == 1 {
+			return nil, nil
+		}
+		return []string{"gcnv-late"}, nil
+	}
+	opts.pinUnversioned = func(context.Context, string, string, string, time.Duration) error {
+		t.Fatal("must not pin to the old build when current is already the new build")
+		return nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "gcnv-late")
+	require.ErrorContains(t, err, "refusing to pin")
+	assert.Equal(t, 2, lists)
+	assert.Empty(t, rec.promoted)
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestPromoteAndRetireTargetsSkipsPinWhenFlagDisabled(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "", nil
+	}
+	opts.pinUnversioned = func(context.Context, string, string, string, time.Duration) error {
+		t.Fatal("pin must not run when the flag is off")
+		return nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"B"}, rec.promoted)
+}
+
+func TestPromoteAndRetireTargetsPinsUnversionedBeforePromote(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	var order []string
+	opts := promoteTestOpts(rec, false, false)
+	opts.pinUnversionedWorkflows = true
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "", nil
+	}
+	opts.promote = func(_ context.Context, _ workerdeployment.Client, _ string, buildID string) error {
+		order = append(order, "promote:"+buildID)
+		rec.promoted = append(rec.promoted, buildID)
+		return nil
+	}
+	opts.pinUnversioned = func(_ context.Context, taskQueue, deploymentName, oldBuildID string, _ time.Duration) error {
+		order = append(order, "pin:"+oldBuildID)
+		assert.Equal(t, "vsa-lifecycle-manager-9.18.1P3", taskQueue)
+		assert.Equal(t, "vsa-lifecycle-manager-9-18-1P3", deploymentName)
+		return nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"promote:A", "pin:A", "promote:B"}, order)
+}
+
+func TestPromoteAndRetireTargetsDoesNotPromoteWhenPinFails(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.pinUnversionedWorkflows = true
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) {
+		return "A", nil
+	}
+	opts.pinUnversioned = func(context.Context, string, string, string, time.Duration) error {
+		return errors.New("pin failed")
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "pin failed")
+	assert.Empty(t, rec.promoted)
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestListUnversionedWorkflowIDs(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		pages: []*workflowservice.ListWorkflowExecutionsResponse{
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-1", RunId: "run-1"}},
+				},
+				NextPageToken: []byte("next"),
+			},
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-2", RunId: "run-2"}},
+				},
+			},
+		},
+	}
+
+	ids, err := listUnversionedWorkflowIDs(context.Background(), pinner, "vsa-lifecycle-manager-9.19.1P2")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"gcnv-1", "gcnv-2"}, ids)
+	require.NotEmpty(t, pinner.requests)
+	assert.Contains(t, pinner.requests[0].GetQuery(), `TemporalWorkflowVersioningBehavior IS NULL`)
+}
+
+func TestPinUnversionedWorkflowsPinsEachRunningWorkflow(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		pages: []*workflowservice.ListWorkflowExecutionsResponse{
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-1", RunId: "run-1"}},
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-closed", RunId: "run-closed"}},
+				},
+				NextPageToken: []byte("next"),
+			},
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-2", RunId: "run-2"}},
+				},
+			},
+			{},
+			{},
+		},
+		notFound: map[string]bool{"gcnv-closed": true},
+	}
+
+	err := pinUnversionedWorkflows(
+		context.Background(),
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"gcnv-1", "gcnv-2"}, pinner.pinned)
+	require.NotEmpty(t, pinner.requests)
+	assert.Contains(t, pinner.requests[0].GetQuery(), `TaskQueue="vsa-lifecycle-manager-9.19.1P2"`)
+	assert.Contains(t, pinner.requests[0].GetQuery(), `TemporalWorkflowVersioningBehavior IS NULL`)
+	assert.NotContains(t, pinner.requests[0].GetQuery(), `BuildIds=`)
+	assert.Equal(t, "vsa-lifecycle-manager-9-19-1P2", pinner.version.DeploymentName)
+	assert.Equal(t, "8258295", pinner.version.BuildID)
+}
+
+func TestPinUnversionedWorkflowsRetriesFailedWorkflow(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		failTimes: map[string]int{"gcnv-bad": 1},
+		pages: []*workflowservice.ListWorkflowExecutionsResponse{
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-ok", RunId: "run-ok"}},
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-bad", RunId: "run-bad"}},
+				},
+			},
+			{
+				Executions: []*workflowpb.WorkflowExecutionInfo{
+					{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-bad", RunId: "run-bad"}},
+				},
+			},
+			{},
+			{},
+		},
+	}
+
+	err := pinUnversionedWorkflows(
+		context.Background(),
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"gcnv-ok", "gcnv-bad"}, pinner.pinned)
+}
+
+func TestPinUnversionedWorkflowsFailsWhenPinKeepsFailing(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		failTimes: map[string]int{"gcnv-stuck": 100},
+		repeatPage: &workflowservice.ListWorkflowExecutionsResponse{
+			Executions: []*workflowpb.WorkflowExecutionInfo{
+				{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-ok", RunId: "run-ok"}},
+				{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-stuck", RunId: "run-stuck"}},
+			},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	err := pinUnversionedWorkflows(
+		ctx,
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, pinner.pinned, "gcnv-ok")
+	assert.NotContains(t, pinner.pinned, "gcnv-stuck")
+}
+
+func TestPinUnversionedWorkflowsStopsOnTimeout(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		repeatPage: &workflowservice.ListWorkflowExecutionsResponse{
+			Executions: []*workflowpb.WorkflowExecutionInfo{
+				{Execution: &commonpb.WorkflowExecution{WorkflowId: "gcnv-late", RunId: "run-late"}},
+			},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	err := pinUnversionedWorkflows(
+		ctx,
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NotEmpty(t, pinner.pinned)
+}
+
+type fakeWorkflowPinner struct {
+	pages      []*workflowservice.ListWorkflowExecutionsResponse
+	repeatPage *workflowservice.ListWorkflowExecutionsResponse
+	notFound   map[string]bool
+	failTimes  map[string]int
+	requests   []*workflowservice.ListWorkflowExecutionsRequest
+	pinned     []string
+	version    worker.WorkerDeploymentVersion
+}
+
+func (f *fakeWorkflowPinner) ListWorkflow(_ context.Context, request *workflowservice.ListWorkflowExecutionsRequest) (*workflowservice.ListWorkflowExecutionsResponse, error) {
+	f.requests = append(f.requests, request)
+	if f.repeatPage != nil {
+		return f.repeatPage, nil
+	}
+	page := f.pages[0]
+	f.pages = f.pages[1:]
+	return page, nil
+}
+
+func (f *fakeWorkflowPinner) UpdateWorkflowExecutionOptions(_ context.Context, options client.UpdateWorkflowExecutionOptionsRequest) (client.WorkflowExecutionOptions, error) {
+	if f.notFound[options.WorkflowId] {
+		return client.WorkflowExecutionOptions{}, &serviceerror.NotFound{Message: "gone"}
+	}
+	if remaining := f.failTimes[options.WorkflowId]; remaining > 0 {
+		f.failTimes[options.WorkflowId] = remaining - 1
+		return client.WorkflowExecutionOptions{}, errors.New("pin failed")
+	}
+	change := options.WorkflowExecutionOptionsChanges.VersioningOverride
+	pinned, ok := change.Value.(*client.PinnedVersioningOverride)
+	if !ok {
+		return client.WorkflowExecutionOptions{}, errors.New("expected pinned override")
+	}
+	f.version = pinned.Version
+	f.pinned = append(f.pinned, options.WorkflowId)
+	return client.WorkflowExecutionOptions{}, nil
 }
 
 func TestPromoteAndRetireTargetsScalesDrainToZeroAfterDrain(t *testing.T) {

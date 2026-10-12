@@ -101,6 +101,8 @@ spec:
               value: {{ .Values.vlmWorkerVersioning.rollout.dryRun | quote }}
             - name: DELETE_VERSION_AFTER_DRAIN
               value: {{ .Values.vlmWorkerVersioning.rollout.deleteVersionAfterDrain | quote }}
+            - name: PIN_UNVERSIONED_WORKFLOWS
+              value: {{ .Values.vlmWorkerVersioning.rollout.pinUnversionedWorkflows | quote }}
             - name: ROLLOUT_SPEC
               value: {{ include "vlmWorkerVersioning.rolloutSpec" . | quote }}
             - name: TEMPORAL_HOST
