@@ -40,76 +40,78 @@ import (
 )
 
 var (
-	localRegion                      = env.GetString("LOCAL_REGION", "local")
-	PairedRegions                    = env.GetString("VCP_PAIRED_REGIONS", "")
-	MinQuotaInBytesPool              = env.GetUint64("MIN_QUOTA_IN_BYTES_POOL", 1*TiBInBytes)                  // 1 TiB
-	MaxQuotaInBytesPool              = env.GetUint64("MAX_QUOTA_IN_BYTES_POOL", 425*TiBInBytes)                // 425 TiB
-	MinQuotaInBytesVolumeForVolume   = env.GetUint64("MIN_QUOTA_IN_BYTES_VOLUME", 1073741824)                  // 1 GiB
-	MaxQuotaInBytesVolumeForVolume   = env.GetUint64("MAX_QUOTA_IN_BYTES_VOLUME", 140737488355328)             // 128 TiB
-	MaxQuotaInBytesForFileVolume     = env.GetUint64("MAX_QUOTA_IN_BYTES_FILE_VOLUME", 329853488332800)        // 300 TiB
-	MinQuotaInBytesLargeVolume       = env.GetUint64("MIN_QUOTA_IN_BYTES_LARGE_VOLUME", 5277655813325)         // 4.8 TiB
-	MinQuotaInBytesLargeVolumeWithCV = env.GetUint64("MIN_QUOTA_IN_BYTES_LARGE_VOLUME_WITH_CV", 2638827906662) // 2.4 TiB
-	MaxQuotaInBytesLargeVolume       = env.GetUint64("MAX_QUOTA_IN_BYTES_LARGE_VOLUME", 20*PiBInBytes)         // 20 PiB
-	MinSizeGranularity               = env.GetUint64("MIN_SIZE_GRANULARITY", 1*GiBInBytes)                     // 1 GiB
-	MinCustomThroughput              = env.GetUint64("MIN_CUSTOM_THROUGHPUT", 64)                              // 64 MiBps (for pools)
-	MinVolumeThroughput              = env.GetUint64("MIN_VOLUME_THROUGHPUT", 1)                               // 1 MiBps (for volumes in manual pools)
-	MaxCustomThroughput              = env.GetUint64("MAX_CUSTOM_THROUGHPUT", 5120)                            // 5120 MiBps
-	MinCustomIops                    = env.GetUint64("MIN_CUSTOM_IOPS", 1024)                                  // 1024 IOPS
-	MaxCustomIops                    = env.GetUint64("MAX_CUSTOM_IOPS", 160000)                                // 160000 IOPS
-	IopsPerMiBps                     = env.GetUint64("IOPS_PER_MIBPS", 16)                                     // 16 IOPS per MiBps (for auto-calculation)
-	MinLvCoolTierCapacity            = env.GetUint64("MIN_LV_POOL_COOL_TIER_CAPACITY", 6*TiBInBytes)           // 6TiB
-	MaxLvPoolCapacity                = env.GetUint64("MAX_LV_POOL_CAPACITY", 20*PiBInBytes)                    // 20PiB
-	MaxLvHotTierCapacity             = env.GetUint64("MAX_LV_HOT_TIER_POOL_CAPACITY", 2792232327315456)        // 2.48 PiB
-	MinLvThroughput                  = env.GetUint64("MIN_LV_THROUGHPUT", 64)
-	MaxLvThroughput                  = env.GetUint64("MAX_LV_THROUGHPUT", 60*1000) // convert to megabit per second
-	MinLvCustomIops                  = env.GetUint64("MIN_LV_CUSTOM_IOPS", IopsPerMiBps*MinLvThroughput)
-	MaxLvCustomIops                  = env.GetUint64("MAX_LV_CUSTOM_IOPS", IopsPerMiBps*MaxLvThroughput)
-	MinTrueZonalThroughput           = env.GetUint64("MIN_TRUE_ZONAL_THROUGHPUT", MinLvThroughput)
-	MaxTrueZonalThroughput           = env.GetUint64("MAX_TRUE_ZONAL_THROUGHPUT", MaxLvThroughput)
-	MinTrueZonalCustomIops           = env.GetUint64("MIN_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonalThroughput)
-	MaxTrueZonalCustomIops           = env.GetUint64("MAX_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MaxTrueZonalThroughput)
-	MinTrueZonal24NodeThroughput     = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_THROUGHPUT", MinTrueZonalThroughput)
-	MaxTrueZonal24NodeThroughput     = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_THROUGHPUT", 75600)
-	MinTrueZonal24NodeCustomIops     = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonal24NodeThroughput)
-	MaxTrueZonal24NodeCustomIops     = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", 2318400)
-	MinHotTierSize                   = env.GetUint64("MIN_HOT_TIER_SIZE", 1099511627776) // 1 TiB
-	MinHotTierSizeLargeVolumes       = env.GetUint64("MIN_HOT_TIER_SIZE_LARGE_VOLUMES", 6*TiBInBytes)
-	ValidateSAKeyInGCP               = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)
-	CmekGlobalProjectID              = env.GetString("CMEK_GLOBAL_PROJECT_ID", "")
-	RegionNumberMap                  = env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)
-	EnableMultiAD                    = env.GetBool("ENABLE_MULTI_AD", false)
-	MaxNumberOfADPerAccount          = env.GetInt("MAX_NUMBER_OF_AD_PER_ACCOUNT", 5)
-	EnableMultipleCmek               = env.GetBool("ENABLE_MULTIPLE_CMEK", false)
-	MaxNumberOfKmsPerAccount         = env.GetInt("MAX_NUMBER_OF_KMS_PER_ACCOUNT", 3)
-	ParseRegionAndZone               = _parseRegionAndZone
-	ParseAndValidateRegionAndZone    = _parseAndValidateRegionAndZone
-	GetPairedRegionURI               = _getPairedRegionURI
-	GetVolumeUriFromCcfeUri          = _getVolumeUriFromCcfeUri
-	ConvertStringToMap               = _convertStringToMap
-	ConvertBytesToGib                = _convertBytesToGib
-	ValidateCcfeReplicationUri       = _validateCcfeReplicationUri
-	ValidateOperationUri             = _validateOperationUri
-	RenameSnapshotName               = _renameSnapshotName
-	ConvertToGcpResourceName         = _convertToGcpResourceName
-	CheckForGcpNamingConvention      = _checkForGcpNamingConvention
-	ParseProjectNumberFromURI        = _parseProjectNumberFromURI
-	GetReplicationNameFromURI        = _getReplicationNameFromURI
-	quotaLimitExceededRegex          = regexp.MustCompile(`^Quota limit`)
-	sleep                            = _sleep
-	exponentialBackOffErrors         = []int{429}
-	maxExpBackOffDelay               = time.Duration(80) * time.Second
-	jitterBase                       = time.Millisecond
-	generateRandomString             = _generateRandomString
-	ReplicationUriRegex              = "^projects\\/([^\\/]+)\\/locations/([^\\/]+)/volumes\\/([^\\/]+)\\/replications\\/([^\\/]+)$"
-	OperationUriRegex                = "^/v1beta/projects/([^/]+)/locations/([^/]+)/operations/([^/]+)$"
-	GetLocation                      = _getLocation
-	GetBackupRegion                  = _getBackupRegion
-	GetSourceVolumePathFromBackup    = _getSourceVolumePathFromBackup
-	GetSourceSnapshotPathFromBackup  = _getSourceSnapshotPathFromBackup
-	GenerateStrongPassword           = _generateStrongPassword
-	ValidateStrongPassword           = _validateStrongPassword
-	ParsePEMCertificate              = _parsePEMCertificate
-	CalculateRequiredVolumeSize      = _calculateRequiredVolumeSize
+	localRegion                                = env.GetString("LOCAL_REGION", "local")
+	PairedRegions                              = env.GetString("VCP_PAIRED_REGIONS", "")
+	MinQuotaInBytesPool                        = env.GetUint64("MIN_QUOTA_IN_BYTES_POOL", 1*TiBInBytes)                  // 1 TiB
+	MaxQuotaInBytesPool                        = env.GetUint64("MAX_QUOTA_IN_BYTES_POOL", 425*TiBInBytes)                // 425 TiB
+	MinQuotaInBytesVolumeForVolume             = env.GetUint64("MIN_QUOTA_IN_BYTES_VOLUME", 1073741824)                  // 1 GiB
+	MaxQuotaInBytesVolumeForVolume             = env.GetUint64("MAX_QUOTA_IN_BYTES_VOLUME", 140737488355328)             // 128 TiB
+	MaxQuotaInBytesForFileVolume               = env.GetUint64("MAX_QUOTA_IN_BYTES_FILE_VOLUME", 329853488332800)        // 300 TiB
+	MinQuotaInBytesLargeVolume                 = env.GetUint64("MIN_QUOTA_IN_BYTES_LARGE_VOLUME", 5277655813325)         // 4.8 TiB
+	MinQuotaInBytesLargeVolumeWithCV           = env.GetUint64("MIN_QUOTA_IN_BYTES_LARGE_VOLUME_WITH_CV", 2638827906662) // 2.4 TiB
+	MaxQuotaInBytesLargeVolume                 = env.GetUint64("MAX_QUOTA_IN_BYTES_LARGE_VOLUME", 20*PiBInBytes)         // 20 PiB
+	MinSizeGranularity                         = env.GetUint64("MIN_SIZE_GRANULARITY", 1*GiBInBytes)                     // 1 GiB
+	MinCustomThroughput                        = env.GetUint64("MIN_CUSTOM_THROUGHPUT", 64)                              // 64 MiBps (for pools)
+	MinVolumeThroughput                        = env.GetUint64("MIN_VOLUME_THROUGHPUT", 1)                               // 1 MiBps (for volumes in manual pools)
+	MaxCustomThroughput                        = env.GetUint64("MAX_CUSTOM_THROUGHPUT", 5120)                            // 5120 MiBps
+	MinCustomIops                              = env.GetUint64("MIN_CUSTOM_IOPS", 1024)                                  // 1024 IOPS
+	MaxCustomIops                              = env.GetUint64("MAX_CUSTOM_IOPS", 160000)                                // 160000 IOPS
+	IopsPerMiBps                               = env.GetUint64("IOPS_PER_MIBPS", 16)                                     // 16 IOPS per MiBps (for auto-calculation)
+	MinLvCoolTierCapacity                      = env.GetUint64("MIN_LV_POOL_COOL_TIER_CAPACITY", 6*TiBInBytes)           // 6TiB
+	MaxLvPoolCapacity                          = env.GetUint64("MAX_LV_POOL_CAPACITY", 20*PiBInBytes)                    // 20PiB
+	MaxLvHotTierCapacity                       = env.GetUint64("MAX_LV_HOT_TIER_POOL_CAPACITY", 2792232327315456)        // 2.48 PiB
+	MinLvThroughput                            = env.GetUint64("MIN_LV_THROUGHPUT", 64)
+	MaxLvThroughput                            = env.GetUint64("MAX_LV_THROUGHPUT", 60*1000) // convert to megabit per second
+	MinLvCustomIops                            = env.GetUint64("MIN_LV_CUSTOM_IOPS", IopsPerMiBps*MinLvThroughput)
+	MaxLvCustomIops                            = env.GetUint64("MAX_LV_CUSTOM_IOPS", IopsPerMiBps*MaxLvThroughput)
+	MinTrueZonalThroughput                     = env.GetUint64("MIN_TRUE_ZONAL_THROUGHPUT", MinLvThroughput)
+	MaxTrueZonalThroughput                     = env.GetUint64("MAX_TRUE_ZONAL_THROUGHPUT", MaxLvThroughput)
+	MinTrueZonalCustomIops                     = env.GetUint64("MIN_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonalThroughput)
+	MaxTrueZonalCustomIops                     = env.GetUint64("MAX_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MaxTrueZonalThroughput)
+	MinTrueZonal24NodeThroughput               = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_THROUGHPUT", MinTrueZonalThroughput)
+	MaxTrueZonal24NodeThroughput               = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_THROUGHPUT", 84000)
+	MinTrueZonal24NodeCustomIops               = env.GetUint64("MIN_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonal24NodeThroughput)
+	MaxTrueZonal24NodeCustomIops               = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_CUSTOM_IOPS", 2318400)
+	MaxTrueZonal24NodePoolCapacity             = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY", 5*PiBInBytes)                 // 5 PiB without auto-tiering
+	MaxTrueZonal24NodePoolCapacityWithAutoTier = env.GetUint64("MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY_WITH_AUTO_TIER", 50*PiBInBytes) // 50 PiB with auto-tiering
+	MinHotTierSize                             = env.GetUint64("MIN_HOT_TIER_SIZE", 1099511627776)                                   // 1 TiB
+	MinHotTierSizeLargeVolumes                 = env.GetUint64("MIN_HOT_TIER_SIZE_LARGE_VOLUMES", 6*TiBInBytes)
+	ValidateSAKeyInGCP                         = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)
+	CmekGlobalProjectID                        = env.GetString("CMEK_GLOBAL_PROJECT_ID", "")
+	RegionNumberMap                            = env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)
+	EnableMultiAD                              = env.GetBool("ENABLE_MULTI_AD", false)
+	MaxNumberOfADPerAccount                    = env.GetInt("MAX_NUMBER_OF_AD_PER_ACCOUNT", 5)
+	EnableMultipleCmek                         = env.GetBool("ENABLE_MULTIPLE_CMEK", false)
+	MaxNumberOfKmsPerAccount                   = env.GetInt("MAX_NUMBER_OF_KMS_PER_ACCOUNT", 3)
+	ParseRegionAndZone                         = _parseRegionAndZone
+	ParseAndValidateRegionAndZone              = _parseAndValidateRegionAndZone
+	GetPairedRegionURI                         = _getPairedRegionURI
+	GetVolumeUriFromCcfeUri                    = _getVolumeUriFromCcfeUri
+	ConvertStringToMap                         = _convertStringToMap
+	ConvertBytesToGib                          = _convertBytesToGib
+	ValidateCcfeReplicationUri                 = _validateCcfeReplicationUri
+	ValidateOperationUri                       = _validateOperationUri
+	RenameSnapshotName                         = _renameSnapshotName
+	ConvertToGcpResourceName                   = _convertToGcpResourceName
+	CheckForGcpNamingConvention                = _checkForGcpNamingConvention
+	ParseProjectNumberFromURI                  = _parseProjectNumberFromURI
+	GetReplicationNameFromURI                  = _getReplicationNameFromURI
+	quotaLimitExceededRegex                    = regexp.MustCompile(`^Quota limit`)
+	sleep                                      = _sleep
+	exponentialBackOffErrors                   = []int{429}
+	maxExpBackOffDelay                         = time.Duration(80) * time.Second
+	jitterBase                                 = time.Millisecond
+	generateRandomString                       = _generateRandomString
+	ReplicationUriRegex                        = "^projects\\/([^\\/]+)\\/locations/([^\\/]+)/volumes\\/([^\\/]+)\\/replications\\/([^\\/]+)$"
+	OperationUriRegex                          = "^/v1beta/projects/([^/]+)/locations/([^/]+)/operations/([^/]+)$"
+	GetLocation                                = _getLocation
+	GetBackupRegion                            = _getBackupRegion
+	GetSourceVolumePathFromBackup              = _getSourceVolumePathFromBackup
+	GetSourceSnapshotPathFromBackup            = _getSourceSnapshotPathFromBackup
+	GenerateStrongPassword                     = _generateStrongPassword
+	ValidateStrongPassword                     = _validateStrongPassword
+	ParsePEMCertificate                        = _parsePEMCertificate
+	CalculateRequiredVolumeSize                = _calculateRequiredVolumeSize
 	// FileProtocolSupported controls whether file-based protocols (NFS/CIFS) are allowed
 	FileProtocolSupported                              = env.GetBool("FILES_PROTOCOL_SUPPORT", false)
 	experimentalVersionAllowlistedAccounts             = ParseCommaSeparatedStringToMap(env.GetString("EXPERIMENTAL_VERSION_ALLOWLISTED_ACCOUNTS", ""))
@@ -137,6 +139,22 @@ var (
 	jsonMarshalFn             = json.Marshal
 	jsonUnmarshalFn           = json.Unmarshal
 )
+
+// MaxLargeVolumeQuota returns the maximum large-volume size.
+// A 24-node true-zonal pool (12 HA pairs) allows 5 PiB, or 50 PiB when auto-tiering is enabled.
+// Other large volumes keep the shared hot-tier cap, or MaxQuotaInBytesLargeVolume when auto-tiering is enabled.
+func MaxLargeVolumeQuota(is24NodeTrueZonal, autoTieringEnabled bool) uint64 {
+	if is24NodeTrueZonal {
+		if autoTieringEnabled {
+			return MaxTrueZonal24NodePoolCapacityWithAutoTier
+		}
+		return MaxTrueZonal24NodePoolCapacity
+	}
+	if autoTieringEnabled {
+		return MaxQuotaInBytesLargeVolume
+	}
+	return MaxLvHotTierCapacity
+}
 
 // IsCVPHostSet returns true when CVP_HOST is configured, indicating SDE mode is active.
 func IsCVPHostSet() bool {

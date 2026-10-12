@@ -336,6 +336,8 @@ workerConfig:
   minLvPoolCoolTierCapacity: "6597069766656"
   maxLvPoolCapacity: "22517998136852476"
   maxLvHotTierPoolCapacity: "2792232327315456"
+  maxTrueZonal24NodePoolCapacity: "5629499534213120" # 5PiB, 12 HA-pair pool without auto-tiering
+  maxTrueZonal24NodePoolCapacityWithAutoTier: "56294995342131200" # 50PiB, 12 HA-pair pool with auto-tiering
   minLvThroughput: 64
   maxLvThroughput: 60000
   minTrueZonalThroughput: 64

@@ -286,6 +286,8 @@ data:
   MIN_LV_POOL_COOL_TIER_CAPACITY: {{$.Values.workerConfig.minLvPoolCoolTierCapacity | quote }}
   MAX_LV_POOL_CAPACITY: {{$.Values.workerConfig.maxLvPoolCapacity | quote }}
   MAX_LV_HOT_TIER_POOL_CAPACITY: {{$.Values.workerConfig.maxLvHotTierPoolCapacity | quote }}
+  MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY: {{$.Values.workerConfig.maxTrueZonal24NodePoolCapacity | quote }}
+  MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY_WITH_AUTO_TIER: {{$.Values.workerConfig.maxTrueZonal24NodePoolCapacityWithAutoTier | quote }}
   MIN_LV_THROUGHPUT: {{$.Values.workerConfig.minLvThroughput | quote }}
   MAX_LV_THROUGHPUT: {{$.Values.workerConfig.maxLvThroughput | quote }}
   MIN_TRUE_ZONAL_THROUGHPUT: {{$.Values.workerConfig.minTrueZonalThroughput | quote }}

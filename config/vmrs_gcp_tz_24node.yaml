@@ -119,21 +119,21 @@ vmrs:
   # Performance doesn't scale linearly with HA pairs due to cluster overhead
   non_linear_scaling_active_active:
     base_factor: 1.0              # Base scaling factor (no scaling)
-    max_scaling_factor: 10.0      # Maximum allowed scaling factor
+    max_scaling_factor: 14.4      # Maximum allowed scaling factor
 
     # IOPS scaling factors by number of HA pairs
     iops_factors:
       1: 1.0                      # 1 HA pair = 100% base performance
       2: 1.8                      # 2 HA pairs = 180% base performance
       6: 7.68                     # 6 HA pairs = 768% performance (not 1200%)
-      12: 4.9                     # 12 HA pairs = 490% performance (not 1200%)
+      12: 14.4                    # 12 HA pairs = 490% performance (not 1200%)
     
     # Throughput scaling factors by number of HA pairs  
     throughput_factors:
       1: 1.0                      # 1 HA pair = 100% base performance
       2: 1.8                      # 2 HA pairs = 180% base performance
       6: 7.68                     # 6 HA pairs = 768% performance
-      12: 5.8                     # 12 HA pairs = 580% performance
+      12: 14.4                    # 12 HA pairs = 580% performance
 
   # ============================================================================
   # SHARED CONFIGURATION CONTINUED - ONTAP Overheads

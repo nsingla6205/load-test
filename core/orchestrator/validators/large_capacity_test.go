@@ -157,6 +157,79 @@ func TestLargeCapacityPoolValidator_ValidateSize(t *testing.T) {
 	}
 }
 
+func TestLargeCapacityPoolValidator_ValidateSize_12HAPair(t *testing.T) {
+	validator := &LargeCapacityPoolValidator{}
+
+	testCases := []struct {
+		name           string
+		sizeInBytes    uint64
+		allowAutoTier  bool
+		expectedError  bool
+		errorSubstring string
+	}{
+		{
+			name:          "Accepts 20TiB minimum",
+			sizeInBytes:   minTrueZonal24NodePoolSize,
+			allowAutoTier: false,
+		},
+		{
+			name:           "Rejects the 6TiB large-capacity floor",
+			sizeInBytes:    minLvCoolTierCapacity,
+			allowAutoTier:  false,
+			expectedError:  true,
+			errorSubstring: "must be at least 20TiB",
+		},
+		{
+			name:          "Accepts 5PiB without auto-tiering",
+			sizeInBytes:   maxTrueZonal24NodePoolCapacity,
+			allowAutoTier: false,
+		},
+		{
+			name:           "Rejects above 5PiB without auto-tiering",
+			sizeInBytes:    maxTrueZonal24NodePoolCapacity + 1,
+			allowAutoTier:  false,
+			expectedError:  true,
+			errorSubstring: "must be less than or equal to 5PiB",
+		},
+		{
+			name:          "Accepts 50PiB with auto-tiering",
+			sizeInBytes:   maxTrueZonal24NodePoolCapacityWithAutoTier,
+			allowAutoTier: true,
+		},
+		{
+			name:           "Rejects above 50PiB with auto-tiering",
+			sizeInBytes:    maxTrueZonal24NodePoolCapacityWithAutoTier + 1,
+			allowAutoTier:  true,
+			expectedError:  true,
+			errorSubstring: "when AllowAutoTiering is true",
+		},
+		{
+			name:          "Accepts size above the 12-node hot-tier cap",
+			sizeInBytes:   maxLvHotTierCapacity + 1,
+			allowAutoTier: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator.ValidateSize(&CustomPerformance{
+				SizeInBytes:      tc.sizeInBytes,
+				AllowAutoTiering: tc.allowAutoTier,
+				LargeCapacity:    true,
+				IsTrueZonal:      true,
+				LvHAPairs:        commonparams.LvHAPairsNodeCount24,
+			})
+			if tc.expectedError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorSubstring)
+				assert.Contains(t, err.Error(), "24-node True Zonal Large Capacity pools")
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestLargeCapacityPoolValidator_ValidateThroughput(t *testing.T) {
 	validator := &LargeCapacityPoolValidator{}
 

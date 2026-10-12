@@ -67,6 +67,8 @@ data:
   TRUE_ZONAL_LV_VOLUME_MIN_SIZE: "{{ index .Values "trueZonalLVVolumeMinSize" }}"
   TRUE_ZONAL_LV_24_NODE_POOL_MIN_SIZE: "{{ index .Values "trueZonalLV24NodePoolMinSize" }}"
   TRUE_ZONAL_LV_24_NODE_VOLUME_MIN_SIZE: "{{ index .Values "trueZonalLV24NodeVolumeMinSize" }}"
+  MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY: "{{ index .Values "maxTrueZonal24NodePoolCapacity" }}"
+  MAX_TRUE_ZONAL_24_NODE_POOL_CAPACITY_WITH_AUTO_TIER: "{{ index .Values "maxTrueZonal24NodePoolCapacityWithAutoTier" }}"
   BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP: "{{ index .Values "blockTrueZonalAutoTieringAndBackup" }}"
   ENABLE_BACKUP_VAULT_SWITCHING: "{{ index .Values "enableBackupVaultSwitching" }}"
   ENABLE_GCNV_VAULT_SWITCHING: "{{ index .Values "enableGCNVVaultSwitching" }}"

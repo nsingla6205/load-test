@@ -1396,6 +1396,14 @@ func largeVolumeAggregateCount(lvHaPairs int64, isActiveActive bool) int64 {
 	return lvHaPairs
 }
 
+func is24NodeTrueZonalPool(pool *datamodel.Pool) bool {
+	return pool.IsTrueZonal() && pool.PoolAttributes.LvHAPairs == common.LvHAPairsNodeCount24
+}
+
+func volumeAutoTieringEnabled(policy *common.AutoTieringPolicy, volumeAlreadyEnabled bool) bool {
+	return (policy != nil && policy.AutoTieringEnabled) || volumeAlreadyEnabled
+}
+
 func minimumConstituentVolumeSize(pool *datamodel.PoolView, constituentCount int64) uint64 {
 	if pool == nil || pool.PoolAttributes == nil {
 		return minCVSizeInBytes
@@ -1510,11 +1518,7 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 			return customerrors.NewUserInputValidationErr("BlockDevices are not supported for large capacity volumes")
 		}
 
-		maxLVVolSize := utils.MaxLvHotTierCapacity
-		// For AT enabled volume, max volume size is 20 PiB, otherwise 2.48 PiB
-		if params.AutoTieringPolicy != nil && params.AutoTieringPolicy.AutoTieringEnabled {
-			maxLVVolSize = utils.MaxQuotaInBytesLargeVolume
-		}
+		maxLVVolSize := utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(&pool.Pool), volumeAutoTieringEnabled(params.AutoTieringPolicy, false))
 		minLVVolSize := utils.MinQuotaInBytesLargeVolume
 
 		var cvSizeInBytes uint64
@@ -3118,15 +3122,15 @@ func validateUpdateVolumeRequest(ctx context.Context, se database.Storage, volum
 
 		// Large capacity quota validation
 		if pool.LargeCapacity {
-			maxLVVolSize := utils.MaxLvHotTierCapacity
-			// For auto tiering enabled pool and volume, max size is 20 PiB
-			if (params.AutoTieringPolicy != nil && params.AutoTieringPolicy.AutoTieringEnabled) || (volume.AutoTieringEnabled) {
-				maxLVVolSize = utils.MaxQuotaInBytesLargeVolume
+			maxLVVolSize := utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(&pool.Pool), volumeAutoTieringEnabled(params.AutoTieringPolicy, volume.AutoTieringEnabled))
+			reportedMax := utils.MaxQuotaInBytesLargeVolume
+			if is24NodeTrueZonalPool(&pool.Pool) {
+				reportedMax = maxLVVolSize
 			}
 			if uint64(params.QuotaInBytes) < utils.MinQuotaInBytesLargeVolumeWithCV || uint64(params.QuotaInBytes) > maxLVVolSize {
 				return customerrors.NewUserInputValidationErr(fmt.Sprintf("Invalid volume capacity %s. Must be between %s and %s.",
 					utils.FmtUint64Bytes(uint64(params.QuotaInBytes)), utils.FmtUint64Bytes(utils.MinQuotaInBytesLargeVolumeWithCV),
-					utils.FmtUint64Bytes(utils.MaxQuotaInBytesLargeVolume)))
+					utils.FmtUint64Bytes(reportedMax)))
 			}
 
 			// Validate CV size stays within limits for the update flow. The requested

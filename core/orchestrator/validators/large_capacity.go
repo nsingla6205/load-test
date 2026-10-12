@@ -32,16 +32,32 @@ func largeCapacityErrorSuffix(perf *CustomPerformance) string {
 	return " for Large Capacity pools"
 }
 
-func (v *LargeCapacityPoolValidator) ValidateSize(perf *CustomPerformance) error {
-	if perf.SizeInBytes < minLvCoolTierCapacity {
-		return customerrors.NewUserInputValidationErr(
-			fmt.Sprintf("SizeInBytes must be at least %s (%d bytes) for Large Capacity pools",
-				utils.FmtUint64Bytes(minLvCoolTierCapacity), minLvCoolTierCapacity))
+func largeCapacitySizeBounds(perf *CustomPerformance) (minCapacity, maxCapacity uint64, scope string) {
+	if is24NodeTrueZonal(perf) {
+		maxCapacity = maxTrueZonal24NodePoolCapacity
+		if perf.AllowAutoTiering {
+			maxCapacity = maxTrueZonal24NodePoolCapacityWithAutoTier
+		}
+		return minTrueZonal24NodePoolSize, maxCapacity, "24-node True Zonal Large Capacity pools"
 	}
 
-	maxCapacity := maxLvHotTierCapacity
+	maxCapacity = maxLvHotTierCapacity
 	if perf.AllowAutoTiering {
 		maxCapacity = maxLvPoolCapacity
+	}
+	return minLvCoolTierCapacity, maxCapacity, "Large Capacity pools"
+}
+
+func is24NodeTrueZonal(perf *CustomPerformance) bool {
+	return perf.IsTrueZonal && perf.LvHAPairs == commonparams.LvHAPairsNodeCount24
+}
+
+func (v *LargeCapacityPoolValidator) ValidateSize(perf *CustomPerformance) error {
+	minCapacity, maxCapacity, scope := largeCapacitySizeBounds(perf)
+	if perf.SizeInBytes < minCapacity {
+		return customerrors.NewUserInputValidationErr(
+			fmt.Sprintf("SizeInBytes must be at least %s (%d bytes) for %s",
+				utils.FmtUint64Bytes(minCapacity), minCapacity, scope))
 	}
 
 	if perf.SizeInBytes > maxCapacity {
@@ -50,8 +66,8 @@ func (v *LargeCapacityPoolValidator) ValidateSize(perf *CustomPerformance) error
 			tierMsg = " when AllowAutoTiering is true"
 		}
 		return customerrors.NewUserInputValidationErr(
-			fmt.Sprintf("SizeInBytes must be less than or equal to %s (%d bytes)%s for Large Capacity pools",
-				utils.FmtUint64Bytes(maxCapacity), maxCapacity, tierMsg))
+			fmt.Sprintf("SizeInBytes must be less than or equal to %s (%d bytes)%s for %s",
+				utils.FmtUint64Bytes(maxCapacity), maxCapacity, tierMsg, scope))
 	}
 
 	return nil

@@ -55,6 +55,8 @@ trueZonalLVPoolMinSize: "13194139533312" # 12TiB in bytes
 trueZonalLVVolumeMinSize: "10555311626650" # 9.6TiB in bytes
 trueZonalLV24NodePoolMinSize: "21990232555520" # 20TiB in bytes
 trueZonalLV24NodeVolumeMinSize: "21110623253300" # 19.2TiB in bytes
+maxTrueZonal24NodePoolCapacity: "5629499534213120" # 5PiB, 12 HA-pair pool without auto-tiering
+maxTrueZonal24NodePoolCapacityWithAutoTier: "56294995342131200" # 50PiB, 12 HA-pair pool with auto-tiering
 hybridReplicationEnabled: false
 bidiReplicationEnabled: false
 autoTieringEnabled: false
@@ -135,7 +137,7 @@ maxTrueZonalThroughput: "40320"
 minTrueZonalCustomIops: "1024"
 maxTrueZonalCustomIops: "1236480"
 minTrueZonal24NodeThroughput: "64"
-maxTrueZonal24NodeThroughput: "75600"
+maxTrueZonal24NodeThroughput: "84000"
 minTrueZonal24NodeCustomIops: "1024"
 maxTrueZonal24NodeCustomIops: "2318400"
 iopsPerMibps: "16"

@@ -26,23 +26,26 @@ var (
 	iopsPerMiBps        = utils.IopsPerMiBps
 
 	// Large capacity specific limits
-	minLvCoolTierCapacity        = utils.MinLvCoolTierCapacity
-	maxLvPoolCapacity            = utils.MaxLvPoolCapacity
-	maxLvHotTierCapacity         = utils.MaxLvHotTierCapacity
-	minLvThroughput              = utils.MinLvThroughput
-	maxLvThroughput              = utils.MaxLvThroughput
-	minLvCustomIops              = utils.MinLvCustomIops
-	maxLvCustomIops              = utils.MaxLvCustomIops
-	minTrueZonalThroughput       = utils.MinTrueZonalThroughput
-	maxTrueZonalThroughput       = utils.MaxTrueZonalThroughput
-	minTrueZonalCustomIops       = utils.MinTrueZonalCustomIops
-	maxTrueZonalCustomIops       = utils.MaxTrueZonalCustomIops
-	minTrueZonal24NodeThroughput = utils.MinTrueZonal24NodeThroughput
-	maxTrueZonal24NodeThroughput = utils.MaxTrueZonal24NodeThroughput
-	minTrueZonal24NodeCustomIops = utils.MinTrueZonal24NodeCustomIops
-	maxTrueZonal24NodeCustomIops = utils.MaxTrueZonal24NodeCustomIops
-	AutoTieringEnabled           = utils.AutoTieringEnabled
-	enableMqos                   = env.GetBool("ENABLE_MQOS", true)
+	minLvCoolTierCapacity                      = utils.MinLvCoolTierCapacity
+	maxLvPoolCapacity                          = utils.MaxLvPoolCapacity
+	maxLvHotTierCapacity                       = utils.MaxLvHotTierCapacity
+	minLvThroughput                            = utils.MinLvThroughput
+	maxLvThroughput                            = utils.MaxLvThroughput
+	minLvCustomIops                            = utils.MinLvCustomIops
+	maxLvCustomIops                            = utils.MaxLvCustomIops
+	minTrueZonalThroughput                     = utils.MinTrueZonalThroughput
+	maxTrueZonalThroughput                     = utils.MaxTrueZonalThroughput
+	minTrueZonalCustomIops                     = utils.MinTrueZonalCustomIops
+	maxTrueZonalCustomIops                     = utils.MaxTrueZonalCustomIops
+	minTrueZonal24NodeThroughput               = utils.MinTrueZonal24NodeThroughput
+	maxTrueZonal24NodeThroughput               = utils.MaxTrueZonal24NodeThroughput
+	minTrueZonal24NodeCustomIops               = utils.MinTrueZonal24NodeCustomIops
+	maxTrueZonal24NodeCustomIops               = utils.MaxTrueZonal24NodeCustomIops
+	minTrueZonal24NodePoolSize                 = env.GetUint64("TRUE_ZONAL_LV_24_NODE_POOL_MIN_SIZE", 20*utils.TiBInBytes)
+	maxTrueZonal24NodePoolCapacity             = utils.MaxTrueZonal24NodePoolCapacity
+	maxTrueZonal24NodePoolCapacityWithAutoTier = utils.MaxTrueZonal24NodePoolCapacityWithAutoTier
+	AutoTieringEnabled                         = utils.AutoTieringEnabled
+	enableMqos                                 = env.GetBool("ENABLE_MQOS", true)
 )
 
 // CustomPerformance represents performance parameters that can be used for both create and update operations

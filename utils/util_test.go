@@ -437,6 +437,46 @@ func TestIsCVPHostFlags(t *testing.T) {
 	})
 }
 
+func Test_MaxLargeVolumeQuota(t *testing.T) {
+	tests := []struct {
+		name               string
+		is24NodeTrueZonal  bool
+		autoTieringEnabled bool
+		want               uint64
+	}{
+		{
+			name:               "24NodeTrueZonalWithAutoTiering",
+			is24NodeTrueZonal:  true,
+			autoTieringEnabled: true,
+			want:               MaxTrueZonal24NodePoolCapacityWithAutoTier,
+		},
+		{
+			name:               "24NodeTrueZonalWithoutAutoTiering",
+			is24NodeTrueZonal:  true,
+			autoTieringEnabled: false,
+			want:               MaxTrueZonal24NodePoolCapacity,
+		},
+		{
+			name:               "OtherLargeVolumeWithAutoTiering",
+			is24NodeTrueZonal:  false,
+			autoTieringEnabled: true,
+			want:               MaxQuotaInBytesLargeVolume,
+		},
+		{
+			name:               "OtherLargeVolumeWithoutAutoTiering",
+			is24NodeTrueZonal:  false,
+			autoTieringEnabled: false,
+			want:               MaxLvHotTierCapacity,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, MaxLargeVolumeQuota(tt.is24NodeTrueZonal, tt.autoTieringEnabled))
+		})
+	}
+}
+
 func TestEnvToInt32Conversion(t *testing.T) {
 	tests := []struct {
 		envVal string

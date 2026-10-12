@@ -39867,3 +39867,37 @@ func TestDeleteVolume_ResilienceEnabled_ActiveJobLookup(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxLargeVolumeQuota_12HAPair(t *testing.T) {
+	twelveNode := &datamodel.Pool{}
+	assert.Equal(t, utils.MaxLvHotTierCapacity, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveNode), false))
+	assert.Equal(t, utils.MaxQuotaInBytesLargeVolume, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveNode), true))
+
+	twelveHA := &datamodel.Pool{
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal: true,
+			LvHAPairs:   common.LvHAPairsNodeCount24,
+		},
+	}
+	assert.True(t, is24NodeTrueZonalPool(twelveHA))
+	assert.Equal(t, utils.MaxTrueZonal24NodePoolCapacity, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveHA), false))
+	assert.Equal(t, utils.MaxTrueZonal24NodePoolCapacityWithAutoTier, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveHA), true))
+	assert.Equal(t, uint64(5*utils.PiBInBytes), utils.MaxTrueZonal24NodePoolCapacity)
+	assert.Equal(t, uint64(50*utils.PiBInBytes), utils.MaxTrueZonal24NodePoolCapacityWithAutoTier)
+}
+
+func TestVolumeAutoTieringEnabled_IgnoresPoolFlag(t *testing.T) {
+	twelveHA := &datamodel.Pool{
+		AllowAutoTiering: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal: true,
+			LvHAPairs:   common.LvHAPairsNodeCount24,
+		},
+	}
+	assert.False(t, volumeAutoTieringEnabled(nil, false))
+	assert.Equal(t, utils.MaxTrueZonal24NodePoolCapacity, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveHA), volumeAutoTieringEnabled(nil, false)))
+
+	assert.True(t, volumeAutoTieringEnabled(&common.AutoTieringPolicy{AutoTieringEnabled: true}, false))
+	assert.Equal(t, utils.MaxTrueZonal24NodePoolCapacityWithAutoTier, utils.MaxLargeVolumeQuota(is24NodeTrueZonalPool(twelveHA), volumeAutoTieringEnabled(&common.AutoTieringPolicy{AutoTieringEnabled: true}, false)))
+	assert.True(t, volumeAutoTieringEnabled(nil, true))
+}
