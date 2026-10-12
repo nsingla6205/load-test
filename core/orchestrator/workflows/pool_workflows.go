@@ -1312,6 +1312,13 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		return nil, ConvertToVSAError(err)
 	}
 
+	// Create billing ledger entry for the pool
+	billingActivity := &activities.BillingActivity{}
+	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.CreatePoolBillingLedger, dbPool).Get(dbHbCtx, nil)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
 	// Set wafl.maxvolclonehier option on the ONTAP cluster
 	if thinCloneGASupport {
 		setMaxVolCloneErr := workflow.ExecuteActivity(ctx, poolActivity.SetWaflMaxVolCloneHier, node, dbPool).Get(ctx, nil)
@@ -1955,9 +1962,21 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	// Update pool with VLM config
+	var updatedPool *datamodel.Pool
 	persistOrchCtx := dbOrchCtx.ClearOperationBudgetCheck()
-	err = orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPoolWithVLMConfig, nil, dbPool, updateVSAClusterDeploymentResponse.VLMConfig, updatePoolParams)
-	return nil, ConvertToVSAError(err)
+	err = orchestrator.RunActivity(persistOrchCtx, poolActivity.UpdatedPoolWithVLMConfig, &updatedPool, dbPool, updateVSAClusterDeploymentResponse.VLMConfig, updatePoolParams)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
+	// Create billing ledger entry for the pool update (capture new size)
+	billingActivity := &activities.BillingActivity{}
+	err = orchestrator.RunActivity(persistOrchCtx, billingActivity.CreatePoolBillingLedger, nil, updatedPool)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
+	return nil, nil
 }
 
 type deletePoolWorkflow struct {
@@ -2283,6 +2302,13 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.DeletePoolResources, dbPool).Get(dbHbCtx, nil)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
+	// Delete pool billing ledger entries after successful deletion
+	billingActivity := &activities.BillingActivity{}
+	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeletePoolBillingLedgers, dbPool).Get(dbHbCtx, nil)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}

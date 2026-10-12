@@ -44,6 +44,7 @@ func (s *VolumeUpdateTestSuite) SetupTest() {
 	operationBudget = 24 * time.Hour
 
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -69,6 +70,10 @@ func (s *VolumeUpdateTestSuite) SetupTest() {
 	// Register UpdateVolumeStateInDB - called by workflow in error handling
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Register GetVolumeByVolumeID - the workflow re-reads the volume before writing its billing ledger entry.
+	s.env.RegisterActivity(volumeCreateActivity.GetVolumeByVolumeID)
+	s.env.OnActivity(volumeCreateActivity.GetVolumeByVolumeID, mock.Anything, mock.Anything).Return(CreateTestVolume(), nil).Maybe()
 
 	s.env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
@@ -3553,6 +3558,10 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_AutoTier() {
 
 	// Run the workflow again with different params
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
+	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+	s.env.RegisterActivity(volumeCreateActivity.GetVolumeByVolumeID)
+	s.env.OnActivity(volumeCreateActivity.GetVolumeByVolumeID, mock.Anything, mock.Anything).Return(CreateTestVolume(), nil).Maybe()
 	s.env.RegisterWorkflow(UpdateVolumeWorkflow)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(updateActivity.UpdateVolumeInONTAP)

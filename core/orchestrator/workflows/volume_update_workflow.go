@@ -896,6 +896,18 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		}
 	}
 
+	// Create billing ledger entry for backup-enabled volumes (capture updated size)
+	var volumeForBilling *datamodel.Volume
+	err = workflow.ExecuteActivity(ctx, volumeCreateActivity.GetVolumeByVolumeID, volume.UUID).Get(ctx, &volumeForBilling)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+	billingActivity := &activities.BillingActivity{}
+	err = workflow.ExecuteActivity(ctx, billingActivity.CreateVolumeBillingLedger, volumeForBilling).Get(ctx, nil)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
 	// Update BackupMetadata labels if an entry exists for this volume
 	backupActivity := &activities.BackupActivity{}
 	metadataErr := orchestrator.RunActivity(orchCtx, backupActivity.UpdateBackupMetadataIfExistsActivity, nil, volume)

@@ -173,6 +173,7 @@ workerConfig:
   certificateRotationPoolStates: "READY,DEGRADED"
   immutableBackupEnabled: "false"
   crossRegionBackupEnabled: "false"
+  enableBillingLedger: "false"
   enableBackupVaultSwitching: "false"
   enableGCNVVaultSwitching: "false"
   gcbdrVaultEnabled: "true"

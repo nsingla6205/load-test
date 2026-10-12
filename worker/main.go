@@ -551,6 +551,8 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterActivity(&activities.SvmActivity{SE: dbcon})
 	// CancellationActivity is needed for workflow cancellation support
 	worker.RegisterActivity(activities.NewCancellationActivity(temporal))
+	// BillingActivity is needed for creating billing ledger entries
+	worker.RegisterActivity(&activities.BillingActivity{SE: dbcon})
 }
 
 // RegisterCustomerWorkflowsAndActivities registers all customer workflows and activities (GCP and shared).
@@ -764,6 +766,7 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{SE: dbcon, Scheduler: temporalScheduler})
 	worker.RegisterActivity(backgroundactivities.EmitKmsKeyLimitReachedMetric)
 	worker.RegisterActivity(backgroundactivities.EmitKmsRotationFailureMetric)
+	worker.RegisterActivity(&activities.BillingActivity{SE: dbcon})
 }
 
 // RegisterOCIBackgroundWorkflowsAndActivities registers only OCI-related background workflows and activities.
@@ -869,6 +872,8 @@ func RegisterBackgroundWorkflowsAndActivities(
 	worker.RegisterActivity(&activities.BackupActivity{SE: conn})
 	worker.RegisterActivity(&activities.ADCActivity{SE: conn})
 	worker.RegisterActivity(&backgroundactivities.ScheduledBackupActivity{SE: conn})
+	// CreateScheduledBackupWorkflow records the cross-region transfer ledger on this worker.
+	worker.RegisterActivity(&activities.BillingActivity{SE: conn})
 	worker.RegisterActivity(&backgroundactivities.RotateKmsSAKeyActivity{SE: conn, MetricsEmitter: metrics.NewPrometheusKmsMetricsEmitter()})
 	worker.RegisterActivity(&backgroundactivities.OrphanJobActivity{SE: conn})
 	worker.RegisterActivity(&activities.VolumeCreateActivity{SE: conn, Scheduler: temporalScheduler})

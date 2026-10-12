@@ -97,6 +97,12 @@ func (s *ScheduledBackupsTestSuite) registerCreateScheduledBackupActivities(comm
 	s.env.RegisterActivity(backupActivity.GetVolumeProtocolsFromOntapActivity)
 	s.env.RegisterActivity(backupActivity.CreateBackupMetadataIfFirstBackupActivity)
 	s.env.RegisterActivity(backupActivity.UpdateConstituentCountForBackup)
+
+	// The scheduled backup workflow writes a cross-region transfer billing ledger entry after the
+	// transfer completes. Register and stub it so full-workflow tests don't hit billing persistence.
+	billingActivity := &activities.BillingActivity{}
+	s.env.RegisterActivity(billingActivity.CreateCrossRegionBackupTransferBillingLedger)
+	s.env.OnActivity(billingActivity.CreateCrossRegionBackupTransferBillingLedger, mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
 func defaultScheduledBackupNode() *models.Node {

@@ -10,6 +10,7 @@ import (
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -252,6 +253,24 @@ func markPreviousBackupChainHistoryAsDeleted(ctx context.Context, tx *gorm.DB, v
 	}
 	util.GetLogger(ctx).Infof("Ledger: Successfully marked %d backup chain history entries as deleted for volume %s endpoint %q",
 		result.RowsAffected, volumeUUID, endpointUUID)
+	return nil
+}
+
+// deleteCrossRegionBackupTransferBillingLedger soft-deletes the cross-region backup transfer-bytes
+// billing ledger entry for a volume. Called within the backup-delete transaction when the volume's
+// last backup is removed so transfer-bytes billing stops. Keyed per volume (not per endpoint).
+func deleteCrossRegionBackupTransferBillingLedger(ctx context.Context, tx *gorm.DB, volumeUUID string) error {
+	result := tx.Model(&datamodel.BillingLedger{}).
+		Where("resource_uuid = ?", volumeUUID).
+		Where("resource_type = ?", metadata.Backup).
+		Where("measured_type = ?", metadata.CbsCrossRegionVolumeBackupTransferBytes).
+		Where("deleted_at IS NULL").
+		Delete(&datamodel.BillingLedger{})
+	if result.Error != nil {
+		return result.Error
+	}
+	util.GetLogger(ctx).Infof("Ledger: Successfully deleted %d cross-region backup transfer billing ledger entries for volume %s",
+		result.RowsAffected, volumeUUID)
 	return nil
 }
 
@@ -552,7 +571,8 @@ func _deleteBackup(ctx context.Context, db *gorm.DB, backupUUID string) (*datamo
 
 	// History cleanup:
 	//  • Volume-wide: when no backups remain at all, soft-delete every active history row
-	//    (all endpoints) so billing stops entirely.
+	//    (all endpoints) plus the per-volume cross-region transfer-bytes ledger entry so
+	//    billing stops entirely.
 	//  • Endpoint-scoped: when other backups still exist but this backup belongs to a GCBDR
 	//    endpoint chain, check whether any backup remains for that specific endpoint.  If
 	//    none do, soft-delete only that endpoint's history row so the other chains keep
@@ -562,6 +582,11 @@ func _deleteBackup(ctx context.Context, db *gorm.DB, backupUUID string) (*datamo
 		if err != nil {
 			util.GetLogger(ctx).Warnf("Ledger: Failed to mark backup chain history as deleted for volume %s: %v", backup.VolumeUUID, err)
 			// Don't fail the entire backup deletion if history update fails
+		}
+		// Last backup removed: stop cross-region backup transfer-bytes billing for the volume.
+		// Best-effort: use a local error so a cleanup failure does not roll back the deletion.
+		if ledgerErr := deleteCrossRegionBackupTransferBillingLedger(ctx, tx, backup.VolumeUUID); ledgerErr != nil {
+			util.GetLogger(ctx).Warnf("Ledger: Failed to delete cross-region backup transfer billing ledger for volume %s: %v", backup.VolumeUUID, ledgerErr)
 		}
 	} else if backup.BackupVault != nil && backup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject && backup.Attributes != nil {
 		endpointUUID := backup.Attributes.EndpointUUID

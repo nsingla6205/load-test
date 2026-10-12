@@ -6,6 +6,7 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"gorm.io/gorm"
 )
@@ -640,5 +641,10 @@ type (
 
 		GetMultipleVolumesWithExpertMode(ctx context.Context, conditions [][]interface{}) ([]*datamodel.ExpertModeVolumes, error)
 		ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error)
+
+		// BillingLedger operations
+		CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error)
+		GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error)
+		DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error
 	}
 )

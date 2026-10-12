@@ -406,6 +406,13 @@ func (j *PoolActivity) FailedPool(ctx context.Context, pool *datamodel.Pool, err
 	if err := FailedNodes(ctx, se, pool); err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+
+	// Record a billing ledger entry for the errored pool with its allocated size.
+	billingActivity := &BillingActivity{SE: se}
+	if err := billingActivity.CreatePoolBillingLedger(ctx, pool); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
 	return nil
 }
 
@@ -435,6 +442,13 @@ func (j *PoolActivity) FailedPoolActivity(ctx context.Context, pool *datamodel.P
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+
+	// Record a billing ledger entry for the errored pool with its allocated size.
+	billingActivity := &BillingActivity{SE: se}
+	if err := billingActivity.CreatePoolBillingLedger(ctx, pool); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
 	return nil
 }
 
@@ -586,6 +600,14 @@ func (j *PoolActivity) ErroredPool(ctx context.Context, pool *datamodel.Pool, er
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	dbPool := res.(*datamodel.Pool)
+
+	// Record a billing ledger entry for the errored pool with its allocated size.
+	activity.RecordHeartbeat(ctx, "Ledger: Creating billing ledger entry for errored pool")
+	billingActivity := &BillingActivity{SE: se}
+	if err := billingActivity.CreatePoolBillingLedger(ctx, dbPool); err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
 	activity.RecordHeartbeat(ctx, "Finished ErroredPool activity")
 	return dbPool, nil
 }

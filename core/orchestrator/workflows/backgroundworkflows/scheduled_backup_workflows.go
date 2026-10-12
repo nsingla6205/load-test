@@ -732,6 +732,16 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		logger.Error("Failed to update backup size fields for volume", "volumeName", volume.Name, "error", err)
 	}
 
+	// Record the cross-region backup transfer-bytes billing ledger entry now that the transfer is
+	// complete. All backup records in this run (daily/weekly/monthly) share a single snapmirror
+	// transfer and therefore the same TotalTransferBytes, so bill it once using a representative
+	// backup to avoid double-counting. No-op for in-region backups; best-effort so a ledger failure
+	// never fails the scheduled backup workflow.
+	billingActivity := &activities.BillingActivity{}
+	if ledgerErr := workflow.ExecuteActivity(ctx, billingActivity.CreateCrossRegionBackupTransferBillingLedger, backup).Get(ctx, nil); ledgerErr != nil {
+		wf.Logger.Errorf("Ledger: Failed to create cross-region backup transfer billing ledger for volume %s: %v", volume.UUID, ledgerErr)
+	}
+
 	// Create remote backups from VCP if this is a cross-region backup
 	// This is done after UpdateBackupSize to ensure all backup fields are set
 	err = workflow.ExecuteActivity(ctx, scheduledBackupActivities.CreateRemoteScheduledBackupsFromVCPActivity, scheduledBackupContext.BackupWorkflowInit.BackupVault, backups, volume, volume.Account.Name).Get(ctx, nil)

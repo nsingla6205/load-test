@@ -14,6 +14,7 @@ import (
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"gorm.io/gorm"
 )
@@ -449,6 +450,78 @@ func TestDeleteBackup_BackupChainHistory(t *testing.T) {
 		assert.NoError(tt, err) // Should not fail even if history update fails
 		assert.Equal(tt, backup.UUID, result.UUID)
 		assert.Equal(tt, datamodel.LifeCycleStateDeleted, result.State)
+	})
+}
+
+func TestDeleteBackup_CrossRegionBackupTransferBillingLedger(t *testing.T) {
+	newCRBLedger := func(volumeUUID string) *datamodel.BillingLedger {
+		return &datamodel.BillingLedger{
+			BaseModel:    datamodel.BaseModel{UUID: "crb-ledger-uuid"},
+			ResourceName: "test-volume",
+			ResourceUUID: volumeUUID,
+			ResourceType: metadata.Backup,
+			MeasuredType: metadata.CbsCrossRegionVolumeBackupTransferBytes,
+			Quantity:     5000,
+			ConsumerID:   "account-123",
+		}
+	}
+
+	t.Run("DeletesCRBLedgerWhenLastBackup", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		volumeUUID := "test-volume-uuid"
+		assert.NoError(tt, store.db.Create(newCRBLedger(volumeUUID)).Error())
+
+		backup := &datamodel.Backup{
+			BaseModel:  datamodel.BaseModel{UUID: "test-backup-uuid"},
+			VolumeUUID: volumeUUID,
+			State:      datamodel.LifeCycleStateAvailable,
+		}
+		assert.NoError(tt, store.db.Create(backup).Error())
+
+		_, err = store.DeleteBackup(context.Background(), backup.UUID)
+		assert.NoError(tt, err)
+
+		// CRB ledger entry should now be soft-deleted
+		var ledger datamodel.BillingLedger
+		err = store.db.GORM().Unscoped().First(&ledger, "uuid = ?", "crb-ledger-uuid").Error
+		assert.NoError(tt, err)
+		assert.NotNil(tt, ledger.DeletedAt)
+	})
+
+	t.Run("RetainsCRBLedgerWhenOtherBackupsExist", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		volumeUUID := "test-volume-uuid"
+		assert.NoError(tt, store.db.Create(newCRBLedger(volumeUUID)).Error())
+
+		backup1 := &datamodel.Backup{
+			BaseModel:  datamodel.BaseModel{UUID: "backup-1-uuid"},
+			VolumeUUID: volumeUUID,
+			State:      datamodel.LifeCycleStateAvailable,
+		}
+		backup2 := &datamodel.Backup{
+			BaseModel:  datamodel.BaseModel{UUID: "backup-2-uuid"},
+			VolumeUUID: volumeUUID,
+			State:      datamodel.LifeCycleStateAvailable,
+		}
+		assert.NoError(tt, store.db.Create(backup1).Error())
+		assert.NoError(tt, store.db.Create(backup2).Error())
+
+		_, err = store.DeleteBackup(context.Background(), backup1.UUID)
+		assert.NoError(tt, err)
+
+		// CRB ledger entry should still be active (other backup remains)
+		var ledger datamodel.BillingLedger
+		err = store.db.GORM().Unscoped().First(&ledger, "uuid = ?", "crb-ledger-uuid").Error
+		assert.NoError(tt, err)
+		assert.Nil(tt, ledger.DeletedAt)
 	})
 }
 

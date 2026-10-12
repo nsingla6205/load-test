@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"gorm.io/gorm"
 )
@@ -1833,4 +1834,15 @@ type IPRange struct {
 	AccountName    string        `json:"accountName" gorm:"-"`
 	LifType        string        `json:"lifType" gorm:"default:'dataLIF'"`
 	AddressRangeID sql.NullInt64 `json:"-" gorm:"index"`
+}
+
+type BillingLedger struct {
+	BaseModel
+	ResourceName   string                `gorm:"column:resource_name;type:text" json:"resource_name"`
+	Quantity       float64               `gorm:"column:quantity;not null" json:"quantity"`
+	ResourceUUID   string                `gorm:"column:resource_uuid;size:255" json:"resource_uuid"`
+	ConsumerID     string                `gorm:"column:consumer_id;type:text" json:"consumer_id"`
+	DeploymentName string                `gorm:"column:deployment_name;type:text" json:"deployment_name"`
+	MeasuredType   metadata.MeasuredType `gorm:"column:measured_type;not null;index" json:"measured_type"`
+	ResourceType   metadata.ResourceType `gorm:"column:resource_type;not null;index" json:"resource_type"`
 }

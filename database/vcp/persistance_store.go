@@ -14,6 +14,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	dblogger "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/logger"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -2368,4 +2369,18 @@ func (s *PersistenceStore) ListNodeGroupsWithPollerCounts(ctx context.Context) (
 
 func (s *PersistenceStore) ListNodeNodeGroupMapsByNodeGroupID(ctx context.Context, nodeGroupID int64) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
+}
+
+// BillingLedger methods
+
+func (s *PersistenceStore) CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error) {
+	return s.dataStore.CreateBillingLedger(ctx, ledger)
+}
+
+func (s *PersistenceStore) GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error) {
+	return s.dataStore.GetBillingLedgersByResourceUUID(ctx, resourceUUID)
+}
+
+func (s *PersistenceStore) DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
+	return s.dataStore.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)
 }
