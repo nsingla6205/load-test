@@ -44,8 +44,8 @@ otel:
   configMap:
     create: true
   image:
-    repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-open-telemetry-images/opentelemetry-collector-contrib
-    tag: "0.118.0"
+    repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-open-telemetry-images/vcp-open-telemetry
+    tag: "2.1.3"
     pullPolicy: IfNotPresent
   # Optional fallback; per-sample destination is tenant_project → gcp.project.id.
   # Leave empty to let the exporter resolve the project from pod credentials.
