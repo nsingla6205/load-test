@@ -68,7 +68,7 @@ func (va VolumeDeleteActivity) DeleteVolume(ctx context.Context, volume *datamod
 	se := va.SE
 	recordHeartbeat(ctx, "Starting DeleteVolume activity")
 
-	_, err := se.DeleteVolume(ctx, volume.UUID)
+	_, err := se.DeleteVolumeAndChildResources(ctx, volume.UUID)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) {
 			return nil

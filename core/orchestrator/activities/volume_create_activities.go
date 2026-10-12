@@ -844,7 +844,7 @@ func (a VolumeCreateActivity) GetVolumeByVolumeID(ctx context.Context, volumeID 
 func (a VolumeCreateActivity) deleteVolumeOnPoolValidationFailure(ctx context.Context, volumeUUID string, err error) error {
 	if volumeUUID != "" {
 		recordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s after pool validation failure", volumeUUID))
-		if _, delErr := a.SE.DeleteVolume(ctx, volumeUUID); delErr != nil {
+		if _, delErr := a.SE.DeleteVolumeAndChildResources(ctx, volumeUUID); delErr != nil {
 			util.GetLogger(ctx).Errorf("Failed to delete volume %s on pool validation failure: %v", volumeUUID, delErr)
 		}
 	}

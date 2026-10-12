@@ -839,21 +839,31 @@ func (_c *MockDataStore_BatchGetWronglyDeletedSnapshots_Call) RunAndReturn(run f
 }
 
 // BatchUnDeleteSnapshots provides a mock function with given fields: ctx, snapshots
-func (_m *MockDataStore) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error {
+func (_m *MockDataStore) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	ret := _m.Called(ctx, snapshots)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BatchUnDeleteSnapshots")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*datamodel.Snapshot) error); ok {
+	var r0 []*datamodel.Snapshot
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*datamodel.Snapshot) ([]*datamodel.Snapshot, error)); ok {
+		return rf(ctx, snapshots)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []*datamodel.Snapshot) []*datamodel.Snapshot); ok {
 		r0 = rf(ctx, snapshots)
-	} else {
-		r0 = ret.Error(0)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.Snapshot)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, []*datamodel.Snapshot) error); ok {
+		r1 = rf(ctx, snapshots)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockDataStore_BatchUnDeleteSnapshots_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BatchUnDeleteSnapshots'
@@ -875,12 +885,12 @@ func (_c *MockDataStore_BatchUnDeleteSnapshots_Call) Run(run func(ctx context.Co
 	return _c
 }
 
-func (_c *MockDataStore_BatchUnDeleteSnapshots_Call) Return(_a0 error) *MockDataStore_BatchUnDeleteSnapshots_Call {
-	_c.Call.Return(_a0)
+func (_c *MockDataStore_BatchUnDeleteSnapshots_Call) Return(_a0 []*datamodel.Snapshot, _a1 error) *MockDataStore_BatchUnDeleteSnapshots_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockDataStore_BatchUnDeleteSnapshots_Call) RunAndReturn(run func(context.Context, []*datamodel.Snapshot) error) *MockDataStore_BatchUnDeleteSnapshots_Call {
+func (_c *MockDataStore_BatchUnDeleteSnapshots_Call) RunAndReturn(run func(context.Context, []*datamodel.Snapshot) ([]*datamodel.Snapshot, error)) *MockDataStore_BatchUnDeleteSnapshots_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -5838,65 +5848,6 @@ func (_c *MockDataStore_DeleteSnapshot_Call) Return(_a0 *datamodel.Snapshot, _a1
 }
 
 func (_c *MockDataStore_DeleteSnapshot_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Snapshot, error)) *MockDataStore_DeleteSnapshot_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// DeleteVolume provides a mock function with given fields: ctx, id
-func (_m *MockDataStore) DeleteVolume(ctx context.Context, id string) (*datamodel.Volume, error) {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteVolume")
-	}
-
-	var r0 *datamodel.Volume
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Volume, error)); ok {
-		return rf(ctx, id)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Volume); ok {
-		r0 = rf(ctx, id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Volume)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_DeleteVolume_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteVolume'
-type MockDataStore_DeleteVolume_Call struct {
-	*mock.Call
-}
-
-// DeleteVolume is a helper method to define mock.On call
-//   - ctx context.Context
-//   - id string
-func (_e *MockDataStore_Expecter) DeleteVolume(ctx interface{}, id interface{}) *MockDataStore_DeleteVolume_Call {
-	return &MockDataStore_DeleteVolume_Call{Call: _e.mock.On("DeleteVolume", ctx, id)}
-}
-
-func (_c *MockDataStore_DeleteVolume_Call) Run(run func(ctx context.Context, id string)) *MockDataStore_DeleteVolume_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_DeleteVolume_Call) Return(_a0 *datamodel.Volume, _a1 error) *MockDataStore_DeleteVolume_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_DeleteVolume_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Volume, error)) *MockDataStore_DeleteVolume_Call {
 	_c.Call.Return(run)
 	return _c
 }

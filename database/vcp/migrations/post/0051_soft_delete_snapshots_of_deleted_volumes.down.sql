@@ -1,0 +1,1 @@
+-- No-op: the soft-deleted snapshots are not restored.

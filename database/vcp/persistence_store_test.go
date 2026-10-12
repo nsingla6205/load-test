@@ -427,7 +427,7 @@ func TestUpdateVolume_Persistence_Store(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDeleteVolume_Persistence_Store(t *testing.T) {
+func TestDeleteVolumeAndChildResources_Persistence_Store(t *testing.T) {
 	logger := log.NewLogger()
 	store, _ := SetupStorageForTest(logger)
 	ctx := context.Background()
@@ -443,7 +443,7 @@ func TestDeleteVolume_Persistence_Store(t *testing.T) {
 	}
 	created, err := store.CreateVolume(ctx, vol)
 	assert.NoError(t, err)
-	_, err = store.DeleteVolume(ctx, created.UUID)
+	_, err = store.DeleteVolumeAndChildResources(ctx, created.UUID)
 	assert.NoError(t, err)
 }
 
@@ -790,7 +790,9 @@ func TestCreatingSnapshot_Persistence_Store(t *testing.T) {
 	store, _ := SetupStorageForTest(logger)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
-	snap := &datamodel.Snapshot{Name: "snap1"}
+	vol := &datamodel.Volume{Name: "snap1-vol", State: datamodel.LifeCycleStateREADY}
+	assert.NoError(t, store.DB().Create(vol).Error)
+	snap := &datamodel.Snapshot{Name: "snap1", VolumeID: vol.ID}
 	created, err := store.CreatingSnapshot(ctx, snap)
 	assert.NoError(t, err)
 	assert.NotNil(t, created)
@@ -802,7 +804,9 @@ func TestUpdateSnapshot_Persistence_Store(t *testing.T) {
 	store, _ := SetupStorageForTest(logger)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
-	snap := &datamodel.Snapshot{Name: "snap2"}
+	vol := &datamodel.Volume{Name: "snap2-vol", State: datamodel.LifeCycleStateREADY}
+	assert.NoError(t, store.DB().Create(vol).Error)
+	snap := &datamodel.Snapshot{Name: "snap2", VolumeID: vol.ID}
 	created, err := store.CreatingSnapshot(ctx, snap)
 	assert.NoError(t, err)
 	created.Name = "snap2-updated"
@@ -818,7 +822,9 @@ func TestGetSnapshot_Persistence_Store(t *testing.T) {
 	store, _ := SetupStorageForTest(logger)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
-	snap := &datamodel.Snapshot{Name: "snap3"}
+	vol := &datamodel.Volume{Name: "snap3-vol", State: datamodel.LifeCycleStateREADY}
+	assert.NoError(t, store.DB().Create(vol).Error)
+	snap := &datamodel.Snapshot{Name: "snap3", VolumeID: vol.ID}
 	created, err := store.CreatingSnapshot(ctx, snap)
 	assert.NoError(t, err)
 	found, err := store.GetSnapshotByUUID(ctx, created.UUID, 0, 0)
@@ -2532,11 +2538,11 @@ func TestBatchUnDeleteSnapshots_Persistence_Store(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test batch undelete
-	err = store.BatchUnDeleteSnapshots(ctx, snapshots)
+	_, err = store.BatchUnDeleteSnapshots(ctx, snapshots)
 	assert.NoError(t, err)
 
 	// Test with empty snapshots slice
-	err = store.BatchUnDeleteSnapshots(ctx, []*datamodel.Snapshot{})
+	_, err = store.BatchUnDeleteSnapshots(ctx, []*datamodel.Snapshot{})
 	assert.NoError(t, err)
 }
 
@@ -2733,7 +2739,7 @@ func TestBatchSnapshotOperations_ErrorScenarios_Persistence_Store(t *testing.T) 
 				State:     datamodel.LifeCycleStateREADY,
 			},
 		}
-		err := store.BatchUnDeleteSnapshots(ctx, snapshots)
+		_, err := store.BatchUnDeleteSnapshots(ctx, snapshots)
 		// This should not error even if snapshot doesn't exist (0 rows affected)
 		assert.NoError(tt, err)
 	})

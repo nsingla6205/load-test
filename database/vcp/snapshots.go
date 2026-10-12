@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -12,30 +13,43 @@ import (
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var deleteSnapshot = _deleteSnapshot
 
-func (d *DataStoreRepository) CreatingSnapshot(ctx context.Context, snapshot *datamodel.Snapshot) (*datamodel.Snapshot, error) {
+func (d *DataStoreRepository) CreatingSnapshot(ctx context.Context, snapshot *datamodel.Snapshot) (_ *datamodel.Snapshot, err error) {
 	db := d.db.GORM().WithContext(ctx)
 	logger := util.GetLogger(ctx)
-	tx, err1 := startTransaction(db)
-	if err1 != nil {
-		return nil, err1
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
 	}
-	var err error
 	defer commitOrRollbackOnError(logger, tx, &err)
+
+	allowedByVolume, lockErr := lockVolumeAndCheckSnapshotWrite(tx, []int64{snapshot.VolumeID})
+	if lockErr != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, lockErr)
+		return nil, err
+	}
+	if !allowedByVolume[snapshot.VolumeID] {
+		err = customerrors.NewConflictErr("volume is missing, deleting, or deleted")
+		return nil, err
+	}
+
 	snapshotEntry := &datamodel.Snapshot{}
 
 	dbError := tx.Where("account_id = ?", snapshot.AccountID).Where("volume_id = ?", snapshot.VolumeID).Where("name = ?", snapshot.Name).First(&snapshotEntry).Error
 
 	if snapshotEntry.ID != 0 {
 		logger.Warnf("Snapshot with name %s already exists", snapshot.Name)
-		return nil, customerrors.NewConflictErr("Snapshot already exists")
+		err = customerrors.NewConflictErr("Snapshot already exists")
+		return nil, err
 	}
 	if dbError != nil && !errors.Is(dbError, gorm.ErrRecordNotFound) {
 		logger.Errorf("Snapshot create operation failed with error: %v", dbError)
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, dbError)
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, dbError)
+		return nil, err
 	}
 	snapshot.UUID = utils.RandomUUID()
 	snapshot.State = datamodel.LifeCycleStateCreating
@@ -47,7 +61,8 @@ func (d *DataStoreRepository) CreatingSnapshot(ctx context.Context, snapshot *da
 	err = tx.Create(snapshot).Error
 	if err != nil {
 		logger.Errorf("Snapshot create operation failed with error: %v", err)
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+		return nil, err
 	}
 	return snapshot, nil
 }
@@ -335,7 +350,7 @@ func (d *DataStoreRepository) GetSnapshotsByVolumeIDs(ctx context.Context, volum
 }
 
 // BatchCreateSnapshots adds all new snapshots that are passed as param and returns a list of snapshotUUIDs
-func (d *DataStoreRepository) BatchCreateSnapshots(ctx context.Context, newSnapshots []*datamodel.Snapshot, returnCreatedSnapshotUUIDs bool) ([]string, error) {
+func (d *DataStoreRepository) BatchCreateSnapshots(ctx context.Context, newSnapshots []*datamodel.Snapshot, returnCreatedSnapshotUUIDs bool) (_ []string, err error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -344,8 +359,21 @@ func (d *DataStoreRepository) BatchCreateSnapshots(ctx context.Context, newSnaps
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
+	snapshotWriteAllowedByVolumeID, err := lockVolumeAndCheckSnapshotWrite(tx, getUniqueSnapshotVolumeIDs(newSnapshots))
+	if err != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		return nil, err
+	}
+
 	var createdSnapshots []string
 	for _, snapshot := range newSnapshots {
+		if snapshot == nil {
+			continue
+		}
+		if !snapshotWriteAllowedByVolumeID[snapshot.VolumeID] {
+			logger.Info("skipping snapshot: volume not writable", "snapshotName", snapshot.Name, "volumeID", snapshot.VolumeID)
+			continue
+		}
 		snapshot.UUID = utils.RandomUUID()
 		snapshot.CreatedAt = time.Now()
 		snapshot.UpdatedAt = snapshot.CreatedAt
@@ -353,7 +381,8 @@ func (d *DataStoreRepository) BatchCreateSnapshots(ctx context.Context, newSnaps
 
 		if err = tx.Create(snapshot).Error; err != nil {
 			logger.Errorf("Batch snapshot create failed for %s: %v", snapshot.Name, err)
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+			return nil, err
 		}
 		if returnCreatedSnapshotUUIDs {
 			createdSnapshots = append(createdSnapshots, snapshot.UUID)
@@ -363,8 +392,9 @@ func (d *DataStoreRepository) BatchCreateSnapshots(ctx context.Context, newSnaps
 	return createdSnapshots, nil
 }
 
-// BatchUpdateSnapshots updates the state and state details of multiple snapshots in a single transaction
-func (d *DataStoreRepository) BatchUpdateSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error {
+// BatchUpdateSnapshots updates existing snapshot rows in one transaction.
+// The volume write guard is not used: this only updates existing rows, and snapshot sync does not set VolumeID.
+func (d *DataStoreRepository) BatchUpdateSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) (err error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -374,42 +404,121 @@ func (d *DataStoreRepository) BatchUpdateSnapshots(ctx context.Context, snapshot
 	defer commitOrRollbackOnError(logger, tx, &err)
 
 	for _, snapshot := range snapshots {
+		if snapshot == nil {
+			continue
+		}
 		snapshot.UpdatedAt = time.Now()
 		if err = tx.Model(&datamodel.Snapshot{}).
 			Where("uuid = ?", snapshot.UUID).
 			Updates(snapshot).Error; err != nil {
 			logger.Errorf("Batch snapshot update failed for %s: %v", snapshot.Name, err)
-			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+			return err
 		}
 	}
 
 	return nil
 }
 
-// BatchUnDeleteSnapshots restores multiple snapshots from a deleted state
-func (d *DataStoreRepository) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error {
-	db := d.db.Unscoped().GORM().WithContext(ctx)
+// BatchUnDeleteSnapshots restores snapshots with writable parent volumes and returns those restored.
+func (d *DataStoreRepository) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) (_ []*datamodel.Snapshot, err error) {
+	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
+	snapshotWriteAllowedByVolumeID, err := lockVolumeAndCheckSnapshotWrite(tx, getUniqueSnapshotVolumeIDs(snapshots))
+	if err != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		return nil, err
+	}
+
+	restored := make([]*datamodel.Snapshot, 0, len(snapshots))
 	for _, snapshot := range snapshots {
+		if snapshot == nil {
+			continue
+		}
+		if !snapshotWriteAllowedByVolumeID[snapshot.VolumeID] {
+			logger.Info("skipping snapshot restore: volume not writable", "snapshotName", snapshot.Name, "volumeID", snapshot.VolumeID)
+			continue
+		}
 		snapshot.State = datamodel.LifeCycleStateREADY
 		snapshot.StateDetails = datamodel.LifeCycleStateReadyDetails
 		snapshot.DeletedAt = &gorm.DeletedAt{}
 
-		if err = tx.Model(&datamodel.Snapshot{BaseModel: datamodel.BaseModel{UUID: snapshot.UUID}}).
+		result := tx.Unscoped().Model(&datamodel.Snapshot{BaseModel: datamodel.BaseModel{UUID: snapshot.UUID}}).
 			Where("uuid = ?", snapshot.UUID).
-			Updates(snapshot).Error; err != nil {
-			logger.Errorf("Batch snapshot undelete failed for %s: %v", snapshot.Name, err)
-			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+			Updates(snapshot)
+		if result.Error != nil {
+			logger.Error("Batch snapshot undelete failed", "snapshotName", snapshot.Name, "error", result.Error)
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+			return nil, err
 		}
+		if result.RowsAffected == 0 {
+			logger.Info("skipping snapshot restore: no row updated", "snapshotName", snapshot.Name)
+			continue
+		}
+		restored = append(restored, snapshot)
 	}
 
-	return nil
+	return restored, nil
+}
+
+// getUniqueSnapshotVolumeIDs returns the distinct volume ids from the snapshots, sorted ascending.
+func getUniqueSnapshotVolumeIDs(snapshots []*datamodel.Snapshot) []int64 {
+	seen := make(map[int64]struct{}, len(snapshots))
+	ids := make([]int64, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		if snapshot == nil {
+			continue
+		}
+		if _, ok := seen[snapshot.VolumeID]; ok {
+			continue
+		}
+		seen[snapshot.VolumeID] = struct{}{}
+		ids = append(ids, snapshot.VolumeID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// lockVolumeAndCheckSnapshotWrite locks volumes in id order and reports whether each is writable.
+// Missing, deleting, and deleted volumes are not writable.
+func lockVolumeAndCheckSnapshotWrite(tx *gorm.DB, volumeIDs []int64) (map[int64]bool, error) {
+	allowed := make(map[int64]bool, len(volumeIDs))
+	if len(volumeIDs) == 0 {
+		return allowed, nil
+	}
+
+	query := tx.Model(&datamodel.Volume{}).
+		Select("id", "state").
+		Where("id IN ?", volumeIDs).
+		Order("id")
+	if isPostgresDialect(tx) {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+
+	var volumes []datamodel.Volume
+	if err := query.Find(&volumes).Error; err != nil {
+		return nil, err
+	}
+
+	byID := make(map[int64]datamodel.Volume, len(volumes))
+	for _, volume := range volumes {
+		byID[volume.ID] = volume
+	}
+	for _, volumeID := range volumeIDs {
+		volume, ok := byID[volumeID]
+		if !ok || volume.State == datamodel.LifeCycleStateDeleting || volume.State == datamodel.LifeCycleStateDeleted {
+			allowed[volumeID] = false
+			continue
+		}
+		allowed[volumeID] = true
+	}
+	return allowed, nil
 }
 
 // BatchGetSnapshotsByUUIDs retrieves multiple snapshots by their UUIDs

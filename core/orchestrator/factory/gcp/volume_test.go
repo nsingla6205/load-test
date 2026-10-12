@@ -7840,7 +7840,7 @@ func Test_createVolume_WithAutoTieringPolicy(t *testing.T) {
 			Pool:      pool,
 			PoolID:    pool.ID,
 		}, nil)
-	mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 	mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors2.New("job create error"))
 
 	_, _, err := _createVolume(ctx, mockStorage, mockTemporal, params)
@@ -7922,7 +7922,7 @@ func Test_createVolume_WithAutoTieringPolicy_NilPolicyNotSet(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},
 			Account:   account, AccountID: account.ID, Pool: pool, PoolID: pool.ID,
 		}, nil)
-	mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 	mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors2.New("job create error"))
 
 	_, _, err := _createVolume(ctx, mockStorage, mockTemporal, params)
@@ -36436,7 +36436,7 @@ func TestCreateVolume_VpgHandling(t *testing.T) {
 			Pool:      pool,
 			PoolID:    pool.ID,
 		}, nil)
-		mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+		mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 		mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors2.New("job create error"))
 
 		_, _, err := _createVolume(ctx, mockStorage, mockTemporal, params)
@@ -36635,7 +36635,7 @@ func TestCreateVolume_VpgHandling(t *testing.T) {
 			Pool:      pool,
 			PoolID:    pool.ID,
 		}, nil)
-		mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+		mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 		mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors2.New("job create error"))
 
 		_, _, err := _createVolume(ctx, mockStorage, mockTemporal, params)

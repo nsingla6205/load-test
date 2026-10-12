@@ -121,7 +121,6 @@ type (
 		UpdateVolumeFields(ctx context.Context, volumeUUID string, updates map[string]interface{}) error
 		BatchUpdateVolumeFields(ctx context.Context, updates []datamodel.VolumeFieldUpdate) error
 		BatchUpdateVolumeTieringFields(ctx context.Context, updates map[string]datamodel.VolumeTieringUpdate) error
-		DeleteVolume(ctx context.Context, id string) (*datamodel.Volume, error)
 		DeleteVolumeAndChildResources(ctx context.Context, volumeUUID string) (*datamodel.Volume, error)
 		UpdateVolumeState(ctx context.Context, id string, state string, stateDetails string) (*datamodel.Volume, error)
 		ListVolumes(ctx context.Context, conditions [][]interface{}) ([]*datamodel.Volume, error)
@@ -301,7 +300,7 @@ type (
 		BatchDeleteSnapshots(ctx context.Context, snapshotIDs []int64) ([]*datamodel.Snapshot, error)
 		BatchCreateSnapshots(ctx context.Context, newSnapshots []*datamodel.Snapshot, returnCreatedSnapshotUUIDs bool) ([]string, error)
 		BatchUpdateSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error
-		BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error
+		BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error)
 		BatchGetSnapshotsByUUIDs(ctx context.Context, snapshotUUIDs []string) ([]*datamodel.Snapshot, error)
 		BatchGetWronglyDeletedSnapshots(ctx context.Context, snapshotExternalUUIDs []string) ([]*datamodel.Snapshot, error)
 		CreatingQuotaRule(ctx context.Context, quotaRule *datamodel.QuotaRule) (*datamodel.QuotaRule, error)

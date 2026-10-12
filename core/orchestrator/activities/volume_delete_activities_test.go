@@ -105,7 +105,7 @@ func TestDeleteVolume_Success(t *testing.T) {
 	volumeID := "test-volume-id"
 	expectedVolume := &datamodel.Volume{BaseModel: datamodel.BaseModel{ID: 10, UUID: volumeID}}
 
-	mockStorage.On("DeleteVolume", mock.Anything, volumeID).Return(expectedVolume, nil)
+	mockStorage.On("DeleteVolumeAndChildResources", mock.Anything, volumeID).Return(expectedVolume, nil)
 	mockStorage.On("DeleteSnapshot", mock.Anything, mock.Anything).Return(&datamodel.Snapshot{}, nil).Maybe()
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteVolume, expectedVolume)
@@ -129,7 +129,7 @@ func TestDeleteVolume_Success_VolumeAlreadyDeleted(t *testing.T) {
 	volumeID := "test-volume-id"
 	expectedVolume := &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volumeID}}
 
-	mockStorage.On("DeleteVolume", mock.Anything, volumeID).Return(nil, utilErrors.NewNotFoundErr("volume", nil))
+	mockStorage.On("DeleteVolumeAndChildResources", mock.Anything, volumeID).Return(nil, utilErrors.NewNotFoundErr("volume", nil))
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteVolume, expectedVolume)
@@ -151,7 +151,7 @@ func TestDeleteVolume_Failure(t *testing.T) {
 	volumeID := "test-volume-id"
 	expectedError := errors.New("volume not found")
 
-	mockStorage.On("DeleteVolume", mock.Anything, volumeID).Return(nil, expectedError)
+	mockStorage.On("DeleteVolumeAndChildResources", mock.Anything, volumeID).Return(nil, expectedError)
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteVolume, &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volumeID}})

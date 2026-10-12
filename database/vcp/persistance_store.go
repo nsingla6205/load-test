@@ -709,10 +709,6 @@ func (s *PersistenceStore) IsKmsConfigInUse(ctx context.Context, kmsConfigUUID s
 	return s.dataStore.IsKmsConfigInUse(ctx, kmsConfigUUID)
 }
 
-func (s *PersistenceStore) DeleteVolume(ctx context.Context, id string) (*datamodel.Volume, error) {
-	return s.dataStore.DeleteVolume(ctx, id)
-}
-
 func (s *PersistenceStore) DeleteVolumeAndChildResources(ctx context.Context, volumeUUID string) (*datamodel.Volume, error) {
 	return s.dataStore.DeleteVolumeAndChildResources(ctx, volumeUUID)
 }
@@ -1177,7 +1173,7 @@ func (s *PersistenceStore) BatchUpdateSnapshots(ctx context.Context, snapshots [
 	return s.dataStore.BatchUpdateSnapshots(ctx, snapshots)
 }
 
-func (s *PersistenceStore) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error {
+func (s *PersistenceStore) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	return s.dataStore.BatchUnDeleteSnapshots(ctx, snapshots)
 }
 

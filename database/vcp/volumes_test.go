@@ -515,6 +515,20 @@ func TestDeleteVolumeAndChildResources(t *testing.T) {
 		if !customerrors.IsNotFoundErr(err) {
 			tt.Errorf("Expected error %v, got %v", gorm.ErrRecordNotFound, err)
 		}
+
+		var activeSnapshots int64
+		err = store.db.GORM().Model(&datamodel.Snapshot{}).Where("volume_id = ?", volume.ID).Count(&activeSnapshots).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, int64(0), activeSnapshots)
+
+		uuids, err := store.BatchCreateSnapshots(context.Background(), []*datamodel.Snapshot{{
+			Name: "after-volume-delete", VolumeID: volume.ID, AccountID: account.ID, State: datamodel.LifeCycleStateREADY,
+		}}, true)
+		assert.NoError(tt, err)
+		assert.Empty(tt, uuids)
+		err = store.db.GORM().Model(&datamodel.Snapshot{}).Where("volume_id = ?", volume.ID).Count(&activeSnapshots).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, int64(0), activeSnapshots)
 	})
 	t.Run("WhenVolumeIsNotFound", func(tt *testing.T) {
 		db, err := SetupTestDB()
@@ -552,78 +566,61 @@ func TestDeleteVolumeAndChildResources(t *testing.T) {
 	})
 }
 
-func TestDeleteVolume(t *testing.T) {
-	t.Run("WhenVolumeIsDeletedSuccessfully", func(tt *testing.T) {
-		db, err := SetupTestDB()
-		assert.NoError(tt, err, "Failed to set up test database")
-		wrapper := gormwrapper.New(db)
-		store := NewDataStoreRepository(wrapper)
+func TestDeleteVolumeAndChildResources_PostgresForUpdate(t *testing.T) {
+	dbSQL, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
 
-		err = ClearInMemoryDB(store.db.GORM())
-		assert.NoError(tt, err, "Failed to clean up test database")
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM "volumes" .* FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "uuid"}).AddRow(int64(9), "vol-uuid"))
+	mock.ExpectRollback()
 
-		account := &datamodel.Account{
-			BaseModel: datamodel.BaseModel{
-				ID:   1,
-				UUID: "test-account-uuid",
-			},
-			Name: "test_account",
-		}
-		err = store.db.Create(account).Error()
-		if err != nil {
-			tt.Fatalf("Failed to create account: %v", err)
-		}
+	_, err = store.DeleteVolumeAndChildResources(context.Background(), "vol-uuid")
+	require.Error(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
-		pool := &datamodel.Pool{
-			Name:    "test_pool",
-			Account: account,
-		}
+func TestDeleteVolumeAndChildResources_MidTransactionErrorRollsBack(t *testing.T) {
+	dbSQL, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
 
-		err = store.db.Create(pool).Error()
-		if err != nil {
-			tt.Fatalf("Failed to create pool: %v", err)
-		}
+	// The volume row lock is held only until the transaction ends. A failure
+	// while deleting child snapshots must roll back, which releases FOR UPDATE.
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM "volumes" .* FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "uuid"}).AddRow(int64(9), "vol-uuid"))
+	mock.ExpectExec(`UPDATE "snapshots"`).WillReturnError(errors.New("snapshot update failed"))
+	mock.ExpectRollback()
 
-		volume := &datamodel.Volume{
-			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
-			Name:      "test_volume",
-			AccountID: account.ID,
-			Account:   account,
-			Pool:      pool,
-			PoolID:    pool.ID,
-		}
-		err = store.db.Create(volume).Error()
-		if err != nil {
-			tt.Fatalf("Failed to create volume: %v", err)
-		}
+	_, err = store.DeleteVolumeAndChildResources(context.Background(), "vol-uuid")
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	require.ErrorContains(t, customErr.OriginalErr, "snapshot update failed")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
-		deletedVolume, err := store.DeleteVolume(context.Background(), volume.UUID)
-		assert.NoError(tt, err, "Expected no error, got %v", err)
-		assert.Equal(tt, volume.Name, deletedVolume.Name, "Expected volume name %v, got %v", volume.Name, deletedVolume.Name)
-		assert.NotNil(tt, deletedVolume.DeletedAt, "Expected volume to be deleted, got %v", deletedVolume.DeletedAt)
-		assert.Equal(tt, datamodel.LifeCycleStateDeleted, deletedVolume.State, "Expected volume state %v, got %v", datamodel.LifeCycleStateDeleted, deletedVolume.State)
-		assert.Equal(tt, "", deletedVolume.StateDetails, "Expected volume state details %v, got %v", "", deletedVolume.StateDetails)
+func TestDeleteVolumeAndChildResources_LockReadError(t *testing.T) {
+	dbSQL, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
 
-		_, err = store.GetVolume(context.Background(), volume.UUID)
-		if !customerrors.IsNotFoundErr(err) {
-			tt.Errorf("Expected error %v, got %v", gorm.ErrRecordNotFound, err)
-		}
-	})
-	t.Run("WhenVolumeIsNotFound", func(tt *testing.T) {
-		db, err := SetupTestDB()
-		assert.NoError(tt, err, "Failed to set up test database")
-		wrapper := gormwrapper.New(db)
-		store := NewDataStoreRepository(wrapper)
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FOR UPDATE`).WillReturnError(errors.New("lock read failed"))
+	mock.ExpectRollback()
 
-		err = ClearInMemoryDB(store.db.GORM())
-		assert.NoError(tt, err, "Failed to clean up test database")
-
-		deletedVolume, err := store.DeleteVolume(context.Background(), "dummy")
-		assert.Nil(tt, deletedVolume, "Expected nil volume, got %v", deletedVolume)
-		if !customerrors.IsNotFoundErr(err) {
-			tt.Errorf("Expected error %v, got %v", gorm.ErrRecordNotFound, err)
-		}
-	})
+	_, err = store.DeleteVolumeAndChildResources(context.Background(), "vol-uuid")
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	require.ErrorContains(t, customErr.OriginalErr, "lock read failed")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateVolumeState(t *testing.T) {
@@ -1283,6 +1280,62 @@ func TestRevertedVolume(t *testing.T) {
 		assert.Error(tt, err, "Expected error for transaction failure")
 		assert.Contains(tt, err.Error(), "transaction start failed")
 	})
+}
+
+func TestRevertedVolume_RejectsDeletingOrDeletedVolume(t *testing.T) {
+	for _, state := range []string{datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeleted} {
+		t.Run(state, func(t *testing.T) {
+			dbSQL, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+			require.NoError(t, err)
+			store := NewDataStoreRepository(gormwrapper.New(gormDB))
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`FROM "volumes" .* FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "state"}).AddRow(int64(9), state))
+			mock.ExpectRollback()
+
+			_, err = store.RevertedVolume(context.Background(), &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{ID: 9, UUID: "vol-uuid"},
+				State:     datamodel.LifeCycleStateREADY,
+			}, &datamodel.Snapshot{
+				BaseModel: datamodel.BaseModel{UUID: "snap-uuid"},
+			})
+			require.Error(t, err)
+			var customErr *vsaerrors.CustomError
+			require.True(t, vsaerrors.As(err, &customErr))
+			require.Equal(t, vsaerrors.ErrResourceStateConflictError, customErr.TrackingID)
+			require.Equal(t, "Resource is in an invalid state for the requested operation", customErr.GetMessage())
+			_, httpCode := customErr.GetHttpCode()
+			require.Equal(t, 409, httpCode)
+			require.Equal(t, "volume is deleting or deleted", customErr.OriginalErr.Error())
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestRevertedVolume_PostgresLocksVolumeFirst(t *testing.T) {
+	dbSQL, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: dbSQL, PreferSimpleProtocol: true}), &gorm.Config{})
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM "volumes" .* FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "state"}).AddRow(int64(9), datamodel.LifeCycleStateREADY))
+	mock.ExpectQuery(`.*`).WillReturnError(errors.New("stop after volume lock"))
+	mock.ExpectRollback()
+
+	_, err = store.RevertedVolume(context.Background(), &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{ID: 9, UUID: "vol-uuid"},
+	}, &datamodel.Snapshot{
+		BaseModel: datamodel.BaseModel{UUID: "snap-uuid"},
+	})
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	require.ErrorContains(t, customErr.OriginalErr, "stop after volume lock")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRevertDeleteSnapshots(t *testing.T) {
@@ -6546,7 +6599,7 @@ func TestDeleteVolume_DereferencesVPG(t *testing.T) {
 		}
 		require.NoError(t, store.db.Create(volume).Error())
 
-		_, err = store.DeleteVolume(context.Background(), volume.UUID)
+		_, err = store.DeleteVolumeAndChildResources(context.Background(), volume.UUID)
 		require.NoError(t, err)
 
 		var deleted datamodel.Volume
@@ -6593,7 +6646,7 @@ func TestDeleteVolume_DereferencesVPG(t *testing.T) {
 		}
 		require.NoError(t, store.db.Create(volume).Error())
 
-		_, err = store.DeleteVolume(context.Background(), volume.UUID)
+		_, err = store.DeleteVolumeAndChildResources(context.Background(), volume.UUID)
 		require.NoError(t, err)
 
 		var deleted datamodel.Volume

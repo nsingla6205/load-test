@@ -1040,22 +1040,6 @@ func (re *retryEngine) BatchUpdateVolumeTieringFields(ctx context.Context, updat
 	return err
 }
 
-func (re *retryEngine) DeleteVolume(ctx context.Context, id string) (*datamodel.Volume, error) {
-	var var0 *datamodel.Volume
-	err := retry.Do(func(attempt int) (bool, error) {
-		var err error
-		var0, err = re.dataStore.DeleteVolume(ctx, id)
-		if err != nil {
-			re.logError("DeleteVolume", err)
-			if !dbutils.IsTransientErr(err) {
-				return false, err
-			}
-		}
-		return true, err
-	})
-	return var0, err
-}
-
 func (re *retryEngine) DeleteVolumeAndChildResources(ctx context.Context, volumeUUID string) (*datamodel.Volume, error) {
 	var var0 *datamodel.Volume
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -3516,10 +3500,11 @@ func (re *retryEngine) BatchUpdateSnapshots(ctx context.Context, snapshots []*da
 	return err
 }
 
-func (re *retryEngine) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error {
+func (re *retryEngine) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
+	var var0 []*datamodel.Snapshot
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		err = re.dataStore.BatchUnDeleteSnapshots(ctx, snapshots)
+		var0, err = re.dataStore.BatchUnDeleteSnapshots(ctx, snapshots)
 		if err != nil {
 			re.logError("BatchUnDeleteSnapshots", err)
 			if !dbutils.IsTransientErr(err) {
@@ -3528,7 +3513,7 @@ func (re *retryEngine) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*
 		}
 		return true, err
 	})
-	return err
+	return var0, err
 }
 
 func (re *retryEngine) BatchGetSnapshotsByUUIDs(ctx context.Context, snapshotUUIDs []string) ([]*datamodel.Snapshot, error) {

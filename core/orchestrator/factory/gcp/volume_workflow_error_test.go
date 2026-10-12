@@ -98,7 +98,7 @@ func TestCreateVolume_JobUpdateOnWorkflowFailure(t *testing.T) {
 			Pool:      &pool.Pool,
 			PoolID:    pool.ID,
 		}, nil)
-		mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+		mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 
 		// Mock workflow failure
@@ -449,7 +449,7 @@ func TestCreateVolume_FailedVolumeDeleteOnError(t *testing.T) {
 			Pool:      &pool.Pool,
 			PoolID:    pool.ID,
 		}, nil)
-		mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+		mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 
 		// Mock workflow failure
@@ -547,7 +547,7 @@ func TestCreateVolume_FailedJobUpdateOnError(t *testing.T) {
 			Pool:      &pool.Pool,
 			PoolID:    pool.ID,
 		}, nil)
-		mockStorage.On("DeleteVolume", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
+		mockStorage.On("DeleteVolumeAndChildResources", ctx, "volume-uuid").Return(&datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: "volume-uuid"}}, nil)
 		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
 
 		// Mock workflow failure

@@ -116,7 +116,7 @@ func TestValidatePoolStateForVolumeCreate_PoolInDeletingState_ReturnsError(t *te
 	volumeUUID := "vol-uuid"
 
 	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
-	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
 
@@ -155,13 +155,13 @@ func TestValidatePoolStateForVolumeCreate_DeletingState_EmptyVolumeUUID_DoesNotC
 	poolView := &datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1, State: datamodel.LifeCycleStateDeleting}}
 
 	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
-	// DeleteVolume must not be called when volumeUUID is empty
+	// DeleteVolumeAndChildResources must not be called when volumeUUID is empty
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "")
 
 	assert.Error(t, err)
 	mockStorage.AssertExpectations(t)
-	mockStorage.AssertNotCalled(t, "DeleteVolume")
+	mockStorage.AssertNotCalled(t, "DeleteVolumeAndChildResources")
 }
 
 func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeletesVolumeAndReturnsNonRetryableError(t *testing.T) {
@@ -172,7 +172,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeletesVo
 	volumeUUID := "vol-uuid"
 
 	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
-	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
 
@@ -198,7 +198,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsErrPoolNotFound_DeletesV
 	poolNotFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found"))
 
 	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, poolNotFoundErr)
-	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
 
@@ -226,7 +226,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_EmptyVolu
 
 	assert.Error(t, err)
 	mockStorage.AssertExpectations(t)
-	mockStorage.AssertNotCalled(t, "DeleteVolume")
+	mockStorage.AssertNotCalled(t, "DeleteVolumeAndChildResources")
 }
 
 func TestValidatePoolStateForVolumeCreate_GetPoolReturnsOtherError_NoDelete_ReturnsWrappedError(t *testing.T) {
@@ -244,7 +244,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsOtherError_NoDelete_Retu
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, dbErr.Error())
 	mockStorage.AssertExpectations(t)
-	mockStorage.AssertNotCalled(t, "DeleteVolume")
+	mockStorage.AssertNotCalled(t, "DeleteVolumeAndChildResources")
 }
 
 func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeleteVolumeFails_StillReturnsValidationError(t *testing.T) {
@@ -255,7 +255,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeleteVol
 	volumeUUID := "vol-uuid"
 
 	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
-	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(nil, errors.New("delete failed")).Once()
+	mockStorage.On("DeleteVolumeAndChildResources", ctx, volumeUUID).Return(nil, errors.New("delete failed")).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
 

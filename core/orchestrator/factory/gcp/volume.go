@@ -550,7 +550,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 	defer func() {
 		if err != nil {
 			// Mark volume in deleted state
-			_, volumeDeleteErr := se.DeleteVolume(ctx, dbVolume.UUID)
+			_, volumeDeleteErr := se.DeleteVolumeAndChildResources(ctx, dbVolume.UUID)
 			if volumeDeleteErr != nil {
 				logger.Error("Failed to delete volume", "volume_id", dbVolume.UUID, "error", volumeDeleteErr)
 			}

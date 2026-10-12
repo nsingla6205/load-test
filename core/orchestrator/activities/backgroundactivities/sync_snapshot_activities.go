@@ -186,11 +186,12 @@ func _syncWronglyDeletedSnapshotsToDatabase(ctx context.Context, wronglyDeletedS
 		if len(snapshotsToUnDelete) == 0 {
 			continue
 		}
-		if err := se.BatchUnDeleteSnapshots(ctx, snapshotsToUnDelete); err != nil {
+		restored, err := se.BatchUnDeleteSnapshots(ctx, snapshotsToUnDelete)
+		if err != nil {
 			logger.Errorf("Failed to undelete snapshots: %v", err)
 			return nil, err
 		}
-		allUndeleted = append(allUndeleted, snapshotsToUnDelete...)
+		allUndeleted = append(allUndeleted, restored...)
 	}
 	return allUndeleted, nil
 }
@@ -620,6 +621,9 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 		dbVolumeMap = make(map[string]*datamodel.Volume, len(dbVolumes))
 	)
 	for _, v := range dbVolumes {
+		if v == nil || v.State == datamodel.LifeCycleStateDeleting || v.State == datamodel.LifeCycleStateDeleted {
+			continue
+		}
 		dbVolumeIDs = append(dbVolumeIDs, v.ID)
 		dbVolumeMap[v.VolumeAttributes.ExternalUUID] = v
 	}
@@ -925,6 +929,7 @@ func (a *SyncSnapshotActivity) processPoolSnapshotSync(ctx context.Context, pool
 		logger.Errorf("Failed split-regular volume CCFE hydration for pool %s: %v", pool.Name, err)
 		return fmt.Errorf("hydrateSplitRegularVolumesPendingCCFE Failed: %w", err)
 	}
+
 	logger.Infof("Successfully completed snapshot synchronization for pool: %s", poolIdentifier.Name)
 	return nil
 }

@@ -14,8 +14,10 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -145,6 +147,21 @@ func (d *DataStoreRepository) UpdateVolume(ctx context.Context, volume *datamode
 	return nil
 }
 
+// lockVolumeByID locks the volume row by id. On Postgres this is SELECT ... FOR UPDATE.
+func lockVolumeByID(tx *gorm.DB, volumeID int64, unscoped bool) (datamodel.Volume, error) {
+	query := tx.Model(&datamodel.Volume{})
+	if unscoped {
+		query = query.Unscoped()
+	}
+	query = query.Select("id", "state").Where("id = ?", volumeID)
+	if isPostgresDialect(tx) {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var volume datamodel.Volume
+	err := query.First(&volume).Error
+	return volume, err
+}
+
 func (d *DataStoreRepository) RevertedVolume(ctx context.Context, volume *datamodel.Volume, snapshot *datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
@@ -153,6 +170,19 @@ func (d *DataStoreRepository) RevertedVolume(ctx context.Context, volume *datamo
 	}
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
+
+	// Lock the volume row before updating its snapshots.
+	lockedVolume, err := lockVolumeByID(tx, volume.ID, true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("volume", nillable.GetPtr(fmt.Sprintf("%d", volume.ID))))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if lockedVolume.State == datamodel.LifeCycleStateDeleting || lockedVolume.State == datamodel.LifeCycleStateDeleted {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError, customerrors.NewConflictErr("volume is deleting or deleted"))
+		return nil, err
+	}
 
 	snapshots, err := revertDeleteSnapshots(ctx, tx, volume.ID, snapshot.UUID)
 	if err != nil {
@@ -386,18 +416,7 @@ func (d *DataStoreRepository) BatchUpdateVolumeTieringFields(ctx context.Context
 	return nil
 }
 
-func (d *DataStoreRepository) DeleteVolume(ctx context.Context, volumeUUID string) (*datamodel.Volume, error) {
-	db := d.db.GORM().WithContext(ctx)
-	tx, err := startTransaction(db)
-	if err != nil {
-		return nil, err
-	}
-	logger := util.GetLogger(ctx)
-	defer commitOrRollbackOnError(logger, tx, &err)
-	return deleteVolume(tx, volumeUUID)
-}
-
-func (d *DataStoreRepository) DeleteVolumeAndChildResources(ctx context.Context, volumeUUID string) (*datamodel.Volume, error) {
+func (d *DataStoreRepository) DeleteVolumeAndChildResources(ctx context.Context, volumeUUID string) (_ *datamodel.Volume, err error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -406,13 +425,21 @@ func (d *DataStoreRepository) DeleteVolumeAndChildResources(ctx context.Context,
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
-	volume, err := getVolumeWithDetails(tx, &datamodel.Volume{BaseModel: datamodel.BaseModel{UUID: volumeUUID}})
-	if err != nil {
-		return nil, err
+	// Lock the volume row for this transaction.
+	lockQuery := tx.Model(&datamodel.Volume{}).Where("uuid = ?", volumeUUID)
+	if isPostgresDialect(tx) {
+		lockQuery = lockQuery.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var locked datamodel.Volume
+	if err = lockQuery.First(&locked).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("volume", &volumeUUID))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 
-	// Mark associated snapshots as deleted
-	err = tx.Model(&datamodel.Snapshot{}).Where("volume_id = ?", volume.ID).Updates(
+	// Mark associated snapshots as deleted. locked already holds the volume row.
+	err = tx.Model(&datamodel.Snapshot{}).Where("volume_id = ?", locked.ID).Updates(
 		datamodel.Snapshot{
 			BaseModel: datamodel.BaseModel{
 				DeletedAt: &gorm.DeletedAt{Time: time.Now(), Valid: true},

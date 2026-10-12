@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	ontaprestmodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	orchcommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -169,7 +170,8 @@ func TestSyncWronglyDeletedSnapshotsToDatabase(t *testing.T) {
 		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
 			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
 		// Mock the batch undelete snapshots call
-		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(nil)
+		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(
+			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
 
 		_, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
 		assert.NoError(t, err)
@@ -241,7 +243,7 @@ func TestSyncWronglyDeletedSnapshotsToDatabase(t *testing.T) {
 		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
 			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
 		// Mock the batch undelete snapshots call to return error
-		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(errors.New("could not undelete snapshots"))
+		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(nil, errors.New("could not undelete snapshots"))
 
 		_, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
 		assert.Error(t, err)
@@ -881,10 +883,11 @@ func TestSyncSnapshotActivity_SyncWronglyDeletedSnapshotsToDatabase(t *testing.T
 	activity := SyncSnapshotActivity{SE: mockStorage}
 	wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid"}}
 	mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
-	mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.Anything).Return(nil)
+	restored := []*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{UUID: "restored-only"}}}
+	mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.Anything).Return(restored, nil)
 	result, err := activity.SyncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, wronglyDeletedSnapshotsMap)
 	assert.NoError(t, err)
-	assert.Len(t, result, 1)
+	assert.Equal(t, restored, result)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -1819,7 +1822,6 @@ func TestSyncSnapshotActivity_SyncSnapshotsForPoolBatchActivity_SuccessfulPool(t
 	mockStorage.On("GetPool", mock.Anything, "pool-1", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
 	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
-
 	// Mock provider
 	mockProvider := new(vsa.MockProvider)
 	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
@@ -1984,7 +1986,6 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_ProcessSnapshotsFails(t *t
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
 	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
-
 	// Mock provider
 	mockProvider := new(vsa.MockProvider)
 	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
@@ -2038,7 +2039,6 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_SuccessfulExecution(t *tes
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
 	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
-
 	// Mock provider
 	mockProvider := new(vsa.MockProvider)
 	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
@@ -2055,6 +2055,29 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_SuccessfulExecution(t *tes
 	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 	mockProvider.AssertExpectations(t)
+}
+
+func TestGetDBVolumeAndSnapshotsForPool_SkipsDeletingAndDeleted(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &SyncSnapshotActivity{SE: mockStorage}
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"}}
+	ready := &datamodel.Volume{
+		BaseModel:        datamodel.BaseModel{ID: 10},
+		State:            datamodel.LifeCycleStateREADY,
+		VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "ext-ready"},
+	}
+	deleting := &datamodel.Volume{BaseModel: datamodel.BaseModel{ID: 11}, State: datamodel.LifeCycleStateDeleting}
+	deleted := &datamodel.Volume{BaseModel: datamodel.BaseModel{ID: 12}, State: datamodel.LifeCycleStateDeleted}
+
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).
+		Return([]*datamodel.Volume{nil, deleting, deleted, ready}, nil)
+	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, []int64{10}).
+		Return([]*datamodel.Snapshot{}, nil)
+
+	result, err := activity.GetDBVolumeAndSnapshotsForPool(context.Background(), pool)
+	require.NoError(t, err)
+	require.Len(t, result.DBVolumeMap, 1)
+	assert.Equal(t, ready, result.DBVolumeMap["ext-ready"])
 }
 
 func TestGetOntapRestProviderForPoolFastConn(t *testing.T) {
