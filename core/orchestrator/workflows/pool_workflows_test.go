@@ -15792,6 +15792,77 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		_, exists := req.VLMConfig.Deployment.Labels["account_id"]
 		assert.False(t, exists, "account_id label should not be set when account is nil")
 	})
+
+	t.Run("AllowlistedAccount_UsesExperimentalImages", func(t *testing.T) {
+		testAccountID := "test-account-experimental-images"
+		originalExperimentalVSA := vsaExperimentalImageName
+		originalExperimentalMediator := experimentalMediatorImage
+		defer func() {
+			vsaExperimentalImageName = originalExperimentalVSA
+			experimentalMediatorImage = originalExperimentalMediator
+			utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+		}()
+		vsaExperimentalImageName = "experimental-vsa-image"
+		experimentalMediatorImage = "experimental-mediator-image"
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting(testAccountID)
+
+		vlmConfig := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Labels: make(map[string]string),
+				Images: vlm.ImageConfig{
+					VSAImageName:      "default-vsa-image",
+					MediatorImageName: "default-mediator-image",
+				},
+			},
+		}
+		pool := &datamodel.Pool{
+			Name:      "experimental-image-pool",
+			BaseModel: datamodel.BaseModel{UUID: "experimental-image-pool-uuid"},
+			Account:   &datamodel.Account{Name: testAccountID},
+		}
+		resolvedLocationInfo := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-2",
+			MediatorZone:  "mediator-zone",
+		}
+
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
+
+		assert.Equal(t, "experimental-vsa-image", req.VLMConfig.Deployment.Images.VSAImageName)
+		assert.Equal(t, "experimental-mediator-image", req.VLMConfig.Deployment.Images.MediatorImageName)
+	})
+
+	t.Run("FeatureFlagConfig_OverridesImages", func(t *testing.T) {
+		vlmConfig := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Labels: make(map[string]string),
+				Images: vlm.ImageConfig{
+					VSAImageName:      "default-vsa-image",
+					MediatorImageName: "default-mediator-image",
+				},
+			},
+		}
+		pool := &datamodel.Pool{
+			Name:      "feature-flag-image-pool",
+			BaseModel: datamodel.BaseModel{UUID: "feature-flag-image-pool-uuid"},
+			Account:   &datamodel.Account{Name: "feature-flag-account"},
+		}
+		resolvedLocationInfo := &common.LocationInfo{
+			PrimaryZone:   "zone-1",
+			SecondaryZone: "zone-2",
+			MediatorZone:  "mediator-zone",
+		}
+
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{
+			VSAImageName:         "feature-vsa-image",
+			VSAMediatorImageName: "feature-mediator-image",
+		})
+
+		assert.Equal(t, "feature-vsa-image", req.VLMConfig.Deployment.Images.VSAImageName)
+		assert.Equal(t, "feature-mediator-image", req.VLMConfig.Deployment.Images.MediatorImageName)
+	})
 }
 
 func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {

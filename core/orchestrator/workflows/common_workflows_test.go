@@ -1857,6 +1857,23 @@ func TestFetchAndSetAuthToken(t *testing.T) {
 		assert.True(tt, testEnv.IsWorkflowCompleted())
 		assert.Error(tt, testEnv.GetWorkflowError())
 	})
+
+	t.Run("WhenTokenFetchFailsAndLoggerNil_ThenReturnsError", func(tt *testing.T) {
+		originalIsLocalEnv := env.IsLocalEnv
+		defer func() { env.IsLocalEnv = originalIsLocalEnv }()
+		env.IsLocalEnv = func() bool { return false }
+
+		var ts testsuite.WorkflowTestSuite
+		testEnv := ts.NewTestWorkflowEnvironment()
+		testEnv.RegisterWorkflow(testFetchAndSetAuthTokenWorkflowNilLogger)
+		testEnv.RegisterActivity(&activities.CommonActivities{})
+		testEnv.OnActivity("GetAuthJWTToken", mock.Anything, "test-account").Return("", errors.New("token fetch failed"))
+
+		testEnv.ExecuteWorkflow(testFetchAndSetAuthTokenWorkflowNilLogger, "test-account")
+
+		assert.True(tt, testEnv.IsWorkflowCompleted())
+		assert.Error(tt, testEnv.GetWorkflowError())
+	})
 }
 
 // testFetchAndSetAuthTokenWorkflow is a test workflow that calls FetchAndSetAuthToken
@@ -1871,6 +1888,18 @@ func testFetchAndSetAuthTokenWorkflow(ctx workflow.Context, accountId string) er
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	_, err := FetchAndSetAuthToken(ctx, accountId, logger)
+	return err
+}
+
+func testFetchAndSetAuthTokenWorkflowNilLogger(ctx workflow.Context, accountId string) error {
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: 60 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			MaximumAttempts: 1,
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+	_, err := FetchAndSetAuthToken(ctx, accountId, nil)
 	return err
 }
 

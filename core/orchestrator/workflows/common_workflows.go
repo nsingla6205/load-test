@@ -497,7 +497,11 @@ func FetchAndSetAuthToken(ctx workflow.Context, accountName string, logger log.L
 	var token string
 	err := workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, accountName).Get(ctx, &token)
 	if err != nil {
-		logger.Errorf("Failed to get token for account %s: %v", accountName, err)
+		if logger != nil {
+			logger.Errorf("Failed to get token for account %s: %v", accountName, err)
+		} else {
+			workflow.GetLogger(ctx).Error("Failed to get token for account", "account", accountName, "error", err)
+		}
 		return ctx, err
 	}
 	return workflow.WithValue(ctx, middleware.AuthorizationToken, token), nil
