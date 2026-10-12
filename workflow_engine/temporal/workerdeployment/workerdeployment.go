@@ -4,11 +4,13 @@ package workerdeployment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 )
 
@@ -129,13 +131,18 @@ func PromoteBuild(ctx context.Context, wdc Client, deploymentName, buildID strin
 	return nil
 }
 
-// CurrentBuildID returns the Current Version build ID, or "" if unversioned / unset.
+// CurrentBuildID returns the Current Version build ID, or "" if unversioned, unset,
+// or the Worker Deployment does not exist yet.
 func CurrentBuildID(ctx context.Context, wdc Client, deploymentName string) (string, error) {
 	if strings.TrimSpace(deploymentName) == "" {
 		return "", fmt.Errorf("deployment name is required")
 	}
 	desc, err := wdc.GetHandle(deploymentName).Describe(ctx, client.WorkerDeploymentDescribeOptions{})
 	if err != nil {
+		var notFound *serviceerror.NotFound
+		if errors.As(err, &notFound) {
+			return "", nil
+		}
 		return "", fmt.Errorf("describe deployment %q: %w", deploymentName, err)
 	}
 	return currentVersionBuildID(desc.Info.RoutingConfig), nil

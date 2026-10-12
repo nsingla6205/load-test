@@ -180,9 +180,9 @@ vlmWorkerVersioning:
     temporalNamespace: "default"
     image:
       name: "vlm-worker-versioning-rollout"
-      tag: "vscp-7593-pin-two-scans"
+      tag: "vscp-7593-first-current"
       # Required when global.useTags is false (images resolve by digest).
-      digest: "sha256:ca457e41105613607218211d8a66213adca153cd7a632388d5f08e52baa7d8e6"
+      digest: "sha256:cb28db6880b5bb13a2196183109bdd47aa38c02fea1c443cea663e394ef2ae43"
       secondary: true
       pullPolicy: IfNotPresent
     resources:

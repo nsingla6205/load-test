@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -317,6 +318,16 @@ func TestWorkerDeploymentDescribeResults(t *testing.T) {
 	assert.False(t, drained)
 
 	require.NoError(t, DeleteBuild(context.Background(), wdc, "dep", "A"))
+}
+
+func TestCurrentBuildIDMissingDeployment(t *testing.T) {
+	t.Parallel()
+	h := &mockHandle{describeErr: &serviceerror.NotFound{Message: "Worker Deployment not found"}}
+	wdc := &mockWDC{handle: h}
+
+	current, err := CurrentBuildID(context.Background(), wdc, "vsa-lifecycle-manager-9-19-1P2")
+	require.NoError(t, err)
+	assert.Empty(t, current)
 }
 
 func TestWorkerDeploymentAPIErrors(t *testing.T) {
