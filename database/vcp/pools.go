@@ -1082,10 +1082,12 @@ func (d *DataStoreRepository) ListAllTpProjects(ctx context.Context) ([]string, 
 
 // PoolIdentifier contains pool identification information
 type PoolIdentifier struct {
-	UUID      string
-	VendorID  string
-	Name      string
-	AccountID int64
+	UUID           string
+	VendorID       string
+	Name           string
+	AccountID      int64
+	DeploymentName string
+	State          string
 }
 
 // PoolMetricsData contains only the fields required for metrics collection
@@ -1137,7 +1139,7 @@ func (d *DataStoreRepository) ListPoolUUIDs(ctx context.Context, filter *utils2.
 	}
 
 	var results []*PoolIdentifier
-	err := db.Model(&datamodel.Pool{}).Select("uuid, vendor_id, name, account_id").Find(&results).Error
+	err := db.Model(&datamodel.Pool{}).Select("uuid, vendor_id, name, account_id, deployment_name, state").Find(&results).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
@@ -1171,7 +1173,7 @@ func (d *DataStoreRepository) ListPoolUUIDsPaginated(ctx context.Context, filter
 	}
 
 	var results []*PoolIdentifier
-	err := db.Model(&datamodel.Pool{}).Select("uuid, vendor_id, name, account_id").Order("uuid").Find(&results).Error
+	err := db.Model(&datamodel.Pool{}).Select("uuid, vendor_id, name, account_id, deployment_name, state").Order("uuid").Find(&results).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}

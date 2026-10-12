@@ -2494,6 +2494,7 @@ func TestListPoolUUIDs(t *testing.T) {
 				AccountID:      account.ID,
 				VendorID:       "test-vendor-id-1",
 				DeploymentName: "deployment-1",
+				State:          datamodel.LifeCycleStateDegraded,
 			},
 			{
 				BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid-2"},
@@ -2501,6 +2502,7 @@ func TestListPoolUUIDs(t *testing.T) {
 				AccountID:      account.ID,
 				VendorID:       "test-vendor-id-2",
 				DeploymentName: "deployment-2",
+				State:          datamodel.LifeCycleStateREADY,
 			},
 		}
 
@@ -2532,6 +2534,8 @@ func TestListPoolUUIDs(t *testing.T) {
 				assert.Equal(tt, expected.VendorID, actual.VendorID)
 				assert.Equal(tt, expected.Name, actual.Name)
 				assert.Equal(tt, expected.AccountID, actual.AccountID)
+				assert.Equal(tt, expected.DeploymentName, actual.DeploymentName)
+				assert.Equal(tt, expected.State, actual.State)
 			}
 		}
 	})
@@ -2665,7 +2669,7 @@ func TestListPoolUUIDs(t *testing.T) {
 		store := NewDataStoreRepository(wrapper)
 
 		// Mock the query to return an error
-		mock.ExpectQuery("SELECT uuid, vendor_id, name, account_id FROM \"pools\"").
+		mock.ExpectQuery("SELECT uuid, vendor_id, name, account_id, deployment_name, state FROM \"pools\"").
 			WillReturnError(sql.ErrConnDone)
 
 		poolIds, err := store.ListPoolUUIDs(context.Background(), nil)

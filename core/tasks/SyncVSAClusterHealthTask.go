@@ -131,6 +131,8 @@ func _syncVSAClusterHealth(ctx context.Context, se database.Storage, correlation
 	}
 
 	logger.Infof("[SyncVSAClusterHealth] CorrelationID: %s - Found %d pools to process", correlationID, len(pools))
+	beginPoolDegradedRun(time.Now())
+	seedPoolDegradedGauge(pools)
 
 	inMemoTasksProcessor, err := inmemotasksprocessor.NewInMemoTasksProcessor(len(pools), len(pools))
 	if err != nil {
@@ -149,6 +151,8 @@ func _syncVSAClusterHealth(ctx context.Context, se database.Storage, correlation
 	}
 
 	inMemoTasksProcessor.Run()
+	prunePoolDegradedGauge(pools)
+	markPoolDegradedRunComplete(time.Now())
 	logger.Infof("[SyncVSAClusterHealth] CorrelationID: %s - Completed VSA Cluster Health Synchronization", correlationID)
 }
 
@@ -601,12 +605,14 @@ func updatePoolState(se database.Storage, poolIdentifier *database.PoolIdentifie
 	// This prevents race conditions where pool may have transitioned to DELETING, UPDATING, etc.
 	if poolState != datamodel.LifeCycleStateREADY && poolState != datamodel.LifeCycleStateDegraded {
 		logger.Infof("Skipping pool state update - pool %s is in state %s (not READY/DEGRADED)", poolIdentifier.UUID, poolState)
+		observePoolState(poolIdentifier, poolState)
 		return nil // Not an error, just skip the update
 	}
 
 	// Check if the new state is the same as current state to avoid unnecessary database updates
 	if poolState == newState {
 		logger.Infof("Skipping pool state update - pool %s is already in state %s", poolIdentifier.UUID, poolState)
+		observePoolState(poolIdentifier, poolState)
 		return nil
 	}
 
@@ -623,6 +629,7 @@ func updatePoolState(se database.Storage, poolIdentifier *database.PoolIdentifie
 	}
 
 	logger.Infof("Successfully updated pool %s state from %s to %s with details: %s", poolIdentifier.UUID, poolState, newState, stateDetails)
+	observePoolState(poolIdentifier, newState)
 	return nil
 }
 
