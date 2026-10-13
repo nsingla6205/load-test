@@ -11,7 +11,7 @@
         "widget": {
           "title": "Leaked Resources Dashboard",
           "text": {
-            "content": "**Metric**: `custom.googleapis.com/vcp.leaked_resources.count`  |  **Labels**: `resource_type`, `reason`, `project_id`, `region`, `resource_id`, `resource_name`\n\n**Resource types**: `pool` \u00b7 `volume` \u00b7 `snapshot` \u00b7 `internal_reserved_ip` \u00b7 `backup_vault` \u00b7 `vm` \u00b7 `disk`\n\n**Reasons by type**:\n- **Pool/BackupVault**: `in_vcp_not_in_ccfe` (VCP has record, CCFE does not)\n- **Volume**: `volume_orphan_pool_missing` (volume's parent pool is missing/deleted)\n- **Snapshot**: `snapshot_orphan_volume_missing` (snapshot's parent volume is missing/deleted)\n- **Internal Reserved IP**: `internal_reserved_ip_unassigned_capacity` (INTERNAL/RESERVED address with no users, older than min-age)\n- **VM**: `vm_orphan_pool_missing` (GCE VM's pool_uuid label doesn't match any active pool)\n- **Disk**: `disk_orphan_pool_missing` (GCE disk's pool_uuid label doesn't match any active pool)",
+            "content": "**Metric**: `custom.googleapis.com/vcp_leaked_resources_count`  |  **Labels**: `resource_type`, `reason`, `project_id`, `region`, `resource_id`, `resource_name`\n\n**Resource types**: `pool` \u00b7 `volume` \u00b7 `snapshot` \u00b7 `internal_reserved_ip` \u00b7 `backup_vault` \u00b7 `vm` \u00b7 `disk`\n\n**Reasons by type**:\n- **Pool/BackupVault**: `in_vcp_not_in_ccfe` (VCP has record, CCFE does not)\n- **Volume**: `volume_orphan_pool_missing` (volume's parent pool is missing/deleted)\n- **Snapshot**: `snapshot_orphan_volume_missing` (snapshot's parent volume is missing/deleted)\n- **Internal Reserved IP**: `internal_reserved_ip_unassigned_capacity` (INTERNAL/RESERVED address with no users, older than min-age)\n- **VM**: `vm_orphan_pool_missing` (GCE VM's pool_uuid label doesn't match any active pool)\n- **Disk**: `disk_orphan_pool_missing` (GCE disk's pool_uuid label doesn't match any active pool)",
             "format_": 1,
             "style": {
               "background_color": "#FFFFFF",
@@ -60,7 +60,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"success\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"success\"",
                 "aggregation": {
                   "alignment_period": "86400s",
                   "per_series_aligner": 1,
@@ -90,7 +90,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"error\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"error\"",
                 "aggregation": {
                   "alignment_period": "86400s",
                   "per_series_aligner": 1,
@@ -129,7 +129,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_monitoring_runs_total\" resource.type=\"k8s_cluster\"",
                     "aggregation": {
                       "alignment_period": "86400s",
                       "per_series_aligner": 1,
@@ -169,7 +169,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"partial_error\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_monitoring_runs_total\" resource.type=\"k8s_cluster\" metric.label.\"status\"=\"partial_error\"",
                 "aggregation": {
                   "alignment_period": "86400s",
                   "per_series_aligner": 1,
@@ -229,7 +229,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"pool\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"pool\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -279,7 +279,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -323,7 +323,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -367,7 +367,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -410,7 +410,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -455,7 +455,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"backup_vault\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"backup_vault\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -499,7 +499,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -544,7 +544,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"!=\"in_ccfe_not_in_vcp\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -614,7 +614,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -660,7 +660,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -697,7 +697,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"pool\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -760,7 +760,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -807,7 +807,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -849,7 +849,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -886,7 +886,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"vm\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -947,7 +947,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -994,7 +994,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1036,7 +1036,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1073,7 +1073,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"disk\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1134,7 +1134,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -1181,7 +1181,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1223,7 +1223,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1260,7 +1260,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"internal_reserved_ip\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1321,7 +1321,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -1368,7 +1368,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1410,7 +1410,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"volume\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1472,7 +1472,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
@@ -1519,7 +1519,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1561,7 +1561,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1598,7 +1598,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"resource_type\"=\"snapshot\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1661,7 +1661,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1698,7 +1698,7 @@
               {
                 "time_series_query": {
                   "time_series_filter": {
-                    "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                    "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
                     "aggregation": {
                       "alignment_period": "60s",
                       "per_series_aligner": 12,
@@ -1738,7 +1738,7 @@
           "scorecard": {
             "time_series_query": {
               "time_series_filter": {
-                "filter": "metric.type=\"custom.googleapis.com/vcp.leaked_resources.count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
+                "filter": "metric.type=\"custom.googleapis.com/vcp_leaked_resources_count\" resource.type=\"k8s_cluster\" metric.label.\"reason\"=\"in_vcp_not_in_ccfe\" metric.label.\"resource_type\"=\"backup_vault\"",
                 "aggregation": {
                   "alignment_period": "60s",
                   "per_series_aligner": 12,
