@@ -2520,10 +2520,16 @@ func fetchBackupVaultOrFallbackToRemoteVCP(ctx context.Context, se database.Stor
 			logger.Errorf("Error fetching backup vault from VCP DB: %v", err)
 			return nil, err
 		}
+		if errors.IsNotFoundErr(err) {
+			backupVault, err = findGCBDRDestinationBackupVault(ctx, se, pathInfo, backupPathAccount.ID)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if backupVault != nil {
-		logger.Infof("Found backup vault '%s' in VCP DB", pathInfo.VaultName)
+		logger.Infof("Found backup vault '%s' in VCP DB", backupVault.Name)
 		return backupVault, nil
 	}
 
@@ -2535,6 +2541,28 @@ func fetchBackupVaultOrFallbackToRemoteVCP(ctx context.Context, se database.Stor
 	// If not found in local VCP, fetch from remote VCP/SDE
 	logger.Infof("Backup vault '%s' not found in VCP, fetching from remote VCP/SDE", pathInfo.VaultName)
 	return FetchBackupVaultFromRemoteVCP(ctx, pathInfo, volume)
+}
+
+func findGCBDRDestinationBackupVault(ctx context.Context, se database.Storage, pathInfo *BackupPathInfo, accountID int64) (*datamodel.BackupVault, error) {
+	sourceVaultPathSuffix := fmt.Sprintf("%%/backupVaults/%s", pathInfo.VaultName)
+	conditions := [][]interface{}{
+		{"account_id = ?", accountID},
+		{"service_type = ?", datamodel.ServiceTypeCrossProject},
+		{"backup_vault_type = ?", datamodel.BackupVaultTypeCrossRegion},
+		{"cross_region_backup_vault_name LIKE ?", sourceVaultPathSuffix},
+	}
+	backupVaults, err := se.GetMultipleBackupVaults(ctx, conditions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve local GCBDR destination vault for source vault '%s': %w", pathInfo.VaultName, err)
+	}
+	if len(backupVaults) == 0 {
+		return nil, nil
+	}
+	if len(backupVaults) > 1 {
+		return nil, fmt.Errorf("found multiple GCBDR destination vaults for source vault '%s'", pathInfo.VaultName)
+	}
+
+	return backupVaults[0], nil
 }
 
 // rewriteGCBDRRemoteBackupPath replaces a GCBDR cross-region source vault name
@@ -2802,32 +2830,63 @@ func _fetchBackupVaultFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInf
 	logger.Infof("Remote VCP returned %d backup vaults in region %s, searching for '%s'",
 		len(backupVaults), backupRegion, pathInfo.VaultName)
 
-	// Search for the specific backup vault by ResourceId (name)
+	var aliasMatch *googleproxyclient.BackupVaultV1beta
 	for i, bv := range backupVaults {
 		recordHeartbeat(ctx, fmt.Sprintf("Inspecting remote backup vault %d of %d for restore", i+1, len(backupVaults)))
 		if bv.ResourceId == pathInfo.VaultName {
-			var backupVaultID string
-			if bv.BackupVaultId.IsSet() {
-				backupVaultID = bv.BackupVaultId.Value
-			}
-			logger.Infof("Found backup vault '%s' with ID '%s' in remote VCP region '%s'",
-				pathInfo.VaultName, backupVaultID, backupRegion)
-
-			// Convert directly from google-proxy-client format to datamodel format
-			bvModel, err := ConvertGoogleProxyBackupVaultToDatamodel(&bv, backupRegion)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert backup vault to data model: %w", err)
-			}
-
-			bvModel.AccountID = volume.AccountID
-			logger.Infof("Successfully fetched backup vault '%s' from remote VCP", pathInfo.VaultName)
-
-			return bvModel, nil
+			return backupVaultFromRemoteResponse(ctx, &bv, pathInfo, volume, backupRegion)
 		}
+		if remoteGCBDRVaultMatchesSourceAlias(bv, pathInfo) {
+			if aliasMatch != nil {
+				return nil, fmt.Errorf("found multiple GCBDR destination vaults for source vault '%s'", pathInfo.VaultName)
+			}
+			matched := bv
+			aliasMatch = &matched
+		}
+	}
+	if aliasMatch != nil {
+		logger.Infof("Resolved remote GCBDR source vault alias '%s' to destination vault '%s'",
+			pathInfo.VaultName, aliasMatch.ResourceId)
+		return backupVaultFromRemoteResponse(ctx, aliasMatch, pathInfo, volume, backupRegion)
 	}
 
 	logger.Warnf("Backup vault '%s' not found in remote VCP region '%s'", pathInfo.VaultName, backupRegion)
 	return nil, errors.NewNotFoundErr("Backup vault", &pathInfo.VaultName)
+}
+
+func remoteGCBDRVaultMatchesSourceAlias(bv googleproxyclient.BackupVaultV1beta, pathInfo *BackupPathInfo) bool {
+	if pathInfo == nil ||
+		!bv.CrossProjectVault.IsSet() || !bv.CrossProjectVault.Value ||
+		!bv.BackupVaultType.IsSet() || bv.BackupVaultType.Value != googleproxyclient.BackupVaultV1betaBackupVaultTypeCROSSREGION ||
+		!bv.SourceBackupVault.IsSet() {
+		return false
+	}
+
+	components := strings.Split(strings.Trim(strings.TrimSpace(bv.SourceBackupVault.Value), "/"), "/")
+	return len(components) == 6 &&
+		components[0] == "projects" &&
+		components[1] == pathInfo.ProjectName &&
+		components[2] == "locations" &&
+		components[4] == "backupVaults" &&
+		components[5] == pathInfo.VaultName
+}
+
+func backupVaultFromRemoteResponse(ctx context.Context, bv *googleproxyclient.BackupVaultV1beta, pathInfo *BackupPathInfo, volume *datamodel.Volume, backupRegion string) (*datamodel.BackupVault, error) {
+	logger := util.GetLogger(ctx)
+	var backupVaultID string
+	if bv.BackupVaultId.IsSet() {
+		backupVaultID = bv.BackupVaultId.Value
+	}
+	logger.Infof("Found backup vault '%s' with ID '%s' in remote VCP region '%s'",
+		bv.ResourceId, backupVaultID, backupRegion)
+
+	bvModel, err := ConvertGoogleProxyBackupVaultToDatamodel(bv, backupRegion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert backup vault to data model: %w", err)
+	}
+	bvModel.AccountID = volume.AccountID
+	logger.Infof("Successfully fetched backup vault '%s' from remote VCP", pathInfo.VaultName)
+	return bvModel, nil
 }
 
 // _fetchBackupOrFallbackToRemoteVCP fetches a backup from VCP database or remote VCP

@@ -12054,6 +12054,7 @@ func TestFetchBackupVaultMetadataForRestore(t *testing.T) {
 		mockStorage.On("GetAccount", ctx, "123456").Return(&datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "123456"}, nil)
 		// Mock database to return NotFoundErr
 		mockStorage.On("GetBackupVaultByNameAndOwnerID", ctx, "my-vault", "1").Return(nil, utilErrors.NewNotFoundErr("Backup vault", nil))
+		mockStorage.On("GetMultipleBackupVaults", ctx, mock.Anything).Return(nil, nil)
 
 		// Mock GetRemoteRegionConfig
 		originalGetRemoteRegionConfig := common.GetRemoteRegionConfig
@@ -12182,6 +12183,7 @@ func TestFetchBackupVaultMetadataForRestore(t *testing.T) {
 		mockStorage.On("GetAccount", ctx, "123456").Return(&datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "123456"}, nil)
 		// Mock database to return NotFoundErr
 		mockStorage.On("GetBackupVaultByNameAndOwnerID", ctx, "my-vault", "1").Return(nil, utilErrors.NewNotFoundErr("Backup vault", nil))
+		mockStorage.On("GetMultipleBackupVaults", ctx, mock.Anything).Return(nil, nil)
 
 		// Mock GetRemoteRegionConfig
 		originalGetRemoteRegionConfig := common.GetRemoteRegionConfig
@@ -12355,6 +12357,135 @@ func TestFetchBackupVaultMetadataForRestore(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, destinationVaultName, result.Name)
 		assert.Equal(t, remoteVaultID, result.UUID)
+		mockStorage.AssertExpectations(t)
+		mockInvoker.AssertExpectations(t)
+	})
+
+	t.Run("Success_GCBDRRestoreIntoBackupRegion_ResolvesSourceVaultAlias", func(t *testing.T) {
+		// Arrange
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+		const (
+			projectNumber        = "876699577579"
+			sourceVaultName      = "backupvault-f91af4e8-def0-40e8-9f15-6e198f6635ce"
+			destinationVaultName = "backupvault-f91af4e8-def0-40e8-9f15-6e198f6635-destination-4120"
+			backupName           = "d60ac806-afab-85f6-a521-07ff7a9252bd"
+		)
+		backupPath := fmt.Sprintf(
+			"projects/%s/locations/us-east4/backupVaults/%s/backups/%s",
+			projectNumber,
+			sourceVaultName,
+			backupName,
+		)
+		sourceVaultPath := fmt.Sprintf(
+			"projects/%s/locations/us-central1/backupVaults/%s",
+			projectNumber,
+			sourceVaultName,
+		)
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1073}, Name: projectNumber}
+		destinationVault := &datamodel.BackupVault{
+			BaseModel:                  datamodel.BaseModel{ID: 24447, UUID: "dea0ffa9-56cc-79f2-5d95-5662841024ed"},
+			Name:                       destinationVaultName,
+			AccountID:                  account.ID,
+			BackupVaultType:            datamodel.BackupVaultTypeCrossRegion,
+			ServiceType:                datamodel.ServiceTypeCrossProject,
+			CrossRegionBackupVaultName: nillable.GetStringPtr(sourceVaultPath),
+		}
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			Account:   account,
+			AccountID: account.ID,
+		}
+
+		mockStorage.On("GetAccount", ctx, projectNumber).Return(account, nil)
+		mockStorage.On("GetBackupVaultByNameAndOwnerID", ctx, sourceVaultName, "1073").
+			Return(nil, utilErrors.NewNotFoundErr("Backup vault", nil))
+		expectedConditions := [][]interface{}{
+			{"account_id = ?", account.ID},
+			{"service_type = ?", datamodel.ServiceTypeCrossProject},
+			{"backup_vault_type = ?", datamodel.BackupVaultTypeCrossRegion},
+			{"cross_region_backup_vault_name LIKE ?", "%/backupVaults/" + sourceVaultName},
+		}
+		mockStorage.On("GetMultipleBackupVaults", ctx, expectedConditions).
+			Return([]*datamodel.BackupVault{destinationVault}, nil)
+
+		// Act
+		result, err := activity.FetchBackupVaultMetadataForRestore(ctx, backupPath, volume, "us-east4")
+
+		// Assert
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, destinationVaultName, result.Name)
+		assert.Equal(t, destinationVault.UUID, result.UUID)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Success_GCBDRThirdRegionRestore_ResolvesRemoteSourceVaultAlias", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+		const (
+			projectNumber        = "876699577579"
+			sourceVaultName      = "backupvault-f91af4e8-def0-40e8-9f15-6e198f6635ce"
+			destinationVaultName = "backupvault-f91af4e8-def0-40e8-9f15-6e198f6635-destination-4120"
+			destinationVaultID   = "dea0ffa9-56cc-79f2-5d95-5662841024ed"
+			backupName           = "d60ac806-afab-85f6-a521-07ff7a9252bd"
+		)
+		backupPath := fmt.Sprintf(
+			"projects/%s/locations/us-east4/backupVaults/%s/backups/%s",
+			projectNumber,
+			sourceVaultName,
+			backupName,
+		)
+		sourceVaultPath := fmt.Sprintf(
+			"projects/%s/locations/us-central1/backupVaults/%s",
+			projectNumber,
+			sourceVaultName,
+		)
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1073}, Name: projectNumber}
+		volume := &datamodel.Volume{Account: account, AccountID: account.ID}
+
+		mockStorage.On("GetAccount", ctx, projectNumber).Return(account, nil)
+		mockStorage.On("GetBackupVaultByNameAndOwnerID", ctx, sourceVaultName, "1073").
+			Return(nil, utilErrors.NewNotFoundErr("Backup vault", nil))
+
+		originalGetRemoteRegionConfig := common.GetRemoteRegionConfig
+		t.Cleanup(func() {
+			common.GetRemoteRegionConfig = originalGetRemoteRegionConfig
+		})
+		common.GetRemoteRegionConfig = func(region, project string) (string, string, error) {
+			assert.Equal(t, "us-east4", region)
+			assert.Equal(t, projectNumber, project)
+			return "https://us-east4.example.com", "mock-jwt-token", nil
+		}
+
+		mockInvoker := googleproxyclient.NewMockInvoker(t)
+		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		t.Cleanup(func() {
+			googleproxyclient.GetGProxyClient = originalGetGProxyClient
+		})
+		googleproxyclient.GetGProxyClient = func(string, string, log.Logger) *googleproxyclient.ProxyClient {
+			return &googleproxyclient.ProxyClient{Invoker: mockInvoker}
+		}
+		mockInvoker.On("V1betaListBackupVaults", ctx, mock.Anything).Return(&googleproxyclient.V1betaListBackupVaultsOK{
+			BackupVaults: []googleproxyclient.BackupVaultV1beta{{
+				ResourceId:        destinationVaultName,
+				BackupVaultId:     googleproxyclient.NewOptString(destinationVaultID),
+				CrossProjectVault: googleproxyclient.NewOptBool(true),
+				BackupVaultType: googleproxyclient.NewOptBackupVaultV1betaBackupVaultType(
+					googleproxyclient.BackupVaultV1betaBackupVaultTypeCROSSREGION,
+				),
+				SourceBackupVault: googleproxyclient.NewOptString(sourceVaultPath),
+			}},
+		}, nil)
+
+		result, err := activity.FetchBackupVaultMetadataForRestore(ctx, backupPath, volume, "us-west1")
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, destinationVaultName, result.Name)
+		assert.Equal(t, destinationVaultID, result.UUID)
 		mockStorage.AssertExpectations(t)
 		mockInvoker.AssertExpectations(t)
 	})
