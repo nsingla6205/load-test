@@ -108,7 +108,11 @@ spec:
             {{- toYaml $.Values.resources | nindent 12 }}
         {{- if and $.Values.otel.enabled $.Values.otel.configMap.create }}
         - name: otel-collector
+          {{- if $.Values.otel.image.digest }}
+          image: "{{ $.Values.otel.image.repository }}@{{ $.Values.otel.image.digest }}"
+          {{- else }}
           image: "{{ $.Values.otel.image.repository }}:{{ $.Values.otel.image.tag }}"
+          {{- end }}
           imagePullPolicy: {{ $.Values.otel.image.pullPolicy }}
           command:
             - /{{ $.Values.otel.command.name }}
