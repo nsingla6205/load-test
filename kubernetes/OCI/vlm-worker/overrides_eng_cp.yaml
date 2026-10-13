@@ -11,11 +11,11 @@ workerConfig:
   ociRegion: "us-ashburn-1"
 
 ontapVersionVlmImageMappings:
+  - ontapVersion: "9.19.1P2D1"
+    vlmImageName: "vlm-worker"
+    vlmImageTag: "main_R9.19.1Px_8315426"
+    vlmImageDigest: ""
   - ontapVersion: "9.19.1P1"
     vlmImageName: "vlm-worker"
     vlmImageTag: "26074.0.0-OCI-RC.12"
-    vlmImageDigest: ""
-  - ontapVersion: "9.19.1P2D1"
-    vlmImageName: "vlm-worker"
-    vlmImageTag: "9-19-1-sdp4-pvt"
     vlmImageDigest: ""
