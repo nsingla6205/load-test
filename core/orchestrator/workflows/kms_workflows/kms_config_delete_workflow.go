@@ -133,14 +133,7 @@ func (wf *deleteKmsConfigWorkflow) Run(ctx workflow.Context, args ...interface{}
 		}
 	}()
 
-	// VCP-created config path: disable the GCP service account directly (no SDE involvement).
-	// SDE-created config path: get JWT token, delete via SDE, poll SDE job.
-	if utils.ShouldUseVCPForExistingKMS(kmsConfig) {
-		err = workflow.ExecuteActivity(ctx, deleteActivity.DisableGCPServiceAccountActivity, kmsConfig).Get(ctx, nil)
-		if err != nil {
-			return nil, workflows.ConvertToVSAError(err)
-		}
-	} else {
+	if !utils.ShouldUseVCPForExistingKMS(kmsConfig) {
 		jwtToken := ""
 		err = workflow.ExecuteActivity(ctx, deleteActivity.GetSignedTokenActivity, params.AccountName).Get(ctx, &jwtToken)
 		if err != nil {

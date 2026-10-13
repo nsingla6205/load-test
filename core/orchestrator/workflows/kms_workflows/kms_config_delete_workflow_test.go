@@ -974,7 +974,6 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
 		expectDeleteJobIsNew(env)
-		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DisableKmsServiceAccount", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DeleteKmsConfig", mock.Anything, kmsConfig, params).Return(nil)
 
@@ -982,36 +981,6 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
-		env.AssertExpectations(t)
-	})
-
-	t.Run("WhenDisableGCPServiceAccountActivityFails", func(t *testing.T) {
-		env := setupWorkflowEnv(t)
-
-		params := &common.DeleteKmsConfigParams{
-			KmsConfigID: "test-config-id",
-			AccountName: "123456789",
-		}
-		kmsConfig := &datamodel.KmsConfig{
-			Name: "kms1",
-			BaseModel: datamodel.BaseModel{
-				UUID: "kms1-uuid",
-			},
-			CustomerProjectID: "123456789",
-			KmsAttributes: &datamodel.KmsAttributes{
-				VcpServiceAccountEmail: "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com",
-			},
-		}
-
-		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		expectDeleteJobIsNew(env)
-		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(errors.New(500, "failed to disable SA"))
-		env.OnActivity("UpdateKmsConfigState", mock.Anything, kmsConfig, datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails).Return(nil)
-
-		env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)
-
-		assert.True(t, env.IsWorkflowCompleted())
-		assert.Error(t, env.GetWorkflowError())
 		env.AssertExpectations(t)
 	})
 
@@ -1037,7 +1006,6 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 		// DeleteSDEKmsConfig, DescribeSDEDeleteJob) should NOT be called
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
 		expectDeleteJobIsNew(env)
-		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DisableKmsServiceAccount", mock.Anything, kmsConfig).Return(nil)
 		env.OnActivity("DeleteKmsConfig", mock.Anything, kmsConfig, params).Return(nil)
 
@@ -1062,10 +1030,10 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 			},
 		}
 
-		// With empty UUID, DisableKmsServiceAccount and DeleteKmsConfig should NOT be called
+		// With empty UUID, DisableKmsServiceAccount and DeleteKmsConfig should NOT be called.
+		// The VCP path also does not disable the shared GCP service account.
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
 		expectDeleteJobIsNew(env)
-		env.OnActivity("DisableGCPServiceAccountActivity", mock.Anything, kmsConfig).Return(nil)
 
 		env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)
 
