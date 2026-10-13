@@ -413,6 +413,15 @@ func (UnimplementedHandler) V1ListInterclusterLifs(ctx context.Context, params V
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListPoolNasLifs implements v1_listPoolNasLifs operation.
+//
+// Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and nas LIF entries are included.
+//
+// GET /v1/pools/{poolId}/nasLif
+func (UnimplementedHandler) V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (r V1ListPoolNasLifsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListPools implements v1_listPools operation.
 //
 // Returns descriptions of all pools owned by the caller.
@@ -607,6 +616,17 @@ func (UnimplementedHandler) V1UpdateIPRange(ctx context.Context, req *IPRangeUpd
 //
 // PUT /v1/pools/{poolId}
 func (UnimplementedHandler) V1UpdatePool(ctx context.Context, req *PoolUpdateV1, params V1UpdatePoolParams) (r V1UpdatePoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdatePoolNasLif implements v1_updatePoolNasLif operation.
+//
+// Writes new NAS LIF IP addresses into the VCP database for one pool. Each address is stored on the
+// matching ilbnas or nas LIF inside the pool VLM config and on every lifs row for that pool that
+// uses the same LIF name. A prefix already stored on the VLM config address, such as /32, is kept.
+//
+// PUT /v1/pools/{poolId}/nasLif
+func (UnimplementedHandler) V1UpdatePoolNasLif(ctx context.Context, req *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (r V1UpdatePoolNasLifRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

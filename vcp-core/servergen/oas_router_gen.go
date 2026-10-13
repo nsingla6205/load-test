@@ -1143,26 +1143,66 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								return
 							}
 							switch elem[0] {
-							case '/': // Prefix: "/encryptPool"
+							case '/': // Prefix: "/"
 
-								if l := len("/encryptPool"); len(elem) >= l && elem[0:l] == "/encryptPool" {
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									// Leaf node.
-									switch r.Method {
-									case "POST":
-										s.handleV1EncryptPoolRequest([1]string{
-											args[0],
-										}, elemIsEscaped, w, r)
-									default:
-										s.notAllowed(w, r, "POST")
+									break
+								}
+								switch elem[0] {
+								case 'e': // Prefix: "encryptPool"
+
+									if l := len("encryptPool"); len(elem) >= l && elem[0:l] == "encryptPool" {
+										elem = elem[l:]
+									} else {
+										break
 									}
 
-									return
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "POST":
+											s.handleV1EncryptPoolRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "POST")
+										}
+
+										return
+									}
+
+								case 'n': // Prefix: "nasLif"
+
+									if l := len("nasLif"); len(elem) >= l && elem[0:l] == "nasLif" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "GET":
+											s.handleV1ListPoolNasLifsRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										case "PUT":
+											s.handleV1UpdatePoolNasLifRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "GET,PUT")
+										}
+
+										return
+									}
+
 								}
 
 							}
@@ -2887,28 +2927,74 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								}
 							}
 							switch elem[0] {
-							case '/': // Prefix: "/encryptPool"
+							case '/': // Prefix: "/"
 
-								if l := len("/encryptPool"); len(elem) >= l && elem[0:l] == "/encryptPool" {
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									// Leaf node.
-									switch method {
-									case "POST":
-										r.name = V1EncryptPoolOperation
-										r.summary = "Encrypt or migrate a single pool's CMEK"
-										r.operationID = "v1_encryptPool"
-										r.pathPattern = "/v1/pools/{poolId}/encryptPool"
-										r.args = args
-										r.count = 1
-										return r, true
-									default:
-										return
+									break
+								}
+								switch elem[0] {
+								case 'e': // Prefix: "encryptPool"
+
+									if l := len("encryptPool"); len(elem) >= l && elem[0:l] == "encryptPool" {
+										elem = elem[l:]
+									} else {
+										break
 									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "POST":
+											r.name = V1EncryptPoolOperation
+											r.summary = "Encrypt or migrate a single pool's CMEK"
+											r.operationID = "v1_encryptPool"
+											r.pathPattern = "/v1/pools/{poolId}/encryptPool"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+
+								case 'n': // Prefix: "nasLif"
+
+									if l := len("nasLif"); len(elem) >= l && elem[0:l] == "nasLif" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "GET":
+											r.name = V1ListPoolNasLifsOperation
+											r.summary = "List NAS LIFs for a pool"
+											r.operationID = "v1_listPoolNasLifs"
+											r.pathPattern = "/v1/pools/{poolId}/nasLif"
+											r.args = args
+											r.count = 1
+											return r, true
+										case "PUT":
+											r.name = V1UpdatePoolNasLifOperation
+											r.summary = "Update NAS LIF addresses for a pool"
+											r.operationID = "v1_updatePoolNasLif"
+											r.pathPattern = "/v1/pools/{poolId}/nasLif"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+
 								}
 
 							}

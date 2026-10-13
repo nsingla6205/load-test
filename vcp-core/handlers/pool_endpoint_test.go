@@ -7,7 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/servergen"
@@ -68,10 +70,10 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		userName := "test-user"
 		clusterName := "cluster-a"
 		dedicatedCreds := &models.UserCredentials{
-			Username:     "account-host-user",
-			SecretID:     "secret-a",
-			AuthType:     1,
-			ServiceLevel: "STANDARD",
+			Username:       "account-host-user",
+			SecretID:       "secret-a",
+			AuthType:       1,
+			ServiceLevel:   "STANDARD",
 			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
 		}
 
@@ -354,4 +356,171 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		assert.True(t, response.AuthType.IsSet())
 		assert.Equal(t, 0, response.AuthType.Value)
 	})
+}
+
+func TestV1UpdatePoolNasLif(t *testing.T) {
+	poolID := "9760acf5-4638-11e7-9bdb-020073ca7773"
+	params := oasgenserver.V1UpdatePoolNasLifParams{PoolId: poolID}
+	req := &oasgenserver.UpdatePoolNasLifRequestV1{
+		NasLifs: []oasgenserver.NasLifIPUpdateV1{{
+			LifName:   "svm1-ilbnas",
+			IpAddress: "10.33.182.243",
+		}},
+	}
+
+	t.Run("WhenSuccessful", func(t *testing.T) {
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := NewHandler(mockOrch)
+		mockOrch.EXPECT().UpdatePoolNasLifIPs(mock.Anything, poolID, []commonparams.NasLifIPUpdate{{
+			LifName:   "svm1-ilbnas",
+			IPAddress: "10.33.182.243",
+		}}).Return([]commonparams.NasLifIPUpdateResult{{
+			LifName:           "svm1-ilbnas",
+			PreviousIPAddress: "10.33.182.10/32",
+			IPAddress:         "10.33.182.243",
+			UpdatedLocations:  []string{commonparams.NasLifLocationVLMConfig, commonparams.NasLifLocationLifs},
+		}}, nil)
+
+		res, err := handler.V1UpdatePoolNasLif(context.Background(), req, params)
+		require.NoError(t, err)
+		body, ok := res.(*oasgenserver.UpdatePoolNasLifResponseV1)
+		require.True(t, ok)
+		assert.Equal(t, poolID, body.PoolId)
+		require.Len(t, body.NasLifs, 1)
+		assert.Equal(t, "svm1-ilbnas", body.NasLifs[0].LifName)
+		assert.Equal(t, "10.33.182.243", body.NasLifs[0].IpAddress)
+		assert.Equal(t, "10.33.182.10/32", body.NasLifs[0].PreviousIpAddress.Value)
+		assert.Equal(t, []oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItem{
+			oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig,
+			oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItemLifs,
+		}, body.NasLifs[0].UpdatedLocations)
+	})
+
+	t.Run("WhenRequestMissing", func(t *testing.T) {
+		handler := NewHandler(factory.NewMockOrchestratorFactory(t))
+		res, err := handler.V1UpdatePoolNasLif(context.Background(), nil, params)
+		require.NoError(t, err)
+		body, ok := res.(*oasgenserver.V1UpdatePoolNasLifUnprocessableEntity)
+		require.True(t, ok)
+		assert.Equal(t, float64(422), body.Code)
+	})
+
+	tests := []struct {
+		name       string
+		err        error
+		statusCode float64
+	}{
+		{
+			name:       "WhenPoolNotFound",
+			err:        vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, stderrors.New("pool not found")),
+			statusCode: 404,
+		},
+		{
+			name:       "WhenLifNameInvalid",
+			err:        vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, stderrors.New("NAS LIF missing was not found")),
+			statusCode: 422,
+		},
+		{
+			name:       "WhenUpdateFails",
+			err:        stderrors.New("database unavailable"),
+			statusCode: 500,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOrch := factory.NewMockOrchestratorFactory(t)
+			handler := NewHandler(mockOrch)
+			mockOrch.EXPECT().UpdatePoolNasLifIPs(mock.Anything, poolID, mock.Anything).Return(nil, tt.err)
+
+			res, err := handler.V1UpdatePoolNasLif(context.Background(), req, params)
+			require.NoError(t, err)
+			switch tt.statusCode {
+			case 404:
+				body, ok := res.(*oasgenserver.V1UpdatePoolNasLifNotFound)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+			case 422:
+				body, ok := res.(*oasgenserver.V1UpdatePoolNasLifUnprocessableEntity)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+				assert.Contains(t, body.Message, "NAS LIF missing")
+			default:
+				body, ok := res.(*oasgenserver.V1UpdatePoolNasLifInternalServerError)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+			}
+		})
+	}
+}
+
+func TestV1ListPoolNasLifs(t *testing.T) {
+	poolID := "9760acf5-4638-11e7-9bdb-020073ca7773"
+	params := oasgenserver.V1ListPoolNasLifsParams{PoolId: poolID}
+
+	t.Run("WhenSuccessful", func(t *testing.T) {
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := NewHandler(mockOrch)
+		mockOrch.EXPECT().ListPoolNasLifs(mock.Anything, poolID).Return([]commonparams.PoolNasLif{
+			{SVMName: "svm1", LifName: "svm1-ilbnas", LifType: commonparams.NasLifTypeIlbNas, IPAddress: "10.33.182.10/32"},
+			{SVMName: "svm1", LifName: "svm1-nas", LifType: commonparams.NasLifTypeNas, IPAddress: "10.33.182.11"},
+		}, nil)
+
+		res, err := handler.V1ListPoolNasLifs(context.Background(), params)
+		require.NoError(t, err)
+		body, ok := res.(*oasgenserver.ListPoolNasLifsResponseV1)
+		require.True(t, ok)
+		assert.Equal(t, poolID, body.PoolId)
+		require.Len(t, body.NasLifs, 2)
+		assert.Equal(t, "svm1-ilbnas", body.NasLifs[0].LifName)
+		assert.Equal(t, oasgenserver.PoolNasLifV1LifTypeIlbnas, body.NasLifs[0].LifType)
+		assert.Equal(t, "10.33.182.10/32", body.NasLifs[0].IpAddress)
+		assert.Equal(t, oasgenserver.PoolNasLifV1LifTypeNas, body.NasLifs[1].LifType)
+	})
+
+	tests := []struct {
+		name       string
+		err        error
+		statusCode float64
+	}{
+		{
+			name:       "WhenPoolNotFound",
+			err:        vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, stderrors.New("pool not found")),
+			statusCode: 404,
+		},
+		{
+			name:       "WhenVLMConfigInvalid",
+			err:        vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, stderrors.New("pool VLM config is not valid JSON")),
+			statusCode: 422,
+		},
+		{
+			name:       "WhenListFails",
+			err:        stderrors.New("database unavailable"),
+			statusCode: 500,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOrch := factory.NewMockOrchestratorFactory(t)
+			handler := NewHandler(mockOrch)
+			mockOrch.EXPECT().ListPoolNasLifs(mock.Anything, poolID).Return(nil, tt.err)
+
+			res, err := handler.V1ListPoolNasLifs(context.Background(), params)
+			require.NoError(t, err)
+			switch tt.statusCode {
+			case 404:
+				body, ok := res.(*oasgenserver.V1ListPoolNasLifsNotFound)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+			case 422:
+				body, ok := res.(*oasgenserver.V1ListPoolNasLifsUnprocessableEntity)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+				assert.Contains(t, body.Message, "pool VLM config")
+			default:
+				body, ok := res.(*oasgenserver.V1ListPoolNasLifsInternalServerError)
+				require.True(t, ok)
+				assert.Equal(t, tt.statusCode, body.Code)
+			}
+		})
+	}
 }

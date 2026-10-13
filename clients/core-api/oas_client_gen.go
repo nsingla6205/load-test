@@ -295,6 +295,12 @@ type Invoker interface {
 	//
 	// GET /v1/interclusterLif
 	V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)
+	// V1ListPoolNasLifs invokes v1_listPoolNasLifs operation.
+	//
+	// Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and nas LIF entries are included.
+	//
+	// GET /v1/pools/{poolId}/nasLif
+	V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)
 	// V1ListPools invokes v1_listPools operation.
 	//
 	// Returns descriptions of all pools owned by the caller.
@@ -435,6 +441,14 @@ type Invoker interface {
 	//
 	// PUT /v1/pools/{poolId}
 	V1UpdatePool(ctx context.Context, request *PoolUpdateV1, params V1UpdatePoolParams) (V1UpdatePoolRes, error)
+	// V1UpdatePoolNasLif invokes v1_updatePoolNasLif operation.
+	//
+	// Writes new NAS LIF IP addresses into the VCP database for one pool. Each address is stored on the
+	// matching ilbnas or nas LIF inside the pool VLM config and on every lifs row for that pool that
+	// uses the same LIF name. A prefix already stored on the VLM config address, such as /32, is kept.
+	//
+	// PUT /v1/pools/{poolId}/nasLif
+	V1UpdatePoolNasLif(ctx context.Context, request *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)
 	// V1UpdateRegion invokes v1_updateRegion operation.
 	//
 	// Updates the region properties with the full spec.
@@ -3444,6 +3458,77 @@ func (c *Client) sendV1ListInterclusterLifs(ctx context.Context, params V1ListIn
 	return result, nil
 }
 
+// V1ListPoolNasLifs invokes v1_listPoolNasLifs operation.
+//
+// Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and nas LIF entries are included.
+//
+// GET /v1/pools/{poolId}/nasLif
+func (c *Client) V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error) {
+	res, err := c.sendV1ListPoolNasLifs(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (res V1ListPoolNasLifsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/pools/"
+	{
+		// Encode "poolId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "poolId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.PoolId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/nasLif"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListPoolNasLifsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1ListPools invokes v1_listPools operation.
 //
 // Returns descriptions of all pools owned by the caller.
@@ -4834,6 +4919,91 @@ func (c *Client) sendV1UpdatePool(ctx context.Context, request *PoolUpdateV1, pa
 	defer resp.Body.Close()
 
 	result, err := decodeV1UpdatePoolResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdatePoolNasLif invokes v1_updatePoolNasLif operation.
+//
+// Writes new NAS LIF IP addresses into the VCP database for one pool. Each address is stored on the
+// matching ilbnas or nas LIF inside the pool VLM config and on every lifs row for that pool that
+// uses the same LIF name. A prefix already stored on the VLM config address, such as /32, is kept.
+//
+// PUT /v1/pools/{poolId}/nasLif
+func (c *Client) V1UpdatePoolNasLif(ctx context.Context, request *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error) {
+	res, err := c.sendV1UpdatePoolNasLif(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdatePoolNasLif(ctx context.Context, request *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (res V1UpdatePoolNasLifRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/pools/"
+	{
+		// Encode "poolId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "poolId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.PoolId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/nasLif"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdatePoolNasLifRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdatePoolNasLifResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

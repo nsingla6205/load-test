@@ -32,6 +32,45 @@ type TrialModeParams struct {
 	End   *time.Time
 }
 
+const (
+	// NasLifLocationVLMConfig is the pool VLM config JSON.
+	NasLifLocationVLMConfig = "vlm_config"
+	// NasLifLocationLifs is the lifs table.
+	NasLifLocationLifs = "lifs"
+	// NasLifTypeIlbNas is the VLM config LIF type for ILB NAS traffic.
+	NasLifTypeIlbNas = "ilbnas"
+	// NasLifTypeNas is the VLM config LIF type for NAS traffic.
+	NasLifTypeNas = "nas"
+)
+
+// NasLifIPUpdate is one NAS LIF address to persist for a pool.
+type NasLifIPUpdate struct {
+	LifName   string
+	IPAddress string
+}
+
+// NasLifIPUpdateResult reports where a NAS LIF address was written.
+type NasLifIPUpdateResult struct {
+	LifName           string
+	PreviousIPAddress string
+	IPAddress         string
+	UpdatedLocations  []string
+}
+
+// PoolNasLif is one NAS LIF stored in a pool's VLM config.
+type PoolNasLif struct {
+	SVMName   string
+	LifName   string
+	LifType   string
+	IPAddress string
+}
+
+// NasLifIPWrite is the ip_address to persist on one lifs row.
+type NasLifIPWrite struct {
+	UUID      string
+	IPAddress string
+}
+
 // CreatePoolParams describes parameters supplied to CreatingPool
 type CreatePoolParams struct {
 	AccountName  string

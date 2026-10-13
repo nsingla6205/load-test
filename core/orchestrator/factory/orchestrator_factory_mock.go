@@ -12373,6 +12373,125 @@ func (_c *MockOrchestratorFactory_UpdateKmsConfig_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// ListPoolNasLifs provides a mock function with given fields: ctx, poolUUID
+func (_m *MockOrchestratorFactory) ListPoolNasLifs(ctx context.Context, poolUUID string) ([]common.PoolNasLif, error) {
+	ret := _m.Called(ctx, poolUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListPoolNasLifs")
+	}
+
+	var r0 []common.PoolNasLif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]common.PoolNasLif, error)); ok {
+		return rf(ctx, poolUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []common.PoolNasLif); ok {
+		r0 = rf(ctx, poolUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]common.PoolNasLif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, poolUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ListPoolNasLifs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListPoolNasLifs'
+type MockOrchestratorFactory_ListPoolNasLifs_Call struct {
+	*mock.Call
+}
+
+// ListPoolNasLifs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+func (_e *MockOrchestratorFactory_Expecter) ListPoolNasLifs(ctx interface{}, poolUUID interface{}) *MockOrchestratorFactory_ListPoolNasLifs_Call {
+	return &MockOrchestratorFactory_ListPoolNasLifs_Call{Call: _e.mock.On("ListPoolNasLifs", ctx, poolUUID)}
+}
+
+func (_c *MockOrchestratorFactory_ListPoolNasLifs_Call) Run(run func(ctx context.Context, poolUUID string)) *MockOrchestratorFactory_ListPoolNasLifs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListPoolNasLifs_Call) Return(_a0 []common.PoolNasLif, _a1 error) *MockOrchestratorFactory_ListPoolNasLifs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListPoolNasLifs_Call) RunAndReturn(run func(context.Context, string) ([]common.PoolNasLif, error)) *MockOrchestratorFactory_ListPoolNasLifs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdatePoolNasLifIPs provides a mock function with given fields: ctx, poolUUID, updates
+func (_m *MockOrchestratorFactory) UpdatePoolNasLifIPs(ctx context.Context, poolUUID string, updates []common.NasLifIPUpdate) ([]common.NasLifIPUpdateResult, error) {
+	ret := _m.Called(ctx, poolUUID, updates)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePoolNasLifIPs")
+	}
+
+	var r0 []common.NasLifIPUpdateResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []common.NasLifIPUpdate) ([]common.NasLifIPUpdateResult, error)); ok {
+		return rf(ctx, poolUUID, updates)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, []common.NasLifIPUpdate) []common.NasLifIPUpdateResult); ok {
+		r0 = rf(ctx, poolUUID, updates)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]common.NasLifIPUpdateResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []common.NasLifIPUpdate) error); ok {
+		r1 = rf(ctx, poolUUID, updates)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_UpdatePoolNasLifIPs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatePoolNasLifIPs'
+type MockOrchestratorFactory_UpdatePoolNasLifIPs_Call struct {
+	*mock.Call
+}
+
+// UpdatePoolNasLifIPs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - updates []common.NasLifIPUpdate
+func (_e *MockOrchestratorFactory_Expecter) UpdatePoolNasLifIPs(ctx interface{}, poolUUID interface{}, updates interface{}) *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call {
+	return &MockOrchestratorFactory_UpdatePoolNasLifIPs_Call{Call: _e.mock.On("UpdatePoolNasLifIPs", ctx, poolUUID, updates)}
+}
+
+func (_c *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call) Run(run func(ctx context.Context, poolUUID string, updates []common.NasLifIPUpdate)) *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]common.NasLifIPUpdate))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call) Return(_a0 []common.NasLifIPUpdateResult, _a1 error) *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call) RunAndReturn(run func(context.Context, string, []common.NasLifIPUpdate) ([]common.NasLifIPUpdateResult, error)) *MockOrchestratorFactory_UpdatePoolNasLifIPs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdatePool provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) UpdatePool(ctx context.Context, params *common.UpdatePoolParams) (*models.Pool, string, error) {
 	ret := _m.Called(ctx, params)

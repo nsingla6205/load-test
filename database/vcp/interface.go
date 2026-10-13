@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +22,9 @@ func NewDataStoreRepository(db *gormWrapper.Wrapper) *DataStoreRepository {
 
 // HarvestRetryStateMutator computes the next harvest_retry_state while the parent map row is locked.
 type HarvestRetryStateMutator func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error)
+
+type NasLifIPUpdate = commonparams.NasLifIPUpdate
+type NasLifIPUpdateResult = commonparams.NasLifIPUpdateResult
 
 type (
 	Storage interface {
@@ -259,6 +263,7 @@ type (
 		UpdateHostGroupsStateForHandleResource(ctx context.Context, hostGroupUUID string, accountID int64, state, stateDetails string) error
 
 		GetLifsForNodesWithProtocol(ctx context.Context, nodeIDs []int64, accountID int64, protocol string) ([]*datamodel.Lif, error)
+		ApplyPoolNasLifIPUpdates(ctx context.Context, poolUUID string, updates []NasLifIPUpdate) ([]NasLifIPUpdateResult, error)
 		GetLifByNodeID(ctx context.Context, nodeID int64, accountID int64) (*datamodel.Lif, error)
 		DeleteLif(ctx context.Context, lif *datamodel.Lif) error
 		GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error)

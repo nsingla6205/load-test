@@ -651,6 +651,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/pools/{poolId}/nasLif:
+    get:
+      tags:
+        - pools
+      summary: List NAS LIFs for a pool
+      description: >
+        Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and
+        nas LIF entries are included.
+      operationId: v1_listPoolNasLifs
+      parameters:
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        "200":
+          description: NAS LIFs listed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPoolNasLifsResponse_v1'
+              example:
+                poolId: 9760acf5-4638-11e7-9bdb-020073ca7773
+                nasLifs:
+                  - svmName: svm1
+                    lifName: svm1-ilbnas
+                    lifType: ilbnas
+                    ipAddress: 10.33.182.10/32
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "403":
+          $ref: '#/components/responses/StandardError-403'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "422":
+          $ref: '#/components/responses/StandardError-422'
+        "429":
+          $ref: '#/components/responses/StandardError-429'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - pools
+      summary: Update NAS LIF addresses for a pool
+      description: >
+        Writes new NAS LIF IP addresses into the VCP database for one pool.
+        Each address is stored on the matching ilbnas or nas LIF inside the
+        pool VLM config and on every lifs row for that pool that uses the
+        same LIF name. A prefix already stored on the VLM config address,
+        such as /32, is kept.
+      operationId: v1_updatePoolNasLif
+      parameters:
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePoolNasLifRequest_v1'
+            example:
+              nasLifs:
+                - lifName: svm1-ilbnas
+                  ipAddress: 10.33.182.243
+      responses:
+        "200":
+          description: NAS LIF addresses updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatePoolNasLifResponse_v1'
+              example:
+                poolId: 9760acf5-4638-11e7-9bdb-020073ca7773
+                nasLifs:
+                  - lifName: svm1-ilbnas
+                    previousIpAddress: 10.33.182.10/32
+                    ipAddress: 10.33.182.243
+                    updatedLocations:
+                      - vlm_config
+                      - lifs
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "403":
+          $ref: '#/components/responses/StandardError-403'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "422":
+          $ref: '#/components/responses/StandardError-422'
+        "429":
+          $ref: '#/components/responses/StandardError-429'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/expertMode/pools/{poolId}/credentials:
     get:
       tags:
@@ -3288,6 +3394,126 @@ components:
           enum:
             - medium
             - high
+    UpdatePoolNasLifRequest_v1:
+      title: UpdatePoolNasLifRequest
+      type: object
+      required:
+        - nasLifs
+      properties:
+        nasLifs:
+          type: array
+          minItems: 1
+          description: NAS LIF addresses to persist for the pool.
+          items:
+            $ref: '#/components/schemas/NasLifIPUpdate_v1'
+    NasLifIPUpdate_v1:
+      title: NasLifIPUpdate
+      type: object
+      required:
+        - lifName
+        - ipAddress
+      properties:
+        lifName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: LIF name stored on the NAS LIF in the pool VLM config.
+          example: svm1-ilbnas
+        ipAddress:
+          type: string
+          description: New IPv4 address for the NAS LIF.
+          example: 10.33.182.243
+          pattern: >-
+            ^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$
+    UpdatePoolNasLifResponse_v1:
+      title: UpdatePoolNasLifResponse
+      type: object
+      required:
+        - poolId
+        - nasLifs
+      properties:
+        poolId:
+          type: string
+          description: UUID of the pool that was updated.
+          example: 9760acf5-4638-11e7-9bdb-020073ca7773
+        nasLifs:
+          type: array
+          items:
+            $ref: '#/components/schemas/NasLifIPUpdateResult_v1'
+    NasLifIPUpdateResult_v1:
+      title: NasLifIPUpdateResult
+      type: object
+      required:
+        - lifName
+        - ipAddress
+        - updatedLocations
+      properties:
+        lifName:
+          type: string
+          description: LIF name that was updated.
+          example: svm1-ilbnas
+        previousIpAddress:
+          type: string
+          description: IP previously stored on this NAS LIF in the VLM config.
+          example: 10.33.182.10/32
+        ipAddress:
+          type: string
+          description: IPv4 address now stored for this NAS LIF.
+          example: 10.33.182.243
+        updatedLocations:
+          type: array
+          description: >
+            Database locations updated for this LIF. vlm_config is the pool
+            VLM config. lifs is the lifs table.
+          items:
+            type: string
+            enum:
+              - vlm_config
+              - lifs
+    ListPoolNasLifsResponse_v1:
+      title: ListPoolNasLifsResponse
+      type: object
+      required:
+        - poolId
+        - nasLifs
+      properties:
+        poolId:
+          type: string
+          description: UUID of the pool.
+          example: 9760acf5-4638-11e7-9bdb-020073ca7773
+        nasLifs:
+          type: array
+          description: NAS LIF entries stored in the pool VLM config.
+          items:
+            $ref: '#/components/schemas/PoolNasLif_v1'
+    PoolNasLif_v1:
+      title: PoolNasLif
+      type: object
+      required:
+        - svmName
+        - lifName
+        - lifType
+        - ipAddress
+      properties:
+        svmName:
+          type: string
+          description: SVM name in the pool VLM config.
+          example: svm1
+        lifName:
+          type: string
+          description: NAS LIF name.
+          example: svm1-ilbnas
+        lifType:
+          type: string
+          description: NAS LIF type from the VLM config.
+          enum:
+            - ilbnas
+            - nas
+          example: ilbnas
+        ipAddress:
+          type: string
+          description: IP address stored on the NAS LIF in the VLM config.
+          example: 10.33.182.10/32
     EncryptPoolRequest_v1:
       title: EncryptPoolRequest
       type: object

@@ -96,6 +96,16 @@ func (o *OCIOrchestrator) UpdatePool(ctx context.Context, params *commonparams.U
 	return o.updatePool(ctx, params)
 }
 
+// ListPoolNasLifs is not supported on OCI.
+func (o *OCIOrchestrator) ListPoolNasLifs(ctx context.Context, poolUUID string) ([]commonparams.PoolNasLif, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+// UpdatePoolNasLifIPs is not supported on OCI.
+func (o *OCIOrchestrator) UpdatePoolNasLifIPs(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) EncryptPool(ctx context.Context, params *commonparams.EncryptPoolParams) (*models.Pool, string, error) {
 	return nil, "", utilserrors.NewNotImplementedYetErr()
 }

@@ -1704,6 +1704,77 @@ func (s *ListAvailableVersionsResponseV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ListPoolNasLifsResponseV1) SetFake() {
+	{
+		{
+			s.PoolId = "string"
+		}
+	}
+	{
+		{
+			s.NasLifs = nil
+			for i := 0; i < 0; i++ {
+				var elem PoolNasLifV1
+				{
+					elem.SetFake()
+				}
+				s.NasLifs = append(s.NasLifs, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *NasLifIPUpdateResultV1) SetFake() {
+	{
+		{
+			s.LifName = "string"
+		}
+	}
+	{
+		{
+			s.PreviousIpAddress.SetFake()
+		}
+	}
+	{
+		{
+			s.IpAddress = "string"
+		}
+	}
+	{
+		{
+			s.UpdatedLocations = nil
+			for i := 0; i < 0; i++ {
+				var elem NasLifIPUpdateResultV1UpdatedLocationsItem
+				{
+					elem.SetFake()
+				}
+				s.UpdatedLocations = append(s.UpdatedLocations, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *NasLifIPUpdateResultV1UpdatedLocationsItem) SetFake() {
+	*s = NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig
+}
+
+// SetFake set fake values.
+func (s *NasLifIPUpdateV1) SetFake() {
+	{
+		{
+			s.LifName = "string"
+		}
+	}
+	{
+		{
+			s.IpAddress = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *OntapCredentialsV1) SetFake() {
 	{
 		{
@@ -2356,6 +2427,35 @@ func (s *PoolCertificateMaintenanceStatusResponseV1Status) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *PoolNasLifV1) SetFake() {
+	{
+		{
+			s.SvmName = "string"
+		}
+	}
+	{
+		{
+			s.LifName = "string"
+		}
+	}
+	{
+		{
+			s.LifType.SetFake()
+		}
+	}
+	{
+		{
+			s.IpAddress = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *PoolNasLifV1LifType) SetFake() {
+	*s = PoolNasLifV1LifTypeIlbnas
+}
+
+// SetFake set fake values.
 func (s *PoolUpdateV1) SetFake() {
 	{
 		{
@@ -2905,6 +3005,43 @@ func (s *StatusV1) SetFake() {
 // SetFake set fake values.
 func (s *StorageClassV1) SetFake() {
 	*s = StorageClassV1STORAGECLASSUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *UpdatePoolNasLifRequestV1) SetFake() {
+	{
+		{
+			s.NasLifs = nil
+			for i := 0; i < 1; i++ {
+				var elem NasLifIPUpdateV1
+				{
+					elem.SetFake()
+				}
+				s.NasLifs = append(s.NasLifs, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UpdatePoolNasLifResponseV1) SetFake() {
+	{
+		{
+			s.PoolId = "string"
+		}
+	}
+	{
+		{
+			s.NasLifs = nil
+			for i := 0; i < 0; i++ {
+				var elem NasLifIPUpdateResultV1
+				{
+					elem.SetFake()
+				}
+				s.NasLifs = append(s.NasLifs, elem)
+			}
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -5574,6 +5711,69 @@ func (s *V1ListInterclusterLifsUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1ListPoolNasLifsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListPoolNasLifsUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListPoolNasLifsUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1ListPoolsBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -6794,6 +6994,69 @@ func (s *V1UpdatePoolInternalServerError) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdatePoolInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdatePoolNasLifUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdatePoolNasLifUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

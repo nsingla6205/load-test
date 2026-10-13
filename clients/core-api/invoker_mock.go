@@ -2510,6 +2510,65 @@ func (_c *MockInvoker_V1ListInterclusterLifs_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// V1ListPoolNasLifs provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListPoolNasLifs")
+	}
+
+	var r0 V1ListPoolNasLifsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListPoolNasLifsParams) V1ListPoolNasLifsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListPoolNasLifsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListPoolNasLifsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ListPoolNasLifs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListPoolNasLifs'
+type MockInvoker_V1ListPoolNasLifs_Call struct {
+	*mock.Call
+}
+
+// V1ListPoolNasLifs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListPoolNasLifsParams
+func (_e *MockInvoker_Expecter) V1ListPoolNasLifs(ctx interface{}, params interface{}) *MockInvoker_V1ListPoolNasLifs_Call {
+	return &MockInvoker_V1ListPoolNasLifs_Call{Call: _e.mock.On("V1ListPoolNasLifs", ctx, params)}
+}
+
+func (_c *MockInvoker_V1ListPoolNasLifs_Call) Run(run func(ctx context.Context, params V1ListPoolNasLifsParams)) *MockInvoker_V1ListPoolNasLifs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListPoolNasLifsParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ListPoolNasLifs_Call) Return(_a0 V1ListPoolNasLifsRes, _a1 error) *MockInvoker_V1ListPoolNasLifs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ListPoolNasLifs_Call) RunAndReturn(run func(context.Context, V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)) *MockInvoker_V1ListPoolNasLifs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1ListPools provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1ListPools(ctx context.Context, params V1ListPoolsParams) (V1ListPoolsRes, error) {
 	ret := _m.Called(ctx, params)
@@ -3636,6 +3695,66 @@ func (_c *MockInvoker_V1UpdatePool_Call) Return(_a0 V1UpdatePoolRes, _a1 error) 
 }
 
 func (_c *MockInvoker_V1UpdatePool_Call) RunAndReturn(run func(context.Context, *PoolUpdateV1, V1UpdatePoolParams) (V1UpdatePoolRes, error)) *MockInvoker_V1UpdatePool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdatePoolNasLif provides a mock function with given fields: ctx, request, params
+func (_m *MockInvoker) V1UpdatePoolNasLif(ctx context.Context, request *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error) {
+	ret := _m.Called(ctx, request, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdatePoolNasLif")
+	}
+
+	var r0 V1UpdatePoolNasLifRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)); ok {
+		return rf(ctx, request, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) V1UpdatePoolNasLifRes); ok {
+		r0 = rf(ctx, request, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdatePoolNasLifRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) error); ok {
+		r1 = rf(ctx, request, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1UpdatePoolNasLif_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdatePoolNasLif'
+type MockInvoker_V1UpdatePoolNasLif_Call struct {
+	*mock.Call
+}
+
+// V1UpdatePoolNasLif is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *UpdatePoolNasLifRequestV1
+//   - params V1UpdatePoolNasLifParams
+func (_e *MockInvoker_Expecter) V1UpdatePoolNasLif(ctx interface{}, request interface{}, params interface{}) *MockInvoker_V1UpdatePoolNasLif_Call {
+	return &MockInvoker_V1UpdatePoolNasLif_Call{Call: _e.mock.On("V1UpdatePoolNasLif", ctx, request, params)}
+}
+
+func (_c *MockInvoker_V1UpdatePoolNasLif_Call) Run(run func(ctx context.Context, request *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams)) *MockInvoker_V1UpdatePoolNasLif_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*UpdatePoolNasLifRequestV1), args[2].(V1UpdatePoolNasLifParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1UpdatePoolNasLif_Call) Return(_a0 V1UpdatePoolNasLifRes, _a1 error) *MockInvoker_V1UpdatePoolNasLif_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1UpdatePoolNasLif_Call) RunAndReturn(run func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)) *MockInvoker_V1UpdatePoolNasLif_Call {
 	_c.Call.Return(run)
 	return _c
 }

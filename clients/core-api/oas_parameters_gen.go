@@ -322,6 +322,14 @@ type V1ListInterclusterLifsParams struct {
 	IpRangeUUID OptString
 }
 
+// V1ListPoolNasLifsParams is parameters of v1_listPoolNasLifs operation.
+type V1ListPoolNasLifsParams struct {
+	// UUID v4 used to identify the pool.
+	PoolId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1ListPoolsParams is parameters of v1_listPools operation.
 type V1ListPoolsParams struct {
 	// The project number of the GCP project owning the resource being acted upon.
@@ -458,6 +466,14 @@ type V1UpdatePoolParams struct {
 	ProjectNumber string
 	// The location/region to perform the operation in.
 	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+// V1UpdatePoolNasLifParams is parameters of v1_updatePoolNasLif operation.
+type V1UpdatePoolNasLifParams struct {
+	// UUID v4 used to identify the pool.
+	PoolId string
 	// Correlation identifier.
 	XCorrelationID OptString
 }

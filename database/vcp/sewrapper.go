@@ -2861,6 +2861,22 @@ func (re *retryEngine) GetLifsForNodesWithProtocol(ctx context.Context, nodeIDs 
 	return var0, err
 }
 
+func (re *retryEngine) ApplyPoolNasLifIPUpdates(ctx context.Context, poolUUID string, updates []NasLifIPUpdate) ([]NasLifIPUpdateResult, error) {
+	var var0 []NasLifIPUpdateResult
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ApplyPoolNasLifIPUpdates(ctx, poolUUID, updates)
+		if err != nil {
+			re.logError("ApplyPoolNasLifIPUpdates", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetLifByNodeID(ctx context.Context, nodeID int64, accountID int64) (*datamodel.Lif, error) {
 	var var0 *datamodel.Lif
 	err := retry.Do(func(attempt int) (bool, error) {

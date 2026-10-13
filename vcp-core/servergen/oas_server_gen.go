@@ -282,6 +282,12 @@ type Handler interface {
 	//
 	// GET /v1/interclusterLif
 	V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)
+	// V1ListPoolNasLifs implements v1_listPoolNasLifs operation.
+	//
+	// Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and nas LIF entries are included.
+	//
+	// GET /v1/pools/{poolId}/nasLif
+	V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)
 	// V1ListPools implements v1_listPools operation.
 	//
 	// Returns descriptions of all pools owned by the caller.
@@ -422,6 +428,14 @@ type Handler interface {
 	//
 	// PUT /v1/pools/{poolId}
 	V1UpdatePool(ctx context.Context, req *PoolUpdateV1, params V1UpdatePoolParams) (V1UpdatePoolRes, error)
+	// V1UpdatePoolNasLif implements v1_updatePoolNasLif operation.
+	//
+	// Writes new NAS LIF IP addresses into the VCP database for one pool. Each address is stored on the
+	// matching ilbnas or nas LIF inside the pool VLM config and on every lifs row for that pool that
+	// uses the same LIF name. A prefix already stored on the VLM config address, such as /32, is kept.
+	//
+	// PUT /v1/pools/{poolId}/nasLif
+	V1UpdatePoolNasLif(ctx context.Context, req *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)
 	// V1UpdateRegion implements v1_updateRegion operation.
 	//
 	// Updates the region properties with the full spec.

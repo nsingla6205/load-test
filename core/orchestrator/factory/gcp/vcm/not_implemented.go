@@ -55,6 +55,14 @@ func (notImplementedOrchestrator) UpdatePool(context.Context, *commonparams.Upda
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }
 
+func (notImplementedOrchestrator) ListPoolNasLifs(context.Context, string) ([]commonparams.PoolNasLif, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
+
+func (notImplementedOrchestrator) UpdatePoolNasLifIPs(context.Context, string, []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
+
 func (notImplementedOrchestrator) EncryptPool(context.Context, *commonparams.EncryptPoolParams) (*models.Pool, string, error) {
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }

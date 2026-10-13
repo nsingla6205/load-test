@@ -22,6 +22,8 @@ type OrchestratorFactory interface {
 	DeleteSvm(ctx context.Context, params *commonparams.DeleteSvmParams) (operationID string, err error)
 	UpdateSvm(ctx context.Context, params *commonparams.UpdateSvmParams) (operationID string, err error)
 	UpdatePool(ctx context.Context, params *commonparams.UpdatePoolParams) (*models.Pool, string, error)
+	ListPoolNasLifs(ctx context.Context, poolUUID string) ([]commonparams.PoolNasLif, error)
+	UpdatePoolNasLifIPs(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error)
 	EncryptPool(ctx context.Context, params *commonparams.EncryptPoolParams) (*models.Pool, string, error)
 	DescribePool(ctx context.Context, poolId string, accountName string) (*models.Pool, error)
 	GetExpertModePoolCreds(ctx context.Context, poolId string, accountName string, userName string) (*models.UserCredentials, error)

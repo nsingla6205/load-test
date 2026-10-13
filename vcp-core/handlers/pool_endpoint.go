@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/servergen"
 )
@@ -144,4 +145,124 @@ func convertUserCredentialsToOntapCredentialsV1(expertModeCredentials *models.Us
 		AccountUUID:    accountUUID,
 		DeploymentName: deploymentName,
 	}
+}
+
+// V1ListPoolNasLifs returns NAS LIFs stored in the pool VLM config.
+func (h Handler) V1ListPoolNasLifs(ctx context.Context, params oasgenserver.V1ListPoolNasLifsParams) (oasgenserver.V1ListPoolNasLifsRes, error) {
+	nasLifs, err := h.Orchestrator.ListPoolNasLifs(ctx, params.PoolId)
+	if err != nil {
+		if customErr := asVCPError(err); customErr != nil {
+			if customErr.IsError(errors.ErrPoolNotFound) {
+				return &oasgenserver.V1ListPoolNasLifsNotFound{
+					Message: customErr.GetDetailMessage(),
+					Code:    404,
+				}, nil
+			}
+			if customErr.IsError(errors.ErrInputValidationError) {
+				return &oasgenserver.V1ListPoolNasLifsUnprocessableEntity{
+					Message: customErr.GetDetailMessage(),
+					Code:    422,
+				}, nil
+			}
+		}
+		return &oasgenserver.V1ListPoolNasLifsInternalServerError{
+			Message: fmt.Sprintf("Failed to list NAS LIFs: %v", err),
+			Code:    500,
+		}, nil
+	}
+
+	response := &oasgenserver.ListPoolNasLifsResponseV1{
+		PoolId:  params.PoolId,
+		NasLifs: make([]oasgenserver.PoolNasLifV1, 0, len(nasLifs)),
+	}
+	for _, lif := range nasLifs {
+		response.NasLifs = append(response.NasLifs, oasgenserver.PoolNasLifV1{
+			SvmName:   lif.SVMName,
+			LifName:   lif.LifName,
+			LifType:   poolNasLifType(lif.LifType),
+			IpAddress: lif.IPAddress,
+		})
+	}
+	return response, nil
+}
+
+// V1UpdatePoolNasLif writes new NAS LIF addresses into the pool VLM config and lifs table.
+func (h Handler) V1UpdatePoolNasLif(ctx context.Context, req *oasgenserver.UpdatePoolNasLifRequestV1, params oasgenserver.V1UpdatePoolNasLifParams) (oasgenserver.V1UpdatePoolNasLifRes, error) {
+	if req == nil {
+		return &oasgenserver.V1UpdatePoolNasLifUnprocessableEntity{
+			Message: "NAS LIF addresses are required",
+			Code:    422,
+		}, nil
+	}
+
+	updates := make([]commonparams.NasLifIPUpdate, 0, len(req.NasLifs))
+	for _, lif := range req.NasLifs {
+		updates = append(updates, commonparams.NasLifIPUpdate{
+			LifName:   lif.LifName,
+			IPAddress: lif.IpAddress,
+		})
+	}
+
+	results, err := h.Orchestrator.UpdatePoolNasLifIPs(ctx, params.PoolId, updates)
+	if err != nil {
+		if customErr := asVCPError(err); customErr != nil {
+			if customErr.IsError(errors.ErrPoolNotFound) || customErr.IsError(errors.ErrDatabaseDataNotFoundError) {
+				return &oasgenserver.V1UpdatePoolNasLifNotFound{
+					Message: customErr.GetDetailMessage(),
+					Code:    404,
+				}, nil
+			}
+			if customErr.IsError(errors.ErrInputValidationError) {
+				return &oasgenserver.V1UpdatePoolNasLifUnprocessableEntity{
+					Message: customErr.GetDetailMessage(),
+					Code:    422,
+				}, nil
+			}
+		}
+		return &oasgenserver.V1UpdatePoolNasLifInternalServerError{
+			Message: fmt.Sprintf("Failed to update NAS LIF addresses: %v", err),
+			Code:    500,
+		}, nil
+	}
+
+	response := &oasgenserver.UpdatePoolNasLifResponseV1{
+		PoolId:  params.PoolId,
+		NasLifs: make([]oasgenserver.NasLifIPUpdateResultV1, 0, len(results)),
+	}
+	for _, result := range results {
+		item := oasgenserver.NasLifIPUpdateResultV1{
+			LifName:          result.LifName,
+			IpAddress:        result.IPAddress,
+			UpdatedLocations: nasLifLocations(result.UpdatedLocations),
+		}
+		if result.PreviousIPAddress != "" {
+			item.PreviousIpAddress = oasgenserver.NewOptString(result.PreviousIPAddress)
+		}
+		response.NasLifs = append(response.NasLifs, item)
+	}
+	return response, nil
+}
+
+func poolNasLifType(lifType string) oasgenserver.PoolNasLifV1LifType {
+	switch lifType {
+	case string(oasgenserver.PoolNasLifV1LifTypeIlbnas):
+		return oasgenserver.PoolNasLifV1LifTypeIlbnas
+	case string(oasgenserver.PoolNasLifV1LifTypeNas):
+		return oasgenserver.PoolNasLifV1LifTypeNas
+	default:
+		return oasgenserver.PoolNasLifV1LifType(lifType)
+	}
+}
+
+func nasLifLocations(locations []string) []oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItem {
+	items := make([]oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItem, 0, len(locations))
+	for _, location := range locations {
+		switch location {
+		case commonparams.NasLifLocationVLMConfig:
+			items = append(items, oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig)
+		case commonparams.NasLifLocationLifs:
+			items = append(items, oasgenserver.NasLifIPUpdateResultV1UpdatedLocationsItemLifs)
+		}
+	}
+	return items
 }

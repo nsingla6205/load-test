@@ -7,6 +7,7 @@ import (
 	time "time"
 
 	mock "github.com/stretchr/testify/mock"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	metadata "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
@@ -26650,6 +26651,112 @@ func (_c *MockDataStore_UpdatePendingResourceDeletion_Call) Return(_a0 *datamode
 }
 
 func (_c *MockDataStore_UpdatePendingResourceDeletion_Call) RunAndReturn(run func(context.Context, int64, bool, string) (*datamodel.PendingResourceDeletions, error)) *MockDataStore_UpdatePendingResourceDeletion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ApplyPoolNasLifIPs provides a mock function with given fields: ctx, poolUUID, vlmConfig, lifs
+func (_m *MockDataStore) ApplyPoolNasLifIPs(ctx context.Context, poolUUID string, vlmConfig string, lifs []commonparams.NasLifIPWrite) error {
+	ret := _m.Called(ctx, poolUUID, vlmConfig, lifs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyPoolNasLifIPs")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []commonparams.NasLifIPWrite) error); ok {
+		r0 = rf(ctx, poolUUID, vlmConfig, lifs)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_ApplyPoolNasLifIPs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyPoolNasLifIPs'
+type MockDataStore_ApplyPoolNasLifIPs_Call struct {
+	*mock.Call
+}
+
+// ApplyPoolNasLifIPs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - vlmConfig string
+//   - lifs []commonparams.NasLifIPWrite
+func (_e *MockDataStore_Expecter) ApplyPoolNasLifIPs(ctx interface{}, poolUUID interface{}, vlmConfig interface{}, lifs interface{}) *MockDataStore_ApplyPoolNasLifIPs_Call {
+	return &MockDataStore_ApplyPoolNasLifIPs_Call{Call: _e.mock.On("ApplyPoolNasLifIPs", ctx, poolUUID, vlmConfig, lifs)}
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPs_Call) Run(run func(ctx context.Context, poolUUID string, vlmConfig string, lifs []commonparams.NasLifIPWrite)) *MockDataStore_ApplyPoolNasLifIPs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]commonparams.NasLifIPWrite))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPs_Call) Return(_a0 error) *MockDataStore_ApplyPoolNasLifIPs_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPs_Call) RunAndReturn(run func(context.Context, string, string, []commonparams.NasLifIPWrite) error) *MockDataStore_ApplyPoolNasLifIPs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ApplyPoolNasLifIPUpdates provides a mock function with given fields: ctx, poolUUID, updates
+func (_m *MockDataStore) ApplyPoolNasLifIPUpdates(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error) {
+	ret := _m.Called(ctx, poolUUID, updates)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyPoolNasLifIPUpdates")
+	}
+
+	var r0 []commonparams.NasLifIPUpdateResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []commonparams.NasLifIPUpdate) []commonparams.NasLifIPUpdateResult); ok {
+		r0 = rf(ctx, poolUUID, updates)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]commonparams.NasLifIPUpdateResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []commonparams.NasLifIPUpdate) error); ok {
+		r1 = rf(ctx, poolUUID, updates)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ApplyPoolNasLifIPUpdates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyPoolNasLifIPUpdates'
+type MockDataStore_ApplyPoolNasLifIPUpdates_Call struct {
+	*mock.Call
+}
+
+// ApplyPoolNasLifIPUpdates is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - updates []commonparams.NasLifIPUpdate
+func (_e *MockDataStore_Expecter) ApplyPoolNasLifIPUpdates(ctx interface{}, poolUUID interface{}, updates interface{}) *MockDataStore_ApplyPoolNasLifIPUpdates_Call {
+	return &MockDataStore_ApplyPoolNasLifIPUpdates_Call{Call: _e.mock.On("ApplyPoolNasLifIPUpdates", ctx, poolUUID, updates)}
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPUpdates_Call) Run(run func(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate)) *MockDataStore_ApplyPoolNasLifIPUpdates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]commonparams.NasLifIPUpdate))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPUpdates_Call) Return(_a0 []commonparams.NasLifIPUpdateResult, _a1 error) *MockDataStore_ApplyPoolNasLifIPUpdates_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ApplyPoolNasLifIPUpdates_Call) RunAndReturn(run func(context.Context, string, []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error)) *MockDataStore_ApplyPoolNasLifIPUpdates_Call {
 	_c.Call.Return(run)
 	return _c
 }

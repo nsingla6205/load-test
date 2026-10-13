@@ -9,6 +9,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -606,6 +607,162 @@ func TestGetLifsForNodesWithProtocol(t *testing.T) {
 		assert.Equal(tt, operationalLif.UUID, result[0].UUID)
 		assert.False(tt, result[0].IsDirectoryDiagnosis)
 	})
+}
+
+func TestApplyPoolNasLifIPs(t *testing.T) {
+	ctx := context.Background()
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "account-1"}, Name: "account"}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-1"},
+		Name:      "pool",
+		AccountID: account.ID,
+		VLMConfig: `{"svm":{"svm1":{"svm_lifs":{"ilbnas":[{"lif_name":"svm1-ilbnas","ip":"10.0.0.5"}]}}}}`,
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+	node := &datamodel.Node{
+		BaseModel: datamodel.BaseModel{UUID: "node-1"},
+		Name:      "node-1",
+		PoolID:    pool.ID,
+		AccountID: account.ID,
+	}
+	require.NoError(t, store.db.Create(node).Error())
+	lif := &datamodel.Lif{
+		BaseModel: datamodel.BaseModel{UUID: "lif-1"},
+		Name:      "svm1-ilbnas",
+		IPAddress: "10.0.0.5",
+		NodeID:    node.ID,
+		AccountID: account.ID,
+		LifDetails: &datamodel.LifDetails{
+			ProtocolType: "nas",
+		},
+	}
+	require.NoError(t, store.db.Create(lif).Error())
+
+	updatedConfig := `{"svm":{"svm1":{"svm_lifs":{"ilbnas":[{"ip":"10.0.0.9","lif_name":"svm1-ilbnas"}]}}}}`
+	err = store.ApplyPoolNasLifIPs(ctx, pool.UUID, updatedConfig, []commonparams.NasLifIPWrite{{
+		UUID:      lif.UUID,
+		IPAddress: "10.0.0.9",
+	}})
+	require.NoError(t, err)
+
+	storedPool, err := store.GetPoolByUUID(ctx, pool.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, updatedConfig, storedPool.VLMConfig)
+
+	var storedLif datamodel.Lif
+	require.NoError(t, store.db.Where("uuid = ?", lif.UUID).First(&storedLif).Error())
+	assert.Equal(t, "10.0.0.9", storedLif.IPAddress)
+}
+
+func TestApplyPoolNasLifIPs_MissingLifRollsBackVLMConfig(t *testing.T) {
+	ctx := context.Background()
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "account-1"}, Name: "account"}
+	require.NoError(t, store.db.Create(account).Error())
+	original := `{"svm":{}}`
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-1"},
+		Name:      "pool",
+		AccountID: account.ID,
+		VLMConfig: original,
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	err = store.ApplyPoolNasLifIPs(ctx, pool.UUID, `{"svm":{"changed":true}}`, []commonparams.NasLifIPWrite{{
+		UUID:      "missing-lif",
+		IPAddress: "10.0.0.9",
+	}})
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.ErrorAs(t, err, &customErr)
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+
+	storedPool, err := store.GetPoolByUUID(ctx, pool.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, original, storedPool.VLMConfig)
+}
+
+func TestApplyPoolNasLifIPUpdates_PatchesLatestConfigForSequentialUpdates(t *testing.T) {
+	ctx := context.Background()
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "account-1"}, Name: "account"}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-1"},
+		Name:      "pool",
+		AccountID: account.ID,
+		VLMConfig: `{"svm":{"svm1":{"svm_lifs":{"ilbnas":[{"lif_name":"lif-a","ip":"10.0.0.5/32"},{"lif_name":"lif-b","ip":"10.0.0.6/32"}]}}}}`,
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+	node := &datamodel.Node{
+		BaseModel: datamodel.BaseModel{UUID: "node-1"},
+		Name:      "node-1",
+		PoolID:    pool.ID,
+		AccountID: account.ID,
+	}
+	require.NoError(t, store.db.Create(node).Error())
+	lifs := []*datamodel.Lif{
+		{
+			BaseModel:  datamodel.BaseModel{UUID: "lif-row-a"},
+			Name:       "lif-a",
+			IPAddress:  "10.0.0.5",
+			NodeID:     node.ID,
+			AccountID:  account.ID,
+			LifDetails: &datamodel.LifDetails{ProtocolType: "nas"},
+		},
+		{
+			BaseModel:  datamodel.BaseModel{UUID: "lif-row-b"},
+			Name:       "lif-b",
+			IPAddress:  "10.0.0.6",
+			NodeID:     node.ID,
+			AccountID:  account.ID,
+			LifDetails: &datamodel.LifDetails{ProtocolType: "nas"},
+		},
+	}
+	for _, lif := range lifs {
+		require.NoError(t, store.db.Create(lif).Error())
+	}
+
+	_, err = store.ApplyPoolNasLifIPUpdates(ctx, pool.UUID, []commonparams.NasLifIPUpdate{{
+		LifName:   "lif-a",
+		IPAddress: "10.0.0.50",
+	}})
+	require.NoError(t, err)
+	_, err = store.ApplyPoolNasLifIPUpdates(ctx, pool.UUID, []commonparams.NasLifIPUpdate{{
+		LifName:   "lif-b",
+		IPAddress: "10.0.0.60",
+	}})
+	require.NoError(t, err)
+
+	storedPool, err := store.GetPoolByUUID(ctx, pool.UUID)
+	require.NoError(t, err)
+	assert.Contains(t, storedPool.VLMConfig, `"lif_name":"lif-a"`)
+	assert.Contains(t, storedPool.VLMConfig, `"ip":"10.0.0.50/32"`)
+	assert.Contains(t, storedPool.VLMConfig, `"lif_name":"lif-b"`)
+	assert.Contains(t, storedPool.VLMConfig, `"ip":"10.0.0.60/32"`)
+
+	var storedLifs []datamodel.Lif
+	require.NoError(t, store.db.GORM().Where("uuid IN ?", []string{"lif-row-a", "lif-row-b"}).Order("uuid").Find(&storedLifs).Error)
+	require.Len(t, storedLifs, 2)
+	assert.Equal(t, "10.0.0.50", storedLifs[0].IPAddress)
+	assert.Equal(t, "10.0.0.60", storedLifs[1].IPAddress)
 }
 
 func Test_getLifsWithProtocolDetails_WithProtocol_PostgresMock(t *testing.T) {

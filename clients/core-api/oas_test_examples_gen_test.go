@@ -1750,6 +1750,83 @@ func TestListAvailableVersionsResponseV1_EncodeDecode(t *testing.T) {
 	var typ2 ListAvailableVersionsResponseV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestListPoolNasLifsResponseV1_EncodeDecode(t *testing.T) {
+	var typ ListPoolNasLifsResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ListPoolNasLifsResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestListPoolNasLifsResponseV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"nasLifs\":[{\"ipAddress\":\"10.33.182.10/32\",\"lifName\":\"svm1-ilbnas\",\"lifType\":\"ilbnas\",\"svmName\":\"svm1\"}],\"poolId\":\"9760acf5-4638-11e7-9bdb-020073ca7773\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ ListPoolNasLifsResponseV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 ListPoolNasLifsResponseV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestNasLifIPUpdateResultV1_EncodeDecode(t *testing.T) {
+	var typ NasLifIPUpdateResultV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 NasLifIPUpdateResultV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestNasLifIPUpdateResultV1UpdatedLocationsItem_EncodeDecode(t *testing.T) {
+	var typ NasLifIPUpdateResultV1UpdatedLocationsItem
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 NasLifIPUpdateResultV1UpdatedLocationsItem
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestNasLifIPUpdateV1_EncodeDecode(t *testing.T) {
+	var typ NasLifIPUpdateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 NasLifIPUpdateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestOntapCredentialsV1_EncodeDecode(t *testing.T) {
 	var typ OntapCredentialsV1
 	typ.SetFake()
@@ -1934,6 +2011,59 @@ func TestPoolCertificateMaintenanceStatusResponseV1Status_EncodeDecode(t *testin
 
 	var typ2 PoolCertificateMaintenanceStatusResponseV1Status
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolNasLifV1_EncodeDecode(t *testing.T) {
+	var typ PoolNasLifV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolNasLifV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestPoolNasLifV1LifType_EncodeDecode(t *testing.T) {
+	var typ PoolNasLifV1LifType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 PoolNasLifV1LifType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestPoolNasLifV1LifType_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"ilbnas\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ PoolNasLifV1LifType
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 PoolNasLifV1LifType
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestPoolUpdateV1_EncodeDecode(t *testing.T) {
 	var typ PoolUpdateV1
@@ -2513,6 +2643,88 @@ func TestStorageClassV1_EncodeDecode(t *testing.T) {
 
 	var typ2 StorageClassV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdatePoolNasLifRequestV1_EncodeDecode(t *testing.T) {
+	var typ UpdatePoolNasLifRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdatePoolNasLifRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestUpdatePoolNasLifRequestV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"nasLifs\":[{\"ipAddress\":\"10.33.182.243\",\"lifName\":\"svm1-ilbnas\"}]}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ UpdatePoolNasLifRequestV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 UpdatePoolNasLifRequestV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestUpdatePoolNasLifResponseV1_EncodeDecode(t *testing.T) {
+	var typ UpdatePoolNasLifResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdatePoolNasLifResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestUpdatePoolNasLifResponseV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"nasLifs\":[{\"ipAddress\":\"10.33.182.243\",\"lifName\":\"svm1-ilbnas\",\"previousIpAddress\":\"10.33.182.10/32\",\"updatedLocations\":[\"vlm_config\",\"lifs\"]}],\"poolId\":\"9760acf5-4638-11e7-9bdb-020073ca7773\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ UpdatePoolNasLifResponseV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 UpdatePoolNasLifResponseV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestUpdateVolumeDatabaseValueRequestV1_EncodeDecode(t *testing.T) {
 	var typ UpdateVolumeDatabaseValueRequestV1
@@ -5903,6 +6115,90 @@ func TestV1ListInterclusterLifsUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1ListInterclusterLifsUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1ListPoolNasLifsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListPoolNasLifsUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1ListPoolNasLifsUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListPoolNasLifsUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1ListPoolsBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1ListPoolsBadRequest
 	typ.SetFake()
@@ -7485,6 +7781,90 @@ func TestV1UpdatePoolInternalServerError_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdatePoolInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdatePoolNasLifUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1UpdatePoolNasLifUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdatePoolNasLifUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdatePoolNotFound_EncodeDecode(t *testing.T) {

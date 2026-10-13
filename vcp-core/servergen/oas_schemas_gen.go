@@ -2039,6 +2039,7 @@ func (*ErrorStatusCode) v1ListHostsRes()                             {}
 func (*ErrorStatusCode) v1ListIPRangesRes()                          {}
 func (*ErrorStatusCode) v1ListImageVersionsRes()                     {}
 func (*ErrorStatusCode) v1ListInterclusterLifsRes()                  {}
+func (*ErrorStatusCode) v1ListPoolNasLifsRes()                       {}
 func (*ErrorStatusCode) v1ListPoolsRes()                             {}
 func (*ErrorStatusCode) v1ListRegionsRes()                           {}
 func (*ErrorStatusCode) v1ListSVMsRes()                              {}
@@ -2056,6 +2057,7 @@ func (*ErrorStatusCode) v1UpdateAddressRangeStateRes()               {}
 func (*ErrorStatusCode) v1UpdateExternalClusterRes()                 {}
 func (*ErrorStatusCode) v1UpdateHostRes()                            {}
 func (*ErrorStatusCode) v1UpdateIPRangeRes()                         {}
+func (*ErrorStatusCode) v1UpdatePoolNasLifRes()                      {}
 func (*ErrorStatusCode) v1UpdatePoolRes()                            {}
 func (*ErrorStatusCode) v1UpdateRegionRes()                          {}
 func (*ErrorStatusCode) v1UpdateVolumeDatabaseValueRes()             {}
@@ -4773,6 +4775,157 @@ func (s *ListAvailableVersionsResponseV1) SetCurrent(val string) {
 }
 
 func (*ListAvailableVersionsResponseV1) v1ListImageVersionsRes() {}
+
+// Ref: #/components/schemas/ListPoolNasLifsResponse_v1
+type ListPoolNasLifsResponseV1 struct {
+	// UUID of the pool.
+	PoolId string `json:"poolId"`
+	// NAS LIF entries stored in the pool VLM config.
+	NasLifs []PoolNasLifV1 `json:"nasLifs"`
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *ListPoolNasLifsResponseV1) GetPoolId() string {
+	return s.PoolId
+}
+
+// GetNasLifs returns the value of NasLifs.
+func (s *ListPoolNasLifsResponseV1) GetNasLifs() []PoolNasLifV1 {
+	return s.NasLifs
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *ListPoolNasLifsResponseV1) SetPoolId(val string) {
+	s.PoolId = val
+}
+
+// SetNasLifs sets the value of NasLifs.
+func (s *ListPoolNasLifsResponseV1) SetNasLifs(val []PoolNasLifV1) {
+	s.NasLifs = val
+}
+
+func (*ListPoolNasLifsResponseV1) v1ListPoolNasLifsRes() {}
+
+// Ref: #/components/schemas/NasLifIPUpdateResult_v1
+type NasLifIPUpdateResultV1 struct {
+	// LIF name that was updated.
+	LifName string `json:"lifName"`
+	// IP previously stored on this NAS LIF in the VLM config.
+	PreviousIpAddress OptString `json:"previousIpAddress"`
+	// IPv4 address now stored for this NAS LIF.
+	IpAddress string `json:"ipAddress"`
+	// Database locations updated for this LIF. vlm_config is the pool VLM config. lifs is the lifs table.
+	UpdatedLocations []NasLifIPUpdateResultV1UpdatedLocationsItem `json:"updatedLocations"`
+}
+
+// GetLifName returns the value of LifName.
+func (s *NasLifIPUpdateResultV1) GetLifName() string {
+	return s.LifName
+}
+
+// GetPreviousIpAddress returns the value of PreviousIpAddress.
+func (s *NasLifIPUpdateResultV1) GetPreviousIpAddress() OptString {
+	return s.PreviousIpAddress
+}
+
+// GetIpAddress returns the value of IpAddress.
+func (s *NasLifIPUpdateResultV1) GetIpAddress() string {
+	return s.IpAddress
+}
+
+// GetUpdatedLocations returns the value of UpdatedLocations.
+func (s *NasLifIPUpdateResultV1) GetUpdatedLocations() []NasLifIPUpdateResultV1UpdatedLocationsItem {
+	return s.UpdatedLocations
+}
+
+// SetLifName sets the value of LifName.
+func (s *NasLifIPUpdateResultV1) SetLifName(val string) {
+	s.LifName = val
+}
+
+// SetPreviousIpAddress sets the value of PreviousIpAddress.
+func (s *NasLifIPUpdateResultV1) SetPreviousIpAddress(val OptString) {
+	s.PreviousIpAddress = val
+}
+
+// SetIpAddress sets the value of IpAddress.
+func (s *NasLifIPUpdateResultV1) SetIpAddress(val string) {
+	s.IpAddress = val
+}
+
+// SetUpdatedLocations sets the value of UpdatedLocations.
+func (s *NasLifIPUpdateResultV1) SetUpdatedLocations(val []NasLifIPUpdateResultV1UpdatedLocationsItem) {
+	s.UpdatedLocations = val
+}
+
+type NasLifIPUpdateResultV1UpdatedLocationsItem string
+
+const (
+	NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig NasLifIPUpdateResultV1UpdatedLocationsItem = "vlm_config"
+	NasLifIPUpdateResultV1UpdatedLocationsItemLifs      NasLifIPUpdateResultV1UpdatedLocationsItem = "lifs"
+)
+
+// AllValues returns all NasLifIPUpdateResultV1UpdatedLocationsItem values.
+func (NasLifIPUpdateResultV1UpdatedLocationsItem) AllValues() []NasLifIPUpdateResultV1UpdatedLocationsItem {
+	return []NasLifIPUpdateResultV1UpdatedLocationsItem{
+		NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig,
+		NasLifIPUpdateResultV1UpdatedLocationsItemLifs,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s NasLifIPUpdateResultV1UpdatedLocationsItem) MarshalText() ([]byte, error) {
+	switch s {
+	case NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig:
+		return []byte(s), nil
+	case NasLifIPUpdateResultV1UpdatedLocationsItemLifs:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *NasLifIPUpdateResultV1UpdatedLocationsItem) UnmarshalText(data []byte) error {
+	switch NasLifIPUpdateResultV1UpdatedLocationsItem(data) {
+	case NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig:
+		*s = NasLifIPUpdateResultV1UpdatedLocationsItemVlmConfig
+		return nil
+	case NasLifIPUpdateResultV1UpdatedLocationsItemLifs:
+		*s = NasLifIPUpdateResultV1UpdatedLocationsItemLifs
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/NasLifIPUpdate_v1
+type NasLifIPUpdateV1 struct {
+	// LIF name stored on the NAS LIF in the pool VLM config.
+	LifName string `json:"lifName"`
+	// New IPv4 address for the NAS LIF.
+	IpAddress string `json:"ipAddress"`
+}
+
+// GetLifName returns the value of LifName.
+func (s *NasLifIPUpdateV1) GetLifName() string {
+	return s.LifName
+}
+
+// GetIpAddress returns the value of IpAddress.
+func (s *NasLifIPUpdateV1) GetIpAddress() string {
+	return s.IpAddress
+}
+
+// SetLifName sets the value of LifName.
+func (s *NasLifIPUpdateV1) SetLifName(val string) {
+	s.LifName = val
+}
+
+// SetIpAddress sets the value of IpAddress.
+func (s *NasLifIPUpdateV1) SetIpAddress(val string) {
+	s.IpAddress = val
+}
 
 // Ref: #/components/schemas/OntapCredentials_v1
 type OntapCredentialsV1 struct {
@@ -7887,6 +8040,100 @@ func (s *PoolCertificateMaintenanceStatusResponseV1Status) UnmarshalText(data []
 	}
 }
 
+// Ref: #/components/schemas/PoolNasLif_v1
+type PoolNasLifV1 struct {
+	// SVM name in the pool VLM config.
+	SvmName string `json:"svmName"`
+	// NAS LIF name.
+	LifName string `json:"lifName"`
+	// NAS LIF type from the VLM config.
+	LifType PoolNasLifV1LifType `json:"lifType"`
+	// IP address stored on the NAS LIF in the VLM config.
+	IpAddress string `json:"ipAddress"`
+}
+
+// GetSvmName returns the value of SvmName.
+func (s *PoolNasLifV1) GetSvmName() string {
+	return s.SvmName
+}
+
+// GetLifName returns the value of LifName.
+func (s *PoolNasLifV1) GetLifName() string {
+	return s.LifName
+}
+
+// GetLifType returns the value of LifType.
+func (s *PoolNasLifV1) GetLifType() PoolNasLifV1LifType {
+	return s.LifType
+}
+
+// GetIpAddress returns the value of IpAddress.
+func (s *PoolNasLifV1) GetIpAddress() string {
+	return s.IpAddress
+}
+
+// SetSvmName sets the value of SvmName.
+func (s *PoolNasLifV1) SetSvmName(val string) {
+	s.SvmName = val
+}
+
+// SetLifName sets the value of LifName.
+func (s *PoolNasLifV1) SetLifName(val string) {
+	s.LifName = val
+}
+
+// SetLifType sets the value of LifType.
+func (s *PoolNasLifV1) SetLifType(val PoolNasLifV1LifType) {
+	s.LifType = val
+}
+
+// SetIpAddress sets the value of IpAddress.
+func (s *PoolNasLifV1) SetIpAddress(val string) {
+	s.IpAddress = val
+}
+
+// NAS LIF type from the VLM config.
+type PoolNasLifV1LifType string
+
+const (
+	PoolNasLifV1LifTypeIlbnas PoolNasLifV1LifType = "ilbnas"
+	PoolNasLifV1LifTypeNas    PoolNasLifV1LifType = "nas"
+)
+
+// AllValues returns all PoolNasLifV1LifType values.
+func (PoolNasLifV1LifType) AllValues() []PoolNasLifV1LifType {
+	return []PoolNasLifV1LifType{
+		PoolNasLifV1LifTypeIlbnas,
+		PoolNasLifV1LifTypeNas,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s PoolNasLifV1LifType) MarshalText() ([]byte, error) {
+	switch s {
+	case PoolNasLifV1LifTypeIlbnas:
+		return []byte(s), nil
+	case PoolNasLifV1LifTypeNas:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *PoolNasLifV1LifType) UnmarshalText(data []byte) error {
+	switch PoolNasLifV1LifType(data) {
+	case PoolNasLifV1LifTypeIlbnas:
+		*s = PoolNasLifV1LifTypeIlbnas
+		return nil
+	case PoolNasLifV1LifTypeNas:
+		*s = PoolNasLifV1LifTypeNas
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/PoolUpdate_v1
 type PoolUpdateV1 struct {
 	// Maximum size allowed for a pool in bytes.
@@ -9444,6 +9691,51 @@ func (s *StorageClassV1) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/UpdatePoolNasLifRequest_v1
+type UpdatePoolNasLifRequestV1 struct {
+	// NAS LIF addresses to persist for the pool.
+	NasLifs []NasLifIPUpdateV1 `json:"nasLifs"`
+}
+
+// GetNasLifs returns the value of NasLifs.
+func (s *UpdatePoolNasLifRequestV1) GetNasLifs() []NasLifIPUpdateV1 {
+	return s.NasLifs
+}
+
+// SetNasLifs sets the value of NasLifs.
+func (s *UpdatePoolNasLifRequestV1) SetNasLifs(val []NasLifIPUpdateV1) {
+	s.NasLifs = val
+}
+
+// Ref: #/components/schemas/UpdatePoolNasLifResponse_v1
+type UpdatePoolNasLifResponseV1 struct {
+	// UUID of the pool that was updated.
+	PoolId  string                   `json:"poolId"`
+	NasLifs []NasLifIPUpdateResultV1 `json:"nasLifs"`
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *UpdatePoolNasLifResponseV1) GetPoolId() string {
+	return s.PoolId
+}
+
+// GetNasLifs returns the value of NasLifs.
+func (s *UpdatePoolNasLifResponseV1) GetNasLifs() []NasLifIPUpdateResultV1 {
+	return s.NasLifs
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *UpdatePoolNasLifResponseV1) SetPoolId(val string) {
+	s.PoolId = val
+}
+
+// SetNasLifs sets the value of NasLifs.
+func (s *UpdatePoolNasLifResponseV1) SetNasLifs(val []NasLifIPUpdateResultV1) {
+	s.NasLifs = val
+}
+
+func (*UpdatePoolNasLifResponseV1) v1UpdatePoolNasLifRes() {}
+
 // All fields are optional. Only fields explicitly present in the request body are written to the
 // volume DB row; omitted fields are left untouched.
 // Ref: #/components/schemas/UpdateVolumeDatabaseValueRequest_v1
@@ -10977,6 +11269,34 @@ type V1ListInterclusterLifsUnauthorized Error
 
 func (*V1ListInterclusterLifsUnauthorized) v1ListInterclusterLifsRes() {}
 
+type V1ListPoolNasLifsBadRequest Error
+
+func (*V1ListPoolNasLifsBadRequest) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsForbidden Error
+
+func (*V1ListPoolNasLifsForbidden) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsInternalServerError Error
+
+func (*V1ListPoolNasLifsInternalServerError) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsNotFound Error
+
+func (*V1ListPoolNasLifsNotFound) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsTooManyRequests Error
+
+func (*V1ListPoolNasLifsTooManyRequests) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsUnauthorized Error
+
+func (*V1ListPoolNasLifsUnauthorized) v1ListPoolNasLifsRes() {}
+
+type V1ListPoolNasLifsUnprocessableEntity Error
+
+func (*V1ListPoolNasLifsUnprocessableEntity) v1ListPoolNasLifsRes() {}
+
 type V1ListPoolsBadRequest Error
 
 func (*V1ListPoolsBadRequest) v1ListPoolsRes() {}
@@ -11519,6 +11839,34 @@ func (*V1UpdatePoolForbidden) v1UpdatePoolRes() {}
 type V1UpdatePoolInternalServerError Error
 
 func (*V1UpdatePoolInternalServerError) v1UpdatePoolRes() {}
+
+type V1UpdatePoolNasLifBadRequest Error
+
+func (*V1UpdatePoolNasLifBadRequest) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifForbidden Error
+
+func (*V1UpdatePoolNasLifForbidden) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifInternalServerError Error
+
+func (*V1UpdatePoolNasLifInternalServerError) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifNotFound Error
+
+func (*V1UpdatePoolNasLifNotFound) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifTooManyRequests Error
+
+func (*V1UpdatePoolNasLifTooManyRequests) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifUnauthorized Error
+
+func (*V1UpdatePoolNasLifUnauthorized) v1UpdatePoolNasLifRes() {}
+
+type V1UpdatePoolNasLifUnprocessableEntity Error
+
+func (*V1UpdatePoolNasLifUnprocessableEntity) v1UpdatePoolNasLifRes() {}
 
 // V1UpdatePoolNoContent is response for V1UpdatePool operation.
 type V1UpdatePoolNoContent struct{}

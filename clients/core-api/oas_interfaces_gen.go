@@ -169,6 +169,10 @@ type V1ListInterclusterLifsRes interface {
 	v1ListInterclusterLifsRes()
 }
 
+type V1ListPoolNasLifsRes interface {
+	v1ListPoolNasLifsRes()
+}
+
 type V1ListPoolsRes interface {
 	v1ListPoolsRes()
 }
@@ -239,6 +243,10 @@ type V1UpdateHostRes interface {
 
 type V1UpdateIPRangeRes interface {
 	v1UpdateIPRangeRes()
+}
+
+type V1UpdatePoolNasLifRes interface {
+	v1UpdatePoolNasLifRes()
 }
 
 type V1UpdatePoolRes interface {

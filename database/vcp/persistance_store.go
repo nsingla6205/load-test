@@ -12,11 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	dblogger "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/logger"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -964,6 +965,11 @@ func (s *PersistenceStore) GetLifByNodeID(ctx context.Context, nodeID int64, acc
 
 func (s *PersistenceStore) GetLifsForNodesWithProtocol(ctx context.Context, nodeIDs []int64, accountID int64, protocol string) ([]*datamodel.Lif, error) {
 	return s.dataStore.GetLifsForNodesWithProtocol(ctx, nodeIDs, accountID, protocol)
+}
+
+// ApplyPoolNasLifIPUpdates writes NAS LIF address changes from the current pool VLM config.
+func (s *PersistenceStore) ApplyPoolNasLifIPUpdates(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate) ([]commonparams.NasLifIPUpdateResult, error) {
+	return s.dataStore.ApplyPoolNasLifIPUpdates(ctx, poolUUID, updates)
 }
 
 func (s *PersistenceStore) DeleteSVM(ctx context.Context, svm *datamodel.Svm) error {
@@ -2370,8 +2376,6 @@ func (s *PersistenceStore) ListNodeGroupsWithPollerCounts(ctx context.Context) (
 func (s *PersistenceStore) ListNodeNodeGroupMapsByNodeGroupID(ctx context.Context, nodeGroupID int64) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
 }
-
-// BillingLedger methods
 
 func (s *PersistenceStore) CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error) {
 	return s.dataStore.CreateBillingLedger(ctx, ledger)

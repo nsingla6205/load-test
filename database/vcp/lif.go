@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -60,6 +61,132 @@ func (d *DataStoreRepository) GetLifsForNodesWithProtocol(ctx context.Context, n
 	)
 
 	return getLifsWithProtocolDetails(dbQuery, protocol)
+}
+
+// ApplyPoolNasLifIPs writes the pool VLM config and the matching lifs.ip_address
+// rows in one transaction.
+func (d *DataStoreRepository) ApplyPoolNasLifIPs(ctx context.Context, poolUUID, vlmConfig string, lifs []commonparams.NasLifIPWrite) (err error) {
+	poolUUID = strings.TrimSpace(poolUUID)
+	if poolUUID == "" || strings.TrimSpace(vlmConfig) == "" {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("pool UUID and VLM config are required"))
+	}
+	for _, lif := range lifs {
+		if strings.TrimSpace(lif.UUID) == "" || strings.TrimSpace(lif.IPAddress) == "" {
+			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				customerrors.NewUserInputValidationErr("lif UUID and IP address are required"))
+		}
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	now := time.Now().UTC()
+	poolResult := tx.Model(&datamodel.Pool{}).
+		Where("uuid = ?", poolUUID).
+		Updates(map[string]interface{}{
+			"vlm_config": vlmConfig,
+			"updated_at": now,
+		})
+	if poolResult.Error != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, poolResult.Error)
+		return err
+	}
+	if poolResult.RowsAffected == 0 {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Pool", &poolUUID))
+		return err
+	}
+
+	for _, lif := range lifs {
+		lifResult := tx.Model(&datamodel.Lif{}).
+			Where("uuid = ?", lif.UUID).
+			Updates(map[string]interface{}{
+				"ip_address": lif.IPAddress,
+				"updated_at": now,
+			})
+		if lifResult.Error != nil {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, lifResult.Error)
+			return err
+		}
+		if lifResult.RowsAffected == 0 {
+			lifUUID := lif.UUID
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Lif", &lifUUID))
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyPoolNasLifIPUpdates serializes NAS LIF address updates through a pool row lock.
+func (d *DataStoreRepository) ApplyPoolNasLifIPUpdates(ctx context.Context, poolUUID string, updates []commonparams.NasLifIPUpdate) (results []commonparams.NasLifIPUpdateResult, err error) {
+	poolUUID = strings.TrimSpace(poolUUID)
+	if poolUUID == "" || len(updates) == 0 {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("pool UUID and NAS LIF address updates are required"))
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	var pool datamodel.Pool
+	if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("uuid = ?", poolUUID).
+		First(&pool).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, customerrors.NewNotFoundErr("Pool", &poolUUID))
+			return nil, err
+		}
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		return nil, err
+	}
+
+	updatedConfig, applied, err := commonparams.ApplyNasLifIPsToConfig(pool.VLMConfig, updates)
+	if err != nil {
+		return nil, err
+	}
+
+	lifs, err := nasLifsForPoolTx(tx, pool.ID, pool.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	writes, locationsByName := commonparams.BuildNasLifWrites(lifs, updates, applied)
+
+	now := time.Now().UTC()
+	if err = tx.Model(&datamodel.Pool{}).
+		Where("id = ?", pool.ID).
+		Updates(map[string]interface{}{
+			"vlm_config": updatedConfig,
+			"updated_at": now,
+		}).Error; err != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+		return nil, err
+	}
+
+	if err = applyNasLifRowWrites(tx, now, writes); err != nil {
+		return nil, err
+	}
+
+	results = make([]commonparams.NasLifIPUpdateResult, 0, len(updates))
+	for _, update := range updates {
+		change := applied[update.LifName]
+		results = append(results, commonparams.NasLifIPUpdateResult{
+			LifName:           update.LifName,
+			PreviousIPAddress: change.PreviousIPAddress,
+			IPAddress:         update.IPAddress,
+			UpdatedLocations:  locationsByName[update.LifName],
+		})
+	}
+	return results, nil
 }
 
 // CreateLif creates a new LIF in the database
@@ -141,6 +268,49 @@ func _getLifsWithProtocolDetails(dbQuery *gorm.DB, protocol string) ([]*datamode
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "lif", nil))
 	}
 	return lifs, nil
+}
+
+func nasLifsForPoolTx(tx *gorm.DB, poolID, accountID int64) ([]*datamodel.Lif, error) {
+	nodes, err := getNodesByPoolID(tx.Unscoped(), poolID)
+	if err != nil {
+		return nil, err
+	}
+	nodeIDs := make([]int64, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil && node.ID > 0 {
+			nodeIDs = append(nodeIDs, node.ID)
+		}
+	}
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+
+	dbQuery := tx.Where(
+		"node_id IN ? AND account_id = ? AND is_directory_diagnosis = ?",
+		nodeIDs,
+		accountID,
+		false,
+	)
+	return getLifsWithProtocolDetails(dbQuery, "")
+}
+
+func applyNasLifRowWrites(tx *gorm.DB, now time.Time, lifs []commonparams.NasLifIPWrite) error {
+	for _, lif := range lifs {
+		lifResult := tx.Model(&datamodel.Lif{}).
+			Where("uuid = ?", lif.UUID).
+			Updates(map[string]interface{}{
+				"ip_address": lif.IPAddress,
+				"updated_at": now,
+			})
+		if lifResult.Error != nil {
+			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, lifResult.Error)
+		}
+		if lifResult.RowsAffected == 0 {
+			lifUUID := lif.UUID
+			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Lif", &lifUUID))
+		}
+	}
+	return nil
 }
 
 // ReserveInterclusterLifIPs reserves count IC LIF IPs from the carved ip_ranges block for a pool.
