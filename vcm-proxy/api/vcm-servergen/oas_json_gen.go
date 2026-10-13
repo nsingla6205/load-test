@@ -2263,6 +2263,12 @@ func (s *IgroupV1) encodeFields(e *jx.Encoder) {
 		e.Str(s.Name)
 	}
 	{
+		if s.UUID.Set {
+			e.FieldStart("uuid")
+			s.UUID.Encode(e)
+		}
+	}
+	{
 		e.FieldStart("hosts")
 		e.ArrStart()
 		for _, elem := range s.Hosts {
@@ -2276,10 +2282,11 @@ func (s *IgroupV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfIgroupV1 = [3]string{
+var jsonFieldsNameOfIgroupV1 = [4]string{
 	0: "name",
-	1: "hosts",
-	2: "osType",
+	1: "uuid",
+	2: "hosts",
+	3: "osType",
 }
 
 // Decode decodes IgroupV1 from json.
@@ -2303,8 +2310,18 @@ func (s *IgroupV1) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"name\"")
 			}
+		case "uuid":
+			if err := func() error {
+				s.UUID.Reset()
+				if err := s.UUID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
 		case "hosts":
-			requiredBitSet[0] |= 1 << 1
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				s.Hosts = make([]string, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
@@ -2324,7 +2341,7 @@ func (s *IgroupV1) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"hosts\"")
 			}
 		case "osType":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				if err := s.OsType.Decode(d); err != nil {
 					return err
@@ -2343,7 +2360,7 @@ func (s *IgroupV1) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00001101,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -7732,44 +7749,6 @@ func (s *V1UpdateIgroupUnauthorized) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes V1UpdateVolumeAccepted as json.
-func (s *V1UpdateVolumeAccepted) Encode(e *jx.Encoder) {
-	unwrapped := (*OperationV1)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes V1UpdateVolumeAccepted from json.
-func (s *V1UpdateVolumeAccepted) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateVolumeAccepted to nil")
-	}
-	var unwrapped OperationV1
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = V1UpdateVolumeAccepted(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateVolumeAccepted) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateVolumeAccepted) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
 // Encode encodes V1UpdateVolumeBadRequest as json.
 func (s *V1UpdateVolumeBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponseV1)(s)
@@ -7842,44 +7821,6 @@ func (s *V1UpdateVolumeInternalServerError) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1UpdateVolumeInternalServerError) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes V1UpdateVolumeOK as json.
-func (s *V1UpdateVolumeOK) Encode(e *jx.Encoder) {
-	unwrapped := (*OperationV1)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes V1UpdateVolumeOK from json.
-func (s *V1UpdateVolumeOK) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode V1UpdateVolumeOK to nil")
-	}
-	var unwrapped OperationV1
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = V1UpdateVolumeOK(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *V1UpdateVolumeOK) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *V1UpdateVolumeOK) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

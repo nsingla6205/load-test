@@ -69,6 +69,7 @@ func TestIGroupCreate_Success(t *testing.T) {
 	}
 	rc := &OntapRestProvider{}
 	iGroupName := "testIGroup"
+	igroupUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
 	params := IgroupCreateParams{
 		IgroupName: iGroupName,
 		SvmName:    "testSVM",
@@ -76,12 +77,12 @@ func TestIGroupCreate_Success(t *testing.T) {
 		Initiator:  []string{"iqn.1993-08.org.debian:01:123456789"},
 	}
 
-	mockSAN.On("IGroupCreate", mock.Anything).Return(iGroupName, nil)
+	mockSAN.On("IGroupCreate", mock.Anything).Return(igroupUUID, nil)
 
 	resp, err := rc.IgroupCreate(params)
 
 	assert.NoError(t, err)
-	assert.Equal(t, iGroupName, resp)
+	assert.Equal(t, igroupUUID, resp)
 
 	mockSAN.AssertExpectations(t)
 	mockClient.AssertExpectations(t)
@@ -214,9 +215,14 @@ func TestIgroupGet(t *testing.T) {
 			},
 		}
 
-		mockSAN.On("IGroupGet", mock.Anything).Return(mockIgroup, nil)
+		mockSAN.On("IGroupGet", mock.MatchedBy(func(params *ontaprest.IgroupGetParams) bool {
+			return params != nil &&
+				params.Name != nil && *params.Name == "testIgroup" &&
+				params.UUID == nil &&
+				params.SvmName != nil && *params.SvmName == "testSVM"
+		})).Return(mockIgroup, nil)
 
-		igroup, err := rc.IgroupGet(nillable.GetStringPtr("testIgroup"), nillable.GetStringPtr("testSVM"))
+		igroup, err := rc.IgroupGet(IgroupGetParams{Name: "testIgroup", SvmName: "testSVM"})
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, igroup)
@@ -241,7 +247,7 @@ func TestIgroupGet(t *testing.T) {
 
 		mockSAN.On("IGroupGet", mock.Anything).Return(nil, nil)
 
-		igroup, err := rc.IgroupGet(nillable.GetStringPtr("testIgroup"), nillable.GetStringPtr("testSVM"))
+		igroup, err := rc.IgroupGet(IgroupGetParams{Name: "testIgroup", SvmName: "testSVM"})
 
 		assert.NoError(tt, err)
 		assert.Nil(tt, igroup)
@@ -264,7 +270,7 @@ func TestIgroupGet(t *testing.T) {
 
 		mockSAN.On("IGroupGet", mock.Anything).Return(nil, errors.New("fetch error"))
 
-		igroup, err := rc.IgroupGet(nillable.GetStringPtr("testIgroup"), nillable.GetStringPtr("testSVM"))
+		igroup, err := rc.IgroupGet(IgroupGetParams{Name: "testIgroup", SvmName: "testSVM"})
 
 		assert.Error(tt, err)
 		assert.Nil(tt, igroup)
@@ -272,6 +278,46 @@ func TestIgroupGet(t *testing.T) {
 
 		mockSAN.AssertExpectations(tt)
 		mockClient.AssertExpectations(tt)
+	})
+
+	t.Run("WhenUUIDProvided_ThenQueryByUUID", func(tt *testing.T) {
+		mockSAN := new(ontaprest.MockSANClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("SAN").Return(mockSAN)
+
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		mockIgroup := &ontaprest.Igroup{
+			Igroup: models.Igroup{
+				UUID: nillable.ToPointer("testUUID"),
+			},
+		}
+		mockSAN.On("IGroupGet", mock.MatchedBy(func(params *ontaprest.IgroupGetParams) bool {
+			return params != nil &&
+				params.Name == nil &&
+				params.UUID != nil && *params.UUID == "testUUID" &&
+				params.SvmName != nil && *params.SvmName == "testSVM"
+		})).Return(mockIgroup, nil)
+
+		igroup, err := rc.IgroupGet(IgroupGetParams{UUID: "testUUID", SvmName: "testSVM"})
+
+		assert.NoError(tt, err)
+		require.NotNil(tt, igroup)
+		assert.Equal(tt, "testUUID", *igroup.UUID)
+		mockSAN.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+	})
+
+	t.Run("WhenNameAndUUIDMissing_ThenReturnError", func(tt *testing.T) {
+		rc := &OntapRestProvider{}
+		igroup, err := rc.IgroupGet(IgroupGetParams{SvmName: "testSVM"})
+		assert.EqualError(tt, err, "missing required parameter 'name' or 'uuid' when getting a specific Igroup")
+		assert.Nil(tt, igroup)
 	})
 }
 
@@ -632,6 +678,27 @@ func TestIgroupDelete(t *testing.T) {
 		assert.Error(tt, err)
 		assert.Equal(tt, "getOntapClientFunc error", err.Error())
 	})
+
+	t.Run("WhenIgroupDoesNotExist_ThenReturnSuccess", func(tt *testing.T) {
+		mockSAN := new(ontaprest.MockSANClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("SAN").Return(mockSAN)
+
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		mockSAN.On("IGroupDelete", mock.Anything).Return(errors.New("The initiator group does not exist."))
+
+		err := rc.IgroupDelete("test-igroup-uuid")
+
+		assert.NoError(tt, err)
+		mockSAN.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+	})
 }
 
 func TestSyncIgroupInitiators(t *testing.T) {
@@ -642,48 +709,48 @@ func TestSyncIgroupInitiators(t *testing.T) {
 	iqn2 := "iqn.1998-01.com.vmware:db2"
 	desiredHosts := []string{iqn1, iqn2}
 
-	t.Run("WhenIgroupExistsFails", func(t *testing.T) {
+	t.Run("WhenIgroupGetFails", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(false, nil, errors.New("lookup failed"))
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(nil, errors.New("lookup failed"))
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
 		assert.Error(t, err)
-		assert.False(t, found)
 	})
 
 	t.Run("WhenIgroupNotFound", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(false, nil, nil)
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(nil, errors.NewNotFoundErr("igroup", nil))
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
-		assert.NoError(t, err)
-		assert.False(t, found)
+		assert.Error(t, err)
+		assert.True(t, errors.IsNotFoundErr(err))
 	})
 
-	t.Run("WhenIgroupUUIDMissing", func(t *testing.T) {
+	t.Run("WhenIgroupMissing", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(true, &ontaprest.Igroup{Igroup: models.Igroup{}}, nil)
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(nil, nil)
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
-		assert.NoError(t, err)
-		assert.False(t, found)
+		assert.Error(t, err)
+		assert.True(t, errors.IsNotFoundErr(err))
 	})
 
 	t.Run("WhenAddAndDeleteInitiatorsSucceed", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(true, &ontaprest.Igroup{
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(&ontaprest.Igroup{
 				Igroup: models.Igroup{
+					Name: &igroupName,
 					UUID: &igroupUUID,
 					IgroupInlineInitiators: []*models.IgroupInlineInitiatorsInlineArrayItem{
 						{Name: nillable.ToPointer("iqn.1998-01.com.vmware:old")},
@@ -703,17 +770,17 @@ func TestSyncIgroupInitiators(t *testing.T) {
 			}).
 			Return(nil)
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		gotName, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
 		assert.NoError(t, err)
-		assert.True(t, found)
+		assert.Equal(t, igroupName, gotName)
 	})
 
 	t.Run("WhenAddInitiatorFails", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(true, &ontaprest.Igroup{
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(&ontaprest.Igroup{
 				Igroup: models.Igroup{
 					UUID: &igroupUUID,
 					IgroupInlineInitiators: []*models.IgroupInlineInitiatorsInlineArrayItem{
@@ -725,17 +792,16 @@ func TestSyncIgroupInitiators(t *testing.T) {
 			IgroupAddInitiator(mock.Anything).
 			Return(errors.New("add failed"))
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
 		assert.Error(t, err)
-		assert.True(t, found)
 	})
 
 	t.Run("WhenDeleteInitiatorFails", func(t *testing.T) {
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(true, &ontaprest.Igroup{
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(&ontaprest.Igroup{
 				Igroup: models.Igroup{
 					UUID: &igroupUUID,
 					IgroupInlineInitiators: []*models.IgroupInlineInitiatorsInlineArrayItem{
@@ -751,10 +817,9 @@ func TestSyncIgroupInitiators(t *testing.T) {
 			}).
 			Return(errors.New("delete failed"))
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHosts, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHosts, svmName)
 
 		assert.Error(t, err)
-		assert.True(t, found)
 	})
 
 	t.Run("WhenReplacingAtHostLimitDeletesBeforeAdd", func(t *testing.T) {
@@ -781,8 +846,8 @@ func TestSyncIgroupInitiators(t *testing.T) {
 
 		mockProvider := NewMockProvider(t)
 		mockProvider.EXPECT().
-			IgroupExists(igroupName, &svmName).
-			Return(true, &ontaprest.Igroup{
+			IgroupGet(IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
+			Return(&ontaprest.Igroup{
 				Igroup: models.Igroup{
 					UUID:                   &igroupUUID,
 					IgroupInlineInitiators: currentHosts,
@@ -801,9 +866,8 @@ func TestSyncIgroupInitiators(t *testing.T) {
 			}).
 			Return(nil)
 
-		found, _, err := SyncIgroupInitiators(mockProvider, igroupName, desiredHostsAtLimit, &svmName)
+		_, _, err := SyncIgroupInitiators(mockProvider, igroupUUID, desiredHostsAtLimit, svmName)
 
 		assert.NoError(t, err)
-		assert.True(t, found)
 	})
 }

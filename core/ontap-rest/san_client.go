@@ -61,8 +61,13 @@ func (t *sanClient) IGroupCreate(params *IgroupCreateParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if response == nil || response.Payload == nil || len(response.Payload.IgroupResponseInlineRecords) == 0 ||
+		response.Payload.IgroupResponseInlineRecords[0] == nil || response.Payload.IgroupResponseInlineRecords[0].UUID == nil ||
+		*response.Payload.IgroupResponseInlineRecords[0].UUID == "" {
+		return "", errors.New("ONTAP igroup create response is missing uuid")
+	}
 
-	return *response.Payload.IgroupResponseInlineRecords[0].Name, nil
+	return *response.Payload.IgroupResponseInlineRecords[0].UUID, nil
 }
 
 // IGroupDelete invokes clients/ontap-rest/client/s_a_n/Client.IGroupDelete to delete an igroup
@@ -145,8 +150,8 @@ func (t *sanClient) LunMapDelete(params *LunMapDeleteParams) error {
 
 // IGroupGet invokes clients/ontap-rest/client/s_a_n/Client.IGroupCreate to create an initiator group
 func (t *sanClient) IGroupGet(params *IgroupGetParams) (*Igroup, error) {
-	if params.Name == nil {
-		return nil, errors.New("missing required parameter 'name' when getting a specific Igroup")
+	if params == nil || (params.Name == nil && params.UUID == nil) {
+		return nil, errors.New("missing required parameter 'name' or 'uuid' when getting a specific Igroup")
 	}
 
 	response, err := t.IGroupsGet(params)

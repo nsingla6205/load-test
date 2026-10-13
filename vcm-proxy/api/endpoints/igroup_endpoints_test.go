@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -17,6 +18,8 @@ import (
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
 
+const testIgroupUUID = "9760acf5-4638-11e7-9bdb-020073ca0001"
+
 func testIgroupCreateRequest() *vcmserver.IgroupV1 {
 	return &vcmserver.IgroupV1{
 		Name:   "hg-db-linux",
@@ -25,68 +28,122 @@ func testIgroupCreateRequest() *vcmserver.IgroupV1 {
 	}
 }
 
+func testIgroupUpdateRequest() *vcmserver.IgroupUpdateV1 {
+	return &vcmserver.IgroupUpdateV1{
+		Hosts: []string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db3"},
+	}
+}
+
+func TestIgroupUpdateV1_DecodesHostsOnlyBody(t *testing.T) {
+	var req vcmserver.IgroupUpdateV1
+	err := json.Unmarshal([]byte(`{"hosts":["iqn.1998-01.com.vmware:example1","iqn.1998-01.com.vmware:example3"]}`), &req)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"iqn.1998-01.com.vmware:example1", "iqn.1998-01.com.vmware:example3"}, req.Hosts)
+
+	err = json.Unmarshal([]byte(`{}`), &req)
+	require.Error(t, err)
+}
+
+func TestApplyIgroupUpdateMask_CopiesHosts(t *testing.T) {
+	masked, err := applyIgroupUpdateMask(testIgroupUpdateRequest(), "hosts")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db3"}, masked.Hosts)
+
+	_, err = applyIgroupUpdateMask(testIgroupUpdateRequest(), "hosts,name")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "updateMask must include only hosts")
+}
+
+func TestApplyIgroupUpdateMask_RejectsMissingOrEmptyMask(t *testing.T) {
+	for _, mask := range []string{"", "   ", ","} {
+		t.Run(mask, func(t *testing.T) {
+			_, err := applyIgroupUpdateMask(testIgroupUpdateRequest(), mask)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "updateMask must include at least one field")
+			assert.True(t, customerrors.IsUserInputValidationErr(err))
+		})
+	}
+}
+
+func TestApplyIgroupUpdateMask_RejectsMaskedFieldMissingFromBody(t *testing.T) {
+	_, err := applyIgroupUpdateMask(&vcmserver.IgroupUpdateV1{}, "hosts")
+	require.Error(t, err)
+	assert.EqualError(t, err, `updateMask names "hosts" but the field is missing from the request body`)
+	assert.True(t, customerrors.IsUserInputValidationErr(err))
+}
+
+func TestApplyIgroupUpdateMask_RejectsImmutableAndUnsupportedFields(t *testing.T) {
+	tests := []struct {
+		mask    string
+		wantErr string
+	}{
+		{mask: "name", wantErr: "updateMask must include only hosts"},
+		{mask: "osType", wantErr: "updateMask must include only hosts"},
+		{mask: "uuid", wantErr: "updateMask must include only hosts"},
+		{mask: "protocol", wantErr: "updateMask must include only hosts"},
+		{mask: "hosts.0", wantErr: "updateMask must include only hosts"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mask, func(t *testing.T) {
+			_, err := applyIgroupUpdateMask(testIgroupUpdateRequest(), tt.mask)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.True(t, customerrors.IsUserInputValidationErr(err))
+		})
+	}
+}
+
 func TestValidateCreateIgroupParams(t *testing.T) {
-	err := validateCreateIgroupParams(testIgroupCreateRequest())
+	_, _, err := validateCreateIgroupParams(testIgroupCreateRequest())
 	require.NoError(t, err)
 
-	err = validateCreateIgroupParams(nil)
+	_, _, err = validateCreateIgroupParams(nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "request body is required")
 
 	req := testIgroupCreateRequest()
 	req.Name = ""
-	err = validateCreateIgroupParams(req)
+	_, _, err = validateCreateIgroupParams(req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 
 	req = testIgroupCreateRequest()
 	req.OsType = vcmserver.IgroupV1OsTypeOSTYPEUNSPECIFIED
-	err = validateCreateIgroupParams(req)
+	_, _, err = validateCreateIgroupParams(req)
 	require.Error(t, err)
 
 	req = testIgroupCreateRequest()
 	req.Hosts = nil
-	err = validateCreateIgroupParams(req)
+	_, _, err = validateCreateIgroupParams(req)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hosts must be non-empty")
+
+	req = testIgroupCreateRequest()
+	req.Hosts = []string{"iqn.1", "  "}
+	_, _, err = validateCreateIgroupParams(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hosts must not contain empty values")
 
 	t.Setenv("MAX_HOSTS_PER_HOSTGROUP", "2")
 	req = testIgroupCreateRequest()
+	req.Hosts = []string{"iqn.1", " iqn.1 ", "iqn.2"}
+	_, hosts, err := validateCreateIgroupParams(req)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"iqn.1", "iqn.2"}, hosts)
+
 	req.Hosts = []string{"iqn.1", "iqn.2", "iqn.3"}
-	err = validateCreateIgroupParams(req)
+	_, _, err = validateCreateIgroupParams(req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot have more than 2 hosts")
 }
 
 func TestValidateUpdateIgroupParams(t *testing.T) {
-	name, err := validateUpdateIgroupParams("hg-db-linux", &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	})
+	_, err := prepareIgroupHosts(testIgroupUUID, testIgroupUpdateRequest().Hosts)
 	require.NoError(t, err)
-	assert.Equal(t, "hg-db-linux", name)
-
-	name, err = validateUpdateIgroupParams("  hg-db-linux  ", &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "hg-db-linux", name)
-
-	_, err = validateUpdateIgroupParams("   ", &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "name is required")
-
-	_, err = validateUpdateIgroupParams("hg-db-linux", nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "hosts must be non-empty")
-
-	_, err = validateUpdateIgroupParams("hg-db-linux", &vcmserver.IgroupUpdateV1{})
-	require.Error(t, err)
 
 	t.Setenv("MAX_HOSTS_PER_HOSTGROUP", "2")
-	_, err = validateUpdateIgroupParams("hg-db-linux", &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1", "iqn.2", "iqn.3"},
-	})
+	_, err = prepareIgroupHosts(testIgroupUUID, []string{"iqn.1", "iqn.2", "iqn.3"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot have more than 2 hosts")
 }
@@ -149,7 +206,7 @@ func TestV1CreateIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 	assert.IsType(t, &vcmserver.V1CreateIgroupInternalServerError{}, result)
 }
 
-func TestV1DeleteIgroup_RejectsEmptyName(t *testing.T) {
+func TestV1DeleteIgroup_RejectsEmptyUUID(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("   "))
 	require.NoError(t, err)
@@ -160,7 +217,7 @@ func TestV1DeleteIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 	orch := factory.NewMockOrchestratorFactory(t)
 	orch.EXPECT().
 		DeleteHostGroup(mock.Anything, mock.MatchedBy(func(params *commonparams.DeleteHostGroupParams) bool {
-			return params != nil && params.Name == "hg-db-linux" && params.OperationID != "" && !params.Deadline.IsZero()
+			return params != nil && params.Name == testIgroupUUID && params.OperationID != "" && !params.Deadline.IsZero()
 		})).
 		Return(&models.HostGroup{
 			BaseModel: models.BaseModel{UUID: "op-delete-1"},
@@ -168,7 +225,7 @@ func TestV1DeleteIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 		}, nil)
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("hg-db-linux"))
+	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams(testIgroupUUID))
 	require.NoError(t, err)
 	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
@@ -180,30 +237,62 @@ func TestV1DeleteIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 	orch := factory.NewMockOrchestratorFactory(t)
 	orch.EXPECT().
 		DeleteHostGroup(mock.Anything, mock.MatchedBy(func(params *commonparams.DeleteHostGroupParams) bool {
-			return params != nil && params.Name == "hg-db-linux" && params.OperationID != "" && !params.Deadline.IsZero()
+			return params != nil && params.Name == testIgroupUUID && params.OperationID != "" && !params.Deadline.IsZero()
 		})).
 		Return(nil, errors.New("boom"))
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams("hg-db-linux"))
+	result, err := handler.V1DeleteIgroup(context.Background(), testOperationIgroupDeleteParams(testIgroupUUID))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DeleteIgroupInternalServerError{}, result)
 }
 
-func TestV1UpdateIgroup_RejectsEmptyName(t *testing.T) {
+func TestV1UpdateIgroup_RejectsEmptyUUID(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	}, testOperationIgroupUpdateParams("   "))
+	result, err := handler.V1UpdateIgroup(context.Background(), testIgroupUpdateRequest(), testOperationIgroupUpdateParams("   "))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1UpdateIgroupBadRequest{}, result)
 }
 
-func TestV1UpdateIgroup_RejectsEmptyHosts(t *testing.T) {
+func TestV1UpdateIgroup_RejectsHostsNotSet(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{}, testOperationIgroupUpdateParams("hg-db-linux"))
+	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{}, testOperationIgroupUpdateParams(testIgroupUUID))
 	require.NoError(t, err)
-	assert.IsType(t, &vcmserver.V1UpdateIgroupBadRequest{}, result)
+	badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, `updateMask names "hosts" but the field is missing from the request body`, badRequest.Message)
+}
+
+func TestV1UpdateIgroup_DedupesHostsBeforeLimit(t *testing.T) {
+	t.Setenv("MAX_HOSTS_PER_HOSTGROUP", "2")
+	orch := factory.NewMockOrchestratorFactory(t)
+	orch.EXPECT().
+		UpdateHostGroup(mock.Anything, mock.MatchedBy(func(params *commonparams.UpdateHostGroupParams) bool {
+			return params != nil &&
+				params.Hosts != nil &&
+				len(*params.Hosts) == 2 &&
+				(*params.Hosts)[0] == "iqn.1" &&
+				(*params.Hosts)[1] == "iqn.2"
+		})).
+		Return(nil, "", nil)
+
+	handler := &Handler{Orchestrator: orch}
+	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
+		Hosts: []string{" iqn.1 ", "iqn.1", "iqn.2"},
+	}, testOperationIgroupUpdateParams(testIgroupUUID))
+	require.NoError(t, err)
+	assert.IsType(t, &vcmserver.OperationV1{}, result)
+}
+
+func TestV1UpdateIgroup_RejectsBlankHost(t *testing.T) {
+	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
+	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
+		Hosts: []string{"iqn.1", " "},
+	}, testOperationIgroupUpdateParams(testIgroupUUID))
+	require.NoError(t, err)
+	badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
+	require.True(t, ok)
+	assert.Contains(t, badRequest.Message, "hosts must not contain empty values")
 }
 
 func TestV1UpdateIgroup_RejectsTooManyHosts(t *testing.T) {
@@ -211,11 +300,33 @@ func TestV1UpdateIgroup_RejectsTooManyHosts(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
 		Hosts: []string{"iqn.1", "iqn.2", "iqn.3"},
-	}, testOperationIgroupUpdateParams("hg-db-linux"))
+	}, testOperationIgroupUpdateParams(testIgroupUUID))
 	require.NoError(t, err)
 	badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
 	require.True(t, ok)
 	assert.Contains(t, badRequest.Message, "cannot have more than 2 hosts")
+}
+
+func TestV1UpdateIgroup_RejectsMissingUpdateMask(t *testing.T) {
+	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
+	for _, mask := range []string{"", "   ", ","} {
+		t.Run(mask, func(t *testing.T) {
+			result, err := handler.V1UpdateIgroup(context.Background(), testIgroupUpdateRequest(), testOperationIgroupUpdateParamsWithMask(testIgroupUUID, mask))
+			require.NoError(t, err)
+			badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
+			require.True(t, ok)
+			assert.Contains(t, badRequest.Message, "updateMask must include at least one field")
+		})
+	}
+}
+
+func TestV1UpdateIgroup_RejectsImmutableUpdateMask(t *testing.T) {
+	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
+	result, err := handler.V1UpdateIgroup(context.Background(), testIgroupUpdateRequest(), testOperationIgroupUpdateParamsWithMask(testIgroupUUID, "osType"))
+	require.NoError(t, err)
+	badRequest, ok := result.(*vcmserver.V1UpdateIgroupBadRequest)
+	require.True(t, ok)
+	assert.Contains(t, badRequest.Message, "updateMask must include only hosts")
 }
 
 func TestV1UpdateIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
@@ -223,7 +334,8 @@ func TestV1UpdateIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 	orch.EXPECT().
 		UpdateHostGroup(mock.Anything, mock.MatchedBy(func(params *commonparams.UpdateHostGroupParams) bool {
 			return params != nil &&
-				params.Name == "hg-db-linux" &&
+				params.HostGroupUUID == testIgroupUUID &&
+				params.Name == "" &&
 				params.Hosts != nil &&
 				len(*params.Hosts) == 2 &&
 				(*params.Hosts)[0] == "iqn.1998-01.com.vmware:db1" &&
@@ -234,9 +346,7 @@ func TestV1UpdateIgroup_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 		Return(nil, "", nil)
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db3"},
-	}, testOperationIgroupUpdateParams("hg-db-linux"))
+	result, err := handler.V1UpdateIgroup(context.Background(), testIgroupUpdateRequest(), testOperationIgroupUpdateParams(testIgroupUUID))
 	require.NoError(t, err)
 	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
@@ -251,34 +361,34 @@ func TestV1UpdateIgroup_ReturnsInternalErrorWhenOrchestratorFails(t *testing.T) 
 		Return(nil, "", errors.New("boom"))
 
 	handler := &Handler{Orchestrator: orch}
-	result, err := handler.V1UpdateIgroup(context.Background(), &vcmserver.IgroupUpdateV1{
-		Hosts: []string{"iqn.1998-01.com.vmware:db1"},
-	}, testOperationIgroupUpdateParams("hg-db-linux"))
+	result, err := handler.V1UpdateIgroup(context.Background(), testIgroupUpdateRequest(), testOperationIgroupUpdateParams(testIgroupUUID))
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1UpdateIgroupInternalServerError{}, result)
 }
 
-func TestV1DescribeIgroup_RejectsEmptyName(t *testing.T) {
+func TestV1DescribeIgroup_RejectsEmptyUUID(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "  "})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: "  "})
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DescribeIgroupBadRequest{}, result)
 }
 
 func TestV1DescribeIgroup_ReturnsIgroup(t *testing.T) {
 	orch := factory.NewMockOrchestratorFactory(t)
-	orch.EXPECT().GetHostGroup(mock.Anything, "hg-test-linux", "").Return(&models.HostGroup{
-		Name:   "hg-test-linux",
-		OSType: "LINUX",
-		Hosts:  []string{"iqn.1998-01.com.vmware:testhost1"},
+	orch.EXPECT().GetHostGroup(mock.Anything, testIgroupUUID, "").Return(&models.HostGroup{
+		BaseModel: models.BaseModel{UUID: testIgroupUUID},
+		Name:      "hg-test-linux",
+		OSType:    "LINUX",
+		Hosts:     []string{"iqn.1998-01.com.vmware:testhost1"},
 	}, nil)
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "hg-test-linux"})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: testIgroupUUID})
 	require.NoError(t, err)
 	ig, ok := result.(*vcmserver.IgroupV1)
 	require.True(t, ok)
 	assert.Equal(t, "hg-test-linux", ig.Name)
+	assert.Equal(t, testIgroupUUID, ig.UUID.Or(""))
 	assert.Equal(t, vcmserver.IgroupV1OsTypeLINUX, ig.OsType)
 	assert.Equal(t, []string{"iqn.1998-01.com.vmware:testhost1"}, ig.Hosts)
 }
@@ -292,7 +402,7 @@ func TestV1DescribeIgroup_MapsOntapLinuxOsType(t *testing.T) {
 	}, nil)
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "vcmhgtest2"})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: "vcmhgtest2"})
 	require.NoError(t, err)
 	ig, ok := result.(*vcmserver.IgroupV1)
 	require.True(t, ok)
@@ -305,7 +415,7 @@ func TestV1DescribeIgroup_NotFound(t *testing.T) {
 	orch.EXPECT().GetHostGroup(mock.Anything, "missing", "").Return(nil, customerrors.NewNotFoundErr("HostGroup", &id))
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "missing"})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: "missing"})
 	require.NoError(t, err)
 	notFound, ok := result.(*vcmserver.V1DescribeIgroupNotFound)
 	require.True(t, ok)
@@ -322,7 +432,7 @@ func TestV1DescribeIgroup_SVMNotFoundReturnsInternalError(t *testing.T) {
 	))
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "hg-1"})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: "hg-1"})
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DescribeIgroupInternalServerError{}, result)
 }
@@ -332,7 +442,7 @@ func TestV1DescribeIgroup_InternalError(t *testing.T) {
 	orch.EXPECT().GetHostGroup(mock.Anything, "hg-1", "").Return(nil, errors.New("ontap down"))
 	handler := &Handler{Orchestrator: orch}
 
-	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{Name: "hg-1"})
+	result, err := handler.V1DescribeIgroup(context.Background(), vcmserver.V1DescribeIgroupParams{UUID: "hg-1"})
 	require.NoError(t, err)
 	assert.IsType(t, &vcmserver.V1DescribeIgroupInternalServerError{}, result)
 }

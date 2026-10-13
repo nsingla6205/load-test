@@ -886,21 +886,20 @@ func TestV1UpdateVolume_AcceptsAndDelegatesToOrchestrator(t *testing.T) {
 	result, err := handler.V1UpdateVolume(ctx, testVolumeUpdateRequest(), testOperationUpdateParams())
 	require.NoError(t, err)
 
-	accepted, ok := result.(*vcmserver.V1UpdateVolumeAccepted)
+	accepted, ok := result.(*vcmserver.OperationV1)
 	require.True(t, ok)
 	assert.Contains(t, accepted.Name, "/v1/operations/")
 	assert.False(t, accepted.Done)
 }
 
-func TestV1UpdateVolume_ReturnsOKWhenNoMutableFields(t *testing.T) {
+func TestV1UpdateVolume_RejectsMaskedFieldMissingFromBody(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1UpdateVolume(context.Background(), &vcmserver.VolumeUpdateV1{}, testOperationUpdateParams())
 	require.NoError(t, err)
 
-	okResponse, ok := result.(*vcmserver.V1UpdateVolumeOK)
+	badRequest, ok := result.(*vcmserver.V1UpdateVolumeBadRequest)
 	require.True(t, ok)
-	assert.True(t, okResponse.Done)
-	assert.Contains(t, okResponse.Name, "/v1/operations/")
+	assert.Equal(t, `updateMask names "sizeInBytes" but the field is missing from the request body`, badRequest.Message)
 }
 
 func TestV1UpdateVolume_RejectsMissingUpdateMask(t *testing.T) {
@@ -948,10 +947,10 @@ func TestV1UpdateVolume_IgnoresBodyFieldsNotInUpdateMask(t *testing.T) {
 	handler := &Handler{Orchestrator: orch}
 	result, err := handler.V1UpdateVolume(ctx, req, testOperationUpdateParamsWithMask("sizeInBytes"))
 	require.NoError(t, err)
-	assert.IsType(t, &vcmserver.V1UpdateVolumeAccepted{}, result)
+	assert.IsType(t, &vcmserver.OperationV1{}, result)
 }
 
-func TestV1UpdateVolume_ReturnsOKWhenMaskDoesNotSelectBodyFields(t *testing.T) {
+func TestV1UpdateVolume_RejectsMaskWhenBodyOmitsNamedField(t *testing.T) {
 	handler := &Handler{Orchestrator: factory.NewMockOrchestratorFactory(t)}
 	result, err := handler.V1UpdateVolume(
 		context.Background(),
@@ -960,22 +959,9 @@ func TestV1UpdateVolume_ReturnsOKWhenMaskDoesNotSelectBodyFields(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	okResponse, ok := result.(*vcmserver.V1UpdateVolumeOK)
+	badRequest, ok := result.(*vcmserver.V1UpdateVolumeBadRequest)
 	require.True(t, ok)
-	assert.True(t, okResponse.Done)
-}
-
-func TestHasVolumeUpdateRequestFields(t *testing.T) {
-	assert.False(t, hasVolumeUpdateRequestFields(&vcmserver.VolumeUpdateV1{}))
-	assert.True(t, hasVolumeUpdateRequestFields(testVolumeUpdateRequest()))
-	assert.True(t, hasVolumeUpdateRequestFields(&vcmserver.VolumeUpdateV1{
-		ShareName: vcmserver.NewOptNilString("my-share"),
-	}))
-	assert.True(t, hasVolumeUpdateRequestFields(&vcmserver.VolumeUpdateV1{
-		BlockDevices: []vcmserver.BlockDeviceUpdateV1{
-			{Igroups: []string{"hg-db-linux"}},
-		},
-	}))
+	assert.Equal(t, `updateMask names "shareName" but the field is missing from the request body`, badRequest.Message)
 }
 
 func TestV1UpdateVolume_RejectsNilRequestBody(t *testing.T) {
@@ -1025,7 +1011,7 @@ func TestV1UpdateVolume_TrimsPathUUID(t *testing.T) {
 	handler := &Handler{Orchestrator: orch}
 	result, err := handler.V1UpdateVolume(ctx, testVolumeUpdateRequest(), params)
 	require.NoError(t, err)
-	assert.IsType(t, &vcmserver.V1UpdateVolumeAccepted{}, result)
+	assert.IsType(t, &vcmserver.OperationV1{}, result)
 }
 
 func TestV1UpdateVolume_OrchestratorErrorReturns500(t *testing.T) {

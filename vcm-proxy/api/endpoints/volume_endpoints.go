@@ -696,13 +696,6 @@ func (h Handler) V1UpdateVolume(ctx context.Context, req *vcmserver.VolumeUpdate
 		}, nil
 	}
 
-	if !hasVolumeUpdateRequestFields(maskedReq) {
-		return &vcmserver.V1UpdateVolumeOK{
-			Name: "/v1/operations/" + requestID,
-			Done: true,
-		}, nil
-	}
-
 	updateParams, err := prepareUpdateVolumeParams(maskedReq, volumeUUID, requestID, deadline)
 	if err != nil {
 		if errors.IsUserInputValidationErr(err) {
@@ -727,7 +720,7 @@ func (h Handler) V1UpdateVolume(ctx context.Context, req *vcmserver.VolumeUpdate
 		}, nil
 	}
 
-	return &vcmserver.V1UpdateVolumeAccepted{
+	return &vcmserver.OperationV1{
 		Name: "/v1/operations/" + requestID,
 		Done: false,
 	}, nil
@@ -905,17 +898,6 @@ func _prepareUpdateVolumeParams(req *vcmserver.VolumeUpdateV1, volumeUUID, opera
 	}
 
 	return param, nil
-}
-
-func hasVolumeUpdateRequestFields(req *vcmserver.VolumeUpdateV1) bool {
-	return req.SizeInBytes.IsSet() ||
-		req.SnapReserve.IsSet() ||
-		req.SnapshotDirectory.IsSet() ||
-		req.SnapshotPolicy.IsSet() ||
-		req.ExportPolicy.IsSet() ||
-		len(req.BlockDevices) > 0 ||
-		req.ShareName.IsSet() ||
-		req.UnixPermissions.IsSet()
 }
 
 func convertFromSnapshotPolicyV1(snapshotPolicy *vcmserver.SnapshotPolicyV1) (*models.SnapshotPolicy, error) {

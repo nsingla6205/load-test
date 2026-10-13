@@ -148,7 +148,7 @@ func (UnimplementedHandler) V1CreateVolume(ctx context.Context, req *VolumeV1, p
 //
 // Warning! This operation will permanently delete the igroup.
 //
-// DELETE /v1/igroups/{name}
+// DELETE /v1/igroups/{uuid}
 func (UnimplementedHandler) V1DeleteIgroup(ctx context.Context, params V1DeleteIgroupParams) (r V1DeleteIgroupRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -166,9 +166,9 @@ func (UnimplementedHandler) V1DeleteVolume(ctx context.Context, params V1DeleteV
 
 // V1DescribeIgroup implements v1_describeIgroup operation.
 //
-// Returns the details of the specified igroup by name.
+// Returns the details of the specified igroup by UUID.
 //
-// GET /v1/igroups/{name}
+// GET /v1/igroups/{uuid}
 func (UnimplementedHandler) V1DescribeIgroup(ctx context.Context, params V1DescribeIgroupParams) (r V1DescribeIgroupRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -202,9 +202,10 @@ func (UnimplementedHandler) V1ListVolumes(ctx context.Context, params V1ListVolu
 
 // V1UpdateIgroup implements v1_updateIgroup operation.
 //
-// Update the specified igroup.
+// Replaces the initiator list of the specified igroup. The body contains only `hosts`. `updateMask`
+// must be `hosts`; nested paths are rejected.
 //
-// PUT /v1/igroups/{name}
+// PATCH /v1/igroups/{uuid}
 func (UnimplementedHandler) V1UpdateIgroup(ctx context.Context, req *IgroupUpdateV1, params V1UpdateIgroupParams) (r V1UpdateIgroupRes, _ error) {
 	return r, ht.ErrNotImplemented
 }

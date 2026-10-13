@@ -5530,9 +5530,9 @@ func (_c *MockProvider_IgroupExists_Call) RunAndReturn(run func(string, *string)
 	return _c
 }
 
-// IgroupGet provides a mock function with given fields: name, svm
-func (_m *MockProvider) IgroupGet(name *string, svm *string) (*ontap_rest.Igroup, error) {
-	ret := _m.Called(name, svm)
+// IgroupGet provides a mock function with given fields: params
+func (_m *MockProvider) IgroupGet(params IgroupGetParams) (*ontap_rest.Igroup, error) {
+	ret := _m.Called(params)
 
 	if len(ret) == 0 {
 		panic("no return value specified for IgroupGet")
@@ -5540,19 +5540,19 @@ func (_m *MockProvider) IgroupGet(name *string, svm *string) (*ontap_rest.Igroup
 
 	var r0 *ontap_rest.Igroup
 	var r1 error
-	if rf, ok := ret.Get(0).(func(*string, *string) (*ontap_rest.Igroup, error)); ok {
-		return rf(name, svm)
+	if rf, ok := ret.Get(0).(func(IgroupGetParams) (*ontap_rest.Igroup, error)); ok {
+		return rf(params)
 	}
-	if rf, ok := ret.Get(0).(func(*string, *string) *ontap_rest.Igroup); ok {
-		r0 = rf(name, svm)
+	if rf, ok := ret.Get(0).(func(IgroupGetParams) *ontap_rest.Igroup); ok {
+		r0 = rf(params)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*ontap_rest.Igroup)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*string, *string) error); ok {
-		r1 = rf(name, svm)
+	if rf, ok := ret.Get(1).(func(IgroupGetParams) error); ok {
+		r1 = rf(params)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -5566,15 +5566,14 @@ type MockProvider_IgroupGet_Call struct {
 }
 
 // IgroupGet is a helper method to define mock.On call
-//   - name *string
-//   - svm *string
-func (_e *MockProvider_Expecter) IgroupGet(name interface{}, svm interface{}) *MockProvider_IgroupGet_Call {
-	return &MockProvider_IgroupGet_Call{Call: _e.mock.On("IgroupGet", name, svm)}
+//   - params IgroupGetParams
+func (_e *MockProvider_Expecter) IgroupGet(params interface{}) *MockProvider_IgroupGet_Call {
+	return &MockProvider_IgroupGet_Call{Call: _e.mock.On("IgroupGet", params)}
 }
 
-func (_c *MockProvider_IgroupGet_Call) Run(run func(name *string, svm *string)) *MockProvider_IgroupGet_Call {
+func (_c *MockProvider_IgroupGet_Call) Run(run func(params IgroupGetParams)) *MockProvider_IgroupGet_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*string), args[1].(*string))
+		run(args[0].(IgroupGetParams))
 	})
 	return _c
 }
@@ -5584,7 +5583,7 @@ func (_c *MockProvider_IgroupGet_Call) Return(_a0 *ontap_rest.Igroup, _a1 error)
 	return _c
 }
 
-func (_c *MockProvider_IgroupGet_Call) RunAndReturn(run func(*string, *string) (*ontap_rest.Igroup, error)) *MockProvider_IgroupGet_Call {
+func (_c *MockProvider_IgroupGet_Call) RunAndReturn(run func(IgroupGetParams) (*ontap_rest.Igroup, error)) *MockProvider_IgroupGet_Call {
 	_c.Call.Return(run)
 	return _c
 }

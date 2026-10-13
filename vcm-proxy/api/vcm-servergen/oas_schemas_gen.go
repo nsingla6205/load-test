@@ -841,6 +841,8 @@ func (s *HourlyScheduleV1) SetMinute(val OptFloat64) {
 	s.Minute = val
 }
 
+// Patch body for igroup update. Only `hosts` is required. `name` and `osType` are immutable and are
+// not part of this schema.
 // Ref: #/components/schemas/IgroupUpdate_v1
 type IgroupUpdateV1 struct {
 	// List of iSCSI Qualified Names associated with this Igroup.
@@ -857,10 +859,15 @@ func (s *IgroupUpdateV1) SetHosts(val []string) {
 	s.Hosts = val
 }
 
+// ONTAP initiator group. `uuid` is assigned by ONTAP and returned on
+// describe and list. It is not required on create. Get, update, and delete
+// address the igroup by this UUID.
 // Ref: #/components/schemas/Igroup_v1
 type IgroupV1 struct {
 	// A human readable label for the Igroup.
 	Name string `json:"name"`
+	// UUID of the igroup. Returned by the server and used in the request path. Ignored on create.
+	UUID OptString `json:"uuid"`
 	// List of iSCSI Qualified Names associated with this Igroup.
 	Hosts  []string       `json:"hosts"`
 	OsType IgroupV1OsType `json:"osType"`
@@ -869,6 +876,11 @@ type IgroupV1 struct {
 // GetName returns the value of Name.
 func (s *IgroupV1) GetName() string {
 	return s.Name
+}
+
+// GetUUID returns the value of UUID.
+func (s *IgroupV1) GetUUID() OptString {
+	return s.UUID
 }
 
 // GetHosts returns the value of Hosts.
@@ -884,6 +896,11 @@ func (s *IgroupV1) GetOsType() IgroupV1OsType {
 // SetName sets the value of Name.
 func (s *IgroupV1) SetName(val string) {
 	s.Name = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *IgroupV1) SetUUID(val OptString) {
+	s.UUID = val
 }
 
 // SetHosts sets the value of Hosts.
@@ -1506,6 +1523,7 @@ func (*OperationV1) v1CreateVolumeRes()       {}
 func (*OperationV1) v1DeleteIgroupRes()       {}
 func (*OperationV1) v1DeleteVolumeRes()       {}
 func (*OperationV1) v1UpdateIgroupRes()       {}
+func (*OperationV1) v1UpdateVolumeRes()       {}
 
 // Success result when the operation completes with a stored terminal payload.
 // For volume create/update operations, this object contains `VolumeRead_v1`
@@ -4469,10 +4487,6 @@ type V1UpdateIgroupUnauthorized ErrorResponseV1
 
 func (*V1UpdateIgroupUnauthorized) v1UpdateIgroupRes() {}
 
-type V1UpdateVolumeAccepted OperationV1
-
-func (*V1UpdateVolumeAccepted) v1UpdateVolumeRes() {}
-
 type V1UpdateVolumeBadRequest ErrorResponseV1
 
 func (*V1UpdateVolumeBadRequest) v1UpdateVolumeRes() {}
@@ -4480,10 +4494,6 @@ func (*V1UpdateVolumeBadRequest) v1UpdateVolumeRes() {}
 type V1UpdateVolumeInternalServerError ErrorResponseV1
 
 func (*V1UpdateVolumeInternalServerError) v1UpdateVolumeRes() {}
-
-type V1UpdateVolumeOK OperationV1
-
-func (*V1UpdateVolumeOK) v1UpdateVolumeRes() {}
 
 type V1UpdateVolumeUnauthorized ErrorResponseV1
 
@@ -4666,8 +4676,8 @@ func (s *VolumeReadV1SecurityStyle) UnmarshalText(data []byte) error {
 
 // Patch body for volume update. The target volume uuid is taken from the request path
 // (`/v1/volumes/{uuid}`). `updateMask` is required, and only listed fields present in the body are
-// applied. A request that selects no mutable body fields returns HTTP 200 with done true and does
-// not start a workflow.
+// applied. A masked field that is absent from the body returns HTTP 400 and does not start a
+// workflow.
 // Ref: #/components/schemas/VolumeUpdate_v1
 type VolumeUpdateV1 struct {
 	// Maximum storage quota allowed for a volume in bytes. This is a soft quota used for alerting only.

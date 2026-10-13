@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -41,71 +42,76 @@ func (a HostGroupActivity) ValidateHostGroupsExistInONTAP(ctx context.Context, h
 	return nil
 }
 
-// CreateIgroup creates an igroup in ONTAP. If the igroup already exists with the same osType and IQNs, the call succeeds idempotently.
-func (HostGroupActivity) CreateIgroup(ctx context.Context, svmName string, host *common.HostParams, node *models.Node) error {
+// CreateIgroup creates an igroup in ONTAP and returns its UUID.
+// If the igroup already exists with the same osType and IQNs, the call succeeds idempotently and returns the existing UUID.
+func (HostGroupActivity) CreateIgroup(ctx context.Context, svmName string, host *common.HostParams, node *models.Node) (string, error) {
 	logger := util.GetLogger(ctx)
 	orchestrator.RecordHeartbeat(ctx, "Starting VCM CreateIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return apperror.WrapAsAppError(err, false)
+		return "", apperror.WrapAsAppError(err, false)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
 	igroupExists, existingIgroup, err := provider.IgroupExists(host.HostName, &svmName)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if igroupExists {
 		if vsa.IgroupMatchesCreateRequest(existingIgroup, host.OsType, host.HostIQNs) {
-			logger.Debug("Igroup already exists with matching configuration", "name", host.HostName)
+			if existingIgroup.UUID == nil || strings.TrimSpace(*existingIgroup.UUID) == "" {
+				return "", apperror.WrapAsAppError(fmt.Errorf("existing igroup %q is missing uuid", host.HostName), false)
+			}
+			igroupUUID := *existingIgroup.UUID
+			logger.Debug("Igroup already exists with matching configuration", "name", host.HostName, "uuid", igroupUUID)
 			orchestrator.RecordHeartbeat(ctx, "Finished VCM CreateIgroup activity")
-			return nil
+			return igroupUUID, nil
 		}
-		return apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupAlreadyExists,
+		return "", apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupAlreadyExists,
 			fmt.Errorf("host group %q already exists with different configuration", host.HostName)), true)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Creating igroup in ONTAP")
-	_, err = provider.IgroupCreate(vsa.IgroupCreateParams{
+	igroupUUID, err := provider.IgroupCreate(vsa.IgroupCreateParams{
 		IgroupName: host.HostName,
 		SvmName:    svmName,
 		OsType:     host.OsType,
 		Initiator:  host.HostIQNs,
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
-	logger.Debug("Igroup created successfully", "name", host.HostName)
+	logger.Debug("Igroup created successfully", "name", host.HostName, "uuid", igroupUUID)
 	orchestrator.RecordHeartbeat(ctx, "Finished VCM CreateIgroup activity")
-	return nil
+	return igroupUUID, nil
 }
 
 // UpdateIgroup syncs an existing ONTAP igroup's initiator list to desiredHosts.
-func (HostGroupActivity) UpdateIgroup(ctx context.Context, igroupName string, desiredHosts []string, svmName string, node *models.Node) (string, error) {
+func (HostGroupActivity) UpdateIgroup(ctx context.Context, igroupUUID string, desiredHosts []string, svmName string, node *models.Node) (models.HostGroup, error) {
 	logger := util.GetLogger(ctx)
 	orchestrator.RecordHeartbeat(ctx, "Starting VCM UpdateIgroup activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return "", apperror.WrapAsAppError(err, false)
+		return models.HostGroup{}, apperror.WrapAsAppError(err, false)
 	}
 
 	orchestrator.RecordHeartbeat(ctx, "Syncing igroup initiators in ONTAP")
-	found, osType, err := vsa.SyncIgroupInitiators(provider, igroupName, desiredHosts, &svmName)
+	name, osType, err := vsa.SyncIgroupInitiators(provider, igroupUUID, desiredHosts, svmName)
 	if err != nil {
-		return "", apperror.WrapAsAppError(err, false)
-	}
-	if !found {
-		return "", apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupNotFound, fmt.Errorf("igroup %q not found", igroupName)), true)
+		if utilErrors.IsNotFoundErr(err) {
+			return models.HostGroup{}, apperror.WrapAsAppError(vsaerrors.NewVCPError(vsaerrors.ErrHostGroupNotFound, fmt.Errorf("igroup %q not found", igroupUUID)), true)
+		}
+		return models.HostGroup{}, apperror.WrapAsAppError(err, false)
 	}
 
-	logger.Debug("Igroup updated successfully", "name", igroupName, "svm", svmName)
+	logger.Debug("Igroup updated successfully", "uuid", igroupUUID, "name", name, "svm", svmName)
 	orchestrator.RecordHeartbeat(ctx, "Finished VCM UpdateIgroup activity")
-	return osType, nil
+	return models.HostGroup{Name: name, OSType: osType}, nil
 }
 
-// DeleteIgroup deletes an ONTAP initiator group by name within the target SVM.
-func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupName string, svmName string, node *models.Node) error {
+// DeleteIgroup deletes an ONTAP initiator group by UUID from the deployment SVM.
+func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupUUID string, svmName string, node *models.Node) error {
 	logger := util.GetLogger(ctx)
 	orchestrator.RecordHeartbeat(ctx, "Starting VCM DeleteIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
@@ -113,29 +119,33 @@ func (HostGroupActivity) DeleteIgroup(ctx context.Context, igroupName string, sv
 		return apperror.WrapAsAppError(err, false)
 	}
 
-	orchestrator.RecordHeartbeat(ctx, "Fetching Igroup details")
-	igroup, err := provider.IgroupGet(&igroupName, &svmName)
+	// Verify the igroup belongs to the deployment SVM before deleting it by cluster-wide UUID.
+	orchestrator.RecordHeartbeat(ctx, "Checking igroup exists on SVM", "uuid", igroupUUID, "svm", svmName)
+	igroup, err := provider.IgroupGet(vsa.IgroupGetParams{UUID: igroupUUID, SvmName: svmName})
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) {
-			logger.Debugf("Igroup %s is already deleted, skipping", igroupName)
+			logger.Debug("Igroup not found on SVM; delete is a no-op", "uuid", igroupUUID, "svm", svmName)
 			orchestrator.RecordHeartbeat(ctx, "Finished VCM DeleteIgroup activity")
 			return nil
 		}
 		return apperror.WrapAsAppError(err, false)
 	}
-	if igroup != nil && igroup.UUID != nil {
-		err = provider.IgroupDelete(*igroup.UUID)
-		if err != nil {
-			var customErr *vsaerrors.CustomError
-			if vsaerrors.As(err, &customErr) && customErr.TrackingID == vsaerrors.ErrHostGroupHasLUNMaps {
-				return apperror.WrapAsAppError(err, true)
-			}
-			return apperror.WrapAsAppError(err, false)
-		}
-		logger.Debug("Igroup deleted successfully", "name", igroupName)
-	} else {
-		logger.Debugf("Igroup %s not found", igroupName)
+	if igroup == nil {
+		logger.Debug("Igroup not found on SVM; delete is a no-op", "uuid", igroupUUID, "svm", svmName)
+		orchestrator.RecordHeartbeat(ctx, "Finished VCM DeleteIgroup activity")
+		return nil
 	}
+
+	orchestrator.RecordHeartbeat(ctx, "Deleting igroup in ONTAP")
+	err = provider.IgroupDelete(igroupUUID)
+	if err != nil {
+		var customErr *vsaerrors.CustomError
+		if vsaerrors.As(err, &customErr) && customErr.TrackingID == vsaerrors.ErrHostGroupHasLUNMaps {
+			return apperror.WrapAsAppError(err, true)
+		}
+		return apperror.WrapAsAppError(err, false)
+	}
+	logger.Debug("Igroup deleted successfully", "uuid", igroupUUID, "svm", svmName)
 	orchestrator.RecordHeartbeat(ctx, "Finished VCM DeleteIgroup activity")
 	return nil
 }

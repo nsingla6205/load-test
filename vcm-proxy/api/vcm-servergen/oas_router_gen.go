@@ -221,7 +221,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							break
 						}
 
-						// Param: "name"
+						// Param: "uuid"
 						// Leaf parameter, slashes are prohibited
 						idx := strings.IndexByte(elem, '/')
 						if idx >= 0 {
@@ -241,12 +241,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								s.handleV1DescribeIgroupRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
-							case "PUT":
+							case "PATCH":
 								s.handleV1UpdateIgroupRequest([1]string{
 									args[0],
 								}, elemIsEscaped, w, r)
 							default:
-								s.notAllowed(w, r, "DELETE,GET,PUT")
+								s.notAllowed(w, r, "DELETE,GET,PATCH")
 							}
 
 							return
@@ -645,7 +645,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							break
 						}
 
-						// Param: "name"
+						// Param: "uuid"
 						// Leaf parameter, slashes are prohibited
 						idx := strings.IndexByte(elem, '/')
 						if idx >= 0 {
@@ -661,7 +661,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								r.name = V1DeleteIgroupOperation
 								r.summary = "Delete a igroup"
 								r.operationID = "v1_deleteIgroup"
-								r.pathPattern = "/v1/igroups/{name}"
+								r.pathPattern = "/v1/igroups/{uuid}"
 								r.args = args
 								r.count = 1
 								return r, true
@@ -669,15 +669,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								r.name = V1DescribeIgroupOperation
 								r.summary = "Describe a igroup"
 								r.operationID = "v1_describeIgroup"
-								r.pathPattern = "/v1/igroups/{name}"
+								r.pathPattern = "/v1/igroups/{uuid}"
 								r.args = args
 								r.count = 1
 								return r, true
-							case "PUT":
+							case "PATCH":
 								r.name = V1UpdateIgroupOperation
 								r.summary = "Update a igroup"
 								r.operationID = "v1_updateIgroup"
-								r.pathPattern = "/v1/igroups/{name}"
+								r.pathPattern = "/v1/igroups/{uuid}"
 								r.args = args
 								r.count = 1
 								return r, true

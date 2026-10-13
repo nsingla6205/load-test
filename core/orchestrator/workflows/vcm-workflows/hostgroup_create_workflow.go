@@ -39,11 +39,12 @@ func VcmCreateHostGroupWorkflow(ctx *orchestrator.Context, inputs common.Workflo
 	if err := checkDeadline(ctx, inputs.Deadline, "create-igroup"); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.CreateIgroup, inputs.ExpectedSvmName, host, inputs.Node).Get(activityCtx, nil); err != nil {
+	var igroupUUID string
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.CreateIgroup, inputs.ExpectedSvmName, host, inputs.Node).Get(activityCtx, &igroupUUID); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
 
-	donePayload, err := igroupOperationResponsePayload(host.HostName, host.HostIQNs, host.OsType)
+	donePayload, err := igroupOperationResponsePayload(host.HostName, igroupUUID, host.HostIQNs, host.OsType)
 	if err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}

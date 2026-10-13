@@ -16,26 +16,26 @@ import (
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
-// GetHostGroup reads an ONTAP igroup by name and returns it.
-func (o *VCMOrchestrator) GetHostGroup(ctx context.Context, hostGroupName string, _ string) (*models.HostGroup, error) {
-	return getHostGroup(ctx, o.store, hostGroupName)
+// GetHostGroup reads an ONTAP igroup by UUID and returns it.
+func (o *VCMOrchestrator) GetHostGroup(ctx context.Context, hostGroupUUID string, _ string) (*models.HostGroup, error) {
+	return getHostGroup(ctx, o.store, hostGroupUUID)
 }
 
-func getHostGroup(ctx context.Context, store Store, name string) (*models.HostGroup, error) {
+func getHostGroup(ctx context.Context, store Store, igroupUUID string) (*models.HostGroup, error) {
 	expectedSvmName, provider, err := ontapProviderFromStore(ctx, store)
 	if err != nil {
 		return nil, err
 	}
 
-	igroup, err := provider.IgroupGet(&name, &expectedSvmName)
+	igroup, err := provider.IgroupGet(vsa.IgroupGetParams{UUID: igroupUUID, SvmName: expectedSvmName})
 	if err != nil {
 		if customerrors.IsNotFoundErr(err) {
-			return nil, customerrors.NewNotFoundErr("HostGroup", &name)
+			return nil, customerrors.NewNotFoundErr("HostGroup", &igroupUUID)
 		}
-		return nil, fmt.Errorf("GetHostGroup: lookup igroup %q: %w", name, err)
+		return nil, fmt.Errorf("GetHostGroup: get igroup: %w", err)
 	}
 	if igroup == nil {
-		return nil, customerrors.NewNotFoundErr("HostGroup", &name)
+		return nil, customerrors.NewNotFoundErr("HostGroup", &igroupUUID)
 	}
 
 	return convertOntapIgroupToHostGroup(igroup), nil
@@ -66,6 +66,9 @@ func convertOntapIgroupToHostGroup(igroup *ontapRest.Igroup) *models.HostGroup {
 	}
 	hg := &models.HostGroup{
 		Hosts: vsa.GetAllInitiators(igroup.IgroupInlineInitiators),
+	}
+	if igroup.UUID != nil {
+		hg.UUID = *igroup.UUID
 	}
 	if igroup.Name != nil {
 		hg.Name = *igroup.Name
@@ -211,9 +214,10 @@ func (o *VCMOrchestrator) UpdateHostGroup(ctx context.Context, params *commonpar
 	}
 
 	operationID := params.OperationID
+	igroupUUID := params.HostGroupUUID
 	job := &vcmdb.Job{
 		ID:         operationID,
-		ResourceID: params.Name,
+		ResourceID: igroupUUID,
 		Type:       string(datamodel.JobTypeUpdateHostGroup),
 		State:      vcmdb.JobStateNew,
 		DeadlineAt: params.Deadline.UTC(),
@@ -233,7 +237,7 @@ func (o *VCMOrchestrator) UpdateHostGroup(ctx context.Context, params *commonpar
 		Node:            node,
 		ExpectedSvmName: expectedSvmName,
 		Deadline:        params.Deadline.UTC(),
-	}, params.Name, *params.Hosts)
+	}, igroupUUID, *params.Hosts)
 	if errors.Is(err, cbackend.ErrInstanceAlreadyExists) {
 		return &models.HostGroup{
 			BaseModel: models.BaseModel{UUID: operationID},
@@ -248,7 +252,7 @@ func (o *VCMOrchestrator) UpdateHostGroup(ctx context.Context, params *commonpar
 			ErrorMessage: err.Error(),
 			Retriable:    true,
 		}); updateErr != nil {
-			o.logger.ErrorContext(ctx, "HostGroup update failed to mark job ERROR after workflow start failure", "requestId", operationID, "hostGroupName", params.Name, "workflowError", err, "updateError", updateErr)
+			o.logger.ErrorContext(ctx, "HostGroup update failed to mark job ERROR after workflow start failure", "requestId", operationID, "hostGroupUUID", igroupUUID, "workflowError", err, "updateError", updateErr)
 		}
 		return nil, "", fmt.Errorf("UpdateHostGroup: start workflow: %w", err)
 	}

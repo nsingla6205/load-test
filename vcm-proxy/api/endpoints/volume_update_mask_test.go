@@ -59,10 +59,11 @@ func TestApplyVolumeUpdateMask_RejectsMissingOrEmptyMask(t *testing.T) {
 	}
 }
 
-func TestApplyVolumeUpdateMask_MaskWithoutMatchingBodyField(t *testing.T) {
-	masked, err := applyVolumeUpdateMask(&vcmserver.VolumeUpdateV1{
+func TestApplyVolumeUpdateMask_RejectsMaskedFieldMissingFromBody(t *testing.T) {
+	_, err := applyVolumeUpdateMask(&vcmserver.VolumeUpdateV1{
 		ShareName: vcmserver.NewOptNilString("my-share"),
-	}, "sizeInBytes")
-	require.NoError(t, err)
-	assert.False(t, hasVolumeUpdateRequestFields(masked))
+	}, "sizeInBytes,shareName")
+	require.Error(t, err)
+	assert.EqualError(t, err, `updateMask names "sizeInBytes" but the field is missing from the request body`)
+	assert.True(t, utilErrors.IsUserInputValidationErr(err))
 }

@@ -29,19 +29,19 @@ type stubUpdateIgroupActivity struct {
 	err         error
 }
 
-func (s *stubUpdateIgroupActivity) UpdateIgroup(_ context.Context, igroupName string, hosts []string, svmName string, _ *models.Node) (string, error) {
+func (s *stubUpdateIgroupActivity) UpdateIgroup(_ context.Context, igroupUUID string, hosts []string, svmName string, _ *models.Node) (models.HostGroup, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
-	s.igroupNames = append(s.igroupNames, igroupName)
+	s.igroupNames = append(s.igroupNames, igroupUUID)
 	copied := make([]string, len(hosts))
 	copy(copied, hosts)
 	s.hostsArgs = append(s.hostsArgs, copied)
 	s.svmNames = append(s.svmNames, svmName)
 	if s.err != nil {
-		return "", s.err
+		return models.HostGroup{}, s.err
 	}
-	return s.osType, nil
+	return models.HostGroup{Name: "hg-1", OSType: s.osType}, nil
 }
 
 func (s *stubUpdateIgroupActivity) snapshot() (int, []string, [][]string, []string) {
@@ -135,7 +135,7 @@ func TestVcmUpdateHostGroupWorkflow_Success(t *testing.T) {
 	assert.Equal(t, operationID, calls[0].jobID)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
-	assert.JSONEq(t, `{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1","iqn.1998-01.com.vmware:db2"],"osType":"LINUX"}`, calls[1].responsePayload)
+	assert.JSONEq(t, `{"name":"hg-1","uuid":"hg-1","hosts":["iqn.1998-01.com.vmware:db1","iqn.1998-01.com.vmware:db2"],"osType":"LINUX"}`, calls[1].responsePayload)
 
 	updateCalls, igroups, hostsArgs, svms := updater.snapshot()
 	assert.Equal(t, 1, updateCalls)

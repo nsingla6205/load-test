@@ -5,14 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	ontapModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ontapModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -82,10 +83,11 @@ func TestHostGroupActivity_CreateIgroup_Success(t *testing.T) {
 		SvmName:    "test-svm",
 		OsType:     "linux",
 		Initiator:  []string{"iqn.1993-08.org.debian:01:123456789"},
-	}).Return("host1", nil)
+	}).Return("9760acf5-4638-11e7-9bdb-020073ca0001", nil)
 
-	err := activity.CreateIgroup(context.Background(), "test-svm", host, node)
+	got, err := activity.CreateIgroup(context.Background(), "test-svm", host, node)
 	require.NoError(t, err)
+	assert.Equal(t, "9760acf5-4638-11e7-9bdb-020073ca0001", got)
 }
 
 func TestHostGroupActivity_CreateIgroup_ExistsWithMatchingParams(t *testing.T) {
@@ -105,6 +107,7 @@ func TestHostGroupActivity_CreateIgroup_ExistsWithMatchingParams(t *testing.T) {
 
 	mockProvider.EXPECT().IgroupExists("host1", nillable.GetStringPtr("test-svm")).Return(true, &ontapRest.Igroup{
 		Igroup: ontapModels.Igroup{
+			UUID:   nillable.ToPointer("9760acf5-4638-11e7-9bdb-020073ca0001"),
 			OsType: nillable.ToPointer("linux"),
 			IgroupInlineInitiators: []*ontapModels.IgroupInlineInitiatorsInlineArrayItem{
 				{Name: nillable.ToPointer("iqn.1")},
@@ -112,8 +115,37 @@ func TestHostGroupActivity_CreateIgroup_ExistsWithMatchingParams(t *testing.T) {
 		},
 	}, nil)
 
-	err := activity.CreateIgroup(context.Background(), "test-svm", host, &models.Node{})
+	got, err := activity.CreateIgroup(context.Background(), "test-svm", host, &models.Node{})
 	require.NoError(t, err)
+	assert.Equal(t, "9760acf5-4638-11e7-9bdb-020073ca0001", got)
+}
+
+func TestHostGroupActivity_CreateIgroup_ExistsWithMatchingParamsMissingUUID(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	host := &common.HostParams{
+		HostName: "host1",
+		OsType:   "linux",
+		HostIQNs: []string{"iqn.1"},
+	}
+	mockProvider.EXPECT().IgroupExists("host1", nillable.GetStringPtr("test-svm")).Return(true, &ontapRest.Igroup{
+		Igroup: ontapModels.Igroup{
+			OsType: nillable.ToPointer("linux"),
+			IgroupInlineInitiators: []*ontapModels.IgroupInlineInitiatorsInlineArrayItem{
+				{Name: nillable.ToPointer("iqn.1")},
+			},
+		},
+	}, nil)
+
+	got, err := HostGroupActivity{}.CreateIgroup(context.Background(), "test-svm", host, &models.Node{})
+	require.Error(t, err)
+	assert.Empty(t, got)
+	assert.ErrorContains(t, err, "missing uuid")
 }
 
 func TestHostGroupActivity_CreateIgroup_ExistsWithDifferentParams(t *testing.T) {
@@ -136,7 +168,7 @@ func TestHostGroupActivity_CreateIgroup_ExistsWithDifferentParams(t *testing.T) 
 		},
 	}, nil)
 
-	err := activity.CreateIgroup(context.Background(), "test-svm", host, &models.Node{})
+	_, err := activity.CreateIgroup(context.Background(), "test-svm", host, &models.Node{})
 	require.Error(t, err)
 	var customErr *vsaerrors.CustomError
 	require.True(t, errors.As(err, &customErr))
@@ -159,9 +191,10 @@ func TestHostGroupActivity_UpdateIgroup_Success(t *testing.T) {
 		igroupUUID = "igroup-uuid-1"
 	)
 
-	mockProvider.EXPECT().IgroupExists(igroupName, nillable.GetStringPtr(svmName)).Return(true, &ontapRest.Igroup{
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).Return(&ontapRest.Igroup{
 		Igroup: ontapModels.Igroup{
 			UUID:   nillable.ToPointer(igroupUUID),
+			Name:   nillable.ToPointer(igroupName),
 			OsType: nillable.ToPointer("linux"),
 			IgroupInlineInitiators: []*ontapModels.IgroupInlineInitiatorsInlineArrayItem{
 				{Name: nillable.ToPointer("iqn.1998-01.com.vmware:old")},
@@ -177,9 +210,10 @@ func TestHostGroupActivity_UpdateIgroup_Success(t *testing.T) {
 		IgroupUUID: igroupUUID,
 	}).Return(nil)
 
-	osType, err := HostGroupActivity{}.UpdateIgroup(context.Background(), igroupName, []string{iqn1, iqn2}, svmName, &models.Node{})
+	updated, err := HostGroupActivity{}.UpdateIgroup(context.Background(), igroupUUID, []string{iqn1, iqn2}, svmName, &models.Node{})
 	require.NoError(t, err)
-	assert.Equal(t, "LINUX", osType)
+	assert.Equal(t, igroupName, updated.Name)
+	assert.Equal(t, "LINUX", updated.OSType)
 }
 
 func TestHostGroupActivity_UpdateIgroup_NotFound(t *testing.T) {
@@ -190,13 +224,22 @@ func TestHostGroupActivity_UpdateIgroup_NotFound(t *testing.T) {
 		return mockProvider, nil
 	}
 
-	mockProvider.EXPECT().IgroupExists("hg-1", nillable.GetStringPtr("test-svm")).Return(false, nil, nil)
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: "hg-1", SvmName: "test-svm"}).Return(nil, utilErrors.NewNotFoundErr("igroup", nil))
 
 	_, err := HostGroupActivity{}.UpdateIgroup(context.Background(), "hg-1", []string{"iqn.1"}, "test-svm", &models.Node{})
 	require.Error(t, err)
 	var customErr *vsaerrors.CustomError
 	require.True(t, errors.As(err, &customErr))
 	assert.Equal(t, vsaerrors.ErrHostGroupNotFound, customErr.TrackingID)
+}
+
+func expectIgroupOnSVM(mockProvider *vsa.MockProvider, igroupUUID, svmName string) {
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).Return(&ontapRest.Igroup{
+		Igroup: ontapModels.Igroup{
+			UUID: nillable.ToPointer(igroupUUID),
+			Name: nillable.ToPointer("hg-1"),
+		},
+	}, nil)
 }
 
 func TestHostGroupActivity_DeleteIgroup_Success(t *testing.T) {
@@ -208,17 +251,29 @@ func TestHostGroupActivity_DeleteIgroup_Success(t *testing.T) {
 	}
 
 	const (
-		hostgroupName = "hg-1"
-		svmName       = "test-svm"
-		igroupUUID    = "igroup-uuid-1"
+		svmName    = "test-svm"
+		igroupUUID = "igroup-uuid-1"
 	)
 
-	mockProvider.EXPECT().IgroupGet(nillable.ToPointer(hostgroupName), nillable.ToPointer(svmName)).Return(&ontapRest.Igroup{
-		Igroup: ontapModels.Igroup{UUID: nillable.ToPointer(igroupUUID)},
-	}, nil)
+	expectIgroupOnSVM(mockProvider, igroupUUID, svmName)
 	mockProvider.EXPECT().IgroupDelete(igroupUUID).Return(nil)
 
-	err := HostGroupActivity{}.DeleteIgroup(context.Background(), hostgroupName, svmName, &models.Node{})
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), igroupUUID, svmName, &models.Node{})
+	require.NoError(t, err)
+}
+
+func TestHostGroupActivity_DeleteIgroup_NotFoundOnSVMIsSuccess(t *testing.T) {
+	mockProvider := vsa.NewMockProvider(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+	vsa.GetProviderByNode = func(context.Context, *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: "igroup-uuid-1", SvmName: "test-svm"}).
+		Return(nil, utilErrors.NewNotFoundErr("igroup", nil))
+
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "igroup-uuid-1", "test-svm", &models.Node{})
 	require.NoError(t, err)
 }
 
@@ -231,19 +286,16 @@ func TestHostGroupActivity_DeleteIgroup_LUNMapsNonRetryable(t *testing.T) {
 	}
 
 	const (
-		hostgroupName = "hg-1"
-		svmName       = "test-svm"
-		igroupUUID    = "igroup-uuid-1"
+		svmName    = "test-svm"
+		igroupUUID = "igroup-uuid-1"
 	)
 
-	mockProvider.EXPECT().IgroupGet(nillable.ToPointer(hostgroupName), nillable.ToPointer(svmName)).Return(&ontapRest.Igroup{
-		Igroup: ontapModels.Igroup{UUID: nillable.ToPointer(igroupUUID)},
-	}, nil)
+	expectIgroupOnSVM(mockProvider, igroupUUID, svmName)
 	mockProvider.EXPECT().IgroupDelete(igroupUUID).Return(
 		vsaerrors.NewVCPError(vsaerrors.ErrHostGroupHasLUNMaps, errors.New("LUN maps for this initiator group exist")),
 	)
 
-	err := HostGroupActivity{}.DeleteIgroup(context.Background(), hostgroupName, svmName, &models.Node{})
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), igroupUUID, svmName, &models.Node{})
 	require.Error(t, err)
 	var customErr *vsaerrors.CustomError
 	require.True(t, errors.As(err, &customErr))
@@ -282,7 +334,7 @@ func TestHostGroupActivity_CreateIgroup_GetProviderFails(t *testing.T) {
 		return nil, errors.New("provider init failed")
 	}
 
-	err := HostGroupActivity{}.CreateIgroup(context.Background(), "test-svm", &common.HostParams{
+	_, err := HostGroupActivity{}.CreateIgroup(context.Background(), "test-svm", &common.HostParams{
 		HostName: "host1",
 		OsType:   "linux",
 		HostIQNs: []string{"iqn.1"},
@@ -309,7 +361,7 @@ func TestHostGroupActivity_UpdateIgroup_SyncFails(t *testing.T) {
 		return mockProvider, nil
 	}
 
-	mockProvider.EXPECT().IgroupExists("hg-1", nillable.GetStringPtr("test-svm")).Return(false, nil, errors.New("ONTAP sync failed"))
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: "hg-1", SvmName: "test-svm"}).Return(nil, errors.New("ONTAP sync failed"))
 
 	_, err := HostGroupActivity{}.UpdateIgroup(context.Background(), "hg-1", []string{"iqn.1"}, "test-svm", &models.Node{})
 	require.Error(t, err)
@@ -334,7 +386,7 @@ func TestHostGroupActivity_DeleteIgroup_IgroupGetFails(t *testing.T) {
 		return mockProvider, nil
 	}
 
-	mockProvider.EXPECT().IgroupGet(nillable.ToPointer("hg-1"), nillable.ToPointer("test-svm")).Return(nil, errors.New("ONTAP unavailable"))
+	mockProvider.EXPECT().IgroupGet(vsa.IgroupGetParams{UUID: "hg-1", SvmName: "test-svm"}).Return(nil, errors.New("ONTAP unavailable"))
 
 	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "hg-1", "test-svm", &models.Node{})
 	require.Error(t, err)
@@ -348,12 +400,13 @@ func TestHostGroupActivity_DeleteIgroup_IgroupDeleteFails(t *testing.T) {
 		return mockProvider, nil
 	}
 
-	const igroupUUID = "igroup-uuid-1"
-	mockProvider.EXPECT().IgroupGet(nillable.ToPointer("hg-1"), nillable.ToPointer("test-svm")).Return(&ontapRest.Igroup{
-		Igroup: ontapModels.Igroup{UUID: nillable.ToPointer(igroupUUID)},
-	}, nil)
+	const (
+		igroupUUID = "igroup-uuid-1"
+		svmName    = "test-svm"
+	)
+	expectIgroupOnSVM(mockProvider, igroupUUID, svmName)
 	mockProvider.EXPECT().IgroupDelete(igroupUUID).Return(errors.New("ONTAP delete failed"))
 
-	err := HostGroupActivity{}.DeleteIgroup(context.Background(), "hg-1", "test-svm", &models.Node{})
+	err := HostGroupActivity{}.DeleteIgroup(context.Background(), igroupUUID, "test-svm", &models.Node{})
 	require.Error(t, err)
 }

@@ -493,6 +493,7 @@ func TestIgroupV1_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
+		{Input: "{\"hosts\":[\"iqn.1998-01.com.vmware:db1\",\"iqn.1998-01.com.vmware:db2\"],\"name\":\"hg-db-linux\",\"osType\":\"LINUX\",\"uuid\":\"9760acf5-4638-11e7-9bdb-020073ca0001\"}"},
 		{Input: "{\"hosts\":[\"iqn.1998-01.com.vmware:db1\",\"iqn.1998-01.com.vmware:db2\"],\"name\":\"hg-db-linux\",\"osType\":\"LINUX\"}"},
 	} {
 		tc := tc
@@ -750,7 +751,6 @@ func TestOperationV1_Examples(t *testing.T) {
 	}{
 		{Input: "{\"done\":false,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
 		{Input: "{\"done\":false,\"name\":\"/v1/operations/3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
-		{Input: "{\"done\":true,\"name\":\"/v1/operations/123e4567-e89b-12d3-a456-426614174000\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -1412,18 +1412,6 @@ func TestV1UpdateIgroupUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdateIgroupUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestV1UpdateVolumeAccepted_EncodeDecode(t *testing.T) {
-	var typ V1UpdateVolumeAccepted
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateVolumeAccepted
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestV1UpdateVolumeBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1UpdateVolumeBadRequest
 	typ.SetFake()
@@ -1446,18 +1434,6 @@ func TestV1UpdateVolumeInternalServerError_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateVolumeInternalServerError
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestV1UpdateVolumeOK_EncodeDecode(t *testing.T) {
-	var typ V1UpdateVolumeOK
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 V1UpdateVolumeOK
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdateVolumeUnauthorized_EncodeDecode(t *testing.T) {

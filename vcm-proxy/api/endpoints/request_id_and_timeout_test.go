@@ -54,17 +54,22 @@ func testOperationIgroupCreateParams() vcmserver.V1CreateIgroupParams {
 	}
 }
 
-func testOperationIgroupUpdateParams(name string) vcmserver.V1UpdateIgroupParams {
+func testOperationIgroupUpdateParams(igroupUUID string) vcmserver.V1UpdateIgroupParams {
+	return testOperationIgroupUpdateParamsWithMask(igroupUUID, "hosts")
+}
+
+func testOperationIgroupUpdateParamsWithMask(igroupUUID string, updateMask string) vcmserver.V1UpdateIgroupParams {
 	return vcmserver.V1UpdateIgroupParams{
-		Name:      name,
-		RequestId: testOperationRequestID,
-		Timeout:   testOperationTimeout,
+		UUID:       igroupUUID,
+		RequestId:  testOperationRequestID,
+		Timeout:    testOperationTimeout,
+		UpdateMask: updateMask,
 	}
 }
 
-func testOperationIgroupDeleteParams(name string) vcmserver.V1DeleteIgroupParams {
+func testOperationIgroupDeleteParams(igroupUUID string) vcmserver.V1DeleteIgroupParams {
 	return vcmserver.V1DeleteIgroupParams{
-		Name:      name,
+		UUID:      igroupUUID,
 		RequestId: testOperationRequestID,
 		Timeout:   testOperationTimeout,
 	}

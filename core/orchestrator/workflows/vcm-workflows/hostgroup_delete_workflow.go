@@ -8,7 +8,7 @@ import (
 )
 
 // VcmDeleteHostGroupWorkflow deletes an ONTAP igroup for the requested HostGroup.
-func VcmDeleteHostGroupWorkflow(ctx *orchestrator.Context, inputs common.WorkflowInputs, igroupName string) error {
+func VcmDeleteHostGroupWorkflow(ctx *orchestrator.Context, inputs common.WorkflowInputs, igroupUUID string) error {
 	activityCtx := ctx.WithActivityOptions(vcmHostGroupActivityOptions())
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
@@ -29,7 +29,7 @@ func VcmDeleteHostGroupWorkflow(ctx *orchestrator.Context, inputs common.Workflo
 	if err := checkDeadline(ctx, inputs.Deadline, "delete-igroup"); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.DeleteIgroup, igroupName, inputs.ExpectedSvmName, inputs.Node).Get(activityCtx, nil); err != nil {
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.DeleteIgroup, igroupUUID, inputs.ExpectedSvmName, inputs.Node).Get(activityCtx, nil); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
 

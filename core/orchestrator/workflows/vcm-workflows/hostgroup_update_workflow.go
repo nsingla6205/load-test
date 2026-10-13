@@ -1,6 +1,7 @@
 package vcm_workflows
 
 import (
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
@@ -8,7 +9,7 @@ import (
 )
 
 // VcmUpdateHostGroupWorkflow updates an ONTAP igroup initiator list.
-func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, inputs common.WorkflowInputs, igroupName string, hosts []string) error {
+func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, inputs common.WorkflowInputs, igroupUUID string, hosts []string) error {
 	activityCtx := ctx.WithActivityOptions(vcmHostGroupActivityOptions())
 	operationID := orchestrator.GetInfo(ctx).WorkflowExecution.ID
 
@@ -29,12 +30,12 @@ func VcmUpdateHostGroupWorkflow(ctx *orchestrator.Context, inputs common.Workflo
 	if err := checkDeadline(ctx, inputs.Deadline, "update-igroup"); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
-	var osType string
-	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.UpdateIgroup, igroupName, hosts, inputs.ExpectedSvmName, inputs.Node).Get(activityCtx, &osType); err != nil {
+	var updated models.HostGroup
+	if err := orchestrator.ExecuteActivity(activityCtx, vcmHostGroupActivity.UpdateIgroup, igroupUUID, hosts, inputs.ExpectedSvmName, inputs.Node).Get(activityCtx, &updated); err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}
 
-	donePayload, err := igroupOperationResponsePayload(igroupName, hosts, osType)
+	donePayload, err := igroupOperationResponsePayload(updated.Name, igroupUUID, hosts, updated.OSType)
 	if err != nil {
 		return finishJob(activityCtx, operationID, err, nil)
 	}

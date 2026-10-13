@@ -619,6 +619,39 @@ func (s *IgroupUpdateV1) Validate() error {
 		if s.Hosts == nil {
 			return errors.New("nil is invalid value")
 		}
+		if err := (validate.Array{
+			MinLength:    1,
+			MinLengthSet: true,
+			MaxLength:    0,
+			MaxLengthSet: false,
+		}).ValidateLength(len(s.Hosts)); err != nil {
+			return errors.Wrap(err, "array")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.Hosts {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    1,
+					MinLengthSet: true,
+					MaxLength:    0,
+					MaxLengthSet: false,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(elem)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
 		return nil
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
@@ -654,6 +687,32 @@ func (s *IgroupV1) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "name",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.UUID.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "uuid",
 			Error: err,
 		})
 	}
@@ -1582,14 +1641,6 @@ func (s *V1UpdateIgroupUnauthorized) Validate() error {
 	return nil
 }
 
-func (s *V1UpdateVolumeAccepted) Validate() error {
-	alias := (*OperationV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *V1UpdateVolumeBadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
@@ -1600,14 +1651,6 @@ func (s *V1UpdateVolumeBadRequest) Validate() error {
 
 func (s *V1UpdateVolumeInternalServerError) Validate() error {
 	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *V1UpdateVolumeOK) Validate() error {
-	alias := (*OperationV1)(s)
 	if err := alias.Validate(); err != nil {
 		return err
 	}

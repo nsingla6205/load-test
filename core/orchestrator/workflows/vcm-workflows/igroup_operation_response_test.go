@@ -11,6 +11,7 @@ import (
 func TestIgroupOperationResponsePayload(t *testing.T) {
 	payload, err := igroupOperationResponsePayload(
 		"hgtest_linux01",
+		"",
 		[]string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db2"},
 		"LINUX",
 	)

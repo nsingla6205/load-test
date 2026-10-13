@@ -93,20 +93,33 @@ func TestIGroupCreate(t *testing.T) {
 		assert.EqualError(tt, err, transport.err.Error())
 	})
 
-	t.Run("WhenSuccessful_ThenReturnIgroupName", func(tt *testing.T) {
-		igroupName := "igroup1"
+	t.Run("WhenSuccessful_ThenReturnIgroupUUID", func(tt *testing.T) {
+		igroupUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
 		transport := &mockTransport{response: &san.IgroupCreateCreated{
 			Payload: &models.IgroupResponse{
 				IgroupResponseInlineRecords: []*models.Igroup{
-					{Name: &igroupName},
+					{UUID: &igroupUUID},
 				},
 			},
 		}}
 		sanAPI := san.New(transport, nil)
 		client := &sanClient{api: sanAPI}
-		name, err := client.IGroupCreate(&IgroupCreateParams{})
+		got, err := client.IGroupCreate(&IgroupCreateParams{})
 		assert.NoError(tt, err)
-		assert.Equal(tt, igroupName, name)
+		assert.Equal(tt, igroupUUID, got)
+	})
+
+	t.Run("WhenUUIDMissing_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{response: &san.IgroupCreateCreated{
+			Payload: &models.IgroupResponse{
+				IgroupResponseInlineRecords: []*models.Igroup{{}},
+			},
+		}}
+		sanAPI := san.New(transport, nil)
+		client := &sanClient{api: sanAPI}
+		got, err := client.IGroupCreate(&IgroupCreateParams{})
+		assert.EqualError(tt, err, "ONTAP igroup create response is missing uuid")
+		assert.Empty(tt, got)
 	})
 }
 
@@ -216,7 +229,7 @@ func TestIGroupGet(t *testing.T) {
 		sanAPI := san.New(&mockTransport{}, nil)
 		client := &sanClient{api: sanAPI}
 		_, err := client.IGroupGet(&IgroupGetParams{})
-		assert.EqualError(tt, err, "missing required parameter 'name' when getting a specific Igroup")
+		assert.EqualError(tt, err, "missing required parameter 'name' or 'uuid' when getting a specific Igroup")
 	})
 
 	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
@@ -270,6 +283,23 @@ func TestIGroupGet(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, igroup)
 		assert.Equal(tt, igroupName, *igroup.Name)
+	})
+
+	t.Run("WhenUUIDProvided_ThenReturnIgroup", func(tt *testing.T) {
+		igroupUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
+		transport := &mockTransport{response: &san.IgroupCollectionGetOK{
+			Payload: &models.IgroupResponse{
+				IgroupResponseInlineRecords: []*models.Igroup{
+					{UUID: &igroupUUID},
+				},
+			},
+		}}
+		sanAPI := san.New(transport, nil)
+		client := &sanClient{api: sanAPI}
+		igroup, err := client.IGroupGet(&IgroupGetParams{UUID: &igroupUUID})
+		assert.NoError(tt, err)
+		assert.NotNil(tt, igroup)
+		assert.Equal(tt, igroupUUID, *igroup.UUID)
 	})
 }
 

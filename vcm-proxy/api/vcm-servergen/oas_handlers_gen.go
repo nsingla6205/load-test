@@ -1698,14 +1698,14 @@ func (s *Server) handleV1CreateVolumeRequest(args [0]string, argsEscaped bool, w
 //
 // Warning! This operation will permanently delete the igroup.
 //
-// DELETE /v1/igroups/{name}
+// DELETE /v1/igroups/{uuid}
 func (s *Server) handleV1DeleteIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("v1_deleteIgroup"),
 		semconv.HTTPRequestMethodKey.String("DELETE"),
-		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{uuid}"),
 	}
 
 	// Start a span for this request.
@@ -1792,9 +1792,9 @@ func (s *Server) handleV1DeleteIgroupRequest(args [1]string, argsEscaped bool, w
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
-					Name: "name",
+					Name: "uuid",
 					In:   "path",
-				}: params.Name,
+				}: params.UUID,
 				{
 					Name: "requestId",
 					In:   "query",
@@ -2026,16 +2026,16 @@ func (s *Server) handleV1DeleteVolumeRequest(args [1]string, argsEscaped bool, w
 
 // handleV1DescribeIgroupRequest handles v1_describeIgroup operation.
 //
-// Returns the details of the specified igroup by name.
+// Returns the details of the specified igroup by UUID.
 //
-// GET /v1/igroups/{name}
+// GET /v1/igroups/{uuid}
 func (s *Server) handleV1DescribeIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("v1_describeIgroup"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{uuid}"),
 	}
 
 	// Start a span for this request.
@@ -2122,9 +2122,9 @@ func (s *Server) handleV1DescribeIgroupRequest(args [1]string, argsEscaped bool,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
-					Name: "name",
+					Name: "uuid",
 					In:   "path",
-				}: params.Name,
+				}: params.UUID,
 				{
 					Name: "X-Correlation-ID",
 					In:   "header",
@@ -2642,16 +2642,17 @@ func (s *Server) handleV1ListVolumesRequest(args [0]string, argsEscaped bool, w 
 
 // handleV1UpdateIgroupRequest handles v1_updateIgroup operation.
 //
-// Update the specified igroup.
+// Replaces the initiator list of the specified igroup. The body contains only `hosts`. `updateMask`
+// must be `hosts`; nested paths are rejected.
 //
-// PUT /v1/igroups/{name}
+// PATCH /v1/igroups/{uuid}
 func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("v1_updateIgroup"),
-		semconv.HTTPRequestMethodKey.String("PUT"),
-		semconv.HTTPRouteKey.String("/v1/igroups/{name}"),
+		semconv.HTTPRequestMethodKey.String("PATCH"),
+		semconv.HTTPRouteKey.String("/v1/igroups/{uuid}"),
 	}
 
 	// Start a span for this request.
@@ -2753,9 +2754,9 @@ func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
-					Name: "name",
+					Name: "uuid",
 					In:   "path",
-				}: params.Name,
+				}: params.UUID,
 				{
 					Name: "requestId",
 					In:   "query",
@@ -2768,6 +2769,10 @@ func (s *Server) handleV1UpdateIgroupRequest(args [1]string, argsEscaped bool, w
 					Name: "X-Correlation-ID",
 					In:   "header",
 				}: params.XCorrelationID,
+				{
+					Name: "updateMask",
+					In:   "query",
+				}: params.UpdateMask,
 			},
 			Raw: r,
 		}

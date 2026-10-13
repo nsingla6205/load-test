@@ -3472,6 +3472,7 @@ type IgroupGetParams struct {
 	BaseParams
 	SvmName        *string
 	Name           *string
+	UUID           *string
 	LunMapsLunUUID *string
 }
 
@@ -3483,6 +3484,7 @@ func igroupGetParamsToONTAP(params *IgroupGetParams) *san.IgroupCollectionGetPar
 	}
 
 	otParams.SetName(params.Name)
+	otParams.SetUUID(params.UUID)
 	otParams.SetSvmName(params.SvmName)
 	otParams.SetLunMapsLunUUID(params.LunMapsLunUUID)
 	otParams.SetMaxRecords(getConstrainedMaxRecords(params.MaxRecords))

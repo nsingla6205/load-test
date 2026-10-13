@@ -113,7 +113,7 @@ type Handler interface {
 	//
 	// Warning! This operation will permanently delete the igroup.
 	//
-	// DELETE /v1/igroups/{name}
+	// DELETE /v1/igroups/{uuid}
 	V1DeleteIgroup(ctx context.Context, params V1DeleteIgroupParams) (V1DeleteIgroupRes, error)
 	// V1DeleteVolume implements v1_deleteVolume operation.
 	//
@@ -125,9 +125,9 @@ type Handler interface {
 	V1DeleteVolume(ctx context.Context, params V1DeleteVolumeParams) (V1DeleteVolumeRes, error)
 	// V1DescribeIgroup implements v1_describeIgroup operation.
 	//
-	// Returns the details of the specified igroup by name.
+	// Returns the details of the specified igroup by UUID.
 	//
-	// GET /v1/igroups/{name}
+	// GET /v1/igroups/{uuid}
 	V1DescribeIgroup(ctx context.Context, params V1DescribeIgroupParams) (V1DescribeIgroupRes, error)
 	// V1DescribeVolume implements v1_describeVolume operation.
 	//
@@ -149,9 +149,10 @@ type Handler interface {
 	V1ListVolumes(ctx context.Context, params V1ListVolumesParams) (V1ListVolumesRes, error)
 	// V1UpdateIgroup implements v1_updateIgroup operation.
 	//
-	// Update the specified igroup.
+	// Replaces the initiator list of the specified igroup. The body contains only `hosts`. `updateMask`
+	// must be `hosts`; nested paths are rejected.
 	//
-	// PUT /v1/igroups/{name}
+	// PATCH /v1/igroups/{uuid}
 	V1UpdateIgroup(ctx context.Context, req *IgroupUpdateV1, params V1UpdateIgroupParams) (V1UpdateIgroupRes, error)
 	// V1UpdateVolume implements v1_updateVolume operation.
 	//

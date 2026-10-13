@@ -441,7 +441,7 @@ func (s *IgroupUpdateV1) SetFake() {
 	{
 		{
 			s.Hosts = nil
-			for i := 0; i < 0; i++ {
+			for i := 0; i < 1; i++ {
 				var elem string
 				{
 					elem = "string"
@@ -457,6 +457,11 @@ func (s *IgroupV1) SetFake() {
 	{
 		{
 			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.UUID.SetFake()
 		}
 	}
 	{
@@ -1646,15 +1651,6 @@ func (s *V1UpdateIgroupUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *V1UpdateVolumeAccepted) SetFake() {
-	var unwrapped OperationV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateVolumeAccepted(unwrapped)
-}
-
-// SetFake set fake values.
 func (s *V1UpdateVolumeBadRequest) SetFake() {
 	var unwrapped ErrorResponseV1
 	{
@@ -1670,15 +1666,6 @@ func (s *V1UpdateVolumeInternalServerError) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateVolumeInternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *V1UpdateVolumeOK) SetFake() {
-	var unwrapped OperationV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = V1UpdateVolumeOK(unwrapped)
 }
 
 // SetFake set fake values.

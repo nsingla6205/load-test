@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"strings"
 
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -62,6 +63,7 @@ func validateVolumeUpdateMaskField(field string) (string, error) {
 }
 
 // applyVolumeUpdateMask returns req with only updateMask-allowed fields copied from the body.
+// Every field named in the mask must be set on the body.
 func applyVolumeUpdateMask(req *vcmserver.VolumeUpdateV1, updateMask string) (*vcmserver.VolumeUpdateV1, error) {
 	fields, err := parseVolumeUpdateMask(updateMask)
 	if err != nil {
@@ -69,31 +71,54 @@ func applyVolumeUpdateMask(req *vcmserver.VolumeUpdateV1, updateMask string) (*v
 	}
 
 	masked := &vcmserver.VolumeUpdateV1{}
-
-	if fields["sizeInBytes"] && req.SizeInBytes.IsSet() {
-		masked.SizeInBytes = req.SizeInBytes
-	}
-	if fields["snapReserve"] && req.SnapReserve.IsSet() {
-		masked.SnapReserve = req.SnapReserve
-	}
-	if fields["snapshotDirectory"] && req.SnapshotDirectory.IsSet() {
-		masked.SnapshotDirectory = req.SnapshotDirectory
-	}
-	if fields["snapshotPolicy"] && req.SnapshotPolicy.IsSet() {
-		masked.SnapshotPolicy = req.SnapshotPolicy
-	}
-	if fields["exportPolicy"] && req.ExportPolicy.IsSet() {
-		masked.ExportPolicy = req.ExportPolicy
-	}
-	if fields["blockDevices"] && len(req.BlockDevices) > 0 {
-		masked.BlockDevices = req.BlockDevices
-	}
-	if fields["shareName"] && req.ShareName.IsSet() {
-		masked.ShareName = req.ShareName
-	}
-	if fields["unixPermissions"] && req.UnixPermissions.IsSet() {
-		masked.UnixPermissions = req.UnixPermissions
+	for field := range fields {
+		switch field {
+		case "sizeInBytes":
+			if !req.SizeInBytes.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.SizeInBytes = req.SizeInBytes
+		case "snapReserve":
+			if !req.SnapReserve.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.SnapReserve = req.SnapReserve
+		case "snapshotDirectory":
+			if !req.SnapshotDirectory.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.SnapshotDirectory = req.SnapshotDirectory
+		case "snapshotPolicy":
+			if !req.SnapshotPolicy.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.SnapshotPolicy = req.SnapshotPolicy
+		case "exportPolicy":
+			if !req.ExportPolicy.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.ExportPolicy = req.ExportPolicy
+		case "blockDevices":
+			if len(req.BlockDevices) == 0 {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.BlockDevices = req.BlockDevices
+		case "shareName":
+			if !req.ShareName.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.ShareName = req.ShareName
+		case "unixPermissions":
+			if !req.UnixPermissions.IsSet() {
+				return nil, missingUpdateMaskField(field)
+			}
+			masked.UnixPermissions = req.UnixPermissions
+		}
 	}
 
 	return masked, nil
+}
+
+func missingUpdateMaskField(field string) error {
+	return utilErrors.NewUserInputValidationErr(fmt.Sprintf("updateMask names %q but the field is missing from the request body", field))
 }

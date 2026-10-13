@@ -915,7 +915,7 @@ func (vda VolumeDeleteActivity) DeleteIgroupsFromBlockProperties(ctx context.Con
 		}
 
 		recordHeartbeat(ctx, fmt.Sprintf("Fetching igroup details for host group %s", hostgroup.HostGroupUUID))
-		igroup, err := provider.IgroupGet(&hostgroupDB.Name, nil)
+		igroup, err := provider.IgroupGet(vsa.IgroupGetParams{Name: hostgroupDB.Name})
 		if err != nil {
 			if utilErrors.IsNotFoundErr(err) {
 				logger.Debugf("IGroups %s is already deleted, skipping", hostgroup.HostGroupUUID)
@@ -976,7 +976,7 @@ func (vda VolumeDeleteActivity) DeleteIgroups(ctx context.Context, volume *datam
 			}
 
 			recordHeartbeat(ctx, fmt.Sprintf("Fetching igroup details for host group %s", hostgroup.HostGroupUUID))
-			igroup, err := provider.IgroupGet(&hostgroupDB.Name, nil)
+			igroup, err := provider.IgroupGet(vsa.IgroupGetParams{Name: hostgroupDB.Name})
 			if err != nil {
 				if utilErrors.IsNotFoundErr(err) {
 					logger.Debugf("IGroups %s is already deleted, skipping", hostgroup.HostGroupUUID)

@@ -19,7 +19,10 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 )
 
-const hostGroupWorkflowTestTimeout = 30 * time.Second
+const (
+	hostGroupWorkflowTestTimeout = 30 * time.Second
+	testCreatedIgroupUUID        = "9760acf5-4638-11e7-9bdb-020073ca0001"
+)
 
 type stubHostGroupActivity struct {
 	mu          sync.Mutex
@@ -28,12 +31,15 @@ type stubHostGroupActivity struct {
 	err         error
 }
 
-func (s *stubHostGroupActivity) CreateIgroup(_ context.Context, svmName string, _ *common.HostParams, _ *models.Node) error {
+func (s *stubHostGroupActivity) CreateIgroup(_ context.Context, svmName string, _ *common.HostParams, _ *models.Node) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
 	s.svmNames = append(s.svmNames, svmName)
-	return s.err
+	if s.err != nil {
+		return "", s.err
+	}
+	return testCreatedIgroupUUID, nil
 }
 
 func (s *stubHostGroupActivity) snapshot() (int, []string) {
@@ -132,7 +138,7 @@ func TestVcmCreateHostGroupWorkflow_Success(t *testing.T) {
 	assert.Equal(t, operationID, calls[0].jobID)
 	assert.Equal(t, vcmdb.JobStateProcessing, calls[0].state)
 	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
-	assert.JSONEq(t, `{"name":"hg-1","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}`, calls[1].responsePayload)
+	assert.JSONEq(t, `{"name":"hg-1","uuid":"9760acf5-4638-11e7-9bdb-020073ca0001","hosts":["iqn.1998-01.com.vmware:db1"],"osType":"LINUX"}`, calls[1].responsePayload)
 }
 
 func TestVcmCreateHostGroupWorkflow_GetSvmByNameFails(t *testing.T) {

@@ -1956,9 +1956,9 @@ func TestDeleteIgroups_Success(t *testing.T) {
 			Name: &hostgroup3.Name,
 		},
 	}
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(igroup1, nil)
-	mockProvider.On("IgroupGet", &hostgroup2.Name, mock.Anything).Return(igroup2, nil)
-	mockProvider.On("IgroupGet", &hostgroup3.Name, mock.Anything).Return(igroup3, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(igroup1, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup2.Name}).Return(igroup2, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup3.Name}).Return(igroup3, nil)
 
 	// Mock provider.IgroupDelete calls
 	mockProvider.On("IgroupDelete", *igroup1.UUID).Return(nil)
@@ -2046,7 +2046,7 @@ func TestDeleteIgroups_OneHostGroupInUse(t *testing.T) {
 			Name: &hostgroup1.Name,
 		},
 	}
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(igroup1, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(igroup1, nil)
 
 	// Mock provider.IgroupDelete call - only for the unused hostgroup
 	mockProvider.On("IgroupDelete", *igroup1.UUID).Return(nil)
@@ -2261,7 +2261,7 @@ func TestDeleteIgroups_IgroupGetNotFoundError(t *testing.T) {
 
 	// Mock IgroupGet to return not found error
 	notFoundError := utilErrors.NewNotFoundErr("igroup", nil)
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(nil, notFoundError)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(nil, notFoundError)
 
 	_, err := env.ExecuteActivity(activity.DeleteIgroups, volume, node)
 
@@ -2321,7 +2321,7 @@ func TestDeleteIgroups_IgroupGetOtherError(t *testing.T) {
 	expectedError := errors.New("unexpected error getting igroup")
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "hostgroup-uuid-1", int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "hostgroup-uuid-1", int64(1)).Return(hostgroup1, nil)
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(nil, expectedError)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(nil, expectedError)
 
 	_, err := env.ExecuteActivity(activity.DeleteIgroups, volume, node)
 
@@ -2388,7 +2388,7 @@ func TestDeleteIgroups_IgroupDeleteFailure(t *testing.T) {
 	expectedError := errors.New("failed to delete igroup")
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "hostgroup-uuid-1", int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "hostgroup-uuid-1", int64(1)).Return(hostgroup1, nil)
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(igroup1, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(igroup1, nil)
 	mockProvider.On("IgroupDelete", *igroup1.UUID).Return(expectedError)
 
 	_, err := env.ExecuteActivity(activity.DeleteIgroups, volume, node)
@@ -2456,7 +2456,7 @@ func TestDeleteIgroups_IgroupWithNilUUID(t *testing.T) {
 
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "hostgroup-uuid-1", int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "hostgroup-uuid-1", int64(1)).Return(hostgroup1, nil)
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(igroup1, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(igroup1, nil)
 
 	_, err := env.ExecuteActivity(activity.DeleteIgroups, volume, node)
 
@@ -2516,7 +2516,7 @@ func TestDeleteIgroups_IgroupWithNilIgroup(t *testing.T) {
 	// Mock IgroupGet to return nil igroup
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "hostgroup-uuid-1", int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "hostgroup-uuid-1", int64(1)).Return(hostgroup1, nil)
-	mockProvider.On("IgroupGet", &hostgroup1.Name, mock.Anything).Return(nil, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroup1.Name}).Return(nil, nil)
 
 	_, err := env.ExecuteActivity(activity.DeleteIgroups, volume, node)
 
@@ -2791,7 +2791,7 @@ func TestDeleteIgroupsFromBlockProperties_Success(t *testing.T) {
 
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(igroup, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(igroup, nil)
 	mockProvider.On("IgroupDelete", "test-igroup-uuid").Return(nil)
 
 	// Act
@@ -3011,7 +3011,7 @@ func TestDeleteIgroupsFromBlockProperties_IgroupGetNotFoundError(t *testing.T) {
 	notFoundError := utilErrors.NewNotFoundErr("igroup", nil)
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(nil, notFoundError)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(nil, notFoundError)
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteIgroupsFromBlockProperties, volume, node)
@@ -3061,7 +3061,7 @@ func TestDeleteIgroupsFromBlockProperties_IgroupGetOtherError(t *testing.T) {
 	expectedError := errors.New("network error")
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(nil, expectedError)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(nil, expectedError)
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteIgroupsFromBlockProperties, volume, node)
@@ -3117,7 +3117,7 @@ func TestDeleteIgroupsFromBlockProperties_IgroupDeleteFailure(t *testing.T) {
 	expectedError := errors.New("delete failed")
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(igroup, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(igroup, nil)
 	mockProvider.On("IgroupDelete", "test-igroup-uuid").Return(expectedError)
 
 	// Act
@@ -3173,7 +3173,7 @@ func TestDeleteIgroupsFromBlockProperties_IgroupWithNilUUID(t *testing.T) {
 
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(igroup, nil)
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(igroup, nil)
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteIgroupsFromBlockProperties, volume, node)
@@ -3222,7 +3222,7 @@ func TestDeleteIgroupsFromBlockProperties_IgroupWithNilIgroup(t *testing.T) {
 
 	mockStorage.On("GetAllVolumesForHG", mock.Anything, "test-hostgroup-uuid", int64(1)).Return([]*datamodel.Volume{volume}, nil)
 	mockStorage.On("GetHostGroup", mock.Anything, "test-hostgroup-uuid", int64(1)).Return(hostgroupDB, nil)
-	mockProvider.On("IgroupGet", &hostgroupDB.Name, (*string)(nil)).Return(nil, nil) // Nil igroup
+	mockProvider.On("IgroupGet", vsa.IgroupGetParams{Name: hostgroupDB.Name}).Return(nil, nil) // Nil igroup
 
 	// Act
 	_, err := env.ExecuteActivity(activity.DeleteIgroupsFromBlockProperties, volume, node)

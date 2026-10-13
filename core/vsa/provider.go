@@ -64,7 +64,7 @@ type Provider interface {
 	UpdateVolumeEnableEncryption(params UpdateVolumeParams) error
 	IgroupCreate(params IgroupCreateParams) (string, error)
 	IgroupDelete(uuid string) error
-	IgroupGet(name, svm *string) (*ontapRest.Igroup, error)
+	IgroupGet(params IgroupGetParams) (*ontapRest.Igroup, error)
 	IgroupList(svm *string) ([]*ontapRest.Igroup, error)
 	IgroupNamesForLunUUID(svmName, lunUUID string) ([]string, error)
 	IgroupExists(name string, svm *string) (bool, *ontapRest.Igroup, error)

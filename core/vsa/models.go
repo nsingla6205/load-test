@@ -581,6 +581,13 @@ type IgroupCreateParams struct {
 	Initiator  []string
 }
 
+// IgroupGetParams identifies one igroup. Set Name or UUID. Empty fields are not sent to ONTAP.
+type IgroupGetParams struct {
+	Name    string
+	UUID    string
+	SvmName string
+}
+
 type IgroupDeleteParams struct {
 	UUID string
 }

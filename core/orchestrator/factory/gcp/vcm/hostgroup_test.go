@@ -10,17 +10,17 @@ import (
 	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
-	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	ontapModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	vcm_workflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/vcm-workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 )
@@ -38,10 +38,10 @@ func createHostGroupParams() *commonparams.CreateHostGroupParams {
 func updateHostGroupParams() *commonparams.UpdateHostGroupParams {
 	hosts := []string{"iqn.1998-01.com.vmware:db1", "iqn.1998-01.com.vmware:db2"}
 	return &commonparams.UpdateHostGroupParams{
-		Name:        "hg-1",
-		Hosts:       &hosts,
-		OperationID: "request-update-1",
-		Deadline:    time.Now().UTC().Add(time.Hour),
+		HostGroupUUID: "9760acf5-4638-11e7-9bdb-020073ca0001",
+		Hosts:         &hosts,
+		OperationID:   "request-update-1",
+		Deadline:      time.Now().UTC().Add(time.Hour),
 	}
 }
 
@@ -219,11 +219,11 @@ func TestUpdateHostGroup_PersistsJobAndDispatchesWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, params.OperationID, operationID)
 	require.NotNil(t, hostGroup)
-	assert.Equal(t, "hg-1", hostGroup.Name)
+	assert.Equal(t, params.Name, hostGroup.Name)
 	assert.Equal(t, operationID, hostGroup.UUID)
 	require.NotNil(t, store.createdJob)
 	assert.Equal(t, operationID, store.createdJob.ID)
-	assert.Equal(t, params.Name, store.createdJob.ResourceID)
+	assert.Equal(t, params.HostGroupUUID, store.createdJob.ResourceID)
 	assert.Equal(t, string(datamodel.JobTypeUpdateHostGroup), store.createdJob.Type)
 	assert.Equal(t, vcmdb.JobStateNew, store.createdJob.State)
 	assert.True(t, store.createdJob.DeadlineAt.Equal(params.Deadline.UTC()))
@@ -236,9 +236,9 @@ func TestUpdateHostGroup_PersistsJobAndDispatchesWorkflow(t *testing.T) {
 	assert.Equal(t, "gcnv-test", inputs.Node.DeploymentName)
 	assert.Equal(t, "gcnv-test-svm-01", inputs.ExpectedSvmName)
 	assert.True(t, inputs.Deadline.Equal(params.Deadline.UTC()))
-	igroupName, ok := starter.args[1].(string)
+	igroupUUID, ok := starter.args[1].(string)
 	require.True(t, ok)
-	assert.Equal(t, params.Name, igroupName)
+	assert.Equal(t, params.HostGroupUUID, igroupUUID)
 	hostsArg, ok := starter.args[2].([]string)
 	require.True(t, ok)
 	assert.Equal(t, *params.Hosts, hostsArg)
@@ -496,6 +496,7 @@ func TestGetHostGroup_ReturnsOntapIgroup(t *testing.T) {
 	iqn2 := "iqn.1998-01.com.vmware:testhost2"
 	osType := "linux"
 	igroupName := "hg-test-linux"
+	igroupUUID := "9760acf5-4638-11e7-9bdb-020073ca0001"
 	svmName := "gcnv-test-svm-01"
 
 	mockProvider := vsa.NewMockProvider(t)
@@ -503,9 +504,10 @@ func TestGetHostGroup_ReturnsOntapIgroup(t *testing.T) {
 		GetSVM(vsa.GetSvmParams{Name: svmName}).
 		Return(&ontapRest.Svm{Svm: ontapModels.Svm{Name: &svmName}}, nil)
 	mockProvider.EXPECT().
-		IgroupGet(&igroupName, &svmName).
+		IgroupGet(vsa.IgroupGetParams{UUID: igroupUUID, SvmName: svmName}).
 		Return(&ontapRest.Igroup{
 			Igroup: ontapModels.Igroup{
+				UUID:   &igroupUUID,
 				Name:   &igroupName,
 				OsType: &osType,
 				IgroupInlineInitiators: []*ontapModels.IgroupInlineInitiatorsInlineArrayItem{
@@ -522,9 +524,10 @@ func TestGetHostGroup_ReturnsOntapIgroup(t *testing.T) {
 	t.Cleanup(func() { getProviderByNode = orig })
 
 	orch := NewVCMOrchestrator(&stubStore{input: validNodeProviderInput()}, &stubWorkflowStarter{}, log.NewLogger())
-	hg, err := orch.GetHostGroup(context.Background(), igroupName, "")
+	hg, err := orch.GetHostGroup(context.Background(), igroupUUID, "")
 	require.NoError(t, err)
 	require.NotNil(t, hg)
+	assert.Equal(t, igroupUUID, hg.UUID)
 	assert.Equal(t, igroupName, hg.Name)
 	assert.Equal(t, osType, hg.OSType)
 	assert.Equal(t, []string{iqn1, iqn2}, hg.Hosts)
@@ -532,13 +535,13 @@ func TestGetHostGroup_ReturnsOntapIgroup(t *testing.T) {
 
 func TestGetHostGroup_NotFound(t *testing.T) {
 	svmName := "gcnv-test-svm-01"
-	missingHG := "missing-hg"
+	missingUUID := "missing-hg"
 	mockProvider := vsa.NewMockProvider(t)
 	mockProvider.EXPECT().
 		GetSVM(vsa.GetSvmParams{Name: svmName}).
 		Return(&ontapRest.Svm{Svm: ontapModels.Svm{Name: &svmName}}, nil)
 	mockProvider.EXPECT().
-		IgroupGet(&missingHG, &svmName).
+		IgroupGet(vsa.IgroupGetParams{UUID: missingUUID, SvmName: svmName}).
 		Return(nil, customerrors.NewNotFoundErr("igroup", nil))
 
 	orig := getProviderByNode
@@ -561,7 +564,7 @@ func TestGetHostGroup_NilIgroupResult(t *testing.T) {
 		GetSVM(vsa.GetSvmParams{Name: svmName}).
 		Return(&ontapRest.Svm{Svm: ontapModels.Svm{Name: &svmName}}, nil)
 	mockProvider.EXPECT().
-		IgroupGet(&name, &svmName).
+		IgroupGet(vsa.IgroupGetParams{UUID: name, SvmName: svmName}).
 		Return(nil, nil)
 
 	orig := getProviderByNode

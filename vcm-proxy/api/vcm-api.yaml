@@ -155,11 +155,13 @@ paths:
               example:
                 igroups:
                   - name: hg-db-linux
+                    uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
                     osType: LINUX
                     hosts:
                       - iqn.1998-01.com.vmware:db1
                       - iqn.1998-01.com.vmware:db2
                   - name: hg-app-windows
+                    uuid: 9760acf5-4638-11e7-9bdb-020073ca0002
                     osType: WINDOWS
                     hosts:
                       - iqn.1998-01.com.vmware:win1
@@ -219,15 +221,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
-  /v1/igroups/{name}:
+  /v1/igroups/{uuid}:
     get:
       tags:
         - igroups
       summary: Describe a igroup
-      description: Returns the details of the specified igroup by name.
+      description: Returns the details of the specified igroup by UUID.
       operationId: v1_describeIgroup
       parameters:
-        - $ref: "#/components/parameters/igroupNamePathParameter"
+        - $ref: "#/components/parameters/igroupUuidPathParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
       responses:
         "200":
@@ -238,6 +240,7 @@ paths:
                 $ref: "#/components/schemas/Igroup_v1"
               example:
                 name: hg-db-linux
+                uuid: 9760acf5-4638-11e7-9bdb-020073ca0001
                 osType: LINUX
                 hosts:
                   - iqn.1998-01.com.vmware:db1
@@ -257,19 +260,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
-    put:
+    patch:
       tags:
         - igroups
       summary: Update a igroup
-      description: Update the specified igroup.
+      description: Replaces the initiator list of the specified igroup. The body contains
+        only `hosts`. `updateMask` must be `hosts`; nested paths are rejected.
       operationId: v1_updateIgroup
       parameters:
-        - $ref: "#/components/parameters/igroupNamePathParameter"
+        - $ref: "#/components/parameters/igroupUuidPathParameter"
         - $ref: "#/components/parameters/requestIdQueryParameter"
         - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
+        - $ref: "#/components/parameters/updateMaskQueryParameter"
       requestBody:
-        description: The parameters that can be updated for the igroup.
+        description: Hosts to set on the igroup. `name` and `osType` are immutable. The target igroup uuid is taken from the path.
         required: true
         content:
           application/json:
@@ -308,7 +313,7 @@ paths:
       description: Warning! This operation will permanently delete the igroup.
       operationId: v1_deleteIgroup
       parameters:
-        - $ref: "#/components/parameters/igroupNamePathParameter"
+        - $ref: "#/components/parameters/igroupUuidPathParameter"
         - $ref: "#/components/parameters/requestIdQueryParameter"
         - $ref: "#/components/parameters/timeoutQueryParameter"
         - $ref: "#/components/parameters/xCorrelationIdHeader"
@@ -505,15 +510,6 @@ paths:
             example:
               sizeInBytes: 214748364800
       responses:
-        "200":
-          description: No update required (request contained no mutable fields)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Operation_v1"
-              example:
-                done: true
-                name: /v1/operations/123e4567-e89b-12d3-a456-426614174000
         "202":
           description: Updating volume
           content:
@@ -773,15 +769,17 @@ paths:
 
 components:
   parameters:
-    igroupNamePathParameter:
-      name: name
+    igroupUuidPathParameter:
+      name: uuid
       in: path
-      description: A human readable label for the igroup. Used as the ONTAP igroup name on this cluster.
+      description: UUID of the igroup.
       required: true
       schema:
         type: string
-        minLength: 1
-      example: my-igroup
+        minLength: 36
+        maxLength: 36
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+      example: "9760acf5-4638-11e7-9bdb-020073ca0001"
 
     volumeUuidPathParameter:
       name: uuid
@@ -848,14 +846,11 @@ components:
       in: query
       required: true
       description: >
-        Required comma-separated list of `VolumeUpdate_v1` fields to apply from the
-        request body. Fields present in the body but omitted from the mask are ignored.
-        Nested paths (for example `snapshotPolicy.enabled`) are accepted; only the root
-        field name is used for masking.
+        Required comma-separated list of fields to apply from the request body.
+        Fields present in the body but omitted from the mask are ignored.
       schema:
         type: string
         minLength: 1
-      example: sizeInBytes
 
     clusterUpdateMaskQuery:
       name: updateMask
@@ -986,6 +981,10 @@ components:
     Igroup_v1:
       title: Igroup
       type: object
+      description: |
+        ONTAP initiator group. `uuid` is assigned by ONTAP and returned on
+        describe and list. It is not required on create. Get, update, and delete
+        address the igroup by this UUID.
       required:
         - name
         - hosts
@@ -997,6 +996,16 @@ components:
           minLength: 1
           description: A human readable label for the Igroup
           example: my-host-group
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID of the igroup. Returned by the server and used in the request path. Ignored on create.
+          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+          maxLength: 36
+          minLength: 36
+          example: 9760acf5-4638-11e7-9bdb-020073ca0001
+          x-nullable: true
         hosts:
           title: hosts
           type: array
@@ -1015,8 +1024,10 @@ components:
             - $ref: "#/components/schemas/OSType_v1"
 
     IgroupUpdate_v1:
-      title: Igroup
+      title: IgroupUpdate
       type: object
+      description: Patch body for igroup update. Only `hosts` is required. `name` and
+        `osType` are immutable and are not part of this schema.
       required:
         - hosts
       properties:
@@ -1024,8 +1035,10 @@ components:
           title: hosts
           type: array
           description: List of iSCSI Qualified Names associated with this Igroup
+          minItems: 1
           items:
             type: string
+            minLength: 1
           example:
             - iqn.1998-01.com.vmware:example1
             - iqn.1998-01.com.vmware:example3
@@ -1396,9 +1409,8 @@ components:
       description: >
         Patch body for volume update. The target volume uuid is taken from the
         request path (`/v1/volumes/{uuid}`). `updateMask` is required, and only
-        listed fields present in the body are applied. A request that selects no
-        mutable body fields returns HTTP 200 with done true and does not start a
-        workflow.
+        listed fields present in the body are applied. A masked field that is
+        absent from the body returns HTTP 400 and does not start a workflow.
       properties:
         sizeInBytes:
           title: sizeInBytes
