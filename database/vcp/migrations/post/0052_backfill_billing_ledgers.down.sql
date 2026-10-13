@@ -1,0 +1,7 @@
+-- No-op.
+--
+-- The up migration inserts the current billing snapshot for existing pools,
+-- backup-enabled volumes, and cross-region backups. Those rows are not marked,
+-- and the application writes the same shape of row after startup, so a
+-- rollback cannot tell backfilled rows apart from rows written later.
+-- Deleting them would drop live billing state.
