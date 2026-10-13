@@ -46,6 +46,7 @@ otel:
   image:
     repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-open-telemetry-images/vcp-open-telemetry
     tag: "2.1.3"
+    digest: "sha256:e26e1cc8c4fda49ae1ff78073215c8a4aef71f3fdf8a9c5363832a84fd292ae8"
     pullPolicy: IfNotPresent
   # Optional fallback; per-sample destination is tenant_project → gcp.project.id.
   # Leave empty to let the exporter resolve the project from pod credentials.
