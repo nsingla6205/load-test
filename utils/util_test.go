@@ -5,8 +5,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	stdErrors "errors"
 	"math/big"
@@ -1994,7 +1996,7 @@ func TestRenameSnapshotName(t *testing.T) {
 
 		assert.Equal(tt, expectedName, response)
 	})
-	t.Run("WhenNameContainsPrefixAsMonthly", func(tt *testing.T) {
+	t.Run("WhenWeeklyNameIsAlreadyGcpCompliant", func(tt *testing.T) {
 		snapshot := models.Snapshot{}
 		snapshot.Name = "weekly-on-monday-35-min-past-7am.2023-12-18_0735"
 
@@ -2009,6 +2011,86 @@ func TestRenameSnapshotName(t *testing.T) {
 		snapshot.Name = "daily-10-min-past-1pm.2023-12-01_1310"
 
 		expectedName := "daily-10-min-past-1pm-2023-12-01-1310"
+
+		response := RenameSnapshotName(snapshot.Name)
+
+		assert.Equal(tt, expectedName, response)
+	})
+	t.Run("WhenVserverDrExceedsGcpLimitTrimsAndAddsHash", func(tt *testing.T) {
+		snapshot := models.Snapshot{}
+		snapshot.Name = "vserverdr.2.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc.2026-08-22_174500"
+
+		expectedName := "vserverdr-2-e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc-2026-08-29a477"
+
+		response := RenameSnapshotName(snapshot.Name)
+
+		assert.Equal(tt, expectedName, response)
+		assert.Len(tt, response, 63)
+		assert.True(tt, CheckForGcpNamingConvention(response))
+	})
+	t.Run("WhenUnknownSystemPrefixExceedsGcpLimitTrimsAndAddsHash", func(tt *testing.T) {
+		snapshot := models.Snapshot{}
+		snapshot.Name = "smcopy.3.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc_2163380061.2026-08-22_174500"
+
+		expectedName := "smcopy-3-e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc-2163380061-edd755"
+
+		response := RenameSnapshotName(snapshot.Name)
+
+		assert.Equal(tt, expectedName, response)
+		assert.True(tt, CheckForGcpNamingConvention(response))
+	})
+	t.Run("WhenTrimmedNamesShareSamePrefixHashKeepsThemUnique", func(tt *testing.T) {
+		first := RenameSnapshotName("vserverdr.2.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc.2026-08-22_174500")
+		second := RenameSnapshotName("vserverdr.2.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc.2026-08-22_174000")
+
+		assert.NotEqual(tt, first, second)
+	})
+	t.Run("WhenSameNameRenamedTwiceResultIsStable", func(tt *testing.T) {
+		name := "vserverdr.2.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc.2026-08-22_174500"
+
+		assert.Equal(tt, RenameSnapshotName(name), RenameSnapshotName(name))
+	})
+	t.Run("WhenLongNameSuffixIsHashOfOriginalName", func(tt *testing.T) {
+		name := "vserverdr.2.e118ca1a-abf1-11ee-b7aa-ffab37bbe3fc.2026-08-22_174500"
+		hash := sha256.Sum256([]byte(name))
+		expectedSuffix := "-" + hex.EncodeToString(hash[:])[:6]
+
+		response := RenameSnapshotName(name)
+
+		assert.True(tt, strings.HasSuffix(response, expectedSuffix))
+	})
+	t.Run("WhenOriginalsNormalizeToSameNameHashKeepsThemUnique", func(tt *testing.T) {
+		// Both normalize to the same 69-char name ('_' and '.' become '-'),
+		// but the hash is taken from the original, so the results differ.
+		first := RenameSnapshotName(strings.Repeat("a", 60) + "_snapshot")
+		second := RenameSnapshotName(strings.Repeat("a", 60) + ".snapshot")
+
+		assert.NotEqual(tt, first, second)
+		assert.True(tt, CheckForGcpNamingConvention(first))
+		assert.True(tt, CheckForGcpNamingConvention(second))
+	})
+	t.Run("WhenNameIsExactlyGcpLimitItIsUnchanged", func(tt *testing.T) {
+		name := strings.Repeat("a", 63)
+
+		assert.Equal(tt, name, RenameSnapshotName(name))
+	})
+	t.Run("WhenNameIsOneOverGcpLimitTrimsAndAddsHash", func(tt *testing.T) {
+		response := RenameSnapshotName(strings.Repeat("a", 64))
+
+		assert.Equal(tt, strings.Repeat("a", 56)+"-ffe054", response)
+	})
+	t.Run("WhenTrimPointIsHyphenAvoidsDoubleHyphen", func(tt *testing.T) {
+		// 55 'a' + '-' puts a hyphen at the last kept position (index 55).
+		response := RenameSnapshotName(strings.Repeat("a", 55) + "-" + strings.Repeat("b", 20))
+
+		assert.NotContains(tt, response, "--")
+		assert.True(tt, CheckForGcpNamingConvention(response))
+	})
+	t.Run("WhenShortSystemSnapshotNameIsUnchanged", func(tt *testing.T) {
+		snapshot := models.Snapshot{}
+		snapshot.Name = "hourly.2023-12-01_1305"
+
+		expectedName := "hourly-2023-12-01-1305"
 
 		response := RenameSnapshotName(snapshot.Name)
 

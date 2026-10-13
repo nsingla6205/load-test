@@ -130,6 +130,11 @@ var (
 	ForceVCPKMSPathForTesting               = env.GetBool("FORCE_VCP_KMS_PATH_FOR_TESTING", false)
 	remoteBackupVaultHydrationNameMaxLength = 63
 	remoteBackupVaultHydrationNamePrefix    = "-destination-"
+	// snapshotNameMaxLength is the GCP resource name limit; longer snapshot names are
+	// trimmed and suffixed with "-" plus snapshotNameHashLength hex chars of a hash of
+	// the original name.
+	snapshotNameMaxLength  = 63
+	snapshotNameHashLength = 6
 
 	// Will match ONTAP version strings like "9.7.1", "9.8.2P3", "10.1.0", "10.3.1P2", etc.
 	ontapVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:P\d+)?`)
@@ -1100,6 +1105,8 @@ func GetSMCSecretVersionName() string {
 }
 
 func _renameSnapshotName(name string) string {
+	original := name
+
 	// Snapmirror names are 76 chars from Ontap but Callback api only supports 64 chars
 	if strings.HasPrefix(name, "snapmirror.") {
 		nameArr := strings.Split(name, ".")
@@ -1119,6 +1126,15 @@ func _renameSnapshotName(name string) string {
 	}
 
 	name = strings.ReplaceAll(name, "+", "-")
+
+	// The suffix must be derived from the original name (not random) so repeated
+	// hydrations of the same snapshot produce the same resource ID.
+	if len(name) > snapshotNameMaxLength {
+		hash := sha256.Sum256([]byte(original))
+		suffix := hex.EncodeToString(hash[:])[:snapshotNameHashLength]
+		trimmed := strings.TrimRight(name[:snapshotNameMaxLength-snapshotNameHashLength-1], "-")
+		name = fmt.Sprintf("%s-%s", trimmed, suffix)
+	}
 
 	return name
 }
