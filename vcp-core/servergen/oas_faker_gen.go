@@ -3866,6 +3866,78 @@ func (s *V1DeleteExternalClusterUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteGcpKmsConfigUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteGcpKmsConfigUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1DeleteHostAccepted) SetFake() {
 	var unwrapped HostV1
 	{

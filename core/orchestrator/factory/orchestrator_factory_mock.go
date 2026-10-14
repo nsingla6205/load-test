@@ -2937,6 +2937,74 @@ func (_c *MockOrchestratorFactory_DeleteImageVersion_Call) RunAndReturn(run func
 	return _c
 }
 
+// DeleteKmsConfigCore provides a mock function with given fields: ctx, kmsConfigUUID
+func (_m *MockOrchestratorFactory) DeleteKmsConfigCore(ctx context.Context, kmsConfigUUID string) (*models.KmsConfig, *models.Job, error) {
+	ret := _m.Called(ctx, kmsConfigUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteKmsConfigCore")
+	}
+
+	var r0 *models.KmsConfig
+	var r1 *models.Job
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.KmsConfig, *models.Job, error)); ok {
+		return rf(ctx, kmsConfigUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.KmsConfig); ok {
+		r0 = rf(ctx, kmsConfigUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.KmsConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) *models.Job); ok {
+		r1 = rf(ctx, kmsConfigUUID)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*models.Job)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, kmsConfigUUID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrchestratorFactory_DeleteKmsConfigCore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteKmsConfigCore'
+type MockOrchestratorFactory_DeleteKmsConfigCore_Call struct {
+	*mock.Call
+}
+
+// DeleteKmsConfigCore is a helper method to define mock.On call
+//   - ctx context.Context
+//   - kmsConfigUUID string
+func (_e *MockOrchestratorFactory_Expecter) DeleteKmsConfigCore(ctx interface{}, kmsConfigUUID interface{}) *MockOrchestratorFactory_DeleteKmsConfigCore_Call {
+	return &MockOrchestratorFactory_DeleteKmsConfigCore_Call{Call: _e.mock.On("DeleteKmsConfigCore", ctx, kmsConfigUUID)}
+}
+
+func (_c *MockOrchestratorFactory_DeleteKmsConfigCore_Call) Run(run func(ctx context.Context, kmsConfigUUID string)) *MockOrchestratorFactory_DeleteKmsConfigCore_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteKmsConfigCore_Call) Return(_a0 *models.KmsConfig, _a1 *models.Job, _a2 error) *MockOrchestratorFactory_DeleteKmsConfigCore_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteKmsConfigCore_Call) RunAndReturn(run func(context.Context, string) (*models.KmsConfig, *models.Job, error)) *MockOrchestratorFactory_DeleteKmsConfigCore_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteKmsConfig provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) DeleteKmsConfig(ctx context.Context, params *common.DeleteKmsConfigParams) (*models.KmsConfig, string, error) {
 	ret := _m.Called(ctx, params)

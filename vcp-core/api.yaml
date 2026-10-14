@@ -803,6 +803,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}:
+    delete:
+      operationId: v1_deleteGcpKmsConfig
+      summary: Delete a VCP CMEK policy
+      description: >
+        Internal SRE endpoint that deletes a CMEK policy from VCP.
+      tags:
+        - storage
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/kmsConfigIdPathParameter'
+      responses:
+        "200":
+          description: VCP KMS config delete was started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GcpKmsConfig_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/Storage/GcpKmsConfig/{uuid}/RotateServiceAccountKey:
     post:
       operationId: v1_rotateGcpKmsConfig
@@ -6792,6 +6833,16 @@ components:
           minLength: 36
           pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
           type: string
+    kmsConfigIdPathParameter:
+      name: kmsConfigId
+      in: path
+      description: UUID v4 used to identify the GCP KMS config
+      required: true
+      schema:
+        maxLength: 36
+        minLength: 36
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+        type: string
     accountUuidPathParameter:
       name: uuid
       in: path

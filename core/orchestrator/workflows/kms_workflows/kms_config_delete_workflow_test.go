@@ -1042,3 +1042,50 @@ func TestDeleteKmsConfigWorkflow_VCPPath(t *testing.T) {
 		env.AssertExpectations(t)
 	})
 }
+
+func TestDeleteKmsConfigWorkflow_SkipSdeDelete(t *testing.T) {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{
+		Fields: map[string]*commonpb.Payload{
+			"logParam": encodedValue,
+		},
+	})
+	env.RegisterWorkflow(DeleteKmsConfigWorkflow)
+	env.RegisterActivity(&activities.CommonActivities{})
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{SE: mockStorage})
+
+	params := &common.DeleteKmsConfigParams{
+		KmsConfigID:   "test-config-id",
+		AccountName:   "123456789",
+		SkipSdeDelete: true,
+	}
+	kmsConfig := &datamodel.KmsConfig{
+		Name: "kms1",
+		BaseModel: datamodel.BaseModel{
+			UUID: "kms1-uuid",
+		},
+		CustomerProjectID: "123456789",
+		KmsAttributes: &datamodel.KmsAttributes{
+			CreationMode: datamodel.KmsCreationModeSDE,
+		},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	expectDeleteJobIsNew(env)
+	env.OnActivity("DisableKmsServiceAccount", mock.Anything, kmsConfig).Return(nil)
+	env.OnActivity("DeleteKmsConfig", mock.Anything, kmsConfig, params).Return(nil)
+
+	env.ExecuteWorkflow(DeleteKmsConfigWorkflow, kmsConfig, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}

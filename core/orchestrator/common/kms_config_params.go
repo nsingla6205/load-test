@@ -49,6 +49,7 @@ type DeleteKmsConfigParams struct {
 	AccountName    string
 	Region         string
 	XCorrelationID string
+	SkipSdeDelete bool
 }
 
 type MigrateKmsConfigParams struct {

@@ -97,6 +97,12 @@ type Invoker interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteGcpKmsConfig invokes v1_deleteGcpKmsConfig operation.
+	//
+	// Internal SRE endpoint that deletes a CMEK policy from VCP.
+	//
+	// DELETE /v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}
+	V1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error)
 	// V1DeleteHost invokes v1_deleteHost operation.
 	//
 	// Warning! This operation will permanently delete the host.
@@ -1300,6 +1306,98 @@ func (c *Client) sendV1DeleteExternalCluster(ctx context.Context, params V1Delet
 	defer resp.Body.Close()
 
 	result, err := decodeV1DeleteExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DeleteGcpKmsConfig invokes v1_deleteGcpKmsConfig operation.
+//
+// Internal SRE endpoint that deletes a CMEK policy from VCP.
+//
+// DELETE /v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}
+func (c *Client) V1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error) {
+	res, err := c.sendV1DeleteGcpKmsConfig(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (res V1DeleteGcpKmsConfigRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/v1/projects/"
+	{
+		// Encode "projectNumber" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "projectNumber",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ProjectNumber))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/locations/"
+	{
+		// Encode "locationId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "locationId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.LocationId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/storage/kmsConfig/"
+	{
+		// Encode "kmsConfigId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "kmsConfigId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.KmsConfigId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DeleteGcpKmsConfigResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

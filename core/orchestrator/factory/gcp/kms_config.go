@@ -65,6 +65,7 @@ type KmsConfigInterface interface {
 	CheckAndUpdateKmsConfigHealth(ctx context.Context, params *models.KmsConfigCheck) (*models.KmsConfig, error)
 	AccessCryptoKeyAndEncryptDataWithImpersonation(ctx context.Context, kmsConfig *models.KmsConfig) error
 	DeleteKmsConfig(ctx context.Context, params *common.DeleteKmsConfigParams) (*models.KmsConfig, string, error)
+	DeleteKmsConfigCore(ctx context.Context, kmsConfigUUID string) (*models.KmsConfig, *models.Job, error)
 	MigrateKmsConfig(ctx context.Context, params *common.MigrateKmsConfigParams) (string, error)
 	RotateKmsConfig(ctx context.Context, params *common.RotateKmsConfigParams) (*models.KmsConfig, *models.Job, error)
 	CreateAndSyncKmsConfig(ctx context.Context, params *common.CreateKmsConfigParams) (*models.KmsConfig, error)
@@ -355,6 +356,137 @@ func updateKmsConfigInVCPDB(ctx context.Context, se database.Storage, kmsConfig 
 // DeleteKmsConfig updates the specified kms configuration.
 func (o *GCPOrchestrator) DeleteKmsConfig(ctx context.Context, params *common.DeleteKmsConfigParams) (*models.KmsConfig, string, error) {
 	return _deleteKmsConfig(ctx, o.storage, o.temporal, params)
+}
+
+// DeleteKmsConfigCore is the SRE entry for deleting a CMEK policy from VCP.
+func (o *GCPOrchestrator) DeleteKmsConfigCore(ctx context.Context, kmsConfigUUID string) (*models.KmsConfig, *models.Job, error) {
+	return deleteKmsConfigCore(ctx, o.storage, o.temporal, kmsConfigUUID)
+}
+
+func deleteKmsConfigCore(ctx context.Context, se database.Storage, temporal client.Client, kmsConfigUUID string) (*models.KmsConfig, *models.Job, error) {
+	kmsConfig, err := se.GetKmsConfig(ctx, kmsConfigUUID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	inUse, err := se.IsKmsConfigInUse(ctx, kmsConfig.UUID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if inUse {
+		return nil, nil, errors.NewConflictErr("can not delete this policy as it is still in use by one or more pools")
+	}
+
+	backupVaults, err := se.ListBackupVaults(ctx, kmsConfig.AccountID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if backupVaultUsesKmsConfig(backupVaults, kmsConfigResourcePath(kmsConfig)) {
+		return nil, nil, errors.NewConflictErr("can not delete this policy as it is still in use by one or more backup vaults")
+	}
+
+	poolJobs, err := se.ListOngoingPoolJobsWithKmsConfigId(ctx, kmsConfig.ID, kmsConfig.AccountID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(poolJobs) > 0 {
+		return nil, nil, errors.NewConflictErr("can not delete this policy as there are ongoing pool creation jobs using it")
+	}
+
+	existingJob, lookupErr := se.GetJobByResourceUUID(ctx, kmsConfig.UUID, string(datamodel.JobTypeDeleteKmsConfig))
+	if lookupErr == nil && existingJob != nil &&
+		existingJob.State != string(datamodel.JobsStateDONE) &&
+		existingJob.State != string(datamodel.JobsStateERROR) {
+		return convertDataStoreKmsConfigToModel(kmsConfig), convertDatastoreJobToModel(existingJob), nil
+	}
+
+	originalState := kmsConfig.State
+	originalStateDetails := kmsConfig.StateDetails
+	kmsConfig, err = se.UpdateKmsConfigState(ctx, kmsConfig.UUID, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var createdJob *datamodel.Job
+	defer func() {
+		if waitForTemporalEnabled || err == nil {
+			return
+		}
+		if createdJob != nil {
+			_ = se.UpdateJob(ctx, createdJob.UUID, datamodel.LifeCycleStateError, createdJob.TrackingID, err.Error())
+		}
+		_, _ = se.UpdateKmsConfigState(ctx, kmsConfig.UUID, originalState, "Reverted to previous state due to error: "+err.Error())
+	}()
+
+	accountName := kmsConfig.CustomerProjectID
+	if kmsConfig.Account != nil && kmsConfig.Account.Name != "" {
+		accountName = kmsConfig.Account.Name
+	}
+	job := &datamodel.Job{
+		Type:         string(datamodel.JobTypeDeleteKmsConfig),
+		State:        string(datamodel.JobsStateNEW),
+		ResourceName: kmsConfig.ResourceID,
+		AccountID:    sql.NullInt64{Int64: kmsConfig.AccountID, Valid: true},
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID:         kmsConfig.UUID,
+			PreviousState:        originalState,
+			PreviousStateDetails: originalStateDetails,
+		},
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+	}
+	createdJob, err = se.CreateJob(ctx, job)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, err = temporal.ExecuteWorkflow(ctx,
+		client.StartWorkflowOptions{
+			TaskQueue:             workflowengine.CustomerTaskQueue,
+			ID:                    createdJob.WorkflowID,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+			WorkflowRunTimeout:    workflowengine.GetWorkflowGlobalTimeout(),
+		},
+		kms_workflows.DeleteKmsConfigWorkflow,
+		kmsConfig,
+		&common.DeleteKmsConfigParams{
+			KmsConfigID:    kmsConfig.UUID,
+			AccountName:    accountName,
+			Region:         kmsConfig.KeyRingLocation,
+			XCorrelationID: utils.GetCoRelationIDFromContext(ctx),
+			SkipSdeDelete:  true,
+		},
+	)
+	if err != nil {
+		logger := util.GetLogger(ctx)
+		logger.Error("Failed to start DeleteKmsConfig workflow", "error", err)
+		if waitForTemporalEnabled {
+			updateErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateWaitForTemporal), createdJob.TrackingID, err.Error())
+			if updateErr != nil {
+				logger.Error("Failed to update job to temporal pending state", "error", updateErr)
+			}
+		} else {
+			return nil, nil, err
+		}
+	}
+
+	return convertDataStoreKmsConfigToModel(kmsConfig), convertDatastoreJobToModel(createdJob), nil
+}
+
+func kmsConfigResourcePath(kmsConfig *datamodel.KmsConfig) string {
+	return fmt.Sprintf("projects/%s/locations/%s/kmsConfigs/%s", kmsConfig.CustomerProjectID, kmsConfig.KeyRingLocation, kmsConfig.ResourceID)
+}
+
+func backupVaultUsesKmsConfig(backupVaults []*datamodel.BackupVault, resourcePath string) bool {
+	for _, backupVault := range backupVaults {
+		if backupVault == nil || backupVault.CmekAttributes == nil || nillable.IsNilOrEmpty(backupVault.CmekAttributes.KmsConfigResourcePath) {
+			continue
+		}
+		if *backupVault.CmekAttributes.KmsConfigResourcePath == resourcePath {
+			return true
+		}
+	}
+	return false
 }
 
 func _deleteKmsConfig(ctx context.Context, se database.Storage, temporal client.Client, params *common.DeleteKmsConfigParams) (*models.KmsConfig, string, error) {

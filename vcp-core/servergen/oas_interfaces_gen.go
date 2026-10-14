@@ -49,6 +49,10 @@ type V1DeleteExternalClusterRes interface {
 	v1DeleteExternalClusterRes()
 }
 
+type V1DeleteGcpKmsConfigRes interface {
+	v1DeleteGcpKmsConfigRes()
+}
+
 type V1DeleteHostRes interface {
 	v1DeleteHostRes()
 }

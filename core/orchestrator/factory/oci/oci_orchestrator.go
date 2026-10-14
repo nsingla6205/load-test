@@ -517,6 +517,10 @@ func (o *OCIOrchestrator) DeleteKmsConfig(ctx context.Context, params *commonpar
 	return nil, "", utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) DeleteKmsConfigCore(ctx context.Context, kmsConfigUUID string) (*models.KmsConfig, *models.Job, error) {
+	return nil, nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) MigrateKmsConfig(ctx context.Context, params *commonparams.MigrateKmsConfigParams) (string, error) {
 	return "", utilserrors.NewNotImplementedYetErr()
 }

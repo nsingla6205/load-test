@@ -1248,6 +1248,19 @@ func TestOCIOrchestrator_DeleteKmsConfig(t *testing.T) {
 	})
 }
 
+func TestOCIOrchestrator_DeleteKmsConfigCore(t *testing.T) {
+	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
+		orch := &OCIOrchestrator{}
+
+		result, job, err := orch.DeleteKmsConfigCore(context.Background(), "kms-uuid")
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, result)
+		assert.Nil(tt, job)
+	})
+}
+
 func TestOCIOrchestrator_MigrateKmsConfig(t *testing.T) {
 	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
 		orch := &OCIOrchestrator{}

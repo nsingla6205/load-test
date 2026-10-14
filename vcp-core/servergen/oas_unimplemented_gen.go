@@ -125,6 +125,15 @@ func (UnimplementedHandler) V1DeleteExternalCluster(ctx context.Context, params 
 	return r, ht.ErrNotImplemented
 }
 
+// V1DeleteGcpKmsConfig implements v1_deleteGcpKmsConfig operation.
+//
+// Internal SRE endpoint that deletes a CMEK policy from VCP.
+//
+// DELETE /v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}
+func (UnimplementedHandler) V1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (r V1DeleteGcpKmsConfigRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1DeleteHost implements v1_deleteHost operation.
 //
 // Warning! This operation will permanently delete the host.

@@ -2012,6 +2012,7 @@ func (*ErrorStatusCode) v1CreateSnapshotRes()                        {}
 func (*ErrorStatusCode) v1CreateZoneRes()                            {}
 func (*ErrorStatusCode) v1DeleteAddressRangeRes()                    {}
 func (*ErrorStatusCode) v1DeleteExternalClusterRes()                 {}
+func (*ErrorStatusCode) v1DeleteGcpKmsConfigRes()                    {}
 func (*ErrorStatusCode) v1DeleteHostRes()                            {}
 func (*ErrorStatusCode) v1DeleteIPRangeRes()                         {}
 func (*ErrorStatusCode) v1DeleteImageVersionRes()                    {}
@@ -3317,6 +3318,7 @@ func (s *GcpKmsConfigV1) SetResourceId(val OptString) {
 	s.ResourceId = val
 }
 
+func (*GcpKmsConfigV1) v1DeleteGcpKmsConfigRes() {}
 func (*GcpKmsConfigV1) v1RotateGcpKmsConfigRes() {}
 
 // The state of the config.
@@ -10380,6 +10382,38 @@ func (*V1DeleteExternalClusterUnauthorized) v1DeleteExternalClusterRes() {}
 type V1DeleteExternalClusterUnprocessableEntity Error
 
 func (*V1DeleteExternalClusterUnprocessableEntity) v1DeleteExternalClusterRes() {}
+
+type V1DeleteGcpKmsConfigBadRequest Error
+
+func (*V1DeleteGcpKmsConfigBadRequest) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigConflict Error
+
+func (*V1DeleteGcpKmsConfigConflict) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigForbidden Error
+
+func (*V1DeleteGcpKmsConfigForbidden) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigInternalServerError Error
+
+func (*V1DeleteGcpKmsConfigInternalServerError) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigNotFound Error
+
+func (*V1DeleteGcpKmsConfigNotFound) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigTooManyRequests Error
+
+func (*V1DeleteGcpKmsConfigTooManyRequests) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigUnauthorized Error
+
+func (*V1DeleteGcpKmsConfigUnauthorized) v1DeleteGcpKmsConfigRes() {}
+
+type V1DeleteGcpKmsConfigUnprocessableEntity Error
+
+func (*V1DeleteGcpKmsConfigUnprocessableEntity) v1DeleteGcpKmsConfigRes() {}
 
 type V1DeleteHostAccepted HostV1
 

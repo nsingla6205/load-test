@@ -133,7 +133,7 @@ func (wf *deleteKmsConfigWorkflow) Run(ctx workflow.Context, args ...interface{}
 		}
 	}()
 
-	if !utils.ShouldUseVCPForExistingKMS(kmsConfig) {
+	if !params.SkipSdeDelete && !utils.ShouldUseVCPForExistingKMS(kmsConfig) {
 		jwtToken := ""
 		err = workflow.ExecuteActivity(ctx, deleteActivity.GetSignedTokenActivity, params.AccountName).Get(ctx, &jwtToken)
 		if err != nil {

@@ -18,6 +18,7 @@ const (
 	V1CreateZoneOperation                                      OperationName = "V1CreateZone"
 	V1DeleteAddressRangeOperation                              OperationName = "V1DeleteAddressRange"
 	V1DeleteExternalClusterOperation                           OperationName = "V1DeleteExternalCluster"
+	V1DeleteGcpKmsConfigOperation                              OperationName = "V1DeleteGcpKmsConfig"
 	V1DeleteHostOperation                                      OperationName = "V1DeleteHost"
 	V1DeleteIPRangeOperation                                   OperationName = "V1DeleteIPRange"
 	V1DeleteImageVersionOperation                              OperationName = "V1DeleteImageVersion"

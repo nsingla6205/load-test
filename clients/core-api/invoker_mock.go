@@ -736,6 +736,65 @@ func (_c *MockInvoker_V1DeleteExternalCluster_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// V1DeleteGcpKmsConfig provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DeleteGcpKmsConfig")
+	}
+
+	var r0 V1DeleteGcpKmsConfigRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteGcpKmsConfigParams) V1DeleteGcpKmsConfigRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DeleteGcpKmsConfigRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DeleteGcpKmsConfigParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1DeleteGcpKmsConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DeleteGcpKmsConfig'
+type MockInvoker_V1DeleteGcpKmsConfig_Call struct {
+	*mock.Call
+}
+
+// V1DeleteGcpKmsConfig is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DeleteGcpKmsConfigParams
+func (_e *MockInvoker_Expecter) V1DeleteGcpKmsConfig(ctx interface{}, params interface{}) *MockInvoker_V1DeleteGcpKmsConfig_Call {
+	return &MockInvoker_V1DeleteGcpKmsConfig_Call{Call: _e.mock.On("V1DeleteGcpKmsConfig", ctx, params)}
+}
+
+func (_c *MockInvoker_V1DeleteGcpKmsConfig_Call) Run(run func(ctx context.Context, params V1DeleteGcpKmsConfigParams)) *MockInvoker_V1DeleteGcpKmsConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DeleteGcpKmsConfigParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1DeleteGcpKmsConfig_Call) Return(_a0 V1DeleteGcpKmsConfigRes, _a1 error) *MockInvoker_V1DeleteGcpKmsConfig_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1DeleteGcpKmsConfig_Call) RunAndReturn(run func(context.Context, V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error)) *MockInvoker_V1DeleteGcpKmsConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1DeleteHost provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (V1DeleteHostRes, error) {
 	ret := _m.Called(ctx, params)

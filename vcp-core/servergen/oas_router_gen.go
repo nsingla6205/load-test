@@ -1251,66 +1251,75 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								break
 							}
 							switch elem[0] {
-							case '/': // Prefix: "/volumes/"
+							case '/': // Prefix: "/"
 
-								if l := len("/volumes/"); len(elem) >= l && elem[0:l] == "/volumes/" {
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
-								// Param: "volumeId"
-								// Match until "/"
-								idx := strings.IndexByte(elem, '/')
-								if idx < 0 {
-									idx = len(elem)
-								}
-								args[2] = elem[:idx]
-								elem = elem[idx:]
-
 								if len(elem) == 0 {
 									break
 								}
 								switch elem[0] {
-								case '/': // Prefix: "/s"
+								case 's': // Prefix: "storage/kmsConfig/"
 
-									if l := len("/s"); len(elem) >= l && elem[0:l] == "/s" {
+									if l := len("storage/kmsConfig/"); len(elem) >= l && elem[0:l] == "storage/kmsConfig/" {
 										elem = elem[l:]
 									} else {
 										break
 									}
 
+									// Param: "kmsConfigId"
+									// Leaf parameter, slashes are prohibited
+									idx := strings.IndexByte(elem, '/')
+									if idx >= 0 {
+										break
+									}
+									args[2] = elem
+									elem = ""
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "DELETE":
+											s.handleV1DeleteGcpKmsConfigRequest([3]string{
+												args[0],
+												args[1],
+												args[2],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "DELETE")
+										}
+
+										return
+									}
+
+								case 'v': // Prefix: "volumes/"
+
+									if l := len("volumes/"); len(elem) >= l && elem[0:l] == "volumes/" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									// Param: "volumeId"
+									// Match until "/"
+									idx := strings.IndexByte(elem, '/')
+									if idx < 0 {
+										idx = len(elem)
+									}
+									args[2] = elem[:idx]
+									elem = elem[idx:]
+
 									if len(elem) == 0 {
 										break
 									}
 									switch elem[0] {
-									case 'n': // Prefix: "napshots"
+									case '/': // Prefix: "/s"
 
-										if l := len("napshots"); len(elem) >= l && elem[0:l] == "napshots" {
-											elem = elem[l:]
-										} else {
-											break
-										}
-
-										if len(elem) == 0 {
-											// Leaf node.
-											switch r.Method {
-											case "POST":
-												s.handleV1CreateSnapshotRequest([3]string{
-													args[0],
-													args[1],
-													args[2],
-												}, elemIsEscaped, w, r)
-											default:
-												s.notAllowed(w, r, "POST")
-											}
-
-											return
-										}
-
-									case 'p': // Prefix: "plitst"
-
-										if l := len("plitst"); len(elem) >= l && elem[0:l] == "plitst" {
+										if l := len("/s"); len(elem) >= l && elem[0:l] == "/s" {
 											elem = elem[l:]
 										} else {
 											break
@@ -1320,9 +1329,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 											break
 										}
 										switch elem[0] {
-										case 'a': // Prefix: "art"
+										case 'n': // Prefix: "napshots"
 
-											if l := len("art"); len(elem) >= l && elem[0:l] == "art" {
+											if l := len("napshots"); len(elem) >= l && elem[0:l] == "napshots" {
 												elem = elem[l:]
 											} else {
 												break
@@ -1332,7 +1341,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												// Leaf node.
 												switch r.Method {
 												case "POST":
-													s.handleV1SplitStartVolumeRequest([3]string{
+													s.handleV1CreateSnapshotRequest([3]string{
 														args[0],
 														args[1],
 														args[2],
@@ -1344,28 +1353,66 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												return
 											}
 
-										case 'o': // Prefix: "op"
+										case 'p': // Prefix: "plitst"
 
-											if l := len("op"); len(elem) >= l && elem[0:l] == "op" {
+											if l := len("plitst"); len(elem) >= l && elem[0:l] == "plitst" {
 												elem = elem[l:]
 											} else {
 												break
 											}
 
 											if len(elem) == 0 {
-												// Leaf node.
-												switch r.Method {
-												case "POST":
-													s.handleV1SplitStopVolumeRequest([3]string{
-														args[0],
-														args[1],
-														args[2],
-													}, elemIsEscaped, w, r)
-												default:
-													s.notAllowed(w, r, "POST")
+												break
+											}
+											switch elem[0] {
+											case 'a': // Prefix: "art"
+
+												if l := len("art"); len(elem) >= l && elem[0:l] == "art" {
+													elem = elem[l:]
+												} else {
+													break
 												}
 
-												return
+												if len(elem) == 0 {
+													// Leaf node.
+													switch r.Method {
+													case "POST":
+														s.handleV1SplitStartVolumeRequest([3]string{
+															args[0],
+															args[1],
+															args[2],
+														}, elemIsEscaped, w, r)
+													default:
+														s.notAllowed(w, r, "POST")
+													}
+
+													return
+												}
+
+											case 'o': // Prefix: "op"
+
+												if l := len("op"); len(elem) >= l && elem[0:l] == "op" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													// Leaf node.
+													switch r.Method {
+													case "POST":
+														s.handleV1SplitStopVolumeRequest([3]string{
+															args[0],
+															args[1],
+															args[2],
+														}, elemIsEscaped, w, r)
+													default:
+														s.notAllowed(w, r, "POST")
+													}
+
+													return
+												}
+
 											}
 
 										}
@@ -3043,66 +3090,75 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								break
 							}
 							switch elem[0] {
-							case '/': // Prefix: "/volumes/"
+							case '/': // Prefix: "/"
 
-								if l := len("/volumes/"); len(elem) >= l && elem[0:l] == "/volumes/" {
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
-								// Param: "volumeId"
-								// Match until "/"
-								idx := strings.IndexByte(elem, '/')
-								if idx < 0 {
-									idx = len(elem)
-								}
-								args[2] = elem[:idx]
-								elem = elem[idx:]
-
 								if len(elem) == 0 {
 									break
 								}
 								switch elem[0] {
-								case '/': // Prefix: "/s"
+								case 's': // Prefix: "storage/kmsConfig/"
 
-									if l := len("/s"); len(elem) >= l && elem[0:l] == "/s" {
+									if l := len("storage/kmsConfig/"); len(elem) >= l && elem[0:l] == "storage/kmsConfig/" {
 										elem = elem[l:]
 									} else {
 										break
 									}
 
+									// Param: "kmsConfigId"
+									// Leaf parameter, slashes are prohibited
+									idx := strings.IndexByte(elem, '/')
+									if idx >= 0 {
+										break
+									}
+									args[2] = elem
+									elem = ""
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "DELETE":
+											r.name = V1DeleteGcpKmsConfigOperation
+											r.summary = "Delete a VCP CMEK policy"
+											r.operationID = "v1_deleteGcpKmsConfig"
+											r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}"
+											r.args = args
+											r.count = 3
+											return r, true
+										default:
+											return
+										}
+									}
+
+								case 'v': // Prefix: "volumes/"
+
+									if l := len("volumes/"); len(elem) >= l && elem[0:l] == "volumes/" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									// Param: "volumeId"
+									// Match until "/"
+									idx := strings.IndexByte(elem, '/')
+									if idx < 0 {
+										idx = len(elem)
+									}
+									args[2] = elem[:idx]
+									elem = elem[idx:]
+
 									if len(elem) == 0 {
 										break
 									}
 									switch elem[0] {
-									case 'n': // Prefix: "napshots"
+									case '/': // Prefix: "/s"
 
-										if l := len("napshots"); len(elem) >= l && elem[0:l] == "napshots" {
-											elem = elem[l:]
-										} else {
-											break
-										}
-
-										if len(elem) == 0 {
-											// Leaf node.
-											switch method {
-											case "POST":
-												r.name = V1CreateSnapshotOperation
-												r.summary = "Create a snapshot"
-												r.operationID = "v1_createSnapshot"
-												r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots"
-												r.args = args
-												r.count = 3
-												return r, true
-											default:
-												return
-											}
-										}
-
-									case 'p': // Prefix: "plitst"
-
-										if l := len("plitst"); len(elem) >= l && elem[0:l] == "plitst" {
+										if l := len("/s"); len(elem) >= l && elem[0:l] == "/s" {
 											elem = elem[l:]
 										} else {
 											break
@@ -3112,9 +3168,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 											break
 										}
 										switch elem[0] {
-										case 'a': // Prefix: "art"
+										case 'n': // Prefix: "napshots"
 
-											if l := len("art"); len(elem) >= l && elem[0:l] == "art" {
+											if l := len("napshots"); len(elem) >= l && elem[0:l] == "napshots" {
 												elem = elem[l:]
 											} else {
 												break
@@ -3124,10 +3180,10 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												// Leaf node.
 												switch method {
 												case "POST":
-													r.name = V1SplitStartVolumeOperation
-													r.summary = "Start a thin clone split"
-													r.operationID = "v1_splitStartVolume"
-													r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/splitstart"
+													r.name = V1CreateSnapshotOperation
+													r.summary = "Create a snapshot"
+													r.operationID = "v1_createSnapshot"
+													r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots"
 													r.args = args
 													r.count = 3
 													return r, true
@@ -3136,28 +3192,66 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												}
 											}
 
-										case 'o': // Prefix: "op"
+										case 'p': // Prefix: "plitst"
 
-											if l := len("op"); len(elem) >= l && elem[0:l] == "op" {
+											if l := len("plitst"); len(elem) >= l && elem[0:l] == "plitst" {
 												elem = elem[l:]
 											} else {
 												break
 											}
 
 											if len(elem) == 0 {
-												// Leaf node.
-												switch method {
-												case "POST":
-													r.name = V1SplitStopVolumeOperation
-													r.summary = "Stop an in-progress thin clone split"
-													r.operationID = "v1_splitStopVolume"
-													r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/splitstop"
-													r.args = args
-													r.count = 3
-													return r, true
-												default:
-													return
+												break
+											}
+											switch elem[0] {
+											case 'a': // Prefix: "art"
+
+												if l := len("art"); len(elem) >= l && elem[0:l] == "art" {
+													elem = elem[l:]
+												} else {
+													break
 												}
+
+												if len(elem) == 0 {
+													// Leaf node.
+													switch method {
+													case "POST":
+														r.name = V1SplitStartVolumeOperation
+														r.summary = "Start a thin clone split"
+														r.operationID = "v1_splitStartVolume"
+														r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/splitstart"
+														r.args = args
+														r.count = 3
+														return r, true
+													default:
+														return
+													}
+												}
+
+											case 'o': // Prefix: "op"
+
+												if l := len("op"); len(elem) >= l && elem[0:l] == "op" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													// Leaf node.
+													switch method {
+													case "POST":
+														r.name = V1SplitStopVolumeOperation
+														r.summary = "Stop an in-progress thin clone split"
+														r.operationID = "v1_splitStopVolume"
+														r.pathPattern = "/v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/splitstop"
+														r.args = args
+														r.count = 3
+														return r, true
+													default:
+														return
+													}
+												}
+
 											}
 
 										}

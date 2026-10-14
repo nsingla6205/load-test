@@ -3727,6 +3727,102 @@ func TestV1DeleteExternalClusterUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1DeleteExternalClusterUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1DeleteGcpKmsConfigBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigConflict_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteGcpKmsConfigUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1DeleteGcpKmsConfigUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteGcpKmsConfigUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1DeleteHostAccepted_EncodeDecode(t *testing.T) {
 	var typ V1DeleteHostAccepted
 	typ.SetFake()

@@ -84,6 +84,12 @@ type Handler interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteGcpKmsConfig implements v1_deleteGcpKmsConfig operation.
+	//
+	// Internal SRE endpoint that deletes a CMEK policy from VCP.
+	//
+	// DELETE /v1/projects/{projectNumber}/locations/{locationId}/storage/kmsConfig/{kmsConfigId}
+	V1DeleteGcpKmsConfig(ctx context.Context, params V1DeleteGcpKmsConfigParams) (V1DeleteGcpKmsConfigRes, error)
 	// V1DeleteHost implements v1_deleteHost operation.
 	//
 	// Warning! This operation will permanently delete the host.

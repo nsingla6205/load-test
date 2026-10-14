@@ -477,6 +477,10 @@ func (notImplementedOrchestrator) DeleteKmsConfig(context.Context, *commonparams
 	return nil, "", customerrors.NewNotImplementedYetErr()
 }
 
+func (notImplementedOrchestrator) DeleteKmsConfigCore(context.Context, string) (*models.KmsConfig, *models.Job, error) {
+	return nil, nil, customerrors.NewNotImplementedYetErr()
+}
+
 func (notImplementedOrchestrator) MigrateKmsConfig(context.Context, *commonparams.MigrateKmsConfigParams) (string, error) {
 	return "", customerrors.NewNotImplementedYetErr()
 }

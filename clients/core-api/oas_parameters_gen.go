@@ -80,6 +80,16 @@ type V1DeleteExternalClusterParams struct {
 	ExternalClusterId string
 }
 
+// V1DeleteGcpKmsConfigParams is parameters of v1_deleteGcpKmsConfig operation.
+type V1DeleteGcpKmsConfigParams struct {
+	// The project number of the GCP project owning the resource being acted upon.
+	ProjectNumber string
+	// The location/region to perform the operation in.
+	LocationId string
+	// UUID v4 used to identify the GCP KMS config.
+	KmsConfigId string
+}
+
 // V1DeleteHostParams is parameters of v1_deleteHost operation.
 type V1DeleteHostParams struct {
 	// Correlation identifier.
