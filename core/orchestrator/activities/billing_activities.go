@@ -228,7 +228,7 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 // created, with that backup passed directly (it is the latest backup by definition). It is a
 // no-op when the backup is nil, or when its vault is not a cross-region vault (transfer-bytes
 // billing only applies to cross-region backups). Uses VOLUME_UUID as the resource so the entry
-// is keyed per volume.
+// is keyed per volume. Deployment name is the backup vault name.
 func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
 	if ledgerDisabled(ctx, "CreateCrossRegionBackupTransferBillingLedger") {
 		return nil
@@ -256,13 +256,14 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 	}
 
 	ledger := &datamodel.BillingLedger{
-		BaseModel:    datamodel.BaseModel{UUID: utils.RandomUUID()},
-		ResourceName: backup.Attributes.VolumeName,
-		ResourceUUID: backup.VolumeUUID,
-		ResourceType: metadata.Backup,
-		MeasuredType: metadata.CbsCrossRegionVolumeBackupTransferBytes,
-		Quantity:     float64(backup.Attributes.GetTotalTransferBytes()),
-		ConsumerID:   backup.Attributes.AccountIdentifier,
+		BaseModel:      datamodel.BaseModel{UUID: utils.RandomUUID()},
+		ResourceName:   backup.Attributes.VolumeName,
+		ResourceUUID:   backup.VolumeUUID,
+		ResourceType:   metadata.Backup,
+		MeasuredType:   metadata.CbsCrossRegionVolumeBackupTransferBytes,
+		Quantity:       float64(backup.Attributes.GetTotalTransferBytes()),
+		ConsumerID:     backup.Attributes.AccountIdentifier,
+		DeploymentName: backupVault.Name,
 	}
 	if _, err := a.SE.CreateBillingLedger(ctx, ledger); err != nil {
 		logger.Errorf("Ledger: Failed to create cross-region backup transfer billing ledger for volume %s: %v", backup.VolumeUUID, err)

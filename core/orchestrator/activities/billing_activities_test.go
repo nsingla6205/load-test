@@ -75,7 +75,8 @@ func TestCreateCrossRegionBackupTransferBillingLedger(t *testing.T) {
 		return l.ResourceUUID == "vol-1" &&
 			l.ResourceType == metadata.Backup &&
 			l.MeasuredType == metadata.CbsCrossRegionVolumeBackupTransferBytes &&
-			l.Quantity == 5000
+			l.Quantity == 5000 &&
+			l.DeploymentName == "cr-vault"
 	})).Return(&datamodel.BillingLedger{}, nil)
 
 	activity := &BillingActivity{SE: mockSE}

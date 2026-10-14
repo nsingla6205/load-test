@@ -24,7 +24,7 @@
 --
 -- Consumer id is the account name when present, otherwise the pool vendor id
 -- (backup transfer rows use attributes.account_identifier). Deployment name
--- comes from the pool. Transfer-byte rows leave deployment_name empty, matching
+-- comes from the pool. Transfer-byte rows use the backup vault name, matching
 -- CreateCrossRegionBackupTransferBillingLedger.
 --
 -- Idempotent: each pass inserts only when no active (deleted_at IS NULL) row
@@ -278,13 +278,14 @@ BEGIN
         END,
         latest.volume_uuid,
         COALESCE(latest.attributes->>'account_identifier', ''),
-        '',
+        COALESCE(latest.backup_vault_name, ''),
         'CBS_CROSS_REGION_VOLUME_BACKUP_TRANSFER_BYTES',
         'BACKUP'
     FROM (
         SELECT DISTINCT ON (b.volume_uuid)
             b.volume_uuid,
-            b.attributes
+            b.attributes,
+            bv.name AS backup_vault_name
         FROM backups b
         JOIN backup_vaults bv
             ON bv.id = b.backup_vault_id
