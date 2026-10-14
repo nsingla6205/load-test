@@ -61,6 +61,9 @@ type BlockDeviceV1 struct {
 	OsType BlockDeviceV1OsType `json:"osType"`
 	// Names of pre-created igroups to map the volume LUN to.
 	Igroups []string `json:"igroups"`
+	// Hex-encoded ONTAP LUN serial number (serial_number_hex). Present after the LUN exists. The Linux
+	// iSCSI mount path uses this value.
+	Identifier OptString `json:"identifier"`
 }
 
 // GetOsType returns the value of OsType.
@@ -73,6 +76,11 @@ func (s *BlockDeviceV1) GetIgroups() []string {
 	return s.Igroups
 }
 
+// GetIdentifier returns the value of Identifier.
+func (s *BlockDeviceV1) GetIdentifier() OptString {
+	return s.Identifier
+}
+
 // SetOsType sets the value of OsType.
 func (s *BlockDeviceV1) SetOsType(val BlockDeviceV1OsType) {
 	s.OsType = val
@@ -81,6 +89,11 @@ func (s *BlockDeviceV1) SetOsType(val BlockDeviceV1OsType) {
 // SetIgroups sets the value of Igroups.
 func (s *BlockDeviceV1) SetIgroups(val []string) {
 	s.Igroups = val
+}
+
+// SetIdentifier sets the value of Identifier.
+func (s *BlockDeviceV1) SetIdentifier(val OptString) {
+	s.Identifier = val
 }
 
 type BlockDeviceV1OsType string

@@ -1384,6 +1384,12 @@ components:
             minLength: 1
           example:
             - hg-db-linux
+        identifier:
+          title: identifier
+          type: string
+          description: Hex-encoded ONTAP LUN serial number (serial_number_hex). Present after the LUN exists. The Linux iSCSI mount path uses this value.
+          readOnly: true
+          example: 6c5738423724595454686164
 
     BlockDeviceUpdate_v1:
       title: BlockDeviceUpdate

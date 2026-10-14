@@ -26,8 +26,9 @@ func TestVolumeCreateOperationResponsePayload_BlockVolume(t *testing.T) {
 
 	payload, err := volumeOperationResponsePayload(ontapVol, &activities.VolumeOperationEnrichment{
 		BlockDevices: []map[string]any{{
-			"osType":  "LINUX",
-			"igroups": []string{"hg-db-linux"},
+			"osType":     "LINUX",
+			"igroups":    []string{"hg-db-linux"},
+			"identifier": "6c5738423724595454686164",
 		}},
 	})
 	require.NoError(t, err)
@@ -51,6 +52,9 @@ func TestVolumeCreateOperationResponsePayload_BlockVolume(t *testing.T) {
 	blockDevices, ok := volumeBody["blockDevices"].([]any)
 	require.True(t, ok)
 	require.Len(t, blockDevices, 1)
+	blockDevice, ok := blockDevices[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "6c5738423724595454686164", blockDevice["identifier"])
 	assert.NotContains(t, volumeBody, "snapshotPolicy")
 }
 

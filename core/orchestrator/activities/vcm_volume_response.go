@@ -68,6 +68,9 @@ func BuildVolumeOperationEnrichment(provider vsa.Provider, svmName string, ontap
 			if len(igroupNames) > 0 {
 				device["igroups"] = igroupNames
 			}
+			if lun.SerialNumber != "" {
+				device["identifier"] = lun.SerialNumber
+			}
 			blockDevices = append(blockDevices, device)
 		}
 		if len(blockDevices) > 0 {

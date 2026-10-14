@@ -58,6 +58,11 @@ func (s *BlockDeviceV1) SetFake() {
 			}
 		}
 	}
+	{
+		{
+			s.Identifier.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

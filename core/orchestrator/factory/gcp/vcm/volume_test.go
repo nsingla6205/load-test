@@ -770,6 +770,7 @@ func TestGetVolume_EnrichesBlockDevicesFromLuns(t *testing.T) {
 	require.NotNil(t, volume.BlockDevices)
 	require.Len(t, *volume.BlockDevices, 1)
 	assert.Equal(t, "LINUX", (*volume.BlockDevices)[0].OSType)
+	assert.Equal(t, "serial-1", (*volume.BlockDevices)[0].Identifier)
 	require.Len(t, (*volume.BlockDevices)[0].HostGroupDetail, 1)
 }
 

@@ -140,6 +140,7 @@ func TestBuildVolumeOperationEnrichment_SANBlockDevices(t *testing.T) {
 		VolumeName: "vol-1",
 	}).Return([]*vsa.LunResponse{{
 		ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"},
+		SerialNumber:     "6c5738423724595454686164",
 		OSType:           "linux",
 		IgroupNames:      []string{"hg-old"},
 	}}, nil)
@@ -152,6 +153,27 @@ func TestBuildVolumeOperationEnrichment_SANBlockDevices(t *testing.T) {
 	require.Len(t, enrichment.BlockDevices, 1)
 	assert.Equal(t, "LINUX", enrichment.BlockDevices[0]["osType"])
 	assert.Equal(t, []string{"hg-old", "hg-new"}, enrichment.BlockDevices[0]["igroups"])
+	assert.Equal(t, "6c5738423724595454686164", enrichment.BlockDevices[0]["identifier"])
+}
+
+func TestBuildVolumeOperationEnrichment_SANBlockDevices_OmitsEmptyIdentifier(t *testing.T) {
+	provider := vsa.NewMockProvider(t)
+	provider.On("LunList", vsa.LunGetParams{
+		SvmName:    "test-svm",
+		VolumeName: "vol-1",
+	}).Return([]*vsa.LunResponse{{
+		ProviderResponse: vsa.ProviderResponse{Name: "/vol/lun_vol-1", ExternalUUID: "lun-uuid"},
+		OSType:           "linux",
+		IgroupNames:      []string{"hg-old"},
+	}}, nil)
+	provider.On("IgroupNamesForLunUUID", "test-svm", "lun-uuid").Return([]string{"hg-old"}, nil)
+
+	enrichment, err := BuildVolumeOperationEnrichment(provider, "test-svm", &vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{Name: "vol-1"},
+	})
+	require.NoError(t, err)
+	require.Len(t, enrichment.BlockDevices, 1)
+	assert.NotContains(t, enrichment.BlockDevices[0], "identifier")
 }
 
 func TestBuildVolumeOperationEnrichment_SANBlockDevices_VMwareMapsToESXI(t *testing.T) {

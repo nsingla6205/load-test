@@ -1113,7 +1113,8 @@ func TestConvertModelToVolumeV1(t *testing.T) {
 		QuotaInBytes: 100,
 		UsedBytes:    10,
 		BlockDevices: &[]models.BlockDevice{{
-			OSType: "linux",
+			OSType:     "linux",
+			Identifier: "6c5738423724595454686164",
 			HostGroupDetail: []models.HostGroupDetails{
 				{HostGroupID: "hg1"},
 			},
@@ -1128,6 +1129,8 @@ func TestConvertModelToVolumeV1(t *testing.T) {
 	require.Len(t, blockConverted.BlockDevices, 1)
 	assert.Equal(t, vcmserver.BlockDeviceV1OsTypeLINUX, blockConverted.BlockDevices[0].OsType)
 	assert.Equal(t, []string{"hg1"}, blockConverted.BlockDevices[0].Igroups)
+	assert.True(t, blockConverted.BlockDevices[0].Identifier.IsSet())
+	assert.Equal(t, "6c5738423724595454686164", blockConverted.BlockDevices[0].Identifier.Value)
 
 	esxiVolume := &models.Volume{
 		BaseModel:    models.BaseModel{UUID: testVolumeUUID},
@@ -1139,6 +1142,7 @@ func TestConvertModelToVolumeV1(t *testing.T) {
 	require.NotNil(t, esxiConverted)
 	require.Len(t, esxiConverted.BlockDevices, 1)
 	assert.Equal(t, vcmserver.BlockDeviceV1OsTypeESXI, esxiConverted.BlockDevices[0].OsType)
+	assert.False(t, esxiConverted.BlockDevices[0].Identifier.IsSet())
 	_, err := esxiConverted.BlockDevices[0].OsType.MarshalText()
 	require.NoError(t, err)
 }

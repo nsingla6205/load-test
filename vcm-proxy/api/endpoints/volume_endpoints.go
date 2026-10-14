@@ -588,6 +588,9 @@ func convertModelToBlockDevicesV1(blockDevices []models.BlockDevice) []vcmserver
 		if len(igroups) > 0 {
 			device.Igroups = igroups
 		}
+		if blockDevice.Identifier != "" {
+			device.Identifier = vcmserver.NewOptString(blockDevice.Identifier)
+		}
 		out = append(out, device)
 	}
 	return out

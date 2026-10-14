@@ -222,11 +222,18 @@ func (s *BlockDeviceV1) encodeFields(e *jx.Encoder) {
 		}
 		e.ArrEnd()
 	}
+	{
+		if s.Identifier.Set {
+			e.FieldStart("identifier")
+			s.Identifier.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfBlockDeviceV1 = [2]string{
+var jsonFieldsNameOfBlockDeviceV1 = [3]string{
 	0: "osType",
 	1: "igroups",
+	2: "identifier",
 }
 
 // Decode decodes BlockDeviceV1 from json.
@@ -267,6 +274,16 @@ func (s *BlockDeviceV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"igroups\"")
+			}
+		case "identifier":
+			if err := func() error {
+				s.Identifier.Reset()
+				if err := s.Identifier.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"identifier\"")
 			}
 		default:
 			return d.Skip()
