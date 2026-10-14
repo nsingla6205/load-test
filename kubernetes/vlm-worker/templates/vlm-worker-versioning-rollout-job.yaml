@@ -3,6 +3,7 @@
 {{- if not .Values.global.useTags }}
 {{- $rolloutDigest = required "vlmWorkerVersioning.rollout.image.digest is required when global.useTags is false" $rolloutDigest }}
 {{- end }}
+{{- $rolloutImage := include "containerImage" (list . (dict "vlmImageName" .Values.vlmWorkerVersioning.rollout.image.name "vlmImageTag" .Values.vlmWorkerVersioning.rollout.image.tag "vlmImageDigest" $rolloutDigest "secondary" .Values.vlmWorkerVersioning.rollout.image.secondary)) | trim }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -30,7 +31,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: rollout
-          image: "{{- include "containerImage" (list . (dict "vlmImageName" .Values.vlmWorkerVersioning.rollout.image.name "vlmImageTag" .Values.vlmWorkerVersioning.rollout.image.tag "vlmImageDigest" $rolloutDigest "secondary" .Values.vlmWorkerVersioning.rollout.image.secondary)) | trim -}}"
+          image: {{ $rolloutImage | quote }}
           imagePullPolicy: {{ .Values.vlmWorkerVersioning.rollout.image.pullPolicy }}
           resources:
             limits:
@@ -69,8 +70,10 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 0
-  # Allow 25 minutes for Deployment readiness and A/B polling before the drain timeout starts.
-  activeDeadlineSeconds: {{ add (mul (.Values.vlmWorkerVersioning.rollout.drainTimeoutMinutes | default 360) 60) 1500 }}
+  # This hook still waits for drain readiness (15m) and both builds to poll (10m),
+  # then pins, sets Current, and starts the drain Job. 10m remains for that work.
+  # Drainage itself runs in its own Job, so drainTimeoutMinutes is not included.
+  activeDeadlineSeconds: 2100
   template:
     metadata:
       annotations:
@@ -83,7 +86,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: rollout
-          image: "{{- include "containerImage" (list . (dict "vlmImageName" .Values.vlmWorkerVersioning.rollout.image.name "vlmImageTag" .Values.vlmWorkerVersioning.rollout.image.tag "vlmImageDigest" $rolloutDigest "secondary" .Values.vlmWorkerVersioning.rollout.image.secondary)) | trim -}}"
+          image: {{ $rolloutImage | quote }}
           imagePullPolicy: {{ .Values.vlmWorkerVersioning.rollout.image.pullPolicy }}
           resources:
             limits:
@@ -95,6 +98,10 @@ spec:
           env:
             - name: MODE
               value: promote-and-retire
+            - name: ROLLOUT_IMAGE
+              value: {{ $rolloutImage | quote }}
+            - name: SERVICE_ACCOUNT
+              value: {{ .Values.serviceAccount.name | quote }}
             - name: NAMESPACE
               value: {{ .Release.Namespace | quote }}
             - name: DRY_RUN

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -157,6 +158,7 @@ func (c *k8sClient) recordFinishedCutover(ctx context.Context, releaseName, onta
 		return err
 	}
 	if status >= 200 && status < 300 {
+		slog.Info("recorded finished cutover", "configMap", name, "key", key)
 		return nil
 	}
 	if status != http.StatusNotFound {
@@ -184,6 +186,156 @@ func (c *k8sClient) recordFinishedCutover(ctx context.Context, releaseName, onta
 	if status < 200 || status >= 300 {
 		return fmt.Errorf("create cutover ConfigMap %q: HTTP %d: %s", name, status, responseBody)
 	}
+	slog.Info("recorded finished cutover", "configMap", name, "key", key, "created", true)
+	return nil
+}
+
+type jobEnv struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// ensureBackgroundDrainJob starts modeDrainAndRetire in a Job that is not a Helm hook.
+// An active or succeeded Job is left alone. A failed Job is replaced so the next upgrade can drain again.
+func (c *k8sClient) ensureBackgroundDrainJob(ctx context.Context, name, image, serviceAccount string, env []jobEnv) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("drain job name is required")
+	}
+	if strings.TrimSpace(image) == "" {
+		return fmt.Errorf("ROLLOUT_IMAGE is required to start the drain job")
+	}
+	if strings.TrimSpace(serviceAccount) == "" {
+		return fmt.Errorf("SERVICE_ACCOUNT is required to start the drain job")
+	}
+	collectionURL := fmt.Sprintf("%s/apis/batch/v1/namespaces/%s/jobs", c.baseURL, c.namespace)
+	status, body, err := c.doJSON(ctx, http.MethodGet, collectionURL+"/"+name, nil)
+	if err != nil {
+		return err
+	}
+	switch {
+	case status == http.StatusNotFound:
+		return c.createDrainJob(ctx, collectionURL, name, image, serviceAccount, env)
+	case status < 200 || status >= 300:
+		return fmt.Errorf("get drain job %q: HTTP %d: %s", name, status, body)
+	}
+	var existing struct {
+		Status struct {
+			Active    int `json:"active"`
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(body), &existing); err != nil {
+		return fmt.Errorf("decode drain job %q: %w", name, err)
+	}
+	// Pending (no status yet) and succeeded jobs stay. Only a failed job is replaced.
+	if existing.Status.Failed == 0 || existing.Status.Succeeded > 0 {
+		slog.Info("drain job left in place", "job", name, "active", existing.Status.Active, "succeeded", existing.Status.Succeeded, "failed", existing.Status.Failed)
+		return nil
+	}
+	slog.Info("drain job failed, replacing it", "job", name, "failed", existing.Status.Failed)
+	jobURL := collectionURL + "/" + name
+	// Background deletion is asynchronous. Wait until the name is gone before
+	// creating again. A 409 against the terminating Job is not a new Job.
+	delStatus, delBody, err := c.doJSON(ctx, http.MethodDelete, jobURL+"?propagationPolicy=Background", nil)
+	if err != nil {
+		return err
+	}
+	if delStatus != http.StatusNotFound && (delStatus < 200 || delStatus >= 300) {
+		return fmt.Errorf("delete drain job %q: HTTP %d: %s", name, delStatus, delBody)
+	}
+	if err := c.waitForDrainJobGone(ctx, jobURL, name); err != nil {
+		return err
+	}
+	return c.createDrainJob(ctx, collectionURL, name, image, serviceAccount, env)
+}
+
+// drainJobDeletePoll is how often to check that a deleted Job name is gone.
+// Deletion often takes up to a minute, so one second would call the API for that whole wait.
+const drainJobDeletePoll = 5 * time.Second
+
+func (c *k8sClient) waitForDrainJobGone(ctx context.Context, jobURL, name string) error {
+	ticker := time.NewTicker(drainJobDeletePoll)
+	defer ticker.Stop()
+	for {
+		status, body, err := c.doJSON(ctx, http.MethodGet, jobURL, nil)
+		if err != nil {
+			return err
+		}
+		if status == http.StatusNotFound {
+			return nil
+		}
+		if status < 200 || status >= 300 {
+			return fmt.Errorf("get drain job %q while deleting: HTTP %d: %s", name, status, body)
+		}
+		slog.Info("drain job still terminating", "job", name)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for drain job %q to be deleted: %w", name, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *k8sClient) createDrainJob(ctx context.Context, collectionURL, name, image, serviceAccount string, env []jobEnv) error {
+	deadline := int64(envInt("DRAIN_TIMEOUT_MINUTES", 360)*60 + 1500)
+	body, err := json.Marshal(map[string]any{
+		"apiVersion": "batch/v1",
+		"kind":       "Job",
+		"metadata": map[string]any{
+			"name":      name,
+			"namespace": c.namespace,
+			"labels": map[string]string{
+				"app":  "vlm-worker-versioning-rollout",
+				"mode": modeDrainAndRetire,
+			},
+		},
+		"spec": map[string]any{
+			"backoffLimit":            0,
+			"activeDeadlineSeconds":   deadline,
+			"ttlSecondsAfterFinished": int64(86400),
+			"template": map[string]any{
+				"metadata": map[string]any{
+					"labels": map[string]string{"app": "vlm-worker-versioning-drain"},
+					"annotations": map[string]string{
+						"sidecar.istio.io/inject": "true",
+						"proxy.istio.io/config":   `{ "holdApplicationUntilProxyStarts": true }`,
+					},
+				},
+				"spec": map[string]any{
+					"serviceAccountName": serviceAccount,
+					"restartPolicy":      "Never",
+					"containers": []map[string]any{{
+						"name":            "rollout",
+						"image":           image,
+						"imagePullPolicy": "IfNotPresent",
+						"env":             env,
+						"resources": map[string]any{
+							"requests": map[string]string{"cpu": "100m", "memory": "128Mi"},
+							"limits":   map[string]string{"cpu": "500m", "memory": "256Mi"},
+						},
+					}},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("marshal drain job: %w", err)
+	}
+	status, responseBody, err := c.doJSON(ctx, http.MethodPost, collectionURL, body)
+	if err != nil {
+		return err
+	}
+	if status == http.StatusConflict {
+		// The name was missing when we looked. Another caller created it.
+		slog.Info("drain job already exists", "job", name)
+		return nil
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("create drain job %q: HTTP %d: %s", name, status, responseBody)
+	}
+	slog.Info("created drain job", "job", name, "namespace", c.namespace)
 	return nil
 }
 
@@ -208,7 +360,7 @@ func (c *k8sClient) doJSON(
 		return 0, "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return 0, "", err
 	}

@@ -772,11 +772,9 @@ func TestPinUnversionedWorkflowsFailsWhenPinKeepsFailing(t *testing.T) {
 			},
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
-	defer cancel()
 
 	err := pinUnversionedWorkflows(
-		ctx,
+		context.Background(),
 		pinner,
 		"vsa-lifecycle-manager-9.19.1P2",
 		"vsa-lifecycle-manager-9-19-1P2",
@@ -784,9 +782,50 @@ func TestPinUnversionedWorkflowsFailsWhenPinKeepsFailing(t *testing.T) {
 		time.Millisecond,
 	)
 
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorContains(t, err, "failed after 3 retries")
 	assert.Contains(t, pinner.pinned, "gcnv-ok")
 	assert.NotContains(t, pinner.pinned, "gcnv-stuck")
+	assert.Equal(t, temporalMaxRetries+1, len(pinner.requests))
+}
+
+func TestPinUnversionedWorkflowsRetriesListError(t *testing.T) {
+	pinner := &fakeWorkflowPinner{
+		listFailTimes: 1,
+		pages: []*workflowservice.ListWorkflowExecutionsResponse{
+			{},
+			{},
+		},
+	}
+
+	err := pinUnversionedWorkflows(
+		context.Background(),
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, pinner.pinned)
+	assert.GreaterOrEqual(t, len(pinner.requests), 3)
+}
+
+func TestPinUnversionedWorkflowsStopsWhenListKeepsFailing(t *testing.T) {
+	pinner := &fakeWorkflowPinner{listFailTimes: 100}
+
+	err := pinUnversionedWorkflows(
+		context.Background(),
+		pinner,
+		"vsa-lifecycle-manager-9.19.1P2",
+		"vsa-lifecycle-manager-9-19-1P2",
+		"8258295",
+		time.Millisecond,
+	)
+
+	require.ErrorContains(t, err, "list unversioned workflows")
+	assert.Empty(t, pinner.pinned)
+	assert.Equal(t, temporalMaxRetries+1, len(pinner.requests))
 }
 
 func TestPinUnversionedWorkflowsStopsOnTimeout(t *testing.T) {
@@ -814,17 +853,22 @@ func TestPinUnversionedWorkflowsStopsOnTimeout(t *testing.T) {
 }
 
 type fakeWorkflowPinner struct {
-	pages      []*workflowservice.ListWorkflowExecutionsResponse
-	repeatPage *workflowservice.ListWorkflowExecutionsResponse
-	notFound   map[string]bool
-	failTimes  map[string]int
-	requests   []*workflowservice.ListWorkflowExecutionsRequest
-	pinned     []string
-	version    worker.WorkerDeploymentVersion
+	pages         []*workflowservice.ListWorkflowExecutionsResponse
+	repeatPage    *workflowservice.ListWorkflowExecutionsResponse
+	notFound      map[string]bool
+	failTimes     map[string]int
+	listFailTimes int
+	requests      []*workflowservice.ListWorkflowExecutionsRequest
+	pinned        []string
+	version       worker.WorkerDeploymentVersion
 }
 
 func (f *fakeWorkflowPinner) ListWorkflow(_ context.Context, request *workflowservice.ListWorkflowExecutionsRequest) (*workflowservice.ListWorkflowExecutionsResponse, error) {
 	f.requests = append(f.requests, request)
+	if f.listFailTimes > 0 {
+		f.listFailTimes--
+		return nil, errors.New("stream terminated by RST_STREAM with error code: CANCEL")
+	}
 	if f.repeatPage != nil {
 		return f.repeatPage, nil
 	}
@@ -1032,6 +1076,359 @@ func TestShutdownIstioSidecar(t *testing.T) {
 	require.NoError(t, err)
 	istioQuitPorts = []string{port}
 	shutdownIstioSidecar(log)
+}
+
+func TestPromoteAndRetireTargetsHandsDrainToJob(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	var handedOff int
+	opts.handoffDrain = func(context.Context, []RolloutTarget) error {
+		handedOff++
+		return nil
+	}
+
+	err := promoteAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, handedOff)
+	assert.Equal(t, []string{"B"}, rec.promoted)
+	assert.Empty(t, rec.drained)
+	assert.Empty(t, k8s.scaled)
+	assert.Empty(t, k8s.recorded)
+}
+
+func TestDrainAndRetireTargetsWaitsScalesAndRecords(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) { return "B", nil }
+	opts.buildDrained = func(context.Context, workerdeployment.Client, string, string) (bool, error) { return false, nil }
+
+	err := drainAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"A"}, rec.drained)
+	assert.Equal(t, []int{0}, k8s.scaledTo)
+	assert.Equal(t, []string{"9.18.1P3__B__A"}, k8s.recorded)
+}
+
+func TestDrainAndRetireTargetsSkipsBuildThatIsNotCurrent(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) { return "A", nil }
+
+	err := drainAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, rec.drained)
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestDrainAndRetireTargetsFailsWhenDrainWaitFails(t *testing.T) {
+	k8s := &retireK8s{readyK8s: readyK8s{ready: true, replicas: 1}}
+	rec := &promoteRecorder{drainErr: map[string]error{"A": errors.New("drain timeout")}}
+	opts := promoteTestOpts(rec, false, false)
+	opts.currentBuild = func(context.Context, workerdeployment.Client, string) (string, error) { return "B", nil }
+	opts.buildDrained = func(context.Context, workerdeployment.Client, string, string) (bool, error) { return false, nil }
+
+	err := drainAndRetireTargets(
+		context.Background(),
+		k8s,
+		nil,
+		[]RolloutTarget{validRolloutTarget()},
+		opts,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	require.ErrorContains(t, err, "drain timeout")
+	assert.Empty(t, k8s.scaled)
+}
+
+func TestEnsureBackgroundDrainJobCreatesWhenMissing(t *testing.T) {
+	var created map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.WriteHeader(http.StatusNotFound)
+		case http.MethodPost:
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&created))
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
+	t.Setenv("DRAIN_TIMEOUT_MINUTES", "360")
+	err := k8s.ensureBackgroundDrainJob(context.Background(), "vlm-worker-versioning-drain-a", "rollout:test", "vlm-worker-ksa", []jobEnv{
+		{Name: "MODE", Value: modeDrainAndRetire},
+	})
+
+	require.NoError(t, err)
+	spec := created["spec"].(map[string]any)
+	assert.Equal(t, float64(0), spec["backoffLimit"])
+	template := spec["template"].(map[string]any)
+	pod := template["spec"].(map[string]any)
+	containers := pod["containers"].([]any)
+	container := containers[0].(map[string]any)
+	assert.Equal(t, "rollout:test", container["image"])
+	env := container["env"].([]any)
+	assert.Equal(t, modeDrainAndRetire, env[0].(map[string]any)["value"])
+}
+
+func TestEnsureBackgroundDrainJobLeavesActiveJob(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":{"active":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
+	require.NoError(t, k8s.ensureBackgroundDrainJob(context.Background(), "vlm-worker-versioning-drain-a", "rollout:test", "vlm-worker-ksa", nil))
+}
+
+func TestEnsureBackgroundDrainJobReplacesFailedJob(t *testing.T) {
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		switch r.Method {
+		case http.MethodGet:
+			if len(methods) == 1 {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"status":{"failed":1}}`))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		case http.MethodDelete:
+			assert.Equal(t, "Background", r.URL.Query().Get("propagationPolicy"))
+			w.WriteHeader(http.StatusOK)
+		case http.MethodPost:
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
+	require.NoError(t, k8s.ensureBackgroundDrainJob(context.Background(), "vlm-worker-versioning-drain-a", "rollout:test", "vlm-worker-ksa", nil))
+	assert.Equal(t, []string{http.MethodGet, http.MethodDelete, http.MethodGet, http.MethodPost}, methods)
+}
+
+func TestRetryingPromoteDoesNotSetCurrentAgainAfterLostSuccess(t *testing.T) {
+	handle := &promoteHandle{lostSuccess: true}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	err := retryingPromote(log, time.Millisecond)(context.Background(), promoteClient{handle: handle}, "dep", "8314229")
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, handle.setCalls)
+	assert.Equal(t, "8314229", handle.current)
+}
+
+func TestRetryingPromoteRetriesDescribeWithoutSetCurrent(t *testing.T) {
+	handle := &promoteHandle{describeErrs: []error{errors.New("temporal unavailable")}}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	err := retryingPromote(log, time.Millisecond)(context.Background(), promoteClient{handle: handle}, "dep", "8314229")
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, handle.setCalls)
+}
+
+type promoteClient struct {
+	handle client.WorkerDeploymentHandle
+}
+
+func (c promoteClient) GetHandle(string) client.WorkerDeploymentHandle { return c.handle }
+
+func (c promoteClient) DescribeTaskQueuePollers(context.Context, string, string, string) ([]workerdeployment.PollerInfo, error) {
+	return nil, nil
+}
+
+type versionResult struct {
+	err     error
+	drained bool
+}
+
+type promoteHandle struct {
+	current        string
+	describeErrs   []error
+	setCalls       int
+	lostSuccess    bool
+	versionCalls   int
+	versionResults []versionResult
+}
+
+func (h *promoteHandle) Describe(context.Context, client.WorkerDeploymentDescribeOptions) (client.WorkerDeploymentDescribeResponse, error) {
+	if len(h.describeErrs) > 0 {
+		err := h.describeErrs[0]
+		h.describeErrs = h.describeErrs[1:]
+		if err != nil {
+			return client.WorkerDeploymentDescribeResponse{}, err
+		}
+	}
+	resp := client.WorkerDeploymentDescribeResponse{}
+	if h.current != "" {
+		resp.Info.RoutingConfig.CurrentVersion = &worker.WorkerDeploymentVersion{BuildID: h.current}
+	}
+	return resp, nil
+}
+
+func (h *promoteHandle) SetCurrentVersion(_ context.Context, options client.WorkerDeploymentSetCurrentVersionOptions) (client.WorkerDeploymentSetCurrentVersionResponse, error) {
+	h.setCalls++
+	h.current = options.BuildID
+	if h.lostSuccess {
+		h.lostSuccess = false
+		return client.WorkerDeploymentSetCurrentVersionResponse{}, errors.New("lost response")
+	}
+	return client.WorkerDeploymentSetCurrentVersionResponse{}, nil
+}
+
+func (h *promoteHandle) SetRampingVersion(context.Context, client.WorkerDeploymentSetRampingVersionOptions) (client.WorkerDeploymentSetRampingVersionResponse, error) {
+	return client.WorkerDeploymentSetRampingVersionResponse{}, nil
+}
+
+func (h *promoteHandle) SetManagerIdentity(context.Context, client.WorkerDeploymentSetManagerIdentityOptions) (client.WorkerDeploymentSetManagerIdentityResponse, error) {
+	return client.WorkerDeploymentSetManagerIdentityResponse{}, nil
+}
+
+func (h *promoteHandle) DescribeVersion(context.Context, client.WorkerDeploymentDescribeVersionOptions) (client.WorkerDeploymentVersionDescription, error) {
+	h.versionCalls++
+	if len(h.versionResults) == 0 {
+		return client.WorkerDeploymentVersionDescription{}, nil
+	}
+	result := h.versionResults[0]
+	h.versionResults = h.versionResults[1:]
+	if result.err != nil {
+		return client.WorkerDeploymentVersionDescription{}, result.err
+	}
+	if !result.drained {
+		return client.WorkerDeploymentVersionDescription{}, nil
+	}
+	return client.WorkerDeploymentVersionDescription{
+		Info: client.WorkerDeploymentVersionInfo{
+			DrainageInfo: &client.WorkerDeploymentVersionDrainageInfo{
+				DrainageStatus: client.WorkerDeploymentVersionDrainageStatusDrained,
+			},
+		},
+	}, nil
+}
+
+func (h *promoteHandle) DeleteVersion(context.Context, client.WorkerDeploymentDeleteVersionOptions) (client.WorkerDeploymentDeleteVersionResponse, error) {
+	return client.WorkerDeploymentDeleteVersionResponse{}, nil
+}
+
+func (h *promoteHandle) UpdateVersionMetadata(context.Context, client.WorkerDeploymentUpdateVersionMetadataOptions) (client.WorkerDeploymentUpdateVersionMetadataResponse, error) {
+	return client.WorkerDeploymentUpdateVersionMetadataResponse{}, nil
+}
+
+func TestRetryingWaitForDrainRetriesEachDescribe(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	unavailable := errors.New("temporal unavailable")
+	handle := &promoteHandle{versionResults: []versionResult{
+		{err: unavailable},
+		{},
+		{err: unavailable},
+		{},
+		{err: unavailable},
+		{},
+		{err: unavailable},
+		{},
+		{drained: true},
+	}}
+
+	err := retryingWaitForDrain(log)(context.Background(), promoteClient{handle: handle}, "dep", "A", time.Millisecond)
+
+	require.NoError(t, err)
+	assert.Equal(t, 9, handle.versionCalls)
+}
+
+func TestRetryingWaitForDrainStopsWhenDescribeKeepsFailing(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	unavailable := errors.New("temporal unavailable")
+	handle := &promoteHandle{versionResults: []versionResult{
+		{err: unavailable},
+		{err: unavailable},
+		{err: unavailable},
+		{err: unavailable},
+		{drained: true},
+	}}
+
+	err := retryingWaitForDrain(log)(context.Background(), promoteClient{handle: handle}, "dep", "A", time.Millisecond)
+
+	require.ErrorContains(t, err, "temporal unavailable")
+	assert.Equal(t, temporalMaxRetries+1, handle.versionCalls)
+}
+
+func TestRetryTemporalRetriesUntilSuccess(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	var calls int
+	err := retryTemporal(context.Background(), time.Millisecond, log, "describe deployment", func() error {
+		calls++
+		if calls < 3 {
+			return errors.New("temporal unavailable")
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, calls)
+}
+
+func TestRetryTemporalStopsAfterThreeRetries(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	var calls int
+	err := retryTemporal(context.Background(), time.Millisecond, log, "describe deployment", func() error {
+		calls++
+		return errors.New("temporal unavailable")
+	})
+
+	require.ErrorContains(t, err, "temporal unavailable")
+	assert.Equal(t, temporalMaxRetries+1, calls)
+}
+
+func TestRetryTemporalStopsWhenContextEnds(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	err := retryTemporal(ctx, time.Hour, log, "describe deployment", func() error {
+		cancel()
+		return errors.New("temporal unavailable")
+	})
+
+	require.ErrorContains(t, err, "temporal unavailable")
+}
+
+func TestDrainJobNameForUsesOldBuild(t *testing.T) {
+	target := validRolloutTarget()
+	assert.Equal(t, "vlm-worker-versioning-drain-a", drainJobNameFor([]RolloutTarget{target}))
 }
 
 func validRolloutTarget() RolloutTarget {

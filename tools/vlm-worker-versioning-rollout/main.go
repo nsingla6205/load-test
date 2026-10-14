@@ -47,15 +47,20 @@ type RolloutTarget struct {
 func main() {
 	log := slog.Default()
 	ctx := context.Background()
+	mode := os.Getenv("MODE")
+	log.Info("rollout starting", "mode", mode)
 	code := 1
-	switch os.Getenv("MODE") {
+	switch mode {
 	case "ensure-drain":
 		code = runEnsureDrain(ctx, log)
 	case "promote-and-retire":
 		code = runPromoteAndRetire(ctx, log)
+	case modeDrainAndRetire:
+		code = runDrainAndRetire(ctx, log)
 	default:
-		log.Error("unknown or missing MODE")
+		log.Error("unknown or missing MODE", "mode", mode)
 	}
+	log.Info("rollout finished", "mode", mode, "exitCode", code)
 	// os.Exit skips defers, so quit the sidecar before exiting. Otherwise a Job
 	// with an Istio proxy stays Running after the rollout container finishes.
 	shutdownIstioSidecar(log)
@@ -86,6 +91,7 @@ func shutdownIstioSidecar(log *slog.Logger) {
 		log.Info("istio sidecar shutdown signal sent", "port", port)
 		return
 	}
+	log.Info("istio sidecar not present")
 }
 
 func runEnsureDrain(ctx context.Context, log *slog.Logger) int {
@@ -103,9 +109,7 @@ func runEnsureDrain(ctx context.Context, log *slog.Logger) int {
 		log.Error("k8s client failed", "error", err)
 		return 1
 	}
-	addr := fmt.Sprintf("%s:%s", envOr("TEMPORAL_HOST", "temporal-frontend.temporal.svc.cluster.local"), envOr("TEMPORAL_PORT", "7233"))
-	namespace := envOr("TEMPORAL_NAMESPACE", "default")
-	tc, err := client.Dial(client.Options{HostPort: addr, Namespace: namespace})
+	tc, err := dialTemporal(ctx, log)
 	if err != nil {
 		log.Error("temporal dial failed", "error", err)
 		return 1
@@ -115,7 +119,7 @@ func runEnsureDrain(ctx context.Context, log *slog.Logger) int {
 
 	poll := time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second
 	timeout := time.Duration(envInt("DRAIN_READY_TIMEOUT_MINUTES", 15)) * time.Minute
-	if err := ensureDrainTargets(ctx, k8s, wdc, spec.Targets, poll, timeout, workerdeployment.WaitForPolling, workerdeployment.CurrentBuildID, workerdeployment.IsBuildDrained, log); err != nil {
+	if err := ensureDrainTargets(ctx, k8s, wdc, spec.Targets, poll, timeout, retryingWaitForPolling(log), retryingCurrentBuild(log, poll), retryingBuildDrained(log, poll), log); err != nil {
 		log.Error("ensure-drain failed", "error", err)
 		return 1
 	}
@@ -258,6 +262,10 @@ type promoteAndRetireOptions struct {
 	pinUnversionedWorkflows bool
 	pinUnversioned          pinUnversionedFunc
 	listUnversioned         listUnversionedFunc
+	// handoffDrain starts the drain wait outside this process. Helm waits for
+	// the promote hook, and that wait is only 20 minutes while drainage can
+	// take hours. Nil keeps the wait in-process.
+	handoffDrain func(context.Context, []RolloutTarget) error
 }
 
 func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
@@ -271,9 +279,7 @@ func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
 		return 0
 	}
 
-	addr := fmt.Sprintf("%s:%s", envOr("TEMPORAL_HOST", "temporal-frontend.temporal.svc.cluster.local"), envOr("TEMPORAL_PORT", "7233"))
-	ns := envOr("TEMPORAL_NAMESPACE", "default")
-	tc, err := client.Dial(client.Options{HostPort: addr, Namespace: ns})
+	tc, err := dialTemporal(ctx, log)
 	if err != nil {
 		log.Error("temporal dial failed", "error", err)
 		return 1
@@ -287,20 +293,24 @@ func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
 		return 1
 	}
 
+	pollEvery := time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second
 	opts := promoteAndRetireOptions{
 		dryRun:                  os.Getenv("DRY_RUN") == "true",
 		deleteAfter:             os.Getenv("DELETE_VERSION_AFTER_DRAIN") == "true",
 		pinUnversionedWorkflows: os.Getenv("PIN_UNVERSIONED_WORKFLOWS") == "true",
-		pollEvery:               time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second,
+		pollEvery:               pollEvery,
 		readyTimeout:            time.Duration(envInt("DRAIN_READY_TIMEOUT_MINUTES", 15)) * time.Minute,
 		drainTimeout:            time.Duration(envInt("DRAIN_TIMEOUT_MINUTES", 360)) * time.Minute,
 		pollingTimeout:          10 * time.Minute,
-		waitForPolling:          workerdeployment.WaitForPolling,
-		promote:                 workerdeployment.PromoteBuild,
-		currentBuild:            workerdeployment.CurrentBuildID,
-		buildDrained:            workerdeployment.IsBuildDrained,
-		waitForDrain:            workerdeployment.WaitForDrain,
-		deleteBuild:             workerdeployment.DeleteBuild,
+		waitForPolling:          retryingWaitForPolling(log),
+		promote:                 retryingPromote(log, pollEvery),
+		currentBuild:            retryingCurrentBuild(log, pollEvery),
+		buildDrained:            retryingBuildDrained(log, pollEvery),
+		waitForDrain:            retryingWaitForDrain(log),
+		deleteBuild:             retryingDeleteBuild(log, pollEvery),
+		handoffDrain: func(ctx context.Context, targets []RolloutTarget) error {
+			return k8s.ensureBackgroundDrainJob(ctx, drainJobNameFor(targets), os.Getenv("ROLLOUT_IMAGE"), os.Getenv("SERVICE_ACCOUNT"), drainJobEnv())
+		},
 		pinUnversioned: func(ctx context.Context, taskQueue, deploymentName, oldBuildID string, pollEvery time.Duration) error {
 			return pinUnversionedWorkflows(ctx, tc, taskQueue, deploymentName, oldBuildID, pollEvery)
 		},
@@ -319,6 +329,143 @@ func runPromoteAndRetire(ctx context.Context, log *slog.Logger) int {
 		return 1
 	}
 	return 0
+}
+
+const (
+	modeDrainAndRetire = "drain-and-retire"
+	drainJobPrefix     = "vlm-worker-versioning-drain"
+)
+
+// drainJobNameFor names the background Job after the builds it retires.
+// A later release with a different old build gets a new Job, so a finished
+// drain from the previous cutover does not block the next one.
+func drainJobNameFor(targets []RolloutTarget) string {
+	parts := []string{drainJobPrefix}
+	for _, target := range targets {
+		if target.OldBuildID == "" {
+			continue
+		}
+		part := strings.ToLower(target.OldBuildID)
+		part = strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				return r
+			}
+			return '-'
+		}, part)
+		parts = append(parts, strings.Trim(part, "-"))
+	}
+	name := strings.Join(parts, "-")
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "-")
+	}
+	return name
+}
+
+// drainJobEnv is the promote hook's environment with MODE switched to the
+// background drain Job. That Job is not a Helm hook, so Helm does not wait for it.
+func drainJobEnv() []jobEnv {
+	keys := []string{
+		"NAMESPACE",
+		"ROLLOUT_SPEC",
+		"TEMPORAL_HOST",
+		"TEMPORAL_PORT",
+		"TEMPORAL_NAMESPACE",
+		"POLL_EVERY_SECONDS",
+		"DRAIN_READY_TIMEOUT_MINUTES",
+		"DRAIN_TIMEOUT_MINUTES",
+		"DRY_RUN",
+		"DELETE_VERSION_AFTER_DRAIN",
+	}
+	env := make([]jobEnv, 0, len(keys)+1)
+	env = append(env, jobEnv{Name: "MODE", Value: modeDrainAndRetire})
+	for _, key := range keys {
+		env = append(env, jobEnv{Name: key, Value: os.Getenv(key)})
+	}
+	return env
+}
+
+func runDrainAndRetire(ctx context.Context, log *slog.Logger) int {
+	spec, err := loadSpec()
+	if err != nil {
+		log.Error("load ROLLOUT_SPEC failed", "error", err)
+		return 1
+	}
+	tc, err := dialTemporal(ctx, log)
+	if err != nil {
+		log.Error("temporal dial failed", "error", err)
+		return 1
+	}
+	defer tc.Close()
+	k8s, err := newK8sClient(os.Getenv("NAMESPACE"))
+	if err != nil {
+		log.Error("k8s client failed", "error", err)
+		return 1
+	}
+	pollEvery := time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second
+	opts := promoteAndRetireOptions{
+		deleteAfter:  os.Getenv("DELETE_VERSION_AFTER_DRAIN") == "true",
+		pollEvery:    pollEvery,
+		drainTimeout: time.Duration(envInt("DRAIN_TIMEOUT_MINUTES", 360)) * time.Minute,
+		currentBuild: retryingCurrentBuild(log, pollEvery),
+		buildDrained: retryingBuildDrained(log, pollEvery),
+		waitForDrain: retryingWaitForDrain(log),
+		deleteBuild:  retryingDeleteBuild(log, pollEvery),
+	}
+	if err := drainAndRetireTargets(ctx, k8s, workerdeployment.FromTemporal(tc), spec.Targets, opts, log); err != nil {
+		log.Error("drain-and-retire failed", "error", err)
+		return 1
+	}
+	return 0
+}
+
+func drainAndRetireTargets(
+	ctx context.Context,
+	k8s retireResourceClient,
+	wdc workerdeployment.Client,
+	targets []RolloutTarget,
+	opts promoteAndRetireOptions,
+	log *slog.Logger,
+) error {
+	pollEvery := opts.pollEvery
+	if pollEvery <= 0 {
+		pollEvery = 15 * time.Second
+	}
+	drainTimeout := opts.drainTimeout
+	if drainTimeout <= 0 {
+		drainTimeout = 360 * time.Minute
+	}
+	for _, target := range targets {
+		if target.NewBuildID == "" || target.OldBuildID == "" {
+			continue
+		}
+		depName := workerdeployment.ResolveDeploymentName(target.DeploymentName, target.TaskQueue)
+		if opts.currentBuild != nil {
+			current, err := opts.currentBuild(ctx, wdc, depName)
+			if err != nil {
+				return fmt.Errorf("read current build for %q: %w", depName, err)
+			}
+			if current != target.NewBuildID {
+				log.Info("new build is not current, skip drain", "workerDeployment", depName, "build", target.NewBuildID)
+				continue
+			}
+		}
+		finished, err := cutoverFinished(ctx, wdc, depName, target.NewBuildID, target.OldBuildID, opts.currentBuild, opts.buildDrained)
+		if err != nil {
+			return fmt.Errorf("read cutover state for %q: %w", depName, err)
+		}
+		if finished {
+			log.Info("cutover already finished, skip drain", "workerDeployment", depName, "build", target.NewBuildID)
+			if err := k8s.recordFinishedCutover(ctx, target.ReleaseName, target.OntapVersion, target.NewBuildID, target.OldBuildID); err != nil {
+				return fmt.Errorf("record finished cutover for %q: %w", target.OntapVersion, err)
+			}
+			continue
+		}
+		log.Info("drain-and-retire", "workerDeployment", depName, "old", target.OldBuildID)
+		if err := retireDrainedTarget(ctx, k8s, wdc, depName, target, opts, pollEvery, drainTimeout, true, log); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // cutoverFinished reports that newBuildID is already Current and oldBuildID is drained.
@@ -442,6 +589,7 @@ func promoteAndRetireTargets(
 		pollingTimeout = 10 * time.Minute
 	}
 
+	var pendingDrain []RolloutTarget
 	for _, target := range targets {
 		if target.NewBuildID == "" || target.OldBuildID == "" {
 			log.Info("skip target missing build ids", "ontap", target.OntapVersion)
@@ -492,7 +640,7 @@ func promoteAndRetireTargets(
 		// Pinning unversioned workflows is off unless PIN_UNVERSIONED_WORKFLOWS=true.
 		// With the flag off, this job promotes the new build directly, as before.
 		if opts.pinUnversionedWorkflows {
-			if err := pinUnversionedBeforePromote(ctx, wdc, depName, target, opts, pollingTimeout, pollEvery, log); err != nil {
+			if err := pinUnversionedBeforePromote(ctx, wdc, depName, target, opts, pollEvery, log); err != nil {
 				return err
 			}
 		} else {
@@ -515,36 +663,75 @@ func promoteAndRetireTargets(
 			log.Info("promoted build", "build", target.NewBuildID)
 		}
 
-		drainCtx, drainCancel := context.WithTimeout(ctx, drainTimeout)
-		if opts.dryRun {
-			log.Info("DRY-RUN: would wait for drain", "build", target.OldBuildID)
-			drainCancel()
-		} else if err := opts.waitForDrain(drainCtx, wdc, depName, target.OldBuildID, pollEvery); err != nil {
-			drainCancel()
-			log.Error("wait for drain failed — leaving drain pods up", "build", target.OldBuildID, "error", err)
+		// Helm's deployer waits 20 minutes for this hook. Drainage can take hours,
+		// so the hook hands that wait to a Job Helm does not track.
+		if opts.handoffDrain != nil && !opts.dryRun {
+			pendingDrain = append(pendingDrain, target)
 			continue
+		}
+		if err := retireDrainedTarget(ctx, k8s, wdc, depName, target, opts, pollEvery, drainTimeout, false, log); err != nil {
+			return err
+		}
+	}
+	if len(pendingDrain) > 0 {
+		log.Info("drain continues outside helm", "job", drainJobNameFor(pendingDrain))
+		if err := opts.handoffDrain(ctx, pendingDrain); err != nil {
+			return fmt.Errorf("start drain job: %w", err)
+		}
+	}
+	return nil
+}
+
+// retireDrainedTarget waits for oldBuildID to drain, scales its Deployment to 0,
+// and records the cutover. failOnDrainWait makes a background drain Job exit
+// non-zero so a later upgrade can start it again.
+func retireDrainedTarget(
+	ctx context.Context,
+	k8s retireResourceClient,
+	wdc workerdeployment.Client,
+	depName string,
+	target RolloutTarget,
+	opts promoteAndRetireOptions,
+	pollEvery time.Duration,
+	drainTimeout time.Duration,
+	failOnDrainWait bool,
+	log *slog.Logger,
+) error {
+	drainCtx, drainCancel := context.WithTimeout(ctx, drainTimeout)
+	defer drainCancel()
+	if opts.dryRun {
+		log.Info("DRY-RUN: would wait for drain", "build", target.OldBuildID)
+	} else if err := opts.waitForDrain(drainCtx, wdc, depName, target.OldBuildID, pollEvery); err != nil {
+		log.Error("wait for drain failed — leaving drain pods up", "build", target.OldBuildID, "error", err)
+		if failOnDrainWait {
+			return err
+		}
+		return nil
+	} else if !opts.dryRun {
+		log.Info("old build drained", "build", target.OldBuildID)
+	}
+
+	if target.DrainDeployment != "" {
+		if opts.dryRun {
+			log.Info("DRY-RUN: would scale drain to 0", "deployment", target.DrainDeployment)
+		} else if err := k8s.scaleDeployment(ctx, target.DrainDeployment, 0); err != nil {
+			log.Error("scale drain to 0 failed", "deployment", target.DrainDeployment, "error", err)
+			if failOnDrainWait {
+				return err
+			}
 		} else {
-			drainCancel()
-			log.Info("old build drained", "build", target.OldBuildID)
-		}
-
-		if target.DrainDeployment != "" {
-			if opts.dryRun {
-				log.Info("DRY-RUN: would scale drain to 0", "deployment", target.DrainDeployment)
-			} else if err := k8s.scaleDeployment(ctx, target.DrainDeployment, 0); err != nil {
-				log.Error("scale drain to 0 failed", "deployment", target.DrainDeployment, "error", err)
-			} else {
-				log.Info("scaled drain to 0", "deployment", target.DrainDeployment)
-				if err := k8s.recordFinishedCutover(ctx, target.ReleaseName, target.OntapVersion, target.NewBuildID, target.OldBuildID); err != nil {
-					return fmt.Errorf("record finished cutover for %q: %w", target.OntapVersion, err)
-				}
+			log.Info("scaled drain to 0", "deployment", target.DrainDeployment)
+			if err := k8s.recordFinishedCutover(ctx, target.ReleaseName, target.OntapVersion, target.NewBuildID, target.OldBuildID); err != nil {
+				return fmt.Errorf("record finished cutover for %q: %w", target.OntapVersion, err)
 			}
 		}
+	}
 
-		if opts.deleteAfter && !opts.dryRun {
-			if err := opts.deleteBuild(ctx, wdc, depName, target.OldBuildID); err != nil {
-				log.Error("DeleteVersion failed (optional)", "error", err)
-			}
+	if opts.deleteAfter && !opts.dryRun {
+		if err := opts.deleteBuild(ctx, wdc, depName, target.OldBuildID); err != nil {
+			log.Error("DeleteVersion failed (optional)", "build", target.OldBuildID, "error", err)
+		} else {
+			log.Info("deleted old build version", "workerDeployment", depName, "build", target.OldBuildID)
 		}
 	}
 	return nil
@@ -614,7 +801,6 @@ func pinUnversionedBeforePromote(
 	depName string,
 	target RolloutTarget,
 	opts promoteAndRetireOptions,
-	pollingTimeout time.Duration,
 	pollEvery time.Duration,
 	log *slog.Logger,
 ) error {
@@ -624,6 +810,7 @@ func pinUnversionedBeforePromote(
 		if err != nil {
 			return fmt.Errorf("read current build for %q: %w", depName, err)
 		}
+		log.Info("read current build", "workerDeployment", depName, "current", current)
 		switch current {
 		case "":
 			if opts.dryRun {
@@ -634,7 +821,7 @@ func pinUnversionedBeforePromote(
 				log.Info("set old build as migration current", "build", target.OldBuildID)
 			}
 		case target.OldBuildID:
-			// Resume while the old build is still Current. Pinning to it is safe.
+			log.Info("current is the old build", "workerDeployment", depName, "build", current)
 		case target.NewBuildID:
 			currentIsNew = true
 		default:
@@ -662,9 +849,9 @@ func pinUnversionedBeforePromote(
 	// build id, so the versioned old-image drain pod would otherwise not receive
 	// them. The next task would run on the new build and could nondeterministically
 	// replay. Pinning to the old build keeps that history on the same binary.
-	pinCtx, pinCancel := context.WithTimeout(ctx, pollingTimeout)
-	defer pinCancel()
-	if err := opts.pinUnversioned(pinCtx, target.TaskQueue, depName, target.OldBuildID, pollEvery); err != nil {
+	// The scan continues until two empty lists. The caller then promotes the new
+	// build. A failed visibility list is retried up to 3 times inside that scan.
+	if err := opts.pinUnversioned(ctx, target.TaskQueue, depName, target.OldBuildID, pollEvery); err != nil {
 		return fmt.Errorf("pin unversioned workflows on %q to %q: %w", target.TaskQueue, target.OldBuildID, err)
 	}
 	return nil
@@ -685,16 +872,28 @@ func refusePinBackToOldBuild(ctx context.Context, target RolloutTarget, opts pro
 	if pollEvery <= 0 {
 		pollEvery = time.Millisecond
 	}
-	for pass := 0; pass < pinUnversionedStableEmptyPasses; pass++ {
+	emptyPasses := 0
+	listFailures := 0
+	for {
 		ids, err := opts.listUnversioned(ctx, target.TaskQueue)
 		if err != nil {
-			return fmt.Errorf("list unversioned workflows on %q: %w", target.TaskQueue, err)
-		}
-		if len(ids) > 0 {
+			if ctx.Err() != nil {
+				return fmt.Errorf("list unversioned workflows on %q: %w", target.TaskQueue, ctx.Err())
+			}
+			listFailures++
+			if listFailures > temporalMaxRetries {
+				return fmt.Errorf("list unversioned workflows on %q: %w", target.TaskQueue, err)
+			}
+			log.Warn("list unversioned workflows failed, will retry", "taskQueue", target.TaskQueue, "attempt", listFailures, "error", err)
+			emptyPasses = 0
+		} else if len(ids) > 0 {
 			return fmt.Errorf("current is already %q; refusing to pin unversioned workflows [%s] back to %q", target.NewBuildID, strings.Join(ids, ", "), target.OldBuildID)
-		}
-		if pass+1 == pinUnversionedStableEmptyPasses {
-			break
+		} else {
+			listFailures = 0
+			emptyPasses++
+			if emptyPasses >= pinUnversionedStableEmptyPasses {
+				break
+			}
 		}
 		timer := time.NewTimer(pollEvery)
 		select {
@@ -743,11 +942,11 @@ func listUnversionedWorkflowIDs(ctx context.Context, tc workflowExecutionPinner,
 }
 
 // pinUnversionedWorkflows pins every running unversioned workflow on taskQueue
-// to deploymentName/oldBuildID. A pin error on one workflow is retried on the
-// next scan. The caller context is the deadline; when it expires, this returns
-// an error and the caller must not promote the new build.
-// It returns nil only after two consecutive scans that find nothing left to pin,
-// so a workflow that shows up late is pinned before promote.
+// to deploymentName/oldBuildID. A pin error on one workflow, or a failed
+// visibility list, is retried on the next scan, up to temporalMaxRetries.
+// It returns nil only after two consecutive scans that find nothing left to
+// pin, so a workflow that shows up late is pinned before the caller promotes
+// the new build. The caller must not promote when this returns an error.
 func pinUnversionedWorkflows(
 	ctx context.Context,
 	tc workflowExecutionPinner,
@@ -759,18 +958,38 @@ func pinUnversionedWorkflows(
 	}
 	query := unversionedWorkflowQuery(taskQueue)
 	emptyPasses := 0
+	failures := 0
 	for {
 		pinned, failed, err := pinUnversionedPage(ctx, tc, query, deploymentName, oldBuildID)
 		if err != nil {
-			return err
-		}
-		if pinned == 0 && failed == 0 {
+			if ctx.Err() != nil {
+				return fmt.Errorf("wait for unversioned workflows to be pinned on %q: %w", taskQueue, ctx.Err())
+			}
+			failures++
+			if failures > temporalMaxRetries {
+				return fmt.Errorf("list unversioned workflows on %q: %w", taskQueue, err)
+			}
+			slog.Warn("list unversioned workflows failed, will retry", "taskQueue", taskQueue, "attempt", failures, "error", err)
+			emptyPasses = 0
+		} else if failed > 0 {
+			failures++
+			emptyPasses = 0
+			slog.Info("pin scan", "taskQueue", taskQueue, "pinned", pinned, "failed", failed, "attempt", failures)
+			if failures > temporalMaxRetries {
+				return fmt.Errorf("pin unversioned workflows on %q failed after %d retries", taskQueue, temporalMaxRetries)
+			}
+		} else if pinned == 0 {
+			failures = 0
 			emptyPasses++
+			slog.Info("pin scan empty", "taskQueue", taskQueue, "emptyPasses", emptyPasses)
 			if emptyPasses >= pinUnversionedStableEmptyPasses {
+				slog.Info("unversioned workflows pinned", "taskQueue", taskQueue, "build", oldBuildID)
 				return nil
 			}
 		} else {
+			failures = 0
 			emptyPasses = 0
+			slog.Info("pin scan", "taskQueue", taskQueue, "pinned", pinned, "failed", failed)
 		}
 		timer := time.NewTimer(pollEvery)
 		select {
@@ -817,12 +1036,14 @@ func pinUnversionedPage(ctx context.Context, tc workflowExecutionPinner, query, 
 			if err != nil {
 				var notFound *serviceerror.NotFound
 				if errors.As(err, &notFound) {
+					slog.Info("workflow not found, skip pin", "workflowID", info.GetWorkflowId(), "error", err)
 					continue
 				}
 				failed++
 				slog.Warn("pin workflow failed, will retry", "workflowID", info.GetWorkflowId(), "error", err)
 				continue
 			}
+			slog.Info("pinned workflow", "workflowID", info.GetWorkflowId(), "runID", info.GetRunId(), "workerDeployment", deploymentName, "build", oldBuildID)
 			pinned++
 		}
 		if len(resp.GetNextPageToken()) == 0 {
@@ -849,6 +1070,165 @@ func waitForBuildsPolling(
 		return fmt.Errorf("wait for new build %q polling: %w", newBuildID, err)
 	}
 	return nil
+}
+
+// temporalMaxRetries is how many times a failed Temporal call is tried again.
+// The first call is not a retry, so the call runs at most 4 times.
+const temporalMaxRetries = 3
+
+// retryTemporal repeats a Temporal call until it succeeds, the retry limit is
+// hit, or ctx ends. A canceled RPC is not the same as the Job context ending.
+func retryTemporal(ctx context.Context, pollEvery time.Duration, log *slog.Logger, op string, call func() error) error {
+	if pollEvery <= 0 {
+		pollEvery = 15 * time.Second
+	}
+	var err error
+	for attempt := 0; ; attempt++ {
+		err = call()
+		if err == nil {
+			if attempt > 0 {
+				log.Info("temporal call succeeded", "op", op, "attempts", attempt+1)
+			}
+			return nil
+		}
+		if ctx.Err() != nil {
+			return err
+		}
+		if attempt >= temporalMaxRetries {
+			log.Warn("temporal call failed", "op", op, "attempts", attempt+1, "error", err)
+			return err
+		}
+		log.Warn("temporal call failed, will retry", "op", op, "attempt", attempt+1, "error", err)
+		timer := time.NewTimer(pollEvery)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func dialTemporal(ctx context.Context, log *slog.Logger) (client.Client, error) {
+	addr := fmt.Sprintf("%s:%s", envOr("TEMPORAL_HOST", "temporal-frontend.temporal.svc.cluster.local"), envOr("TEMPORAL_PORT", "7233"))
+	namespace := envOr("TEMPORAL_NAMESPACE", "default")
+	pollEvery := time.Duration(envInt("POLL_EVERY_SECONDS", 15)) * time.Second
+	var tc client.Client
+	err := retryTemporal(ctx, pollEvery, log, "dial", func() error {
+		dialed, dialErr := client.Dial(client.Options{HostPort: addr, Namespace: namespace})
+		if dialErr != nil {
+			if dialed != nil {
+				dialed.Close()
+			}
+			return dialErr
+		}
+		tc = dialed
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	log.Info("temporal dial succeeded", "address", addr, "namespace", namespace)
+	return tc, nil
+}
+
+func retryingWaitForPolling(log *slog.Logger) waitForPollingFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, taskQueue, deploymentName, buildID string, pollEvery time.Duration) error {
+		return retryTemporal(ctx, pollEvery, log, "wait for polling "+buildID, func() error {
+			return workerdeployment.WaitForPolling(ctx, wdc, taskQueue, deploymentName, buildID, pollEvery)
+		})
+	}
+}
+
+func retryingPromote(log *slog.Logger, pollEvery time.Duration) promoteFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, deploymentName, buildID string) error {
+		return retryTemporal(ctx, pollEvery, log, "promote "+buildID, func() error {
+			// Read Current before SetCurrentVersion. A lost success plus a failed
+			// describe must retry the describe, not set Current again. On Temporal
+			// 1.29 a second SetCurrentVersion writes DrainageStatus draining.
+			current, curErr := workerdeployment.CurrentBuildID(ctx, wdc, deploymentName)
+			if curErr != nil {
+				return curErr
+			}
+			if current == buildID {
+				log.Info("build already current, skip set-current", "workerDeployment", deploymentName, "build", buildID)
+				return nil
+			}
+			return workerdeployment.PromoteBuild(ctx, wdc, deploymentName, buildID)
+		})
+	}
+}
+
+func retryingCurrentBuild(log *slog.Logger, pollEvery time.Duration) currentBuildFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, deploymentName string) (string, error) {
+		var buildID string
+		err := retryTemporal(ctx, pollEvery, log, "describe deployment "+deploymentName, func() error {
+			var callErr error
+			buildID, callErr = workerdeployment.CurrentBuildID(ctx, wdc, deploymentName)
+			return callErr
+		})
+		return buildID, err
+	}
+}
+
+func retryingBuildDrained(log *slog.Logger, pollEvery time.Duration) buildDrainedFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, deploymentName, buildID string) (bool, error) {
+		var drained bool
+		err := retryTemporal(ctx, pollEvery, log, "describe version "+buildID, func() error {
+			var callErr error
+			drained, callErr = workerdeployment.IsBuildDrained(ctx, wdc, deploymentName, buildID)
+			return callErr
+		})
+		return drained, err
+	}
+}
+
+func retryingWaitForDrain(log *slog.Logger) waitForDrainFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, deploymentName, buildID string, pollEvery time.Duration) error {
+		if pollEvery <= 0 {
+			pollEvery = 15 * time.Second
+		}
+		// Retry each describe. Wrapping WaitForDrain would spend the 3 retries
+		// on the whole multi-hour wait, so a few transient errors fail the Job.
+		ticker := time.NewTicker(pollEvery)
+		defer ticker.Stop()
+		for {
+			var drained bool
+			err := retryTemporal(ctx, pollEvery, log, "wait for drain "+buildID, func() error {
+				var callErr error
+				drained, callErr = workerdeployment.IsBuildDrained(ctx, wdc, deploymentName, buildID)
+				return callErr
+			})
+			if err != nil {
+				return err
+			}
+			if drained {
+				return nil
+			}
+			log.Info("build is not drained yet", "workerDeployment", deploymentName, "build", buildID)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+			}
+		}
+	}
+}
+
+func retryingDeleteBuild(log *slog.Logger, pollEvery time.Duration) deleteBuildFunc {
+	return func(ctx context.Context, wdc workerdeployment.Client, deploymentName, buildID string) error {
+		return retryTemporal(ctx, pollEvery, log, "delete version "+buildID, func() error {
+			err := workerdeployment.DeleteBuild(ctx, wdc, deploymentName, buildID)
+			if err == nil {
+				return nil
+			}
+			var notFound *serviceerror.NotFound
+			if errors.As(err, &notFound) {
+				return nil
+			}
+			return err
+		})
+	}
 }
 
 func loadSpec() (RolloutSpec, error) {

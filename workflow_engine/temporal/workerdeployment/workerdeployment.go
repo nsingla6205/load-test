@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"time"
@@ -128,6 +129,7 @@ func PromoteBuild(ctx context.Context, wdc Client, deploymentName, buildID strin
 	if err != nil {
 		return fmt.Errorf("promote build %q on deployment %q: %w", buildID, deploymentName, err)
 	}
+	slog.Info("set current build", "workerDeployment", deploymentName, "build", buildID)
 	return nil
 }
 
@@ -141,11 +143,14 @@ func CurrentBuildID(ctx context.Context, wdc Client, deploymentName string) (str
 	if err != nil {
 		var notFound *serviceerror.NotFound
 		if errors.As(err, &notFound) {
+			slog.Warn("worker deployment not found", "workerDeployment", deploymentName, "error", err)
 			return "", nil
 		}
 		return "", fmt.Errorf("describe deployment %q: %w", deploymentName, err)
 	}
-	return currentVersionBuildID(desc.Info.RoutingConfig), nil
+	current := currentVersionBuildID(desc.Info.RoutingConfig)
+	slog.Info("described worker deployment", "workerDeployment", deploymentName, "currentBuild", current)
+	return current, nil
 }
 
 // IsBuildPolling reports whether Temporal has a recent poller for the task queue,
@@ -220,7 +225,13 @@ func IsBuildDrained(ctx context.Context, wdc Client, deploymentName, buildID str
 		return false, fmt.Errorf("describe version %q on deployment %q: %w", buildID, deploymentName, err)
 	}
 	di := desc.Info.DrainageInfo
-	return di != nil && di.DrainageStatus == client.WorkerDeploymentVersionDrainageStatusDrained, nil
+	drained := di != nil && di.DrainageStatus == client.WorkerDeploymentVersionDrainageStatusDrained
+	status := "none"
+	if di != nil {
+		status = drainageStatusName(di.DrainageStatus)
+	}
+	slog.Info("described build drainage", "workerDeployment", deploymentName, "build", buildID, "drained", drained, "drainageStatus", status)
+	return drained, nil
 }
 
 // DeleteBuild removes a drained version record (pods must already be stopped).
@@ -234,6 +245,7 @@ func DeleteBuild(ctx context.Context, wdc Client, deploymentName, buildID string
 	if err != nil {
 		return fmt.Errorf("delete version %q on deployment %q: %w", buildID, deploymentName, err)
 	}
+	slog.Info("deleted build version", "workerDeployment", deploymentName, "build", buildID)
 	return nil
 }
 
@@ -270,8 +282,10 @@ func WaitForPolling(
 			return err
 		}
 		if ok {
+			slog.Info("build is polling", "workerDeployment", deploymentName, "build", buildID, "taskQueue", taskQueue)
 			return nil
 		}
+		slog.Info("build is not polling yet", "workerDeployment", deploymentName, "build", buildID, "taskQueue", taskQueue)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -300,8 +314,14 @@ func WaitForDrain(ctx context.Context, wdc Client, deploymentName, buildID strin
 		}
 		if di := desc.Info.DrainageInfo; di != nil &&
 			di.DrainageStatus == client.WorkerDeploymentVersionDrainageStatusDrained {
+			slog.Info("build drained", "workerDeployment", deploymentName, "build", buildID)
 			return nil
 		}
+		status := "none"
+		if desc.Info.DrainageInfo != nil {
+			status = drainageStatusName(desc.Info.DrainageInfo.DrainageStatus)
+		}
+		slog.Info("build is not drained yet", "workerDeployment", deploymentName, "build", buildID, "drainageStatus", status)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -346,6 +366,17 @@ func pollersFromTaskQueueDescription(desc client.TaskQueueDescription) []PollerI
 		}
 	}
 	return pollers
+}
+
+func drainageStatusName(status client.WorkerDeploymentVersionDrainageStatus) string {
+	switch status {
+	case client.WorkerDeploymentVersionDrainageStatusDraining:
+		return "draining"
+	case client.WorkerDeploymentVersionDrainageStatusDrained:
+		return "drained"
+	default:
+		return "unspecified"
+	}
 }
 
 func requireNames(deploymentName, buildID string) error {
