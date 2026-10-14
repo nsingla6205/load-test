@@ -180,9 +180,9 @@ vlmWorkerVersioning:
     temporalNamespace: "default"
     image:
       name: "vlm-worker-versioning-rollout"
-      tag: "vscp-7593-first-current"
+      tag: "vscp-7593-review-28e30ee"
       # Required when global.useTags is false (images resolve by digest).
-      digest: "sha256:cb28db6880b5bb13a2196183109bdd47aa38c02fea1c443cea663e394ef2ae43"
+      digest: "sha256:e10abd5ea2efc54d9579575e66e8a62b153d5a68d58e9de44d5c41d0ea667858"
       secondary: true
       pullPolicy: IfNotPresent
     resources:
