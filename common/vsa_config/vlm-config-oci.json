@@ -95,74 +95,47 @@
       "nodemgmt": {
         "vpc": "",
         "subnet": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "nodemgmtinternal": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "ic": {
         "vpc": "",
         "subnet": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "clus": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "intercluster": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "rsm": {
         "vpc": "",
         "subnet": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "san": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "nas": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       },
       "mediator": {
         "subnet": "",
         "vpc": "",
-        "gateway": "",
-        "gcp_network_config": {
-          "subnet_project_id": ""
-        }
+        "gateway": ""
       }
     },
     "ociconfig": {

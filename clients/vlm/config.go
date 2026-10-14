@@ -291,14 +291,6 @@ type OCINetworkConfig struct {
 	SubnetOCID string `json:"subnet_ocid"` // OCID for the subnet
 }
 
-type AzureNetworkConfig struct { // VCP-VLM merged, added full struct
-	SubnetID   string `json:"subnet_id"`
-	VNetID     string `json:"vnet_id"`
-	NICID      string `json:"nic_id"`
-	PublicIPID string `json:"public_ip_id"`
-	NSGID      string `json:"nsg_id"`
-}
-
 type ZoneInfo struct {
 	Zone1        string `json:"zone1"`
 	Zone2        string `json:"zone2"`
@@ -497,7 +489,30 @@ type NetworkConfig struct {
 	Netmask               string                       `json:"netmask,omitempty"` //Netmask for the subnet
 	GCPNetworkConfig      GCPNetworkConfig             `json:"gcp_network_config,omitempty"`
 	ProviderNetworkConfig ProviderNetworkConfigWrapper `json:"provider_network_config,omitempty"`
-	AzureNetworkConfig    AzureNetworkConfig           `json:"azure_network_config,omitempty"` // VCP-VLM merged, added
+}
+
+// networkConfigAlias has no MarshalJSON, so encoding it does not recurse into
+// NetworkConfig.MarshalJSON.
+type networkConfigAlias NetworkConfig
+
+// networkConfigWire exposes GCPNetworkConfig as a pointer. omitempty does not
+// omit a zero struct, and subnet_project_id has no omitempty, so the value
+// field would otherwise write "gcp_network_config":{"subnet_project_id":""}
+// on every OCI network.
+type networkConfigWire struct {
+	GCPNetworkConfig *GCPNetworkConfig `json:"gcp_network_config,omitempty"`
+	networkConfigAlias
+}
+
+// MarshalJSON omits a zero GCPNetworkConfig. GCNV still emits the object when
+// any GCP field is populated.
+func (n NetworkConfig) MarshalJSON() ([]byte, error) {
+	wire := networkConfigWire{networkConfigAlias: networkConfigAlias(n)}
+	if !reflect.ValueOf(n.GCPNetworkConfig).IsZero() {
+		gcp := n.GCPNetworkConfig
+		wire.GCPNetworkConfig = &gcp
+	}
+	return json.Marshal(wire)
 }
 
 type VsaClusterConfig struct {

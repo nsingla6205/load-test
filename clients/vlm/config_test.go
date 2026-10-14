@@ -686,3 +686,77 @@ func TestOCIRequestContextIDs_NonOCIReturnsEmpty(t *testing.T) {
 	assert.Empty(t, workRequestID)
 	assert.Empty(t, opcRequestID)
 }
+
+func TestNetworkConfig_GCNVOmitsAzureConfig(t *testing.T) {
+	cfg := NetworkConfig{
+		Subnet:           "mgmt-e0a-subnet-01",
+		VPC:              "mgmt-e0a-vpc-01",
+		Gateway:          "198.18.0.1",
+		GCPNetworkConfig: GCPNetworkConfig{SubnetProjectID: "gcnv-tenant"},
+	}
+
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	text := string(encoded)
+	assert.Contains(t, text, `"gcp_network_config":{"subnet_project_id":"gcnv-tenant"}`)
+	assert.NotContains(t, text, "azure")
+}
+
+func TestNetworkConfig_LegacyEmptyAzureConfigIsIgnored(t *testing.T) {
+	const oldGCNV = `{
+		"subnet": "mgmt-e0a-subnet-01",
+		"vpc": "mgmt-e0a-vpc-01",
+		"gateway": "198.18.0.1",
+		"gcp_network_config": {"subnet_project_id": "gcnv-tenant"},
+		"azure_network_config": {}
+	}`
+
+	var cfg NetworkConfig
+	require.NoError(t, json.Unmarshal([]byte(oldGCNV), &cfg))
+	assert.Equal(t, "gcnv-tenant", cfg.GCPNetworkConfig.SubnetProjectID)
+
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"gcp_network_config"`)
+	assert.NotContains(t, string(encoded), "azure")
+}
+
+func TestNetworkConfig_OCIOmitsEmptyGCPConfig(t *testing.T) {
+	cfg := NetworkConfig{
+		Subnet:  "ocid1.subnet.node",
+		Gateway: "10.0.0.1",
+	}
+
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	text := string(encoded)
+	assert.Contains(t, text, `"subnet":"ocid1.subnet.node"`)
+	assert.NotContains(t, text, "gcp_network_config")
+	assert.NotContains(t, text, "subnet_project_id")
+}
+
+func TestNetworkConfig_LegacyEmptyGCPConfigIsDropped(t *testing.T) {
+	const oldOCI = `{
+		"subnet": "ocid1.subnet.node",
+		"gateway": "10.0.0.1",
+		"gcp_network_config": {"subnet_project_id": ""}
+	}`
+
+	var cfg NetworkConfig
+	require.NoError(t, json.Unmarshal([]byte(oldOCI), &cfg))
+	assert.Empty(t, cfg.GCPNetworkConfig.SubnetProjectID)
+
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	text := string(encoded)
+	assert.Contains(t, text, `"subnet":"ocid1.subnet.node"`)
+	assert.NotContains(t, text, "gcp_network_config")
+}
+
+func TestNetworkConfig_KeepsNonZeroGCPConfig(t *testing.T) {
+	cfg := NetworkConfig{GCPNetworkConfig: GCPNetworkConfig{IsSecondaryIP: true}}
+
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"gcp_network_config":{"is_secondary_ip":true,"subnet_project_id":""}`)
+}
