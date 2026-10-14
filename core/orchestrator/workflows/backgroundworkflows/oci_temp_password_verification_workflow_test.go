@@ -13,6 +13,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 type VerifyOciTempPasswordWorkflowTestSuite struct {
@@ -35,6 +36,7 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) SetupTest() {
 	s.env.RegisterActivity(poolActivity.ParseVlmConfig)
 	s.env.RegisterActivity(poolActivity.CheckOciAdminPasswordResetConsumed)
 	s.env.RegisterActivity(poolActivity.ClearTempPasswordState)
+	s.env.RegisterActivity(poolActivity.ExpireOciAdminPasswordOnVSA)
 	s.env.RegisterActivity(poolActivity.GenerateAndSetOciAdminTempPassword)
 }
 
@@ -108,7 +110,7 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestConsumed_ClearsFlag() {
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
-	s.env.AssertNotCalled(s.T(), "GenerateAndSetOciAdminTempPassword", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	s.env.AssertNotCalled(s.T(), "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (s *VerifyOciTempPasswordWorkflowTestSuite) TestWithinWindow_NoOp() {
@@ -126,12 +128,44 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestWithinWindow_NoOp() {
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
 	s.env.AssertNotCalled(s.T(), "ClearTempPasswordState", mock.Anything, mock.Anything)
+	s.env.AssertNotCalled(s.T(), "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func (s *VerifyOciTempPasswordWorkflowTestSuite) TestElapsed_Expires() {
+	s.withVerificationEnabled()
+	created := time.Now().Add(-48 * time.Hour) // past the 24h default window
+	s.onList(activePool("pool-a", &created))
+
+	s.env.OnActivity((&activities.PoolActivity{}).ParseVlmConfig,
+		mock.Anything, mock.Anything).Return(vlmConfigWithCluster("cluster1"), nil).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).CheckOciAdminPasswordResetConsumed,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).ExpireOciAdminPasswordOnVSA,
+		mock.Anything, mock.Anything, "cluster1", mock.Anything).Return(nil).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).ClearTempPasswordState,
+		mock.Anything, mock.Anything).Return(nil).Once()
+
+	s.env.ExecuteWorkflow(VerifyOciTempPasswordsWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
 	s.env.AssertNotCalled(s.T(), "GenerateAndSetOciAdminTempPassword", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-func (s *VerifyOciTempPasswordWorkflowTestSuite) TestElapsed_Rotates() {
+// ---------------------------------------------------------------------------
+// Pre-version histories (replay of the original rotate-on-elapse graph)
+// ---------------------------------------------------------------------------
+
+func (s *VerifyOciTempPasswordWorkflowTestSuite) onLegacyExpireOnElapseVersion() {
+	s.env.OnGetVersion(ociTempPasswordExpireOnElapseChangeID,
+		workflow.DefaultVersion, ociTempPasswordExpireOnElapseVersion).
+		Return(workflow.DefaultVersion)
+}
+
+func (s *VerifyOciTempPasswordWorkflowTestSuite) TestElapsed_LegacyVersion_Rotates() {
 	s.withVerificationEnabled()
-	created := time.Now().Add(-48 * time.Hour) // past the 24h default window
+	s.onLegacyExpireOnElapseVersion()
+	created := time.Now().Add(-48 * time.Hour)
 	s.onList(activePool("pool-a", &created))
 
 	s.env.OnActivity((&activities.PoolActivity{}).ParseVlmConfig,
@@ -147,6 +181,28 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestElapsed_Rotates() {
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
+	s.env.AssertNotCalled(s.T(), "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func (s *VerifyOciTempPasswordWorkflowTestSuite) TestElapsed_LegacyVersion_RotateFails_Isolated() {
+	s.withVerificationEnabled()
+	s.onLegacyExpireOnElapseVersion()
+	created := time.Now().Add(-48 * time.Hour)
+	s.onList(activePool("pool-a", &created))
+
+	s.env.OnActivity((&activities.PoolActivity{}).ParseVlmConfig,
+		mock.Anything, mock.Anything).Return(vlmConfigWithCluster("cluster1"), nil).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).CheckOciAdminPasswordResetConsumed,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).GenerateAndSetOciAdminTempPassword,
+		mock.Anything, mock.Anything, "cluster1", mock.Anything).Return(errors.New("set failed")).Once()
+
+	s.env.ExecuteWorkflow(VerifyOciTempPasswordsWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+	s.env.AssertNotCalled(s.T(), "ClearTempPasswordState", mock.Anything, mock.Anything)
+	s.env.AssertNotCalled(s.T(), "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (s *VerifyOciTempPasswordWorkflowTestSuite) TestNoActiveTempPassword_Skipped() {
@@ -314,7 +370,7 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestClearStateFails_Isolated() 
 	s.NoError(s.env.GetWorkflowError())
 }
 
-func (s *VerifyOciTempPasswordWorkflowTestSuite) TestRotateGenerateFails_Isolated() {
+func (s *VerifyOciTempPasswordWorkflowTestSuite) TestExpireFails_Isolated() {
 	s.withVerificationEnabled()
 	created := time.Now().Add(-48 * time.Hour)
 	s.onList(activePool("pool-a", &created))
@@ -323,8 +379,8 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestRotateGenerateFails_Isolate
 		mock.Anything, mock.Anything).Return(vlmConfigWithCluster("cluster1"), nil).Once()
 	s.env.OnActivity((&activities.PoolActivity{}).CheckOciAdminPasswordResetConsumed,
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
-	s.env.OnActivity((&activities.PoolActivity{}).GenerateAndSetOciAdminTempPassword,
-		mock.Anything, mock.Anything, "cluster1", mock.Anything).Return(errors.New("set failed")).Once()
+	s.env.OnActivity((&activities.PoolActivity{}).ExpireOciAdminPasswordOnVSA,
+		mock.Anything, mock.Anything, "cluster1", mock.Anything).Return(errors.New("expire failed")).Once()
 
 	s.env.ExecuteWorkflow(VerifyOciTempPasswordsWorkflow)
 
@@ -332,7 +388,7 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestRotateGenerateFails_Isolate
 	s.NoError(s.env.GetWorkflowError())
 }
 
-func (s *VerifyOciTempPasswordWorkflowTestSuite) TestRotateRecordFails_Isolated() {
+func (s *VerifyOciTempPasswordWorkflowTestSuite) TestExpireClearFails_Isolated() {
 	s.withVerificationEnabled()
 	created := time.Now().Add(-48 * time.Hour)
 	s.onList(activePool("pool-a", &created))
@@ -341,7 +397,7 @@ func (s *VerifyOciTempPasswordWorkflowTestSuite) TestRotateRecordFails_Isolated(
 		mock.Anything, mock.Anything).Return(vlmConfigWithCluster("cluster1"), nil).Once()
 	s.env.OnActivity((&activities.PoolActivity{}).CheckOciAdminPasswordResetConsumed,
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
-	s.env.OnActivity((&activities.PoolActivity{}).GenerateAndSetOciAdminTempPassword,
+	s.env.OnActivity((&activities.PoolActivity{}).ExpireOciAdminPasswordOnVSA,
 		mock.Anything, mock.Anything, "cluster1", mock.Anything).Return(nil).Once()
 	s.env.OnActivity((&activities.PoolActivity{}).ClearTempPasswordState,
 		mock.Anything, mock.Anything).Return(errors.New("clear failed")).Once()

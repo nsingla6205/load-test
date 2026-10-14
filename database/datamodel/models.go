@@ -69,9 +69,9 @@ func (p *Pool) IsActiveActive() bool {
 }
 
 // ExternalTempCredentials records the temporary-credential state set on the pool's
-// ONTAP cluster (e.g. an ociadmin password reset that must be changed on first
-// login). It is populated after the reset+expire completes so a reconciler can
-// detect resets that were never consumed. Nil for pools that never had a reset.
+// ONTAP cluster (e.g. an ociadmin password reset that must be changed within its
+// window). It is populated after the reset completes so a reconciler can expire
+// temporary passwords that were never consumed. Nil for pools that never had a reset.
 // OCI specific model.
 type ExternalTempCredentials struct {
 	TempPasswordActive    bool       `json:"temp_password_active"`

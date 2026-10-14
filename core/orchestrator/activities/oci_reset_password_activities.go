@@ -153,14 +153,20 @@ func (j *PoolActivity) resolveExpertModePasswordProvider(ctx context.Context, po
 
 // RecordTempPasswordState persists the temporary-credential state on the pool
 // when the OCI expert-mode admin (ociadmin) password is a temporary password that
-// must be changed on first login. It is invoked both after a reset+expire on an
+// must be changed within its window. It is invoked both after a reset on an
 // existing pool and during create-pool when a caller-supplied temporary password
 // is used as the expert-mode credential. It marks TempPasswordActive=true and
-// stamps TempPasswordCreatedAt with the current time so a reconciler can detect
-// temporary passwords that are never consumed within the allowed window. The write
-// uses the map-based UpdatePoolFields path so the boolean and timestamp are always
-// persisted (GORM's struct updates skip zero values).
-func (j *PoolActivity) RecordTempPasswordState(ctx context.Context, pool *datamodel.Pool) error {
+// stamps TempPasswordCreatedAt so a reconciler can detect temporary passwords that
+// are never consumed within the allowed window. The write uses the map-based
+// UpdatePoolFields path so the boolean and timestamp are always persisted (GORM's
+// struct updates skip zero values).
+//
+// createdAt should be captured before the password is set on ONTAP, so a change
+// the caller makes before this activity runs (or while it is retried) still falls
+// inside the audit query window. A nil or zero createdAt falls back to the current
+// time; this also covers activity tasks scheduled before the parameter existed,
+// which the Temporal SDK decodes with the missing argument left nil.
+func (j *PoolActivity) RecordTempPasswordState(ctx context.Context, pool *datamodel.Pool, createdAt *time.Time) error {
 	activity.RecordHeartbeat(ctx, "Starting RecordTempPasswordState activity")
 	logger := util.GetLogger(ctx)
 
@@ -170,11 +176,14 @@ func (j *PoolActivity) RecordTempPasswordState(ctx context.Context, pool *datamo
 				fmt.Errorf("pool with a valid UUID is required to record the temporary password state")))
 	}
 
-	now := time.Now().UTC()
+	recordedAt := time.Now().UTC()
+	if createdAt != nil && !createdAt.IsZero() {
+		recordedAt = createdAt.UTC()
+	}
 	updates := map[string]interface{}{
 		"external_temp_credentials": datamodel.ExternalTempCredentials{
 			TempPasswordActive:    true,
-			TempPasswordCreatedAt: &now,
+			TempPasswordCreatedAt: &recordedAt,
 		},
 	}
 

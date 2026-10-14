@@ -19,6 +19,11 @@ const (
 	ociTempPasswordVerificationMetricQueue      = "customer"
 	ociTempPasswordVerificationMetricFailure    = "failure"
 	defaultOCITempPasswordVerificationBatchSize = 10
+
+	// ociTempPasswordExpireOnElapseChangeID versions the switch from rotating an
+	// unconsumed temporary password to a fresh generated one, to expiring it.
+	ociTempPasswordExpireOnElapseChangeID = "ociTempPasswordExpireOnElapse"
+	ociTempPasswordExpireOnElapseVersion  = workflow.Version(1)
 )
 
 var (
@@ -104,7 +109,7 @@ func verifyOciPoolTempPassword(ctx workflow.Context, poolActivity *activities.Po
 	createdAt := pool.ExternalTempCredentials.TempPasswordCreatedAt
 	if createdAt == nil {
 		// Active flag without a timestamp: no window to evaluate, skip rather than
-		// rotate blindly.
+		// expire blindly.
 		logger.Warn("Pool has an active temporary password but no creation timestamp; skipping", "poolUUID", poolUUID)
 		return nil
 	}
@@ -145,22 +150,32 @@ func verifyOciPoolTempPassword(ctx workflow.Context, poolActivity *activities.Po
 		return nil
 	}
 
-	// Window elapsed — rotate to a fresh generated password and mark the temp
-	// password inactive so the cron does not process this pool again.
-	logger.Info("Temporary password unconsumed past its window; rotating",
+	// Window elapsed — expire the temporary password so it must be changed on
+	// next login, and mark the temp password inactive so the cron does not
+	// process this pool again.
+	logger.Info("Temporary password unconsumed past its window; expiring",
 		"poolUUID", poolUUID, "elapsed", elapsed.String(), "window", ociTempPasswordResetWindow.String())
 
-	if err := workflow.ExecuteActivity(ctx, poolActivity.GenerateAndSetOciAdminTempPassword,
+	// Histories started before the expire change must replay the rotation they
+	// already scheduled, or Temporal fails them with a non-determinism error.
+	elapsedAction := poolActivity.ExpireOciAdminPasswordOnVSA
+	expireVersion := workflow.GetVersion(ctx, ociTempPasswordExpireOnElapseChangeID,
+		workflow.DefaultVersion, ociTempPasswordExpireOnElapseVersion)
+	if expireVersion == workflow.DefaultVersion {
+		elapsedAction = poolActivity.GenerateAndSetOciAdminTempPassword
+	}
+
+	if err := workflow.ExecuteActivity(ctx, elapsedAction,
 		pool, clusterName, ociExpertModeUsername).Get(ctx, nil); err != nil {
-		logger.Error("Failed to set rotated temp password", "poolUUID", poolUUID, "error", err)
+		logger.Error("Failed to expire temp password", "poolUUID", poolUUID, "error", err)
 		return err
 	}
 
 	if err := workflow.ExecuteActivity(ctx, poolActivity.ClearTempPasswordState, pool).Get(ctx, nil); err != nil {
-		logger.Error("Failed to clear rotated temp-password state", "poolUUID", poolUUID, "error", err)
+		logger.Error("Failed to clear expired temp-password state", "poolUUID", poolUUID, "error", err)
 		return err
 	}
 
-	logger.Info("Rotated unconsumed temporary password and marked it inactive", "poolUUID", poolUUID, "cluster", clusterName)
+	logger.Info("Expired unconsumed temporary password and marked it inactive", "poolUUID", poolUUID, "cluster", clusterName)
 	return nil
 }

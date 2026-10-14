@@ -2169,7 +2169,9 @@ func TestOCICreatePoolWorkflow_ExpertModeTempPasswordUsedWhenNoVaultOrEnv(t *tes
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// Using a temp password must record the temp-credential state on the pool.
-	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(nil)
+	// Create-pool passes no createdAt, so the activity stamps its own time.
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything,
+		mock.MatchedBy(func(createdAt *time.Time) bool { return createdAt == nil })).Return(nil)
 
 	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
 
@@ -2177,7 +2179,7 @@ func TestOCICreatePoolWorkflow_ExpertModeTempPasswordUsedWhenNoVaultOrEnv(t *tes
 	assert.NoError(t, env.GetWorkflowError())
 	assert.Equal(t, tempPassword, capturedExpertModePassword,
 		"the caller-supplied temporary admin password must be forwarded to CreateVSAExpertModeUser")
-	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 
@@ -2250,7 +2252,7 @@ func TestOCICreatePoolWorkflow_ExpertModeTempPasswordTakesPrecedence(t *testing.
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// Using a temp password must record the temp-credential state on the pool.
-	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
 
@@ -2258,7 +2260,7 @@ func TestOCICreatePoolWorkflow_ExpertModeTempPasswordTakesPrecedence(t *testing.
 	assert.NoError(t, env.GetWorkflowError())
 	assert.Equal(t, tempPassword, capturedExpertModePassword,
 		"the temp password must take precedence over both OCI_EXPERT_MODE_PASSWORD and the OciAdminPassword Vault secret")
-	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 
@@ -2333,7 +2335,7 @@ func TestOCICreatePoolWorkflow_ExpertModeTempPasswordIgnoredWhenFlagDisabled(t *
 	assert.Equal(t, "preset-env-password", capturedExpertModePassword,
 		"when ENABLE_ADMIN_TEMP_PASSWORD is false the temp password must be ignored and the env var used")
 	// The temp password was ignored, so no temp-credential state must be recorded.
-	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 
@@ -2389,7 +2391,7 @@ func TestOCICreatePoolWorkflow_RecordTempPasswordStateFailureIsFatal(t *testing.
 	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// The temp-credential persist fails; this must be fatal and trigger rollback.
-	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(assert.AnError)
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything).Return(assert.AnError)
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
 
 	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)

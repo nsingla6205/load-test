@@ -68,31 +68,66 @@ func (s *stubPwdProvider) HasLoginPasswordResetSuccess(_ context.Context, userna
 // ---------------------------------------------------------------------------
 
 func TestRecordTempPasswordState_HappyPath(t *testing.T) {
-	var ts testsuite.WorkflowTestSuite
-	env := ts.NewTestActivityEnvironment()
+	ist := time.FixedZone("IST", 5*60*60+30*60)
+	suppliedAt := time.Date(2026, time.September, 24, 15, 30, 0, 0, ist)
+	zeroTime := time.Time{}
 
-	mockStorage := database.NewMockStorage(t)
-	act := activities.PoolActivity{SE: mockStorage}
-	env.RegisterActivity(act.RecordTempPasswordState)
+	cases := []struct {
+		name      string
+		createdAt *time.Time
+		// wantExact is the timestamp that must be stored; nil means the activity
+		// must fall back to its own current time.
+		wantExact *time.Time
+	}{
+		{name: "supplied createdAt is stored in UTC", createdAt: &suppliedAt, wantExact: &suppliedAt},
+		{name: "nil createdAt falls back to now", createdAt: nil},
+		{name: "zero createdAt falls back to now", createdAt: &zeroTime},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
 
-	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}}
+			mockStorage := database.NewMockStorage(t)
+			act := activities.PoolActivity{SE: mockStorage}
+			env.RegisterActivity(act.RecordTempPasswordState)
 
-	// The write must go through the map path and set active=true with a
-	// non-nil creation timestamp so the reconciler can compute the window.
-	mockStorage.EXPECT().
-		UpdatePoolFields(mock.Anything, "pool-uuid-1", mock.MatchedBy(func(updates map[string]interface{}) bool {
-			raw, ok := updates["external_temp_credentials"]
-			if !ok {
-				return false
+			pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}}
+
+			// The write must go through the map path and set active=true with a
+			// non-nil creation timestamp so the reconciler can compute the window.
+			var stored datamodel.ExternalTempCredentials
+			mockStorage.EXPECT().
+				UpdatePoolFields(mock.Anything, "pool-uuid-1", mock.MatchedBy(func(updates map[string]interface{}) bool {
+					raw, ok := updates["external_temp_credentials"]
+					if !ok {
+						return false
+					}
+					etc, ok := raw.(datamodel.ExternalTempCredentials)
+					if ok {
+						stored = etc
+					}
+					return ok && etc.TempPasswordActive && etc.TempPasswordCreatedAt != nil
+				})).
+				Return(nil).Once()
+
+			before := time.Now().UTC()
+			_, err := env.ExecuteActivity(act.RecordTempPasswordState, pool, tc.createdAt)
+			after := time.Now().UTC()
+			require.NoError(t, err)
+			mockStorage.AssertExpectations(t)
+
+			require.NotNil(t, stored.TempPasswordCreatedAt)
+			got := *stored.TempPasswordCreatedAt
+			assert.Equal(t, time.UTC, got.Location())
+			if tc.wantExact != nil {
+				assert.True(t, got.Equal(*tc.wantExact), "want %s, got %s", tc.wantExact.UTC(), got)
+				return
 			}
-			etc, ok := raw.(datamodel.ExternalTempCredentials)
-			return ok && etc.TempPasswordActive && etc.TempPasswordCreatedAt != nil
-		})).
-		Return(nil).Once()
-
-	_, err := env.ExecuteActivity(act.RecordTempPasswordState, pool)
-	require.NoError(t, err)
-	mockStorage.AssertExpectations(t)
+			assert.False(t, got.Before(before), "fallback time %s must not be before %s", got, before)
+			assert.False(t, got.After(after), "fallback time %s must not be after %s", got, after)
+		})
+	}
 }
 
 func TestRecordTempPasswordState_NilOrEmptyPool(t *testing.T) {
@@ -112,7 +147,7 @@ func TestRecordTempPasswordState_NilOrEmptyPool(t *testing.T) {
 			act := activities.PoolActivity{SE: mockStorage}
 			env.RegisterActivity(act.RecordTempPasswordState)
 
-			_, err := env.ExecuteActivity(act.RecordTempPasswordState, tc.pool)
+			_, err := env.ExecuteActivity(act.RecordTempPasswordState, tc.pool, (*time.Time)(nil))
 			require.Error(t, err)
 			// Must never attempt a DB write without a valid pool identifier.
 			mockStorage.AssertNotCalled(t, "UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything)
@@ -133,10 +168,47 @@ func TestRecordTempPasswordState_UpdateFails(t *testing.T) {
 		UpdatePoolFields(mock.Anything, "pool-uuid-1", mock.Anything).
 		Return(errors.New("db down")).Once()
 
-	_, err := env.ExecuteActivity(act.RecordTempPasswordState, pool)
+	_, err := env.ExecuteActivity(act.RecordTempPasswordState, pool, (*time.Time)(nil))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "db down")
 	mockStorage.AssertExpectations(t)
+}
+
+// TestRecordTempPasswordState_LegacyOneArgTask covers a task scheduled before the
+// createdAt parameter existed, whose history payload carries only the pool. It
+// must still decode and record the state, falling back to the current time.
+func TestRecordTempPasswordState_LegacyOneArgTask(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(act.RecordTempPasswordState)
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}}
+	var stored datamodel.ExternalTempCredentials
+	mockStorage.EXPECT().
+		UpdatePoolFields(mock.Anything, "pool-uuid-1", mock.MatchedBy(func(updates map[string]interface{}) bool {
+			etc, ok := updates["external_temp_credentials"].(datamodel.ExternalTempCredentials)
+			if ok {
+				stored = etc
+			}
+			return ok && etc.TempPasswordActive && etc.TempPasswordCreatedAt != nil
+		})).
+		Return(nil).Once()
+
+	// Scheduling by name (as a task already in history is resolved) skips the
+	// SDK's schedule-time argument-count check, so only the pool payload is sent.
+	before := time.Now().UTC()
+	_, err := env.ExecuteActivity("RecordTempPasswordState", pool)
+	after := time.Now().UTC()
+	require.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+
+	require.NotNil(t, stored.TempPasswordCreatedAt)
+	got := *stored.TempPasswordCreatedAt
+	assert.False(t, got.Before(before), "fallback time %s must not be before %s", got, before)
+	assert.False(t, got.After(after), "fallback time %s must not be after %s", got, after)
 }
 
 func validResetPool() *datamodel.Pool {

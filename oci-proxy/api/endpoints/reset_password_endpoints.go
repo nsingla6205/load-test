@@ -122,7 +122,8 @@ func (h *Handler) ResetPassword(ctx context.Context, req ociserver.OptResetPassw
 
 	// The temporary password expires at the current UTC time plus the
 	// configured window. This is a best-effort hint for the caller; the actual
-	// expiry is enforced on the ONTAP cluster by the reset-password workflow.
+	// expiry is enforced on the ONTAP cluster by VerifyOciTempPasswordsWorkflow
+	// if the password has not been changed within its window.
 	passwordExpiresAt := time.Now().UTC().Add(time.Duration(ociAdminTempPasswordExpiryHours) * time.Hour)
 
 	return &ociserver.ResetPasswordAcceptedResponseHeaders{

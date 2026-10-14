@@ -2,6 +2,7 @@ package ontap_rest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -45,11 +46,11 @@ func (r *fakeClientRequest) SetQueryParam(name string, values ...string) error {
 	r.query[name] = values
 	return nil
 }
-func (r *fakeClientRequest) GetQueryParams() url.Values                        { return r.query }
-func (r *fakeClientRequest) SetHeaderParam(_ string, _ ...string) error        { return nil }
-func (r *fakeClientRequest) GetHeaderParams() http.Header                      { return http.Header{} }
-func (r *fakeClientRequest) SetFormParam(_ string, _ ...string) error          { return nil }
-func (r *fakeClientRequest) SetPathParam(_ string, _ string) error             { return nil }
+func (r *fakeClientRequest) GetQueryParams() url.Values                 { return r.query }
+func (r *fakeClientRequest) SetHeaderParam(_ string, _ ...string) error { return nil }
+func (r *fakeClientRequest) GetHeaderParams() http.Header               { return http.Header{} }
+func (r *fakeClientRequest) SetFormParam(_ string, _ ...string) error   { return nil }
+func (r *fakeClientRequest) SetPathParam(_ string, _ string) error      { return nil }
 func (r *fakeClientRequest) SetFileParam(_ string, _ ...runtime.NamedReadCloser) error {
 	return nil
 }
@@ -63,56 +64,110 @@ func (r *fakeClientRequest) GetFileParam() map[string][]runtime.NamedReadCloser 
 	return nil
 }
 
-// TestSecurityAuditLogCollectionGetParams_WriteToRequest verifies that the
-// generated params serialize the exact audit-messages filters the temp-password
-// verifier relies on (mirroring the operational curl).
-func TestSecurityAuditLogCollectionGetParams_WriteToRequest(t *testing.T) {
-	username := "ociadmin"
-	input := "security login password -username ociadmin"
-	state := "success"
-	returnRecords := "true"
-	since := time.Date(2026, time.July, 30, 10, 0, 0, 0, time.UTC)
-	timestamp := ">=" + since.Format(time.RFC3339)
+// TestHasLoginPasswordResetSuccess_SendsExpectedFilters pins the audit-messages
+// filters built by HasLoginPasswordResetSuccess itself (mirroring the operational
+// curl), so a change to the production query cannot go unnoticed.
+func TestHasLoginPasswordResetSuccess_SendsExpectedFilters(t *testing.T) {
+	// A non-UTC zone with fractional seconds exercises both the UTC conversion and
+	// the second-precision formatting of the timestamp filter.
+	ist := time.FixedZone("IST", 5*60*60+30*60)
+	since := time.Date(2026, time.July, 30, 15, 30, 0, 402_000_000, ist)
 
-	params := security.NewSecurityAuditLogCollectionGetParams()
-	params.SetUser(&username)
-	params.SetInput(&input)
-	params.SetState(&state)
-	params.SetTimestamp(&timestamp)
-	params.SetReturnRecords(&returnRecords)
-	params.SetFields(strings.Split(securityAuditMessagesFields, ","))
+	tests := []struct {
+		username  string
+		wantInput string
+	}{
+		{
+			username:  "ociadmin",
+			wantInput: `security login password -username ociadmin|POST /api/security/authentication/password*"name":"ociadmin"*`,
+		},
+		{
+			// The username must be substituted into both alternatives.
+			username:  "opsadmin",
+			wantInput: `security login password -username opsadmin|POST /api/security/authentication/password*"name":"opsadmin"*`,
+		},
+	}
 
-	req := newFakeClientRequest()
-	require.NoError(t, params.WriteToRequest(req, strfmt.Default))
+	for _, tc := range tests {
+		t.Run(tc.username, func(t *testing.T) {
+			transport := &capturingTransport{response: &security.SecurityAuditLogCollectionGetOK{
+				Payload: &models.SecurityAuditLogResponse{NumRecords: nillable.ToPointer(int64(1))},
+			}}
+			api := security.New(transport, nil)
+			client := &securityClient{api: &api}
 
-	q := req.GetQueryParams()
-	assert.Equal(t, username, q.Get("user"))
-	assert.Equal(t, input, q.Get("input"))
-	assert.Equal(t, state, q.Get("state"))
-	assert.Equal(t, timestamp, q.Get("timestamp"))
-	assert.Equal(t, returnRecords, q.Get("return_records"))
-	assert.Equal(t, securityAuditMessagesFields, q.Get("fields"))
+			consumed, err := client.HasLoginPasswordResetSuccess(context.Background(), tc.username, since)
+			require.NoError(t, err)
+			assert.True(t, consumed)
+			require.NotNil(t, transport.lastOp)
 
-	// ONTAP rejects a fractional-seconds timestamp (e.g. …59.402Z) for this
-	// field, so guard against a strfmt.DateTime-style value creeping back in.
-	assert.NotContains(t, q.Get("timestamp"), ".", "timestamp filter must not contain fractional seconds")
+			req := newFakeClientRequest()
+			require.NoError(t, transport.lastOp.Params.WriteToRequest(req, strfmt.Default))
+
+			q := req.GetQueryParams()
+			assert.Equal(t, tc.username, q.Get("user"))
+			assert.Equal(t, tc.wantInput, q.Get("input"))
+			assert.Equal(t, "success", q.Get("state"))
+			assert.Equal(t, ">=2026-07-30T10:00:00Z", q.Get("timestamp"))
+			assert.Equal(t, "false", q.Get("return_records"))
+			assert.Equal(t, securityAuditMessagesFields, q.Get("fields"))
+
+			// ONTAP rejects a fractional-seconds timestamp (e.g. …59.402Z) for this
+			// field, so guard against a strfmt.DateTime-style value creeping back in.
+			assert.NotContains(t, q.Get("timestamp"), ".", "timestamp filter must not contain fractional seconds")
+		})
+	}
 }
 
-// TestSecurityAuditLogCollectionGetReader_Success decodes a 200 response and
-// confirms num_records is surfaced on the typed payload.
+// TestSecurityAuditLogCollectionGetReader_Success decodes a 200 response for each
+// audit-record format a password change can produce (captured from a live VSA)
+// and confirms num_records and the record input are surfaced on the typed payload.
 func TestSecurityAuditLogCollectionGetReader_Success(t *testing.T) {
-	reader := &security.SecurityAuditLogCollectionGetReader{}
-	body := `{"num_records":1,"records":[{"user":"ociadmin","input":"security login password -username ociadmin","state":"success"}]}`
+	tests := []struct {
+		name        string
+		application string
+		input       string
+	}{
+		{
+			name:        "cli record",
+			application: "ssh",
+			input:       `security login password -username ociadmin`,
+		},
+		{
+			name:        "rest record from system manager",
+			application: "http",
+			input:       `POST /api/security/authentication/password : ["X-Dot-Client-App: SMv4"] {"name":"ociadmin","password":***}`,
+		},
+	}
 
-	result, err := reader.ReadResponse(&fakeClientResponse{code: 200, body: body}, runtime.JSONConsumer())
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := &security.SecurityAuditLogCollectionGetReader{}
+			body, err := json.Marshal(map[string]interface{}{
+				"num_records": 1,
+				"records": []map[string]string{{
+					"user":        "ociadmin",
+					"application": tc.application,
+					"input":       tc.input,
+					"state":       "success",
+				}},
+			})
+			require.NoError(t, err)
 
-	ok, isOK := result.(*security.SecurityAuditLogCollectionGetOK)
-	require.True(t, isOK)
-	require.NotNil(t, ok.Payload)
-	require.NotNil(t, ok.Payload.NumRecords)
-	assert.Equal(t, int64(1), *ok.Payload.NumRecords)
-	assert.Len(t, ok.Payload.SecurityAuditLogResponseInlineRecords, 1)
+			result, err := reader.ReadResponse(&fakeClientResponse{code: 200, body: string(body)}, runtime.JSONConsumer())
+			require.NoError(t, err)
+
+			ok, isOK := result.(*security.SecurityAuditLogCollectionGetOK)
+			require.True(t, isOK)
+			require.NotNil(t, ok.Payload)
+			require.NotNil(t, ok.Payload.NumRecords)
+			assert.Equal(t, int64(1), *ok.Payload.NumRecords)
+			require.Len(t, ok.Payload.SecurityAuditLogResponseInlineRecords, 1)
+			record := ok.Payload.SecurityAuditLogResponseInlineRecords[0]
+			require.NotNil(t, record.Input)
+			assert.Equal(t, tc.input, *record.Input)
+		})
+	}
 }
 
 // TestSecurityAuditLogCollectionGetReader_Error maps a non-2xx response to the

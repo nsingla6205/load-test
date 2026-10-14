@@ -698,7 +698,8 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	// (the deferred rollback is still armed here); it never overwrites credentials.
 	if usedTemporaryAdminPassword {
 		logOCICreatePoolInfo(logger, pool, stageRecordTempCreds, "Recording temporary admin password state on pool")
-		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.RecordTempPasswordState, pool).Get(dbHbCtx, nil); err != nil {
+		// nil stamps the time the state is recorded.
+		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.RecordTempPasswordState, pool, (*time.Time)(nil)).Get(dbHbCtx, nil); err != nil {
 			logOCICreatePoolError(logger, pool, stageRecordTempCreds, "Failed to record temporary admin password state", err)
 			emitStage(ctx, wfCreatePool, queueCustomer, stageRecordTempCreds, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)

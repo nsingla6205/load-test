@@ -2,6 +2,7 @@ package oci
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -51,6 +52,13 @@ func vlmConfigWithCluster(name string) *vlm.VLMConfig {
 	cfg := &vlm.VLMConfig{}
 	cfg.VsaCluster.ClusterName = name
 	return cfg
+}
+
+// createdAtIs matches the RecordTempPasswordState createdAt argument against want.
+func createdAtIs(want time.Time) any {
+	return mock.MatchedBy(func(createdAt *time.Time) bool {
+		return createdAt != nil && createdAt.Equal(want)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -141,35 +149,13 @@ func TestOCIResetOciAdminPasswordWorkflow_SetActivityFails(t *testing.T) {
 		Return(vlmConfigWithCluster("cluster-1"), nil)
 	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
 		Return(assert.AnError)
-	// Neither expire nor record must fire when the set itself failed.
+	// Record must not fire when the set itself failed.
 
 	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
 
 	assert.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
-	env.AssertNotCalled(t, "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
-	env.AssertExpectations(t)
-}
-
-// TestOCIResetOciAdminPasswordWorkflow_ExpireActivityFails pins that when the set
-// succeeds but the expire fails, the workflow fails and does NOT record the
-// temp-credential state (so the reconciler contract is never falsely satisfied).
-func TestOCIResetOciAdminPasswordWorkflow_ExpireActivityFails(t *testing.T) {
-	env := newResetPasswordTestEnv(t)
-
-	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
-		Return(vlmConfigWithCluster("cluster-1"), nil)
-	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
-		Return(nil)
-	env.OnActivity("ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything).
-		Return(assert.AnError)
-
-	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
-
-	assert.True(t, env.IsWorkflowCompleted())
-	require.Error(t, env.GetWorkflowError())
-	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 
@@ -183,9 +169,7 @@ func TestOCIResetOciAdminPasswordWorkflow_RecordFails(t *testing.T) {
 		Return(vlmConfigWithCluster("cluster-1"), nil)
 	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
 		Return(nil)
-	env.OnActivity("ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything).
-		Return(nil)
-	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything).
 		Return(assert.AnError)
 
 	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
@@ -195,27 +179,141 @@ func TestOCIResetOciAdminPasswordWorkflow_RecordFails(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+// TestOCIResetOciAdminPasswordWorkflow_SetRetried_CreatedAtCapturedBeforeSet pins
+// that createdAt is the workflow time from before the set step: the set's retry
+// backoff advances the workflow clock, yet the record step still receives the
+// original start time.
+func TestOCIResetOciAdminPasswordWorkflow_SetRetried_CreatedAtCapturedBeforeSet(t *testing.T) {
+	env := newResetPasswordTestEnv(t)
+	start := time.Date(2026, time.September, 24, 10, 0, 0, 0, time.UTC)
+	env.SetStartTime(start)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(vlmConfigWithCluster("cluster-1"), nil)
+	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
+		Return(assert.AnError).Once()
+	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
+		Return(nil).Once()
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, createdAtIs(start)).
+		Return(nil).Once()
+
+	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.True(t, env.Now().After(start), "the retry backoff must have advanced the workflow clock")
+	env.AssertExpectations(t)
+}
+
+// TestOCIResetOciAdminPasswordWorkflow_RecordRetried_KeepsCreatedAt pins that the
+// createdAt passed to the record step is the workflow time captured before the
+// set, and that it does not move forward when the record step is retried.
+func TestOCIResetOciAdminPasswordWorkflow_RecordRetried_KeepsCreatedAt(t *testing.T) {
+	env := newResetPasswordTestEnv(t)
+	start := time.Date(2026, time.September, 24, 10, 0, 0, 0, time.UTC)
+	env.SetStartTime(start)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(vlmConfigWithCluster("cluster-1"), nil)
+	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
+		Return(nil)
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, createdAtIs(start)).
+		Return(assert.AnError).Once()
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, createdAtIs(start)).
+		Return(nil).Once()
+
+	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.True(t, env.Now().After(start), "the retry backoff must have advanced the workflow clock")
+	env.AssertNumberOfCalls(t, "RecordTempPasswordState", 2)
+	env.AssertExpectations(t)
+}
+
 // ---------------------------------------------------------------------------
 // happy path
 // ---------------------------------------------------------------------------
 
 func TestOCIResetOciAdminPasswordWorkflow_HappyPath(t *testing.T) {
 	env := newResetPasswordTestEnv(t)
+	start := time.Date(2026, time.September, 24, 10, 0, 0, 0, time.UTC)
+	env.SetStartTime(start)
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
 		Return(vlmConfigWithCluster("cluster-1"), nil)
 	// The set activity must receive the resolved cluster name and the temp
-	// password from params; expire runs afterward with the same cluster/user.
+	// password from params; the temp-credential state is recorded afterward
+	// with the workflow time captured before the set.
 	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, "Netapp1234").
 		Return(nil)
-	env.OnActivity("ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything).
-		Return(nil)
-	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, createdAtIs(start)).
 		Return(nil)
 
 	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// pre-version histories (replay of the original set -> expire -> record graph)
+// ---------------------------------------------------------------------------
+
+func onLegacySkipExpireVersion(env *testsuite.TestWorkflowEnvironment) {
+	env.OnGetVersion(ociResetPasswordSkipExpireChangeID,
+		workflow.DefaultVersion, ociResetPasswordSkipExpireVersion).
+		Return(workflow.DefaultVersion)
+}
+
+// TestOCIResetOciAdminPasswordWorkflow_LegacyVersion_ExpiresBetweenSetAndRecord
+// pins that histories started before the skip-expire change still schedule
+// set, expire and record in that order.
+func TestOCIResetOciAdminPasswordWorkflow_LegacyVersion_ExpiresBetweenSetAndRecord(t *testing.T) {
+	env := newResetPasswordTestEnv(t)
+	onLegacySkipExpireVersion(env)
+
+	var calls []string
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(vlmConfigWithCluster("cluster-1"), nil)
+	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, "Netapp1234").
+		Run(func(mock.Arguments) { calls = append(calls, "set") }).
+		Return(nil).Once()
+	env.OnActivity("ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything).
+		Run(func(mock.Arguments) { calls = append(calls, "expire") }).
+		Return(nil).Once()
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { calls = append(calls, "record") }).
+		Return(nil).Once()
+
+	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, []string{"set", "expire", "record"}, calls)
+	env.AssertExpectations(t)
+}
+
+// TestOCIResetOciAdminPasswordWorkflow_LegacyVersion_ExpireFails pins that on
+// pre-version histories a failed expire fails the workflow and does NOT record
+// the temp-credential state.
+func TestOCIResetOciAdminPasswordWorkflow_LegacyVersion_ExpireFails(t *testing.T) {
+	env := newResetPasswordTestEnv(t)
+	onLegacySkipExpireVersion(env)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(vlmConfigWithCluster("cluster-1"), nil)
+	env.OnActivity("SetOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything, mock.Anything).
+		Return(nil)
+	env.OnActivity("ExpireOciAdminPasswordOnVSA", mock.Anything, mock.Anything, "cluster-1", mock.Anything).
+		Return(assert.AnError)
+
+	env.ExecuteWorkflow(OCIResetOciAdminPasswordWorkflow, defaultResetPasswordParams(), defaultResetPasswordPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }

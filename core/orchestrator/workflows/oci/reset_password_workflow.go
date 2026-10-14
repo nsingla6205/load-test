@@ -14,6 +14,14 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+const (
+	// ociResetPasswordSkipExpireChangeID versions the removal of the expire step
+	// that used to run right after the password was set. The temporary password is
+	// now expired by VerifyOciTempPasswordsWorkflow once its window elapses.
+	ociResetPasswordSkipExpireChangeID = "ociResetPasswordSkipExpire"
+	ociResetPasswordSkipExpireVersion  = workflow.Version(1)
+)
+
 type ociResetAdminPasswordForPoolWorkflow struct {
 	workflows.BaseWorkflow
 }
@@ -22,8 +30,8 @@ var _ workflows.WorkflowInterface = &ociResetAdminPasswordForPoolWorkflow{}
 
 // OCIResetOciAdminPasswordWorkflow resets the OCI expert-mode admin (ociadmin)
 // password on a single pool's ONTAP cluster. It sets the password to the
-// caller-supplied/generated temporary value and then expires it, forcing a
-// change on next login.
+// caller-supplied/generated temporary value and persists the temporary-credential
+// state.
 //
 // The temporary password travels in params.TempPassword. It is a plaintext
 // secret and must never be logged.
@@ -115,25 +123,35 @@ func (wf *ociResetAdminPasswordForPoolWorkflow) Run(ctx workflow.Context, args .
 			fmt.Errorf("cluster name is empty in VLM config for pool %q", pool.UUID)))
 	}
 
-	// Set and expire are separate activities so a failed (idempotent) expire is
-	// retried on its own and never replays the non-idempotent set, which ONTAP
-	// would reject as a password reuse. Expire runs only after the set succeeds.
+	// Captured before the set so a change made right after it (or while the record
+	// step retries) is still inside the audit query window. The set itself runs as
+	// the pool admin, not ociadmin, so it never matches that query.
+	tempPasswordCreatedAt := workflow.Now(ctx).UTC()
+
+	// The password is left unexpired so it stays usable for its window;
+	// VerifyOciTempPasswordsWorkflow expires it if it is not changed in time.
 	if err := workflow.ExecuteActivity(ctx, poolActivity.SetOciAdminPasswordOnVSA,
 		pool, clusterName, ociExpertModeUsername, params.TempPassword).Get(ctx, nil); err != nil {
 		wf.Logger.Error("Failed to set OCI admin password on ONTAP", "poolUUID", pool.UUID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	if err := workflow.ExecuteActivity(ctx, poolActivity.ExpireOciAdminPasswordOnVSA,
-		pool, clusterName, ociExpertModeUsername).Get(ctx, nil); err != nil {
-		wf.Logger.Error("Failed to expire OCI admin password on ONTAP", "poolUUID", pool.UUID, "error", err)
-		return nil, workflows.ConvertToVSAError(err)
+	// Histories started before the skip-expire change must replay the expire step
+	// they already scheduled, or Temporal fails them with a non-determinism error.
+	skipExpireVersion := workflow.GetVersion(ctx, ociResetPasswordSkipExpireChangeID,
+		workflow.DefaultVersion, ociResetPasswordSkipExpireVersion)
+	if skipExpireVersion == workflow.DefaultVersion {
+		if err := workflow.ExecuteActivity(ctx, poolActivity.ExpireOciAdminPasswordOnVSA,
+			pool, clusterName, ociExpertModeUsername).Get(ctx, nil); err != nil {
+			wf.Logger.Error("Failed to expire OCI admin password on ONTAP", "poolUUID", pool.UUID, "error", err)
+			return nil, workflows.ConvertToVSAError(err)
+		}
 	}
 
 	// Persist the temporary-credential state so a reconciler can detect resets
 	// that are never consumed within the allowed window. The password itself is
 	// never stored; only the active flag and creation timestamp are recorded.
-	if err := workflow.ExecuteActivity(ctx, poolActivity.RecordTempPasswordState, pool).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, poolActivity.RecordTempPasswordState, pool, &tempPasswordCreatedAt).Get(ctx, nil); err != nil {
 		wf.Logger.Error("Failed to record temporary password state", "poolUUID", pool.UUID, "error", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}

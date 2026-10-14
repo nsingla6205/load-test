@@ -16,8 +16,10 @@ import (
 const ociTempPasswordLength = 12
 
 // CheckOciAdminPasswordResetConsumed reports whether the temporary ociadmin
-// password was consumed since `since` (a successful `security login password`
-// audit record exists at or after `since`).
+// password was consumed since `since`: a successful password-change audit record
+// by `username` for its own account exists at or after `since`, via the CLI
+// (`security login password -username <user>`) or REST
+// (`POST /api/security/authentication/password` with body "name" = <user>).
 func (j *PoolActivity) CheckOciAdminPasswordResetConsumed(ctx context.Context, pool *datamodel.Pool, username string, since time.Time) (bool, error) {
 	activity.RecordHeartbeat(ctx, "Starting CheckOciAdminPasswordResetConsumed activity")
 	logger := util.GetLogger(ctx)
@@ -58,7 +60,9 @@ func (j *PoolActivity) CheckOciAdminPasswordResetConsumed(ctx context.Context, p
 }
 
 // GenerateAndSetOciAdminTempPassword sets a fresh strong password for the ociadmin
-// user on the pool's ONTAP cluster
+// user on the pool's ONTAP cluster. VerifyOciTempPasswordsWorkflow schedules it only
+// when replaying histories started before the ociTempPasswordExpireOnElapse
+// version; do not remove it while such executions can still exist.
 func (j *PoolActivity) GenerateAndSetOciAdminTempPassword(ctx context.Context, pool *datamodel.Pool, clusterName, username string) error {
 	activity.RecordHeartbeat(ctx, "Starting GenerateAndSetOciAdminTempPassword activity")
 	logger := util.GetLogger(ctx)

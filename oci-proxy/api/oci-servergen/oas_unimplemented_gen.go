@@ -118,8 +118,10 @@ func (UnimplementedHandler) RbacRefreshPool(ctx context.Context, req OptRbacRefr
 // ResetPassword implements resetPassword operation.
 //
 // Resets the password for the pool's OCI expert-mode admin user
-// (ociadmin) on the ONTAP cluster and immediately expires it so the
-// credential must be changed on next login.
+// (ociadmin) on the ONTAP cluster to a temporary password. The
+// temporary password stays usable for the reset window; if it has not
+// been changed by then, the service expires it so it must be changed
+// on next login.
 // When tempPassword is provided in the request it is used directly;
 // when omitted or empty the service generates a strong temporary
 // password. The temporary password is returned in the response so the

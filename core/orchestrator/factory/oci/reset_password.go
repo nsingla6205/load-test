@@ -14,8 +14,9 @@ import (
 )
 
 // ResetAdminPasswordForPool resolves the pool by OCID and dispatches the OCI
-// reset-password workflow, which sets and then expires the OCI expert-mode
-// admin (ociadmin) password on the pool's ONTAP cluster.
+// reset-password workflow, which sets the OCI expert-mode admin (ociadmin)
+// password on the pool's ONTAP cluster to a temporary password and records the
+// temporary-credential state.
 //
 // This targets the expert-mode user only; it does not touch VCP-managed pool
 // credentials or the pool lifecycle state, so (unlike UpdatePool /
