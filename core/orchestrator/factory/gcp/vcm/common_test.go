@@ -99,7 +99,7 @@ func TestNodeAndSvmFromStore_ProvidedCertPreservesFullCASName(t *testing.T) {
 	assert.Equal(t, casName, node.CertificateID)
 	assert.Equal(t, "projects/tenant-proj/secrets/cert-key", node.CertPrivateKeySecretID)
 	assert.Equal(t, "projects/tenant-proj/secrets/admin-pass", node.SecretID)
-	assert.Equal(t, "vcm-admin", node.Username)
+	assert.Empty(t, node.Username, "node must not carry the stored username; REST login defaults to admin")
 	assert.Equal(t, "mgmt.gcnv-test.vsa.example.com", node.ServerName)
 }
 

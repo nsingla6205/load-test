@@ -949,7 +949,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 		assert.Equal(t, "test-deployment", node.DeploymentName)
 		assert.Equal(t, "cert-123", node.CertificateID)
 		assert.Equal(t, "secret-123", node.SecretID)
-		assert.Equal(t, "vcm-admin", node.Username)
+		assert.Empty(t, node.Username, "node must not carry the stored username; REST login defaults to admin")
 		assert.Equal(t, env.USER_CERTIFICATE, node.AuthType)
 		assert.Equal(t, "", node.Password) // Password should be empty when not provided in input
 
@@ -981,7 +981,7 @@ func Test_CreateNodeForProvider(t *testing.T) {
 		assert.Equal(t, "test-deployment", node.DeploymentName)
 		assert.Equal(t, "", node.CertificateID)
 		assert.Equal(t, "secret-123", node.SecretID)
-		assert.Equal(t, "vcm-admin", node.Username)
+		assert.Empty(t, node.Username, "node must not carry the stored username; REST login defaults to admin")
 		assert.Equal(t, env.USERNAME_PWD, node.AuthType)
 		assert.Equal(t, "test-password", node.Password)
 

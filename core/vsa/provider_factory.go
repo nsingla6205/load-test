@@ -1790,7 +1790,6 @@ func _createNodeForProvider(inp NodeProviderInput) *models.Node {
 		}
 		return &models.Node{
 			EndpointAddressesToHostNameMap: endpointAddressToHostNameMap,
-			Username:                       inp.OntapCredentials.Username, // ONTAP user (SSH fallback on the cert-auth path)
 			Password:                       inp.OntapCredentials.Password, // Include password for SSH authentication
 			DeploymentName:                 inp.DeploymentName,
 			CertificateID:                  inp.OntapCredentials.CertificateID,
@@ -1810,7 +1809,6 @@ func _createNodeForProvider(inp NodeProviderInput) *models.Node {
 
 	return &models.Node{
 		EndpointAddressesToHostNameMap: endpointAddressToHostNameMap,
-		Username:                       inp.OntapCredentials.Username, // ONTAP user for password-auth (e.g. non-admin default user)
 		Password:                       inp.OntapCredentials.Password,
 		DeploymentName:                 inp.DeploymentName,
 		SecretID:                       inp.OntapCredentials.SecretID,
