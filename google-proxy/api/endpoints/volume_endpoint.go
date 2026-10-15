@@ -60,7 +60,7 @@ var (
 	exportRulesLimit                  = env.GetInt("EXPORT_POLICY_RULES_LIMIT", 20)
 	enableInferredIops                = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	trueZonalLVVolumeMinSize          = env.GetUint64("TRUE_ZONAL_LV_VOLUME_MIN_SIZE", 10555311626650) // 9.6 TiB in bytes
-	trueZonalLV24NodeVolumeMinSize    = env.GetUint64("TRUE_ZONAL_LV_24_NODE_VOLUME_MIN_SIZE", 21110623253300)
+	trueZonalLV24NodeVolumeMinSize    = env.GetUint64("TRUE_ZONAL_LV_24_NODE_VOLUME_MIN_SIZE", 20615843020800)
 	sequenceResilienceEnabled         = env.GetBool("SEQUENCE_WORKFLOW_RESILIENCE_ENABLED", true)
 )
 
