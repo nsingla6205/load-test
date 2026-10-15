@@ -2518,7 +2518,7 @@ func TestGetVolume_WhenVolumeGetReturnsNilVolume_ThenReturnNotFoundError(t *test
 	mockClient.AssertExpectations(t)
 }
 
-func TestGetVolume_WhenVolumeGetReturnsVolumeWithNilNameOrUUID_ThenReturnNotFoundError(t *testing.T) {
+func TestGetVolume_WhenVolumeGetReturnsVolumeWithNilNameOrUUID_ThenReturnIncompleteError(t *testing.T) {
 	mockStorage := new(ontaprest.MockStorageClient)
 	mockClient := new(ontaprest.MockRESTClient)
 	mockClient.On("Storage").Return(mockStorage)
@@ -2534,7 +2534,7 @@ func TestGetVolume_WhenVolumeGetReturnsVolumeWithNilNameOrUUID_ThenReturnNotFoun
 	volumeName := "testVolume"
 	volumeUUID := "testUUID"
 	svmName := "testSVM"
-	// Case 1: Name is nil
+	// Case 1: Name is nil — volume object present but incomplete; not not-found.
 	mockVolume1 := &ontaprest.Volume{
 		Volume: models.Volume{
 			UUID: nillable.ToPointer(volumeUUID),
@@ -2552,7 +2552,8 @@ func TestGetVolume_WhenVolumeGetReturnsVolumeWithNilNameOrUUID_ThenReturnNotFoun
 	resp, err := rc.GetVolume(params)
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Contains(t, err.Error(), "not found")
+	assert.False(t, errors.IsNotFoundErr(err), "incomplete response must not be not-found, got: %v", err)
+	assert.Contains(t, err.Error(), "incomplete ONTAP volume response")
 
 	// Case 2: UUID is nil
 	mockVolume2 := &ontaprest.Volume{
@@ -2566,7 +2567,8 @@ func TestGetVolume_WhenVolumeGetReturnsVolumeWithNilNameOrUUID_ThenReturnNotFoun
 	resp, err = rc.GetVolume(params)
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Contains(t, err.Error(), "not found")
+	assert.False(t, errors.IsNotFoundErr(err), "incomplete response must not be not-found, got: %v", err)
+	assert.Contains(t, err.Error(), "incomplete ONTAP volume response")
 
 	mockStorage.AssertExpectations(t)
 	mockClient.AssertExpectations(t)
@@ -6244,6 +6246,79 @@ func TestGetVolumeSANDetails(t *testing.T) {
 		mockSAN.AssertExpectations(t)
 		mockNVMe.AssertExpectations(t)
 	})
+}
+
+func TestVolumeResponseFromONTAPVol_NilVolumeIsNotFound(t *testing.T) {
+	resp, err := volumeResponseFromONTAPVol(nil, false)
+	assert.Nil(t, resp)
+	assert.True(t, errors.IsNotFoundErr(err))
+}
+
+func TestVolumeResponseFromONTAPVol_IncompleteFieldsAreNotNotFound(t *testing.T) {
+	cases := []struct {
+		name string
+		vol  *ontaprest.Volume
+	}{
+		{
+			name: "missing name",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				UUID:  nillable.ToPointer("vol-uuid"),
+				State: nillable.ToPointer(models.VolumeStateOnline),
+				Space: &models.VolumeInlineSpace{},
+			}},
+		},
+		{
+			name: "empty name",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				UUID:  nillable.ToPointer("vol-uuid"),
+				Name:  nillable.ToPointer(""),
+				State: nillable.ToPointer(models.VolumeStateOnline),
+				Space: &models.VolumeInlineSpace{},
+			}},
+		},
+		{
+			name: "missing uuid",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				Name:  nillable.ToPointer("vol-1"),
+				State: nillable.ToPointer(models.VolumeStateOnline),
+				Space: &models.VolumeInlineSpace{},
+			}},
+		},
+		{
+			name: "empty uuid",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				UUID:  nillable.ToPointer(""),
+				Name:  nillable.ToPointer("vol-1"),
+				State: nillable.ToPointer(models.VolumeStateOnline),
+				Space: &models.VolumeInlineSpace{},
+			}},
+		},
+		{
+			name: "missing space",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				UUID:  nillable.ToPointer("vol-uuid"),
+				Name:  nillable.ToPointer("vol-1"),
+				State: nillable.ToPointer(models.VolumeStateOnline),
+			}},
+		},
+		{
+			name: "missing state",
+			vol: &ontaprest.Volume{Volume: models.Volume{
+				UUID:  nillable.ToPointer("vol-uuid"),
+				Name:  nillable.ToPointer("vol-1"),
+				Space: &models.VolumeInlineSpace{},
+			}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(tt *testing.T) {
+			resp, err := volumeResponseFromONTAPVol(tc.vol, false)
+			assert.Nil(tt, resp)
+			assert.Error(tt, err)
+			assert.False(tt, errors.IsNotFoundErr(err), "incomplete response must not be not-found, got: %v", err)
+			assert.Contains(tt, err.Error(), "incomplete ONTAP volume response")
+		})
+	}
 }
 
 func TestVolumeResponseFromONTAPVol_SetsCreatedTime(t *testing.T) {

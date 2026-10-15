@@ -62,6 +62,10 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 		if err != nil {
 			return finishJob(activityCtx, operationID, err, nil)
 		}
+
+		if recovery.VolumeName == "" {
+			return finishJob(activityCtx, operationID, nil, nil)
+		}
 		volume.Name = recovery.VolumeName
 		volume.VolumeAttributes.FileProperties.ExportPolicy.ExportPolicyName = recovery.VolumeName
 	} else {
@@ -83,10 +87,6 @@ func VcmDeleteVolumeWorkflow(ctx *orchestrator.Context, volume *datamodel.Volume
 		}).Get(activityCtx, nil); err != nil {
 			return finishJob(activityCtx, operationID, err, nil)
 		}
-	}
-
-	if volume.Name == "" {
-		return finishJob(activityCtx, operationID, utilErrors.New("cannot delete volume: ONTAP volume name could not be resolved"), nil)
 	}
 
 	if err := checkDeadline(ctx, inputs.Deadline, "delete-volume"); err != nil {

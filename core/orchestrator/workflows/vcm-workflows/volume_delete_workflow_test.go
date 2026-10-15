@@ -326,6 +326,7 @@ func TestIsVolumeNotFoundOnONTAP(t *testing.T) {
 	assert.True(t, isVolumeNotFoundOnONTAP(errors.New("volume 'voliscsi01' does not exist")))
 	assert.False(t, isVolumeNotFoundOnONTAP(errors.New("certificate does not exist")))
 	assert.False(t, isVolumeNotFoundOnONTAP(errors.New("ONTAP connection timeout")))
+	assert.False(t, isVolumeNotFoundOnONTAP(errors.New("incomplete ONTAP volume response: missing required fields (name/uuid/space/state)")))
 }
 
 func TestVcmDeleteVolumeWorkflow_VolumeAlreadyDeletedOnONTAP(t *testing.T) {
@@ -342,11 +343,10 @@ func TestVcmDeleteVolumeWorkflow_VolumeAlreadyDeletedOnONTAP(t *testing.T) {
 		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
 	}, testDeleteVolume(), testNode())
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ONTAP volume name could not be resolved")
+	require.NoError(t, err)
 	calls := job.snapshot()
 	require.Len(t, calls, 2)
-	assert.Equal(t, vcmdb.JobStateError, calls[1].state)
+	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
 	assert.False(t, deleteAct.deleteVolumeInvoked)
 }
 
@@ -361,11 +361,11 @@ func TestVcmDeleteVolumeWorkflow_VolumeAlreadyDeletedOnONTAP_QuotedNameError(t *
 		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
 	}, testDeleteVolume(), testNode())
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ONTAP volume name could not be resolved")
+	require.NoError(t, err)
 	calls := job.snapshot()
 	require.Len(t, calls, 2)
-	assert.Equal(t, vcmdb.JobStateError, calls[1].state)
+	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
+	assert.False(t, deleteAct.deleteVolumeInvoked)
 }
 
 func TestVcmDeleteVolumeWorkflow_VolumeNotFoundLoadsNameFromJobContext(t *testing.T) {
@@ -389,8 +389,8 @@ func TestVcmDeleteVolumeWorkflow_VolumeNotFoundLoadsNameFromJobContext(t *testin
 	assert.True(t, deleteAct.deleteSnapshotPolicyInvoked)
 }
 
-func TestVcmDeleteVolumeWorkflow_VolumeNotFoundRunsCleanupByName(t *testing.T) {
-	const operationID = "op-volume-delete-retry-cleanup"
+func TestVcmDeleteVolumeWorkflow_VolumeNotFoundWithoutRecoveryIsIdempotent(t *testing.T) {
+	const operationID = "op-volume-delete-missing-uuid"
 	job := &stubJobActivity{}
 	svm := &stubSvmActivity{}
 	update := &stubVolumeUpdateActivity{
@@ -402,19 +402,23 @@ func TestVcmDeleteVolumeWorkflow_VolumeNotFoundRunsCleanupByName(t *testing.T) {
 		registerDeleteVolumeActivities(reg, job, svm, update, deleteAct)
 	}, testDeleteVolume(), testNode())
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ONTAP volume name could not be resolved")
+	require.NoError(t, err)
 	assert.False(t, deleteAct.deleteVolumeInvoked)
+	assert.False(t, deleteAct.deleteExportPolicyInvoked)
+	assert.False(t, deleteAct.deleteSnapshotPolicyInvoked)
+	calls := job.snapshot()
+	require.Len(t, calls, 2)
+	assert.Equal(t, vcmdb.JobStateDone, calls[1].state)
 }
 
-func TestVcmDeleteVolumeWorkflow_GetVolumeFromONTAPEmptyName(t *testing.T) {
-	const operationID = "op-get-volume-empty-name"
+func TestVcmDeleteVolumeWorkflow_IncompleteONTAPResponseIsNotIdempotentSuccess(t *testing.T) {
+	// Incomplete ONTAP payloads must not be treated as volume-not-found; otherwise
+	// the empty-recovery DONE shortcut would leave an existing volume undeleted.
+	const operationID = "op-volume-delete-incomplete-ontap"
 	job := &stubJobActivity{}
 	svm := &stubSvmActivity{}
 	update := &stubVolumeUpdateActivity{
-		volumeResponse: &vsa.VolumeResponse{
-			ProviderResponse: vsa.ProviderResponse{ExternalUUID: "ontap-vol-uuid", Name: ""},
-		},
+		err: errors.New("incomplete ONTAP volume response: missing required fields (name/uuid/space/state)"),
 	}
 	deleteAct := &stubVolumeDeleteActivity{}
 
@@ -423,12 +427,12 @@ func TestVcmDeleteVolumeWorkflow_GetVolumeFromONTAPEmptyName(t *testing.T) {
 	}, testDeleteVolume(), testNode())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ONTAP volume name could not be resolved")
-	calls := job.snapshot()
-	require.Len(t, calls, 3)
-	assert.Equal(t, vcmdb.JobStateProcessing, calls[1].state)
-	assert.Equal(t, vcmdb.JobStateError, calls[2].state)
 	assert.False(t, deleteAct.deleteVolumeInvoked)
+	assert.False(t, deleteAct.deleteExportPolicyInvoked)
+	assert.False(t, deleteAct.deleteSnapshotPolicyInvoked)
+	calls := job.snapshot()
+	require.Len(t, calls, 2)
+	assert.Equal(t, vcmdb.JobStateError, calls[1].state)
 }
 
 func TestVcmDeleteVolumeWorkflow_DeleteVolumeInONTAPFails(t *testing.T) {

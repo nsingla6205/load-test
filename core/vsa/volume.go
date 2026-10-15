@@ -739,11 +739,14 @@ func (rc *OntapRestProvider) GetVolume(params GetVolumeParams) (*VolumeResponse,
 }
 
 func volumeResponseFromONTAPVol(vol *ontapRest.Volume, requireLogicalSpace bool) (*VolumeResponse, error) {
-	if vol == nil || vol.Name == nil || vol.UUID == nil || vol.Space == nil || vol.State == nil {
+	if vol == nil {
 		return nil, errors.NewNotFoundErr("volume", nil)
 	}
+	if vol.Name == nil || *vol.Name == "" || vol.UUID == nil || *vol.UUID == "" || vol.Space == nil || vol.State == nil {
+		return nil, fmt.Errorf("incomplete ONTAP volume response: missing required fields (name/uuid/space/state)")
+	}
 	if requireLogicalSpace && vol.Space.LogicalSpace == nil {
-		return nil, errors.NewNotFoundErr("volume", nil)
+		return nil, fmt.Errorf("incomplete ONTAP volume response: missing required fields (logical_space)")
 	}
 	usedBytes := int64(0)
 	if vol.Space.LogicalSpace != nil && vol.Space.LogicalSpace.Used != nil {
