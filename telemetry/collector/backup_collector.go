@@ -85,7 +85,7 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 	}
 
 	// Fetch account states so backups owned by a disabled account (HYPERSCALERDISABLED) can be skipped.
-	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+	accountStateMap := BuildAccountStateMap(ctx, vcpDB)
 
 	var metrics []entity.HydratedMetric
 	var hydratedMetrics []datamodel2.HydratedMetrics
@@ -98,7 +98,7 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 
 		// In the per-volume path the BackupLogicalSize metric is attributed to the volume
 		// owner (AccountIdentifier). Skip emission entirely when that account is disabled
-		if isAccountDisabled(accountStateMap, backup.Attributes.AccountIdentifier) {
+		if IsAccountDisabled(accountStateMap, backup.Attributes.AccountIdentifier) {
 			logger.Debug("Skipping BackupLogicalSize metric: owning account is disabled",
 				"backupUUID", backup.UUID,
 				"volumeUUID", backup.VolumeUUID,
@@ -238,7 +238,7 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 	}
 
 	// Fetch account states so groups whose billing account is disabled (HYPERSCALERDISABLED) can be skipped.
-	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+	accountStateMap := BuildAccountStateMap(ctx, vcpDB)
 
 	// Group chain tips by (VolumeUUID, BackupVault UUID) so that each vault attached to a
 	// volume produces its own billing row. A GCBDR vault attached volumes may have backups across multiple
@@ -287,7 +287,7 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 		// vaults bill to the vault owner, all others bill to the volume owner. Skip emission
 		// when that project is disabled (HYPERSCALERDISABLED)
 		effectiveAccount := resolveBillingAccount(canonicalBackup)
-		if isAccountDisabled(accountStateMap, effectiveAccount) {
+		if IsAccountDisabled(accountStateMap, effectiveAccount) {
 			logger.Debug("Skipping BackupLogicalSize metric: owning account is disabled",
 				"backupUUID", canonicalBackup.UUID,
 				"volumeUUID", canonicalBackup.VolumeUUID,
@@ -399,11 +399,11 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 	}, nil
 }
 
-// isAccountDisabled reports whether accountName resolves to an account in the
+// IsAccountDisabled reports whether accountName resolves to an account in the
 // HYPERSCALERDISABLED state within accountStateMap. Empty or unknown account names are
 // treated as enabled so that emission behaviour is unchanged whenever an account state
 // cannot be resolved (e.g. the account listing failed and the map is empty).
-func isAccountDisabled(accountStateMap map[string]string, accountName string) bool {
+func IsAccountDisabled(accountStateMap map[string]string, accountName string) bool {
 	if accountName == "" {
 		return false
 	}

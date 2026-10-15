@@ -461,6 +461,7 @@ func TestFetchBackupHistoryMetrics_PopulatesFields(t *testing.T) {
 
 	vcpDB := &database2.MockStorage{}
 	vcpDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(histories, nil).Once()
+	vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
 
 	provider := &BillingProvider{
 		vcpDataStore: vcpDB,
@@ -490,6 +491,108 @@ func TestFetchBackupHistoryMetrics_PopulatesFields(t *testing.T) {
 	second := byResource["resource-uuid-2"]
 	require.NotNil(t, second.DeletedAt)
 	assert.Equal(t, deletedAt, *second.DeletedAt)
+}
+
+func TestFetchBackupHistoryMetrics_SkipsDisabledBillingAccount(t *testing.T) {
+	now := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+
+	history := func(resourceUUID, consumerID string, size int64, endpoint *string) *datamodel.BackupChainHistory {
+		return &datamodel.BackupChainHistory{
+			BaseModel:      datamodel.BaseModel{CreatedAt: now},
+			ResourceUUID:   resourceUUID,
+			ConsumerID:     consumerID,
+			DeploymentName: "vault-1",
+			Size:           size,
+			EndpointUUID:   endpoint,
+		}
+	}
+
+	tests := []struct {
+		name          string
+		accounts      []*database2.AccountTelemetryData
+		accountErr    error
+		histories     []*datamodel.BackupChainHistory
+		wantResources []string
+	}{
+		{
+			name: "disabled consumer is omitted and enabled consumer is emitted",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "disabled-consumer", State: datamodel.AccountStateHyperscalerDisabled},
+				{Name: "enabled-consumer", State: "READY"},
+			},
+			histories: []*datamodel.BackupChainHistory{
+				history("disabled-vol", "disabled-consumer", 10, nil),
+				history("enabled-vol", "enabled-consumer", 20, nil),
+			},
+			wantResources: []string{"enabled-vol"},
+		},
+		{
+			name: "unknown account still emits",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "someone-else", State: datamodel.AccountStateHyperscalerDisabled},
+			},
+			histories:     []*datamodel.BackupChainHistory{history("unknown-vol", "not-in-map", 30, nil)},
+			wantResources: []string{"unknown-vol"},
+		},
+		{
+			name: "empty consumer id still emits",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "", State: datamodel.AccountStateHyperscalerDisabled},
+			},
+			histories:     []*datamodel.BackupChainHistory{history("empty-consumer-vol", "", 40, nil)},
+			wantResources: []string{"empty-consumer-vol"},
+		},
+		{
+			name:          "account fetch error still emits",
+			accountErr:    assert.AnError,
+			histories:     []*datamodel.BackupChainHistory{history("fetch-error-vol", "disabled-consumer", 50, nil)},
+			wantResources: []string{"fetch-error-vol"},
+		},
+		{
+			name: "disabled gcbdr group emits nothing",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "disabled-consumer", State: datamodel.AccountStateHyperscalerDisabled},
+			},
+			histories: []*datamodel.BackupChainHistory{
+				history("gcbdr-vol", "disabled-consumer", 50, strPtr("ep-a")),
+				history("gcbdr-vol", "disabled-consumer", 30, strPtr("ep-b")),
+			},
+			wantResources: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			vcpDB := database2.NewMockStorage(t)
+			vcpDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.Anything).
+				Return(tt.histories, nil).Once()
+			vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+				Return(tt.accounts, tt.accountErr).Once()
+
+			provider := &BillingProvider{
+				vcpDataStore: vcpDB,
+				config: &common.TelemetryConfig{
+					PoolVolumeLabelPageSize: 100,
+					RegionName:              "us-central1",
+				},
+			}
+
+			metrics, err := provider.fetchBackupHistoryMetrics(ctx, now.Add(-time.Hour), now.Add(time.Hour), 0, &ResourceCollection{})
+			require.NoError(t, err)
+
+			got := make([]string, 0, len(metrics))
+			for _, metric := range metrics {
+				got = append(got, metric.ResourceName)
+				if metric.ResourceName == "enabled-vol" {
+					assert.Equal(t, float64(20), metric.Quantity)
+					assert.Equal(t, "enabled-consumer", metric.ConsumerID)
+				}
+			}
+			assert.ElementsMatch(t, tt.wantResources, got)
+			vcpDB.AssertExpectations(t)
+		})
+	}
 }
 
 // TestMergeEndpointHistories_* cover the sweep-line algorithm used for GCBDR billing.
@@ -681,6 +784,7 @@ func TestFetchBackupHistoryMetrics_GCBDREndpointsMerged(t *testing.T) {
 
 	vcpDB := &database2.MockStorage{}
 	vcpDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(histories, nil).Once()
+	vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
 
 	provider := &BillingProvider{
 		vcpDataStore: vcpDB,
@@ -767,6 +871,7 @@ func TestFetchBackupHistoryMetrics_GCBDREndpointsMerged_ExpertMode(t *testing.T)
 
 	vcpDB := &database2.MockStorage{}
 	vcpDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(histories, nil).Once()
+	vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
 
 	provider := &BillingProvider{
 		vcpDataStore: vcpDB,
@@ -4084,6 +4189,7 @@ func TestProcessBillingMetrics_BackupHistoryFormatterBranch(t *testing.T) {
 	mockVCPDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
 		return p.Offset >= 2
 	})).Return([]*datamodel.BackupChainHistory{}, nil)
+	mockVCPDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
 
 	mockDB.On("GetLatestAggregatedUsageForAllResources", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 		[]datamodel2.AggregatedUsage{}, nil,
@@ -10094,6 +10200,7 @@ func TestFetchBackupHistoryMetrics_ExpertModeBackupSetsOntapMode(t *testing.T) {
 	// Two histories fit in one page (2 < limit=100), so only one call is made.
 	vcpDB.On("ListBackupChainHistoriesWithPagination", mock.Anything, mock.Anything, mock.Anything).
 		Return(histories, nil).Once()
+	vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
 
 	provider := &BillingProvider{
 		vcpDataStore: vcpDB,

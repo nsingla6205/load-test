@@ -50,7 +50,7 @@ func GetPoolMetrics(ctx context.Context, vcpDB database.Storage, config *common.
 	}
 
 	// Fetch all accounts and create a map of account name -> account state for efficient lookup
-	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+	accountStateMap := BuildAccountStateMap(ctx, vcpDB)
 
 	// Initialize a slice to hold the hydrated metrics
 	var metrics []entity.HydratedMetric
@@ -161,9 +161,9 @@ func GetPoolMetrics(ctx context.Context, vcpDB database.Storage, config *common.
 	}, nil
 }
 
-// buildAccountStateMap fetches all accounts and creates a map of account name -> account state
+// BuildAccountStateMap fetches all accounts and creates a map of account name -> account state
 // for efficient lookup. Returns an empty map if fetching fails (graceful degradation).
-func buildAccountStateMap(ctx context.Context, vcpDB database.Storage) map[string]string {
+func BuildAccountStateMap(ctx context.Context, vcpDB database.Storage) map[string]string {
 	logger := util.GetLogger(ctx)
 	accountStateMap := make(map[string]string)
 	accountOffset := 0

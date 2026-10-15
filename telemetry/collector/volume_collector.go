@@ -55,7 +55,7 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	// volume.
 	var accountStateMap map[string]string
 	if len(volumes) > 0 || expertModeBackupEnabled {
-		accountStateMap = buildAccountStateMap(ctx, vcpDB)
+		accountStateMap = BuildAccountStateMap(ctx, vcpDB)
 	}
 
 	// Initialize a slice to hold the hydrated metrics
@@ -319,7 +319,7 @@ func getExpertModeVolumeAllocatedThroughputMetrics(
 		for _, volume := range expertVolumes {
 			if !accountStateLoaded &&
 				isExpertModeMetricsPoolValues(volume.PoolAPIAccessMode, volume.PoolServiceLevel) {
-				accountStateMap = buildAccountStateMap(ctx, vcpDB)
+				accountStateMap = BuildAccountStateMap(ctx, vcpDB)
 				accountStateLoaded = true
 			}
 			if metric := createExpertModeVolumeAllocatedThroughputMetric(

@@ -19,6 +19,7 @@ import (
 	datamodel2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/collector"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/jobs"
@@ -991,6 +992,7 @@ func (p *BillingProvider) fetchBackupData(ctx context.Context, aggregationStartT
 func (p *BillingProvider) fetchBackupHistoryMetrics(ctx context.Context, aggregationStartTime, aggregationEndTime time.Time, backfillLimit time.Duration, resourceCollection *ResourceCollection) ([]datamodel2.HydratedMetrics, error) {
 	startWindow := aggregationStartTime.Add(-backfillLimit)
 	endWindow := aggregationEndTime.Add(backfillLimit)
+	logger := util.GetLogger(ctx)
 
 	var histories []*datamodel.BackupChainHistory
 	offset := 0
@@ -1031,8 +1033,16 @@ func (p *BillingProvider) fetchBackupHistoryMetrics(ctx context.Context, aggrega
 		consumerID     string
 	}
 	grouped := make(map[historyGroupKey][]*datamodel.BackupChainHistory)
+	accountStateMap := collector.BuildAccountStateMap(ctx, p.vcpDataStore)
 	for _, h := range histories {
 		if h.ResourceUUID == "" {
+			continue
+		}
+		if collector.IsAccountDisabled(accountStateMap, h.ConsumerID) {
+			logger.Warn("Skipping backup chain history: billing account is disabled",
+				"resourceUUID", h.ResourceUUID,
+				"consumerID", h.ConsumerID,
+				"accountState", datamodel.AccountStateHyperscalerDisabled)
 			continue
 		}
 		key := historyGroupKey{
