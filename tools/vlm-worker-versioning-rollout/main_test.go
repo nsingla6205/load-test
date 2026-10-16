@@ -303,6 +303,76 @@ func TestDeploymentReadyWaitsForCurrentGeneration(t *testing.T) {
 	assert.Equal(t, 1, replicas)
 }
 
+// flakyTransport returns a transport-level error (not an HTTP response) for
+// the first `failures` RoundTrips, then delegates to inner. It simulates the
+// istio sidecar accepting and immediately closing a connection (bare EOF)
+// before the outbound passthrough path has fully warmed up.
+type flakyTransport struct {
+	failures int
+	calls    int
+	inner    http.RoundTripper
+}
+
+func (f *flakyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	f.calls++
+	if f.calls <= f.failures {
+		return nil, io.EOF
+	}
+	return f.inner.RoundTrip(req)
+}
+
+func TestDeploymentReadyRetriesTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	transport := &flakyTransport{failures: 2, inner: server.Client().Transport}
+	k8s := &k8sClient{
+		http:       &http.Client{Transport: transport},
+		namespace:  "vlm",
+		baseURL:    server.URL,
+		retryDelay: time.Millisecond,
+	}
+
+	_, _, err := k8s.deploymentReady(context.Background(), "drain-deployment")
+	require.ErrorIs(t, err, errDeploymentNotFound)
+	assert.Equal(t, 3, transport.calls, "two failed attempts plus the one that succeeded")
+}
+
+func TestDeploymentReadyGivesUpAfterMaxRetries(t *testing.T) {
+	transport := &flakyTransport{failures: k8sCallMaxRetries + 5}
+	k8s := &k8sClient{
+		http:       &http.Client{Transport: transport},
+		namespace:  "vlm",
+		baseURL:    "https://example.invalid",
+		retryDelay: time.Millisecond,
+	}
+
+	_, _, err := k8s.deploymentReady(context.Background(), "drain-deployment")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, k8sCallMaxRetries+1, transport.calls, "the initial attempt plus every retry")
+}
+
+func TestScaleDeploymentRetriesTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	transport := &flakyTransport{failures: 1, inner: server.Client().Transport}
+	k8s := &k8sClient{
+		http:       &http.Client{Transport: transport},
+		namespace:  "vlm",
+		baseURL:    server.URL,
+		retryDelay: time.Millisecond,
+	}
+
+	require.NoError(t, k8s.scaleDeployment(context.Background(), "drain-deployment", 1))
+	assert.Equal(t, 2, transport.calls)
+}
+
 type retireK8s struct {
 	readyK8s
 	scaled    []string
@@ -1190,7 +1260,7 @@ func TestEnsureBackgroundDrainJobCreatesWhenMissing(t *testing.T) {
 
 	require.NoError(t, err)
 	spec := created["spec"].(map[string]any)
-	assert.Equal(t, float64(0), spec["backoffLimit"])
+	assert.Equal(t, float64(drainJobBackoffLimit), spec["backoffLimit"])
 	template := spec["template"].(map[string]any)
 	pod := template["spec"].(map[string]any)
 	containers := pod["containers"].([]any)
@@ -1222,7 +1292,9 @@ func TestEnsureBackgroundDrainJobReplacesFailedJob(t *testing.T) {
 		case http.MethodGet:
 			if len(methods) == 1 {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"status":{"failed":1}}`))
+				// backoffLimit is exceeded: the control plane sets the Failed
+				// condition once no more pods will be started.
+				_, _ = w.Write([]byte(`{"status":{"failed":1,"conditions":[{"type":"Failed","status":"True"}]}}`))
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
@@ -1240,6 +1312,25 @@ func TestEnsureBackgroundDrainJobReplacesFailedJob(t *testing.T) {
 	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
 	require.NoError(t, k8s.ensureBackgroundDrainJob(context.Background(), "vlm-worker-versioning-drain-a", "rollout:test", "vlm-worker-ksa", nil))
 	assert.Equal(t, []string{http.MethodGet, http.MethodDelete, http.MethodGet, http.MethodPost}, methods)
+}
+
+// TestEnsureBackgroundDrainJobLeavesRetryingJobInPlace is the regression case
+// for drainJobBackoffLimit > 0: a pod has failed (status.failed=1) but the
+// control plane is still retrying (status.active=1, no Failed condition yet).
+// Deleting this Job would kill a replacement pod that is actively watching
+// drainage, forcing the wait to restart from zero on another node.
+func TestEnsureBackgroundDrainJobLeavesRetryingJobInPlace(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":{"failed":1,"active":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	k8s := &k8sClient{http: server.Client(), token: "token", namespace: "vlm", baseURL: server.URL}
+	require.NoError(t, k8s.ensureBackgroundDrainJob(context.Background(), "vlm-worker-versioning-drain-a", "rollout:test", "vlm-worker-ksa", nil))
 }
 
 func TestRetryingPromoteDoesNotSetCurrentAgainAfterLostSuccess(t *testing.T) {

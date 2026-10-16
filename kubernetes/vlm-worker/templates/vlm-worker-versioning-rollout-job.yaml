@@ -14,7 +14,11 @@ metadata:
     "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
-  backoffLimit: 0
+  # A node reboot or kubelet shutdown kills the pod before the gates finish.
+  # restartPolicy stays Never; this only lets the Job schedule a replacement
+  # pod within activeDeadlineSeconds instead of failing outright. The checks
+  # are read-only polls, so retrying is safe.
+  backoffLimit: 3
   # Two 15-minute gates: Kubernetes readiness, then Temporal Build A polling.
   activeDeadlineSeconds: 1860
   template:
@@ -69,7 +73,11 @@ metadata:
     "helm.sh/hook-weight": "3"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
-  backoffLimit: 0
+  # Same rationale as ensure-drain above: tolerate a killed pod from a node
+  # reboot without failing the Helm release. Promotion and pinning are
+  # idempotent (buildAlreadyCurrent / cutoverFinished skip repeated work), so
+  # a replacement pod picking up mid-rollout is safe.
+  backoffLimit: 3
   # This hook still waits for drain readiness (15m) and both builds to poll (10m),
   # then pins, sets Current, and starts the drain Job. 10m remains for that work.
   # Drainage itself runs in its own Job, so drainTimeoutMinutes is not included.

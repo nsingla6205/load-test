@@ -16,11 +16,30 @@ import (
 )
 
 type k8sClient struct {
-	http      *http.Client
-	token     string
-	namespace string
-	baseURL   string
+	http       *http.Client
+	token      string
+	namespace  string
+	baseURL    string
+	retryDelay time.Duration
 }
+
+// k8sCallMaxRetries bounds how many times a transient Kubernetes API transport
+// error (connection reset, EOF, timeout — not an HTTP response) is retried
+// in-process. Observed in production: the istio sidecar's outbound passthrough
+// path for kubernetes.default.svc (no ServiceEntry, no mTLS, so it rides the
+// catch-all passthrough cluster rather than a mesh-internal one) can briefly
+// race the proxy's own readiness probe. The first connection right after
+// "Envoy proxy is ready" was accepted and closed with no bytes — a bare EOF,
+// not an HTTP response — even though the mesh-internal Temporal dial in the
+// same pod at the same instant succeeded. Every Temporal call already retries
+// (see retryTemporal); this gives k8sClient the same tolerance so one transient
+// blip does not fail the whole hook pod.
+const k8sCallMaxRetries = 3
+
+// k8sCallRetryDelay is the pause between retries above. Short: this race
+// resolves in milliseconds to low seconds once the sidecar finishes warming
+// up, not the minutes-scale backoff used for Temporal polling.
+const k8sCallRetryDelay = 2 * time.Second
 
 func newK8sClient(namespace string) (*k8sClient, error) {
 	namespace = strings.TrimSpace(namespace)
@@ -44,10 +63,60 @@ func newK8sClient(namespace string) (*k8sClient, error) {
 			Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}},
 			Timeout:   30 * time.Second,
 		},
-		token:     strings.TrimSpace(string(token)),
-		namespace: namespace,
-		baseURL:   "https://kubernetes.default.svc",
+		token:      strings.TrimSpace(string(token)),
+		namespace:  namespace,
+		baseURL:    "https://kubernetes.default.svc",
+		retryDelay: k8sCallRetryDelay,
 	}, nil
+}
+
+// do executes req, retrying transport-level errors (connection reset, EOF,
+// timeout) up to k8sCallMaxRetries times. An HTTP response that reaches the
+// caller — any status code, including 404 and 5xx — is returned as-is on the
+// first attempt: callers already handle those status codes explicitly, and
+// retrying a real HTTP response is a separate concern from recovering a
+// dropped connection. req.GetBody must be set for any request with a body
+// (http.NewRequest/NewRequestWithContext set it automatically for the
+// strings.Reader bodies used in this file), so the body can be rewound before
+// each retry.
+func (c *k8sClient) do(req *http.Request) (*http.Response, error) {
+	delay := c.retryDelay
+	if delay <= 0 {
+		delay = k8sCallRetryDelay
+	}
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		resp, err := c.http.Do(req)
+		if err == nil {
+			if attempt > 0 {
+				slog.Info("kubernetes API call succeeded after retry", "method", req.Method, "path", req.URL.Path, "attempts", attempt+1)
+			}
+			return resp, nil
+		}
+		lastErr = err
+		if req.Context().Err() != nil {
+			return nil, err
+		}
+		if attempt >= k8sCallMaxRetries {
+			slog.Warn("kubernetes API call failed", "method", req.Method, "path", req.URL.Path, "attempts", attempt+1, "error", err)
+			return nil, lastErr
+		}
+		slog.Warn("kubernetes API call failed, will retry", "method", req.Method, "path", req.URL.Path, "attempt", attempt+1, "error", err)
+		if req.GetBody != nil {
+			body, bodyErr := req.GetBody()
+			if bodyErr != nil {
+				return nil, fmt.Errorf("rewind request body for retry: %w", bodyErr)
+			}
+			req.Body = body
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-req.Context().Done():
+			timer.Stop()
+			return nil, req.Context().Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (c *k8sClient) deploymentReady(ctx context.Context, name string) (ready bool, replicas int, err error) {
@@ -57,7 +126,7 @@ func (c *k8sClient) deploymentReady(ctx context.Context, name string) (ready boo
 		return false, 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
-	resp, err := c.http.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return false, 0, err
 	}
@@ -106,7 +175,7 @@ func (c *k8sClient) scaleDeployment(ctx context.Context, name string, replicas i
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/merge-patch+json")
-	resp, err := c.http.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}
@@ -196,7 +265,9 @@ type jobEnv struct {
 }
 
 // ensureBackgroundDrainJob starts modeDrainAndRetire in a Job that is not a Helm hook.
-// An active or succeeded Job is left alone. A failed Job is replaced so the next upgrade can drain again.
+// An active, retrying, or succeeded Job is left alone. A Job the control plane
+// has marked terminally Failed (backoffLimit or activeDeadlineSeconds exceeded)
+// is replaced so the next upgrade can drain again.
 func (c *k8sClient) ensureBackgroundDrainJob(ctx context.Context, name, image, serviceAccount string, env []jobEnv) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -221,16 +292,33 @@ func (c *k8sClient) ensureBackgroundDrainJob(ctx context.Context, name, image, s
 	}
 	var existing struct {
 		Status struct {
-			Active    int `json:"active"`
-			Succeeded int `json:"succeeded"`
-			Failed    int `json:"failed"`
+			Active     int `json:"active"`
+			Succeeded  int `json:"succeeded"`
+			Failed     int `json:"failed"`
+			Conditions []struct {
+				Type   string `json:"type"`
+				Status string `json:"status"`
+			} `json:"conditions"`
 		} `json:"status"`
 	}
 	if err := json.Unmarshal([]byte(body), &existing); err != nil {
 		return fmt.Errorf("decode drain job %q: %w", name, err)
 	}
-	// Pending (no status yet) and succeeded jobs stay. Only a failed job is replaced.
-	if existing.Status.Failed == 0 || existing.Status.Succeeded > 0 {
+	// status.failed counts failed pods, not a terminal Job. With
+	// drainJobBackoffLimit > 0, a failed pod can be followed by a replacement
+	// that is still running or still retrying, so failed > 0 alone no longer
+	// means the Job gave up. Only the control plane's own Failed condition —
+	// set once backoffLimit or activeDeadlineSeconds is actually exceeded — is
+	// terminal. Pending (no status yet), active, retrying, and succeeded Jobs
+	// all stay in place.
+	jobFailed := false
+	for _, cond := range existing.Status.Conditions {
+		if cond.Type == "Failed" && cond.Status == "True" {
+			jobFailed = true
+			break
+		}
+	}
+	if !jobFailed {
 		slog.Info("drain job left in place", "job", name, "active", existing.Status.Active, "succeeded", existing.Status.Succeeded, "failed", existing.Status.Failed)
 		return nil
 	}
@@ -254,6 +342,16 @@ func (c *k8sClient) ensureBackgroundDrainJob(ctx context.Context, name, image, s
 // drainJobDeletePoll is how often to check that a deleted Job name is gone.
 // Deletion often takes up to a minute, so one second would call the API for that whole wait.
 const drainJobDeletePoll = 5 * time.Second
+
+// drainJobBackoffLimit is how many times Kubernetes may start a new pod after
+// the previous one is killed. restartPolicy stays Never. A node reboot or
+// kubelet config change (observed in production: nodeshutdown_manager killing
+// every pod on the node, including this one) kills the only pod; with limit 0
+// the Job stays Failed and the old build is not watched until the next Helm
+// release. The wait only polls Temporal until the build is drained, so
+// starting again on another node is safe. A process that keeps exiting still
+// stops after this many pods, and the next release still replaces a Failed Job.
+const drainJobBackoffLimit = 6
 
 func (c *k8sClient) waitForDrainJobGone(ctx context.Context, jobURL, name string) error {
 	ticker := time.NewTicker(drainJobDeletePoll)
@@ -292,7 +390,7 @@ func (c *k8sClient) createDrainJob(ctx context.Context, collectionURL, name, ima
 			},
 		},
 		"spec": map[string]any{
-			"backoffLimit":            0,
+			"backoffLimit":            drainJobBackoffLimit,
 			"activeDeadlineSeconds":   deadline,
 			"ttlSecondsAfterFinished": int64(86400),
 			"template": map[string]any{
@@ -355,7 +453,7 @@ func (c *k8sClient) doJSON(
 	} else {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.http.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return 0, "", err
 	}
