@@ -25,12 +25,14 @@ var (
 	spannerDatabasePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,28}[a-z0-9]$`)
 )
 
-// PrepoolSetupRequest is the body for provision, reclaim, and VSA cluster delete.
+// PrepoolSetupRequest is the body for provision, reclaim, VSA cluster delete, and jump-host delete.
+// deploymentId is required for every operation except deleteJumpHost, which targets the shared jump host.
 type PrepoolSetupRequest struct {
 	DeploymentName        string                        `json:"deploymentId"`
 	ConsumerNetwork       string                        `json:"network"`
 	CustomerProjectNumber string                        `json:"projectId"`
 	DBConfig              *prepoolinfra.SpannerDBConfig `json:"stateDbConfig,omitempty"`
+	CreateJumpHost        bool                          `json:"createJumpHost,omitempty"`
 }
 
 func (h *Handler) handlePrepoolSetup(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +93,28 @@ func (h *Handler) handleReclaimAll(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, job)
 }
 
+func (h *Handler) handleDeleteJumpHost(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDeleteJumpHostRequest(w, r)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, created := h.Jobs.CreateIfNoActive(JobOperationDeleteJumpHost, req)
+	if !created {
+		message := "an active delete jump host job already exists"
+		if req.DeploymentName != "" {
+			message = fmt.Sprintf("an active job already exists for deployment %s", req.DeploymentName)
+		}
+		writeJSONError(w, http.StatusConflict, message)
+		return
+	}
+
+	go h.runDeleteJumpHostJob(job.ID, req)
+
+	writeJSON(w, http.StatusAccepted, job)
+}
+
 func (h *Handler) handleDeleteVSACluster(w http.ResponseWriter, r *http.Request) {
 	req, err := decodePrepoolSetupRequest(w, r)
 	if err != nil {
@@ -127,6 +151,7 @@ func (h *Handler) runSetupJob(jobID string, req PrepoolSetupRequest) {
 		req.CustomerProjectNumber,
 		env.Region,
 		req.DBConfig,
+		prepoolinfra.SetupOptions{CreateJumpHost: req.CreateJumpHost},
 	)
 	if err != nil {
 		slog.Error("Setup job failed", "jobID", jobID, "error", err)
@@ -204,6 +229,28 @@ func (h *Handler) runDeleteVSAClusterJob(jobID string, req PrepoolSetupRequest) 
 	h.Jobs.SetDone(jobID, nil)
 }
 
+func (h *Handler) runDeleteJumpHostJob(jobID string, req PrepoolSetupRequest) {
+	h.Jobs.SetRunning(jobID)
+	ctx := h.Context
+
+	provisioner, err := h.newProvisioner(ctx)
+	if err != nil {
+		slog.Error("Delete jump host job failed to initialize provisioner", "jobID", jobID, "error", err)
+		h.Jobs.SetError(jobID, err.Error())
+		return
+	}
+
+	err = provisioner.DeleteJumpHost(ctx, req.ConsumerNetwork, req.CustomerProjectNumber, env.Region)
+	if err != nil {
+		slog.Error("Delete jump host job failed", "jobID", jobID, "error", err)
+		h.Jobs.SetError(jobID, err.Error())
+		return
+	}
+
+	slog.Info("Delete jump host job completed", "jobID", jobID)
+	h.Jobs.SetDone(jobID, nil)
+}
+
 func (h *Handler) newProvisioner(ctx context.Context) (prepoolinfra.Provisioner, error) {
 	if h.ProvisionerFactory == nil {
 		return nil, fmt.Errorf("provisioner factory is not configured")
@@ -219,6 +266,14 @@ func (h *Handler) newProvisioner(ctx context.Context) (prepoolinfra.Provisioner,
 }
 
 func decodePrepoolSetupRequest(w http.ResponseWriter, r *http.Request) (PrepoolSetupRequest, error) {
+	return decodePrepoolRequest(w, r, true)
+}
+
+func decodeDeleteJumpHostRequest(w http.ResponseWriter, r *http.Request) (PrepoolSetupRequest, error) {
+	return decodePrepoolRequest(w, r, false)
+}
+
+func decodePrepoolRequest(w http.ResponseWriter, r *http.Request, requireDeployment bool) (PrepoolSetupRequest, error) {
 	var req PrepoolSetupRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	decoder := json.NewDecoder(r.Body)
@@ -232,15 +287,25 @@ func decodePrepoolSetupRequest(w http.ResponseWriter, r *http.Request) (PrepoolS
 	if env.Region == "" {
 		return PrepoolSetupRequest{}, fmt.Errorf("server configuration REGION is required")
 	}
-	if err := validatePrepoolSetupRequest(req); err != nil {
+	if err := validatePrepoolRequest(req, requireDeployment); err != nil {
 		return PrepoolSetupRequest{}, err
 	}
 	return req, nil
 }
 
 func validatePrepoolSetupRequest(req PrepoolSetupRequest) error {
-	if err := names.ValidateDeploymentName(req.DeploymentName); err != nil {
-		return err
+	return validatePrepoolRequest(req, true)
+}
+
+func validateDeleteJumpHostRequest(req PrepoolSetupRequest) error {
+	return validatePrepoolRequest(req, false)
+}
+
+func validatePrepoolRequest(req PrepoolSetupRequest, requireDeployment bool) error {
+	if requireDeployment || req.DeploymentName != "" {
+		if err := names.ValidateDeploymentName(req.DeploymentName); err != nil {
+			return err
+		}
 	}
 	if !projectNumberPattern.MatchString(req.CustomerProjectNumber) {
 		return fmt.Errorf("projectId must be a 6-20 digit project number")

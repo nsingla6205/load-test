@@ -19,10 +19,12 @@ const (
 )
 
 type vsaClusterResources struct {
-	instances       []*compute.Instance
-	disks           []*compute.Disk
-	forwardingRules []*compute.ForwardingRule
-	ipAddresses     []*compute.Address
+	instances             []*compute.Instance
+	disks                 []*compute.Disk
+	forwardingRules       []*compute.ForwardingRule
+	ipAddresses           []*compute.Address
+	backendServices       []*compute.BackendService
+	networkEndpointGroups []*compute.NetworkEndpointGroup
 }
 
 func (p *provisioner) deleteVSACluster(
@@ -45,6 +47,8 @@ func (p *provisioner) deleteVSACluster(
 		"disks", len(resources.disks),
 		"forwardingRules", len(resources.forwardingRules),
 		"ipAddresses", len(resources.ipAddresses),
+		"backendServices", len(resources.backendServices),
+		"networkEndpointGroups", len(resources.networkEndpointGroups),
 		"zones", zones)
 
 	// All instances can be stopped concurrently. Deletion remains a separate
@@ -86,9 +90,32 @@ func (p *provisioner) deleteVSACluster(
 		return err
 	}
 
-	// Once instances and forwarding rules are gone, their persistent disks
-	// and reserved addresses are independent and can be deleted in the same
-	// bounded worker group.
+	// Backend services reference the NEGs. Delete them after the forwarding
+	// rules that use them, and before the NEGs, or NetworkEndpointGroups.Delete
+	// returns 400 resourceInUseByAnotherResource.
+	if err := runConcurrent(ctx, resources.backendServices, func(ctx context.Context, backend *compute.BackendService) error {
+		if err := p.DeleteBackendService(ctx, tenantProject, backend); err != nil {
+			return fmt.Errorf("delete backend service %s: %w", backend.Name, err)
+		}
+		slog.Info("backend service deleted", "backendServiceName", backend.Name)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := runConcurrent(ctx, resources.networkEndpointGroups, func(ctx context.Context, neg *compute.NetworkEndpointGroup) error {
+		if err := p.DeleteNetworkEndpointGroup(ctx, tenantProject, neg); err != nil {
+			return fmt.Errorf("delete network endpoint group %s: %w", neg.Name, err)
+		}
+		slog.Info("network endpoint group deleted", "networkEndpointGroupName", neg.Name)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Once instances, forwarding rules, and backend services are gone, their
+	// persistent disks and reserved addresses are independent and can be
+	// deleted in the same bounded worker group.
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(cleanupConcurrency)
 	for _, disk := range resources.disks {
@@ -126,7 +153,7 @@ func (p *provisioner) discoverVSAClusterResources(
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(cleanupConcurrency)
 
-	// --- zonal resources: instances and disks (per zone) ---
+	// --- zonal resources: instances, disks, and NEGs (per zone) ---
 	for _, zone := range zones {
 		group.Go(func() error {
 			instances, err := p.discoverInstances(groupCtx, tenantProject, zone, deploymentName, labels)
@@ -148,9 +175,19 @@ func (p *provisioner) discoverVSAClusterResources(
 			mu.Unlock()
 			return nil
 		})
+		group.Go(func() error {
+			negs, err := p.discoverNetworkEndpointGroups(groupCtx, tenantProject, zone, deploymentName, labels)
+			if err != nil {
+				return fmt.Errorf("discover network endpoint groups in zone %s: %w", zone, err)
+			}
+			mu.Lock()
+			resources.networkEndpointGroups = append(resources.networkEndpointGroups, negs...)
+			mu.Unlock()
+			return nil
+		})
 	}
 
-	// --- regional resources: IP addresses and forwarding rules ---
+	// --- regional resources: IP addresses, forwarding rules, and backend services ---
 	group.Go(func() error {
 		addrs, err := p.discoverIPAddresses(groupCtx, tenantProject, region, deploymentName, labels)
 		if err != nil {
@@ -168,6 +205,16 @@ func (p *provisioner) discoverVSAClusterResources(
 		}
 		mu.Lock()
 		resources.forwardingRules = append(resources.forwardingRules, fwdRules...)
+		mu.Unlock()
+		return nil
+	})
+	group.Go(func() error {
+		backends, err := p.discoverBackendServices(groupCtx, tenantProject, region, deploymentName, labels)
+		if err != nil {
+			return fmt.Errorf("discover backend services: %w", err)
+		}
+		mu.Lock()
+		resources.backendServices = append(resources.backendServices, backends...)
 		mu.Unlock()
 		return nil
 	})
@@ -253,6 +300,30 @@ func (p *provisioner) discoverDisks(
 	return unionByName("disk", deploymentName, labeledItems, byPrefix, func(d *compute.Disk) string { return d.Name }), nil
 }
 
+// discoverNetworkEndpointGroups returns the union of zonal NEGs found by
+// deployment label and by name prefix. VLM names them "{deployment}-neg-..."
+// and does not label them with deployment_id, so the name-prefix query is the
+// fallback. Groups found only via prefix are logged as warnings.
+func (p *provisioner) discoverNetworkEndpointGroups(
+	ctx context.Context,
+	tenantProject, zone, deploymentName string,
+	labels map[string]string,
+) ([]*compute.NetworkEndpointGroup, error) {
+	labeled, err := p.ListNetworkEndpointGroupsByLabels(ctx, tenantProject, zone, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListNetworkEndpointGroupsByNamePrefix(ctx, tenantProject, zone, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.NetworkEndpointGroup
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("network endpoint group", deploymentName, labeledItems, byPrefix, func(neg *compute.NetworkEndpointGroup) string { return neg.Name }), nil
+}
+
 func (p *provisioner) discoverIPAddresses(
 	ctx context.Context,
 	tenantProject, region, deploymentName string,
@@ -295,4 +366,28 @@ func (p *provisioner) discoverForwardingRules(
 		labeledItems = labeled.Items
 	}
 	return unionByName("forwarding rule", deploymentName, labeledItems, byPrefix, func(r *compute.ForwardingRule) string { return r.Name }), nil
+}
+
+// discoverBackendServices returns the union of regional backend services found
+// by deployment label and by name prefix. VLM names them "{deployment}-bs-..."
+// and does not label them with deployment_id, so the name-prefix query is the
+// fallback. Services found only via prefix are logged as warnings.
+func (p *provisioner) discoverBackendServices(
+	ctx context.Context,
+	tenantProject, region, deploymentName string,
+	labels map[string]string,
+) ([]*compute.BackendService, error) {
+	labeled, err := p.ListBackendServicesByLabels(ctx, tenantProject, region, labels)
+	if err != nil {
+		return nil, err
+	}
+	byPrefix, err := p.ListBackendServicesByNamePrefix(ctx, tenantProject, region, deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	var labeledItems []*compute.BackendService
+	if labeled != nil {
+		labeledItems = labeled.Items
+	}
+	return unionByName("backend service", deploymentName, labeledItems, byPrefix, func(b *compute.BackendService) string { return b.Name }), nil
 }

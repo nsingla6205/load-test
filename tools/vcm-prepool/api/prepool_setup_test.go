@@ -13,7 +13,7 @@ import (
 
 type stubProvisioner struct{}
 
-func (stubProvisioner) Setup(context.Context, string, string, string, string, *prepoolinfra.SpannerDBConfig) (prepoolinfra.PrePoolInfra, error) {
+func (stubProvisioner) Setup(_ context.Context, _, _, _, _ string, _ *prepoolinfra.SpannerDBConfig, _ prepoolinfra.SetupOptions) (prepoolinfra.PrePoolInfra, error) {
 	return prepoolinfra.PrePoolInfra{}, nil
 }
 
@@ -26,6 +26,10 @@ func (stubProvisioner) ReclaimAll(context.Context, string, string, string, strin
 }
 
 func (stubProvisioner) DeleteVSACluster(context.Context, string, string, string, string) error {
+	return nil
+}
+
+func (stubProvisioner) DeleteJumpHost(context.Context, string, string, string) error {
 	return nil
 }
 
@@ -60,11 +64,22 @@ func TestHandler_RunJobs_CreatesFreshProvisionerForEachJob(t *testing.T) {
 	require.True(t, created)
 	handler.runReclaimAllJob(reclaimAllJob.ID, reclaimAllRequest)
 
-	assert.Equal(t, int32(4), factoryCalls.Load())
+	deleteJHRequest := PrepoolSetupRequest{DeploymentName: "delete-jh"}
+	deleteJHJob, created := handler.Jobs.CreateIfNoActive(JobOperationDeleteJumpHost, deleteJHRequest)
+	require.True(t, created)
+	handler.runDeleteJumpHostJob(deleteJHJob.ID, deleteJHRequest)
+
+	assert.Equal(t, int32(5), factoryCalls.Load())
 	assert.Equal(t, JobStateDone, handler.Jobs.Get(setupJob.ID).State)
 	assert.Equal(t, JobStateDone, handler.Jobs.Get(reclaimJob.ID).State)
 	assert.Equal(t, JobStateDone, handler.Jobs.Get(deleteJob.ID).State)
 	assert.Equal(t, JobStateDone, handler.Jobs.Get(reclaimAllJob.ID).State)
+	assert.Equal(t, JobStateDone, handler.Jobs.Get(deleteJHJob.ID).State)
+}
+
+func Test_PrepoolSetupRequest_CreateJumpHost_DefaultsFalse(t *testing.T) {
+	var req PrepoolSetupRequest
+	assert.False(t, req.CreateJumpHost, "createJumpHost should default to false (zero-value)")
 }
 
 func Test_ValidatePrepoolSetupRequest_Inputs_ReturnExpectedResult(t *testing.T) {
@@ -125,6 +140,56 @@ func Test_ValidatePrepoolSetupRequest_Inputs_ReturnExpectedResult(t *testing.T) 
 			}
 
 			err := validatePrepoolSetupRequest(request)
+
+			if test.wantError == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, test.wantError)
+		})
+	}
+}
+
+func Test_ValidateDeleteJumpHostRequest_Inputs_ReturnExpectedResult(t *testing.T) {
+	validRequest := PrepoolSetupRequest{
+		ConsumerNetwork:       "projects/customer-project/global/networks/customer-network",
+		CustomerProjectNumber: "123456789012",
+	}
+	tests := []struct {
+		name      string
+		mutate    func(*PrepoolSetupRequest)
+		wantError string
+	}{
+		{name: "missing deployment id"},
+		{
+			name:      "optional valid deployment id",
+			mutate:    func(req *PrepoolSetupRequest) { req.DeploymentName = "gcnv-8d0ff6a0b456f30" },
+		},
+		{
+			name:      "invalid deployment id",
+			mutate:    func(req *PrepoolSetupRequest) { req.DeploymentName = "../deployment" },
+			wantError: "deploymentId",
+		},
+		{
+			name:      "invalid project number",
+			mutate:    func(req *PrepoolSetupRequest) { req.CustomerProjectNumber = "project-name" },
+			wantError: "projectId",
+		},
+		{
+			name:      "invalid network path",
+			mutate:    func(req *PrepoolSetupRequest) { req.ConsumerNetwork = "../../network" },
+			wantError: "network must use",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := validRequest
+			if test.mutate != nil {
+				test.mutate(&request)
+			}
+
+			err := validateDeleteJumpHostRequest(request)
 
 			if test.wantError == "" {
 				assert.NoError(t, err)

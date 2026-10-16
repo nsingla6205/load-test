@@ -27,6 +27,7 @@ const (
 	JobOperationReclaimDeployment JobOperation = "reclaimDeployment"
 	JobOperationReclaimAll        JobOperation = "reclaimAll"
 	JobOperationDeleteVSACluster  JobOperation = "deleteVsaCluster"
+	JobOperationDeleteJumpHost    JobOperation = "deleteJumpHost"
 )
 
 // Job tracks the state of a single async provision, deployment reclaim, or VSA cluster delete operation.

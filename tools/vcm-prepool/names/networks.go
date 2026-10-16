@@ -26,6 +26,18 @@ const (
 	IngressTrafficDirection string = "INGRESS"
 
 	MgmtInternalFirewallPortRules = "all"
+
+	// JumpHost resources — a temporary e2-micro VM on the management subnet
+	// for sshuttle-based development access to internal ONTAP IPs.
+	JumpHostName         = "vcm-dev-jumphost"
+	JumpHostFirewallName = "ingress-vcm-dev-jumphost-ssh"
+	JumpHostTag          = "vcm-dev-jumphost"
+	JumpHostMachineType  = "e2-micro"
+	JumpHostImageFamily  = "debian-12"
+	JumpHostImageProject = "debian-cloud"
+	JumpHostBootDiskGB   = 10
+	JumpHostBootDiskType = "pd-balanced"
+	JumpHostFirewallPriority int64 = 900
 )
 
 type InternalVSANetwork struct {
@@ -137,6 +149,25 @@ var DataFirewalls = []hyperscaler_models.Firewall{
 		Priority:         FirewallPriority,
 		Direction:        IngressTrafficDirection,
 	},
+}
+
+// JumpHostZone returns the default zone for the jump host: region + "-a".
+func JumpHostZone(region string) string {
+	return region + "-a"
+}
+
+// JumpHostSSHSourceRanges returns the SSH source CIDRs for the jump-host
+// firewall rule: Zscaler egress block plus the IAP tunnel source range.
+func JumpHostSSHSourceRanges() []string {
+	return []string{"136.226.0.0/16", "35.235.240.0/20"}
+}
+
+// JumpHostLabels returns the standard labels applied to jump-host resources.
+func JumpHostLabels() map[string]string {
+	return map[string]string{
+		"purpose":    JumpHostTag,
+		"managed-by": "vcm-prepool",
+	}
 }
 
 func splitNonEmpty(value string) []string {

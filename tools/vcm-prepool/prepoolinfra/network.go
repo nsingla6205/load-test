@@ -424,6 +424,59 @@ func (p *provisioner) ListForwardingRulesByNamePrefix(ctx context.Context, tenan
 	return resp.Items, nil
 }
 
+func (p *provisioner) ListBackendServicesByLabels(ctx context.Context, tenantProject, region string, m map[string]string) (*compute.BackendServiceList, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if region == "" {
+		return nil, fmt.Errorf("list backend services: region is required")
+	}
+	call := computeService.RegionBackendServices.List(tenantProject, region)
+	if filter := labelFilter(m); filter != "" {
+		call = call.Filter(filter)
+	}
+	services, err := call.Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list backend services: %w", err)
+	}
+	return services, nil
+}
+
+// ListBackendServicesByNamePrefix returns regional backend services whose name
+// starts with deploymentName followed by a hyphen. This is a fallback for
+// resources that VLM does not label with deployment_id.
+func (p *provisioner) ListBackendServicesByNamePrefix(ctx context.Context, tenantProject, region, deploymentName string) ([]*compute.BackendService, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if region == "" {
+		return nil, fmt.Errorf("list backend services by prefix: region is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.RegionBackendServices.List(tenantProject, region).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list backend services by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
+}
+
+func (p *provisioner) DeleteBackendService(ctx context.Context, tenantProject string, backend *compute.BackendService) error {
+	region := resourceID(backend.Region)
+	return p.deleteAndWaitRegional(ctx, tenantProject, region, "backend service", backend.Name, func() (*compute.Operation, error) {
+		computeService, err := p.GCPService.GetComputeService(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get compute service: %w", err)
+		}
+		return computeService.RegionBackendServices.Delete(tenantProject, region, backend.Name).Context(ctx).Do()
+	})
+}
+
 func (p *provisioner) DeleteForwardingRule(ctx context.Context, tenantProject string, rule *compute.ForwardingRule) error {
 	region := resourceID(rule.Region)
 	return p.deleteAndWaitRegional(ctx, tenantProject, region, "forwarding rule", rule.Name, func() (*compute.Operation, error) {

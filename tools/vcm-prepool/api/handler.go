@@ -35,6 +35,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /prepoolSetup:reclaimDeployment", h.handleReclaimDeployment)
 	mux.HandleFunc("POST /prepoolSetup:reclaimAll", h.handleReclaimAll)
 	mux.HandleFunc("POST /prepoolSetup:deleteVsaCluster", h.handleDeleteVSACluster)
+	mux.HandleFunc("POST /prepoolSetup:deleteJumpHost", h.handleDeleteJumpHost)
 	mux.HandleFunc("GET /jobs/{jobId}", h.handleGetJob)
 	mux.HandleFunc("GET /jobs", h.handleListJobs)
 }

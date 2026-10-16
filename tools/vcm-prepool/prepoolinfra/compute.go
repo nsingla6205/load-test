@@ -309,3 +309,79 @@ func (p *provisioner) DeleteDisk(ctx context.Context, tenantProject string, disk
 	}
 	return nil
 }
+
+func (p *provisioner) ListNetworkEndpointGroupsByLabels(ctx context.Context, tenantProject, zone string, labels map[string]string) (*compute.NetworkEndpointGroupList, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if zone == "" {
+		return nil, fmt.Errorf("list network endpoint groups: zone is required")
+	}
+	call := computeService.NetworkEndpointGroups.List(tenantProject, zone)
+	if filter := labelFilter(labels); filter != "" {
+		call = call.Filter(filter)
+	}
+	groups, err := call.Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list network endpoint groups: %w", err)
+	}
+	return groups, nil
+}
+
+func (p *provisioner) ListNetworkEndpointGroupsByNamePrefix(ctx context.Context, tenantProject, zone, deploymentName string) ([]*compute.NetworkEndpointGroup, error) {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get compute service: %w", err)
+	}
+	if zone == "" {
+		return nil, fmt.Errorf("list network endpoint groups by prefix: zone is required")
+	}
+	filter := fmt.Sprintf("name eq \"%s-.*\"", deploymentName)
+	resp, err := computeService.NetworkEndpointGroups.List(tenantProject, zone).
+		Filter(filter).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list network endpoint groups by prefix: %w", err)
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Items, nil
+}
+
+func (p *provisioner) DeleteNetworkEndpointGroup(ctx context.Context, tenantProject string, neg *compute.NetworkEndpointGroup) error {
+	computeService, err := p.GCPService.GetComputeService(ctx)
+	if err != nil {
+		return fmt.Errorf("get compute service: %w", err)
+	}
+	zone := resourceID(neg.Zone)
+	computeOperation, err := startDeletion(ctx, "delete network endpoint group "+neg.Name, func() (*compute.Operation, error) {
+		return computeService.NetworkEndpointGroups.Delete(tenantProject, zone, neg.Name).Context(ctx).Do()
+	})
+	if err != nil {
+		return fmt.Errorf("delete network endpoint group: %w", err)
+	}
+	if computeOperation == nil {
+		return nil
+	}
+	_, err = waitForOperation(ctx, "network endpoint group", computeOperation.Name, func() (*models.ComputeOperation, error) {
+		op, err := computeService.ZoneOperations.Get(tenantProject, zone, computeOperation.Name).Context(ctx).Do()
+		if err != nil {
+			return nil, err
+		}
+		result := &models.ComputeOperation{
+			Name:     op.Name,
+			Status:   op.Status,
+			Progress: op.Progress,
+			Done:     op.Status == "DONE",
+		}
+		if op.Error != nil && len(op.Error.Errors) > 0 {
+			result.ErrorResponse = op.Error.Errors[0].Message
+		}
+		return result, nil
+	})
+	if err != nil {
+		return fmt.Errorf("wait for operation: %w", err)
+	}
+	return nil
+}

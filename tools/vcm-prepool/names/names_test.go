@@ -90,6 +90,45 @@ func Test_ValidateDeploymentName_Inputs_ReturnExpectedResult(t *testing.T) {
 	}
 }
 
+func Test_JumpHostZone_Region_AppendsSuffixA(t *testing.T) {
+	tests := []struct {
+		region   string
+		wantZone string
+	}{
+		{"us-central1", "us-central1-a"},
+		{"europe-west4", "europe-west4-a"},
+		{"asia-southeast1", "asia-southeast1-a"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.wantZone, JumpHostZone(tt.region))
+	}
+}
+
+func Test_JumpHostSSHSourceRanges_ReturnsZscalerAndIAP(t *testing.T) {
+	ranges := JumpHostSSHSourceRanges()
+	require.Len(t, ranges, 2)
+	assert.Equal(t, "136.226.0.0/16", ranges[0])
+	assert.Equal(t, "35.235.240.0/20", ranges[1])
+}
+
+func Test_JumpHostLabels_ReturnsExpectedKeys(t *testing.T) {
+	labels := JumpHostLabels()
+	assert.Equal(t, JumpHostTag, labels["purpose"])
+	assert.Equal(t, "vcm-prepool", labels["managed-by"])
+}
+
+func Test_JumpHostConstants_HaveExpectedValues(t *testing.T) {
+	assert.Equal(t, "vcm-dev-jumphost", JumpHostName)
+	assert.Equal(t, "ingress-vcm-dev-jumphost-ssh", JumpHostFirewallName)
+	assert.Equal(t, "vcm-dev-jumphost", JumpHostTag)
+	assert.Equal(t, "e2-micro", JumpHostMachineType)
+	assert.Equal(t, "debian-12", JumpHostImageFamily)
+	assert.Equal(t, "debian-cloud", JumpHostImageProject)
+	assert.Equal(t, 10, JumpHostBootDiskGB)
+	assert.Equal(t, "pd-balanced", JumpHostBootDiskType)
+	assert.Equal(t, int64(900), JumpHostFirewallPriority)
+}
+
 func Test_GenerateServiceAccountInfo_SimilarNames_ReturnDistinctIDs(t *testing.T) {
 	firstID, _, err := GenerateServiceAccountInfo("gcnv-12345678901234a", "tenant-project")
 	require.NoError(t, err)

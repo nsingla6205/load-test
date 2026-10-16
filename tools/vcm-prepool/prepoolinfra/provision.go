@@ -30,12 +30,18 @@ const (
 	transientRetryInitialBackoff = 2 * time.Second
 )
 
+// SetupOptions carries optional parameters for Setup.
+type SetupOptions struct {
+	CreateJumpHost bool
+}
+
 // Provisioner runs VCM pre-pool infrastructure operations.
 type Provisioner interface {
-	Setup(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string, dbConfig *SpannerDBConfig) (PrePoolInfra, error)
+	Setup(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string, dbConfig *SpannerDBConfig, opts SetupOptions) (PrePoolInfra, error)
 	Reclaim(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error
 	ReclaimAll(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error
 	DeleteVSACluster(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error
+	DeleteJumpHost(ctx context.Context, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error
 }
 
 // ProvisionerFactory creates a request-scoped provisioner with fresh cloud clients.
@@ -94,6 +100,7 @@ func (p *provisioner) Setup(
 	customerProjectNumber,
 	tenantProjectRegion string,
 	dbConfig *SpannerDBConfig,
+	opts SetupOptions,
 ) (PrePoolInfra, error) {
 	slog.Info("provisioning VCM Pre-Pool",
 		"consumerNetwork", consumerNetwork, "customerProjectNumber", customerProjectNumber, "tenantProjectRegion", tenantProjectRegion)
@@ -159,6 +166,15 @@ func (p *provisioner) Setup(
 	}
 	slog.Info("firewalls created", "createdFirewalls", createdFirewalls)
 
+	// Step 5b: Optionally create a development jump host on the management subnet.
+	if opts.CreateJumpHost {
+		if err := p.createJumpHost(ctx, tenantProjectNumber, tenantProjectRegion); err != nil {
+			slog.Error("failed to create jump host", "error", err)
+			return PrePoolInfra{}, fmt.Errorf("create jump host: %w", err)
+		}
+		slog.Info("jump host created")
+	}
+
 	// Step 6: CreateServiceAccount
 	serviceAccountEmail, err := p.createServiceAccount(ctx, deploymentName, tenantProjectNumber)
 	if err != nil {
@@ -201,8 +217,9 @@ func (p *provisioner) Setup(
 	}, nil
 }
 
-// DeleteVSACluster stops and deletes Compute instances, disks, and IP
-// addresses labeled with the deployment. It does not delete the service
+// DeleteVSACluster stops and deletes Compute instances, disks, forwarding
+// rules, backend services, network endpoint groups, and IP addresses that
+// match the deployment label or name prefix. It does not delete the service
 // account, auto-tier bucket, or ONTAP credentials.
 func (p *provisioner) DeleteVSACluster(
 	ctx context.Context,
@@ -267,12 +284,22 @@ func (p *provisioner) Reclaim(ctx context.Context, deploymentName, consumerNetwo
 	return errors.Join(errs...)
 }
 
-// ReclaimAll runs Reclaim, then deletes tool-created firewalls, subnets, and
-// VPCs (mgmt/IC/RSM in the tenant project, plus named data-plane firewalls in
-// the SN host project). It does not delete the Service Networking data
-// network or subnet. Network cleanup is aborted if the SN host project
-// cannot be resolved, so data-plane rules are never deleted from the tenant
-// project by mistake.
+// DeleteJumpHost removes the development jump host and its SSH firewall rule.
+// The VM is deleted before the firewall. Missing resources are treated as success.
+func (p *provisioner) DeleteJumpHost(ctx context.Context, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error {
+	tenantProjectNumber, err := p.findTenantProject(consumerNetwork, customerProjectNumber, tenantProjectRegion)
+	if err != nil {
+		return fmt.Errorf("find tenant project: %w", err)
+	}
+	return p.deleteJumpHost(ctx, tenantProjectNumber, tenantProjectRegion)
+}
+
+// ReclaimAll runs Reclaim, then deletes the jump host (if any), then deletes
+// tool-created firewalls, subnets, and VPCs (mgmt/IC/RSM in the tenant
+// project, plus named data-plane firewalls in the SN host project). It does
+// not delete the Service Networking data network or subnet. Network cleanup
+// is aborted if the SN host project cannot be resolved, so data-plane rules
+// are never deleted from the tenant project by mistake.
 func (p *provisioner) ReclaimAll(ctx context.Context, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion string) error {
 	var errs []error
 	errs = collectCleanupError(errs, "reclaim", p.Reclaim(ctx, deploymentName, consumerNetwork, customerProjectNumber, tenantProjectRegion))
@@ -281,6 +308,9 @@ func (p *provisioner) ReclaimAll(ctx context.Context, deploymentName, consumerNe
 	if err != nil {
 		return errors.Join(append(errs, fmt.Errorf("find tenant project: %w", err))...)
 	}
+
+	// Delete the jump host and its firewall before the management VPC/subnet.
+	errs = collectCleanupError(errs, "delete jump host", p.deleteJumpHost(ctx, tenantProjectNumber, tenantProjectRegion))
 
 	snHostProject, err := p.GCPService.GetSnHost(tenantProjectNumber)
 	if err != nil {
