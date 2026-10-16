@@ -397,8 +397,9 @@ func (c *k8sClient) createDrainJob(ctx context.Context, collectionURL, name, ima
 				"metadata": map[string]any{
 					"labels": map[string]string{"app": "vlm-worker-versioning-drain"},
 					"annotations": map[string]string{
-						"sidecar.istio.io/inject": "true",
-						"proxy.istio.io/config":   `{ "holdApplicationUntilProxyStarts": true }`,
+						"sidecar.istio.io/inject":                       "true",
+						"proxy.istio.io/config":                         `{ "holdApplicationUntilProxyStarts": true }`,
+						"traffic.sidecar.istio.io/excludeOutboundPorts": "443",
 					},
 				},
 				"spec": map[string]any{
